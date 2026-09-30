@@ -1,0 +1,161 @@
+{
+  "format": "SIAnalyzerProject",
+  "schema": 1,
+  "name": "MIPI · Synthetic Demo",
+  "settings": {
+    "startHz": 100000000.0,
+    "stopHz": 9000000000.0,
+    "reverse": false,
+    "markers": 3,
+    "prominence": 0.15,
+    "targetOhm": 100,
+    "tdrLimit": true,
+    "tolerancePercent": 10,
+    "tdrStart": 0,
+    "tdrStop": 3e-09,
+    "kaiserBeta": 6,
+    "performance": 1,
+    "manualMarkersHz": [
+      1000000000.0,
+      3000000000.0,
+      6000000000.0,
+      9000000000.0
+    ],
+    "quick": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "limits": [
+      {
+        "enabled": true,
+        "constant": -10,
+        "points": []
+      },
+      {
+        "enabled": true,
+        "constant": -3,
+        "points": []
+      },
+      {
+        "enabled": true,
+        "constant": -30,
+        "points": []
+      },
+      {
+        "enabled": true,
+        "constant": -30,
+        "points": []
+      }
+    ]
+  },
+  "revisions": [
+    {
+      "name": "REV_A",
+      "source": "REV_A.s16p",
+      "channels": [
+        {
+          "id": "demo:CLK",
+          "name": "CLK",
+          "alias": "",
+          "group": "MIPI",
+          "nearP": 0,
+          "nearN": 1,
+          "farP": 8,
+          "farN": 9
+        },
+        {
+          "id": "demo:DATA0",
+          "name": "DATA0",
+          "alias": "",
+          "group": "MIPI",
+          "nearP": 2,
+          "nearN": 3,
+          "farP": 10,
+          "farN": 11
+        },
+        {
+          "id": "demo:DATA1",
+          "name": "DATA1",
+          "alias": "",
+          "group": "MIPI",
+          "nearP": 4,
+          "nearN": 5,
+          "farP": 12,
+          "farN": 13
+        },
+        {
+          "id": "demo:DATA2",
+          "name": "DATA2",
+          "alias": "",
+          "group": "MIPI",
+          "nearP": 6,
+          "nearN": 7,
+          "farP": 14,
+          "farN": 15
+        }
+      ],
+      "confirmed": true
+    },
+    {
+      "name": "REV_B",
+      "source": "REV_B.s16p",
+      "channels": [
+        {
+          "id": "demo:CLK",
+          "name": "CLK",
+          "alias": "",
+          "group": "MIPI",
+          "nearP": 0,
+          "nearN": 1,
+          "farP": 8,
+          "farN": 9
+        },
+        {
+          "id": "demo:DATA0",
+          "name": "DATA0",
+          "alias": "",
+          "group": "MIPI",
+          "nearP": 2,
+          "nearN": 3,
+          "farP": 10,
+          "farN": 11
+        },
+        {
+          "id": "demo:DATA1",
+          "name": "DATA1",
+          "alias": "",
+          "group": "MIPI",
+          "nearP": 4,
+          "nearN": 5,
+          "farP": 12,
+          "farN": 13
+        },
+        {
+          "id": "demo:DATA2",
+          "name": "DATA2",
+          "alias": "",
+          "group": "MIPI",
+          "nearP": 6,
+          "nearN": 7,
+          "farP": 14,
+          "farN": 15
+        }
+      ],
+      "confirmed": true
+    }
+  ],
+  "ui": {
+    "revision": 0,
+    "selected": [
+      "demo:CLK",
+      "demo:DATA0",
+      "demo:DATA1",
+      "demo:DATA2"
+    ],
+    "group": "MIPI",
+    "metric": 0
+  }
+}
