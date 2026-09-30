@@ -83,6 +83,10 @@ Project 저장 또는 XLSX / PNG / CSV Export
 
 ## 4. 메인 화면 구성
 
+> **자동 검증 화면** — 아래 이미지는 SParamView v1.1.5 네이티브 Windows ARM64 검증에서 synthetic sample project를 사용해 프로그램이 자동 생성한 화면입니다. OS, DPI 및 창 크기에 따라 실제 배치는 조금 달라질 수 있습니다.
+
+![SParamView v1.1.5 메인 화면](images/01_Main_Window.png)
+
 ### 4.1 상단 바로가기
 
 v1.1.5의 상단에는 다음 버튼이 배치됩니다.
@@ -129,6 +133,10 @@ SParamView는 원본 Touchstone 파일을 수정하지 않고 로컬에서 읽�
 ---
 
 ## 6. Channel Mapping
+
+아래 화면은 자동 매핑을 확정할 수 없는 입력을 검증하는 테스트에서 SParamView가 자동 생성한 Channel Mapping 창입니다. 이런 경우 포트 관계를 확인한 뒤 수동 매핑 또는 Mapping CSV로 확정할 수 있습니다.
+
+![SParamView Channel Mapping 화면](images/02_Channel_Mapping.png)
 
 분석 정확도에서 가장 중요한 단계입니다. 잘못된 매핑은 계산 자체가 정상이어도 잘못된 RL/IL/NEXT/FEXT/TDR 결과를 만들 수 있습니다.
 
@@ -204,6 +212,10 @@ RL/IL의 경우 양 방향 결과가 존재하면 Results의 `Max ΔDir [dB]`, `
 ### 8.1 Return Loss
 
 SParamView는 RL 결과를 Single-ended에서는 **S11**, Differential에서는 **Sdd11** 표기와 함께 사용합니다. 현재 Limit 입력은 `≤` 조건입니다. 예를 들어 Limit이 `-10 dB`라면 `-10 dB 이하`의 값이 기준을 만족합니다.
+
+아래 자동 검증 그래프는 synthetic differential sample의 **Sdd11 Return Loss** 예시입니다. 붉은 점선은 활성 Limit이고, 각 trace의 Worst point와 OK/NG 상태를 함께 확인할 수 있습니다.
+
+![Sdd11 Return Loss 자동 검증 그래프](images/03_RL_Analysis_Graph.png)
 
 ### 8.2 Insertion Loss
 

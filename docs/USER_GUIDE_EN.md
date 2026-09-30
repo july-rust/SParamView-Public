@@ -83,6 +83,10 @@ The status guidance at the bottom of the main window follows the same basic sequ
 
 ## 4. Main Window
 
+> **Automated validation screenshot** — The image below was generated automatically by SParamView v1.1.5 during native Windows ARM64 validation using the synthetic sample project. Layout can vary slightly with OS, DPI, and window size.
+
+![SParamView v1.1.5 main window](images/01_Main_Window.png)
+
 ### 4.1 Header shortcuts
 
 SParamView v1.1.5 provides these header buttons:
@@ -129,6 +133,10 @@ SParamView reads the original Touchstone data locally and does not modify the so
 ---
 
 ## 6. Channel Mapping
+
+The following dialog was generated automatically during a validation case where mapping could not be confirmed from the input alone. In this situation, verify the physical port relationships and confirm them manually or with a Mapping CSV.
+
+![SParamView Channel Mapping dialog](images/02_Channel_Mapping.png)
 
 Channel Mapping is one of the most important steps for analysis accuracy. A mathematically correct calculation can still produce the wrong engineering result if the physical ports are mapped incorrectly.
 
@@ -204,6 +212,10 @@ For RL and IL, when both directional results are available, the Results table ca
 ### 8.1 Return Loss
 
 SParamView uses RL together with **S11** for single-ended data and **Sdd11** for differential data where applicable. The current limit relation is `≤`. For example, with a `-10 dB` limit, values at or below `-10 dB` satisfy the limit.
+
+The automatically generated validation plot below shows an **Sdd11 Return Loss** example using synthetic differential sample data. The red dashed line is the enabled limit, and the plot shows worst points together with OK/NG status.
+
+![Automated Sdd11 Return Loss validation plot](images/03_RL_Analysis_Graph.png)
 
 ### 8.2 Insertion Loss
 
