@@ -1,29 +1,23 @@
 # SParamView
 
-SParamView is a desktop application for viewing and analyzing Touchstone S-parameter data, including channel-oriented RL/IL/NEXT/FEXT analysis and Quick TDR.
+SParamView is a desktop tool for Touchstone-based S-parameter analysis and visualization.
 
-**Current public release target: v1.1.5**
+Current public source baseline: **v1.1.5**
 
-Supported release platforms:
-
+Supported release targets:
 - Windows x64
 - Windows ARM64
 - macOS Apple Silicon (arm64)
 
 Documentation:
-
 - [English](README_EN.md)
 - [한국어](README_KO.md)
-- [v1.1.5 Release Notes](docs/Release_1.1.5.md)
+- [Release notes](docs/Release_1.1.5.md)
 
-## Build
+Core analysis includes RL/IL/NEXT/FEXT and Quick TDR workflows. Quick TDR is a band-limited estimate and should not be treated as an instrument-equivalent measurement.
 
-The project uses C++20, CMake, and Qt 6. The release CI uses Qt 6.8.3 and validates the common core, Windows x64, Windows ARM64, and macOS Apple Silicon builds before release.
+The public repository contains the validated release-oriented source snapshot. Development history remains in a separate private repository.
 
-## License
+License: MIT. See [LICENSE](LICENSE).
 
-SParamView application source is licensed under the MIT License. Third-party components and bundled assets retain their respective licenses; see `third_party/` and `COPYRIGHT.txt`.
-
-## Release policy
-
-This repository is the public stable-release repository. Development and experimental history are maintained separately. Public releases are merged only after the staging branch passes the configured validation gates.
+Contact: sparamview@gmail.com
