@@ -1,59 +1,68 @@
-# SParamView 1.1.4
+# SParamView v1.1.5
 
-Windows x64 / ARM64 Touchstone viewer for channel-based S-parameter and Quick TDR analysis.
+SParamView is a C++20 / Qt 6 desktop application for viewing and analyzing Touchstone S-parameter data.
 
-Extract the complete Windows distribution and run `SParamView.exe`. Open a project
-or import Touchstone files, confirm Channel Mapping, then select QUICK ANALYSIS.
+## Main functions
 
+- Open Touchstone files and `.siproject` project files
+- Channel mapping for single-ended and differential analysis
+- Return Loss (RL / S11 / Sdd11)
+- Insertion Loss (IL / S21 / Sdd21)
+- NEXT and FEXT analysis
+- Quick TDR visualization
+- Result-table review and export workflows
 
-## v1.1.4 decision-integrity update
+Quick TDR is a band-limited estimate and should not be treated as a replacement for an instrument measurement.
 
-Validated RL/IL/NEXT/FEXT, mixed-mode, termination, and Quick-TDR equations are unchanged. Explicit finite requested ranges that are not fully covered now yield N/A when the evaluated portion passes, while any evaluated violation remains NG. Redundant collinear points in an equivalent frequency-limit line no longer change the evaluation grid. Manual markers at non-source frequencies are labelled as complex-interpolated display values and never change pass/fail.
+## v1.1.5
 
-## v1.1.3 revision-state maintenance update
+- Added **Open Project** and **Save Project** buttons to the upper-right header next to **+ Open Touchstone**.
+- Existing project load/save paths are reused; no project schema change is introduced.
+- Existing Touchstone parsing and analysis calculations are not intentionally modified by this UI/platform release.
 
-Completed results are now displayed and reused only for the active revision. The regression suite covers Quick Analysis followed by a revision switch and individual metric selection, preventing stale results from another SNP from appearing in the plot or result table. Mapping changes invalidate the affected revision's completed results.
+See [v1.1.5 Release Notes](docs/Release_1.1.5.md) for the release scope.
 
-## v1.1.0 mapping and workspace update
+## Supported release platforms
 
-Explicit `.DiffChannels` metadata and validated Touchstone mixed-mode mappings can be accepted automatically. P/N-like names without explicit differential metadata are candidates only and require manual confirmation. The mapping dialog exposes physical port labels, manual differential pairing, P/N swap, and Near/Far swap controls. Quick Analysis and the analysis button row use compact RL/IL/NEXT/FEXT/TDR labels to preserve more plot height.
+- Windows x64
+- Windows ARM64
+- macOS Apple Silicon (arm64)
 
-## Workspace
+The release CI validates version consistency before building. Windows ARM64 is cross-built and then exercised on a native ARM64 runner. macOS is built and tested on an Apple Silicon runner.
 
-| Control | Action |
-| --- | --- |
-| Split View (Ctrl+1) | Show plot and results together |
-| Maximize Plot (Ctrl+2) | Expand the plot |
-| Maximize Results (Ctrl+3) | Expand the result table |
-| Advanced | Show advanced settings; located immediately after Maximize Results |
-| Channel List / Analysis Settings | Show or hide their panels |
-| Full Screen (F11) | Toggle full screen; Esc exits |
-| View > Reset Layout | Restore the default workspace |
-
-Drag panel splitters to adjust sizes. Table Font changes the table font from 12
-to 20 pixels. Switching workspace modes preserves the analyzed values, selected
-row, and plot view. All built-in menus, tooltips, and messages use English.
-Technical numeric fields use a decimal point independently of OS locale.
-User-supplied filenames and labels retain their original Unicode text.
-
-## Interpretation
-
-- Return Loss / Insertion Loss show S11/Sdd11 and S21/Sdd21 in dB.
-- NEXT: Aggressor Near to Victim Near. FEXT: Aggressor Near to Victim Far.
-- OK means PASS against enabled limits; NG means FAIL. N/A is not a pass.
-- Quick TDR is a band-limited estimate, sensitive to DC extrapolation, frequency
-  spacing, windowing, and termination. Limited quality and invalid impedance
-  samples are reported; do not treat them as an instrument measurement.
-- Differential P-N 100 ohm and separate P-GND/N-GND 50 ohm loads are distinct.
-
-See `docs/Release_1.1.4.md` for the current verification scope. Windows x64 is
-built and tested natively in CI. Windows ARM64 is cross-built, deployed, and PE-
-audited in GitHub-hosted CI; native ARM64 execution remains a separate target-
-machine validation gate. Interactive native dialogs/DPI and instrument correlation
-remain separate manual checks. `Run_Windows_Verification.cmd` runs the bundled
-checks on the target Windows machine.
+The macOS package is currently ad-hoc signed and is not notarized.
 
 ## Build
 
-Use the included CMake project with a C++20 compiler and Qt 6 Widgets, Concurrent,
-Gui and Core development packages. The application version is 1.1.4.
+Requirements:
+
+- C++20 compiler
+- CMake
+- Qt 6 development packages: Core, Gui, Widgets, Concurrent
+
+The release workflow currently uses Qt 6.8.3.
+
+Typical CMake flow:
+
+```text
+cmake -S . -B build
+cmake --build build --config Release
+ctest --test-dir build --output-on-failure
+```
+
+Platform-specific packaging and validation are implemented under `.github/workflows/` and `scripts/`.
+
+## Interpretation notes
+
+- RL/IL labels are shown together with their S-parameter notation where applicable.
+- NEXT is the near-end victim response for a near-end aggressor; FEXT is the far-end victim response for a near-end aggressor.
+- OK means the enabled limit checks passed; NG means a violation was detected; N/A is not a pass.
+- Differential P-N 100-ohm termination and separate P-GND/N-GND 50-ohm termination are distinct configurations.
+
+## Example data
+
+The files under `examples/` are synthetic demonstration fixtures generated for regression and UI workflows; they are not measurement data from a product.
+
+## License
+
+SParamView application source is licensed under the MIT License. Third-party components, runtime notices, and fonts retain their respective licenses. See `LICENSE`, `COPYRIGHT.txt`, and `third_party/`.
