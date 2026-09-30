@@ -1,5 +1,9 @@
 # SParamView v1.1.5
 
+## Important notice
+
+SParamView calculates and visualizes the provided Touchstone data as a reference tool. Depending on the input data, frequency range, port/channel mapping, interpolation or approximation, and other analysis conditions, displayed graphs and calculated results may differ from the actual system or measurement results. Do not treat the output as 100% accurate or authoritative. Important engineering decisions should be independently verified against the original data and trusted measurement or analysis results.
+
 ## UI
 
 - Added **Open Project** and **Save Project** buttons to the upper-right header, immediately after **+ Open Touchstone**.
