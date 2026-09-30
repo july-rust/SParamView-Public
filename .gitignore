@@ -1,0 +1,45 @@
+# SParamView generated build/output directories
+/build/
+/build-*/
+/build_*/
+/cmake-build-*/
+/out/
+/dist/
+
+# CMake generated files
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+CTestTestfile.cmake
+Testing/
+_deps/
+
+# Visual Studio / MSVC generated files
+.vs/
+*.suo
+*.user
+*.VC.db
+*.VC.VC.opendb
+*.obj
+*.pdb
+*.ilk
+*.exp
+*.tlog
+*.lastbuildstate
+
+# SParamView generated validation/deployment outputs
+/deliverables-arm64/
+/validation-windows-*/
+/cache-diagnostics/
+/previous-candidate/
+/previous-bundle/
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+*~
+
+# Keep source-controlled documentation, screenshots, JSON, logs,
+# Touchstone fixtures, and spreadsheet evidence explicit rather than
+# ignoring those extensions globally.
