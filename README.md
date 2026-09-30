@@ -13,8 +13,10 @@ Supported release targets:
 - macOS Apple Silicon (arm64)
 
 Documentation:
-- [English](README_EN.md)
-- [한국어](README_KO.md)
+- [English README](README_EN.md)
+- [한국어 README](README_KO.md)
+- [English User Guide](docs/USER_GUIDE_EN.md)
+- [한국어 사용설명서](docs/USER_GUIDE_KO.md)
 - [Release notes](docs/Release_1.1.5.md)
 
 Core analysis includes RL/IL/NEXT/FEXT and Quick TDR workflows. Quick TDR is a band-limited estimate and should not be treated as an instrument-equivalent measurement.

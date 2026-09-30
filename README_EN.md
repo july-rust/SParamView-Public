@@ -20,6 +20,11 @@ SParamView is a desktop application for Touchstone-based S-parameter analysis an
 
 Quick TDR is a band-limited estimate affected by frequency span, spacing, extrapolation, windowing, and termination. It should not be interpreted as an instrument-equivalent measurement.
 
+## User guide
+
+- [English User Guide](docs/USER_GUIDE_EN.md)
+- [한국어 사용자 설명서](docs/USER_GUIDE_KO.md)
+
 ## v1.1.5
 - Added **Open Project** and **Save Project** buttons next to **+ Open Touchstone**.
 - Reused the existing project load/save paths; the Touchstone parser and validated analysis equations are not intentionally changed by this release.

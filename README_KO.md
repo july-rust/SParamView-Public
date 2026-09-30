@@ -17,6 +17,11 @@ SParamView는 Touchstone S-parameter 데이터를 열고 채널 기준으로 분
 
 Quick TDR은 제한된 주파수 대역을 이용한 추정값이며 계측기 TDR 측정을 대체하는 값으로 해석하면 안 됩니다.
 
+## 사용설명서
+
+- [한국어 사용자 설명서](docs/USER_GUIDE_KO.md)
+- [English User Guide](docs/USER_GUIDE_EN.md)
+
 ## v1.1.5 변경사항
 
 - 우측 상단 헤더에 **Open Project**, **Save Project** 버튼을 **+ Open Touchstone** 옆에 추가했습니다.
