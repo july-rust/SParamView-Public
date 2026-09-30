@@ -1,0 +1,9 @@
+SParamView Copyright Notice
+
+Copyright (c) 2026 july <sparamview@gmail.com>
+
+SParamView source code and distributed program packages carry this copyright
+notice. The project remains licensed under the MIT License in LICENSE.
+
+Third-party libraries, Qt components, runtime libraries, fonts, and other
+bundled dependencies retain their own copyright and license notices.

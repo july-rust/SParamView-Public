@@ -1,0 +1,5 @@
+﻿Channel,NearP,NearN,FarP,FarN,Group,Alias,ID
+CLK,1,2,9,10,MIPI,,demo:CLK
+DATA0,3,4,11,12,MIPI,,demo:DATA0
+DATA1,5,6,13,14,MIPI,,demo:DATA1
+DATA2,7,8,15,16,MIPI,,demo:DATA2

@@ -1,0 +1,5 @@
+<RCC>
+  <qresource prefix="/">
+    <file alias="SParamView.ico">SParamView.ico</file>
+  </qresource>
+</RCC>
