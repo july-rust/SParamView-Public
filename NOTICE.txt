@@ -1,0 +1,22 @@
+SI Analyzer third-party notices
+
+SI Analyzer application source: MIT, see ../LICENSE.
+
+Qt 6.8.3 (QtCore, QtGui, QtWidgets, QtConcurrent, platforms):
+Copyright The Qt Company Ltd. and other contributors.
+Distributed as replaceable shared libraries under LGPL-3.0 with applicable
+third-party notices. License texts are in Qt-LICENSES. The unmodified
+corresponding Qt Base source is included in the accompanying source package:
+third_party/qtbase-everywhere-src-6.8.3.tar.xz
+Official source: https://download.qt.io/archive/qt/6.8/6.8.3/submodules/qtbase-everywhere-src-6.8.3.tar.xz
+This application's license does not prohibit modification, relinking, or
+reverse engineering for debugging modifications of LGPL components.
+
+MinGW-w64/GCC runtime libraries:
+libstdc++-6.dll, libgcc_s_seh-1.dll, libwinpthread-1.dll, libssp-0.dll.
+See included gcc-mingw-w64* and mingw-w64-common copyright notices,
+including the GCC Runtime Library Exception.
+
+NanumGothic font:
+Copyright (c) 2010 NAVER Corporation. SIL Open Font License 1.1.
+See NanumGothic-OFL.txt.
