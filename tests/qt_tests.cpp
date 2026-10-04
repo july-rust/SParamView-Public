@@ -207,8 +207,9 @@ int main(int argc, char **argv) {
     trace.quality="LIMITED";trace.parameter="Sdd11";
     navigation.snapshot.curves={trace};
     auto full=graphXRange(navigation.snapshot);
-    expect(std::abs((0-full.first)/(full.second-full.first)-.2)<1e-12,
-           "TDR time zero is exactly one fifth into the plot area");
+    expect(std::abs(full.first + .1e-9) < 1e-20 &&
+               std::abs(full.second - 1.5e-9) < 1e-20,
+           "TDR default view keeps pre-zero margin and limits the initial tail");
     navigation.zoomBy(.5);
     auto zoomed=graphXRange(navigation.snapshot);
     expect(std::abs((zoomed.second-zoomed.first)/(full.second-full.first)-.5)<1e-12,
@@ -218,8 +219,12 @@ int main(int argc, char **argv) {
     navigation.setView(0,1e-9,90,110);
     expect(graphYRange(navigation.snapshot)==std::pair(90.,110.),"Manual Y axis overrides auto range");
     navigation.fitView();
-    expect(graphXRange(navigation.snapshot)==full && std::isnan(navigation.snapshot.viewBottom),
-           "Fit restores the TDR margin and automatic Y axis");
+    expect(graphXRange(navigation.snapshot)==std::pair(0.0,3e-9) &&
+               std::isnan(navigation.snapshot.viewBottom),
+           "Fit All restores the full computed TDR range and automatic Y axis");
+    navigation.resetView();
+    expect(graphXRange(navigation.snapshot)==full,
+           "Reset restores the -0.1 ns to 1.5 ns initial TDR review window");
     PlotSnapshot terminationScale;
     terminationScale.metric = si::Metric::TDR;
     terminationScale.settings.tdrReflection = false;
@@ -238,10 +243,51 @@ int main(int argc, char **argv) {
     auto terminationRange = graphYRange(terminationScale);
     expect(terminationRange.second < 100 && terminationRange.first > 0,
            "TDR termination autoscale ignores endpoint singularity for observation");
+    terminationScale.fitAll = true;
+    auto terminationFullRange = graphYRange(terminationScale);
+    expect(terminationFullRange.second > 1000,
+           "Explicit Fit All restores termination singularity visibility");
+    terminationScale.fitAll = false;
     terminationScale.curves.front().termination = si::Termination::Reference;
     auto referenceRange = graphYRange(terminationScale);
     expect(referenceRange.second > 1000,
            "Reference TDR autoscale still honors full visible extrema");
+    PlotSnapshot reviewScale;
+    reviewScale.metric = si::Metric::TDR;
+    si::Result reviewCurve;
+    reviewCurve.metric = si::Metric::TDR;
+    reviewCurve.termination = si::Termination::Reference;
+    reviewCurve.targetOhm = 50;
+    reviewCurve.start = 0;
+    reviewCurve.stop = 20e-9;
+    for (int i = 0; i <= 200; ++i) {
+      const double x = i * .1e-9;
+      reviewCurve.plotX.push_back(x);
+      reviewCurve.plotY.push_back(i >= 25 && i <= 35 ? 62.0 : 50.0);
+    }
+    reviewScale.curves = {reviewCurve};
+    auto reviewRange = graphXRange(reviewScale);
+    expect(std::abs(reviewRange.first + .1e-9) < 1e-20 &&
+               std::abs(reviewRange.second - 1.5e-9) < 1e-20,
+           "TDR Review Fit uses the stable -0.1 ns to 1.5 ns initial window");
+    reviewScale.curves.front().start = 1e-9;
+    reviewScale.curves.front().stop = 3e-9;
+    auto shiftedReviewRange = graphXRange(reviewScale);
+    expect(std::abs(shiftedReviewRange.first - .9e-9) < 1e-20 &&
+               std::abs(shiftedReviewRange.second - 2.5e-9) < 1e-20,
+           "Nonzero TDR start keeps 0.1 ns pre-roll instead of forcing zero-based review");
+    reviewScale.curves.front().start = 0;
+    reviewScale.curves.front().stop = 20e-9;
+    reviewScale.fitAll = true;
+    auto fitAllRange = graphXRange(reviewScale);
+    expect(std::abs(fitAllRange.first) < 1e-20 &&
+               std::abs(fitAllRange.second - 20e-9) < 1e-20,
+           "TDR Fit All restores the full computed time range");
+    reviewScale.fitAll = false;
+    reviewScale.viewStart = 2e-9;
+    reviewScale.viewStop = 4e-9;
+    expect(graphXRange(reviewScale) == std::pair(2e-9, 4e-9),
+           "Manual TDR viewport overrides Review Fit without being reset");
     // TDR display interpolation is paint-only: it should create enough
     // screen vertices to remove the visibly angular line without overshooting
     // the original impedance envelope.

@@ -1,11 +1,16 @@
 cmake_minimum_required(VERSION 3.24)
-project(SParamView VERSION 1.1.5 LANGUAGES CXX)
+project(SParamView VERSION 1.2.1 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 option(SI_BUILD_GUI "Build Qt 6 desktop application" ON)
 option(SI_SANITIZE "Enable address/undefined behavior sanitizers" OFF)
 option(SI_FUZZ "Build the libFuzzer Touchstone parser harness" OFF)
-add_library(si_core src/core.cpp)
+set(SPARAMVIEW_CORE_PARTITIONS
+    src/core_common.cpp src/touchstone.cpp src/cache.cpp src/mapping.cpp
+    src/termination.cpp src/trace.cpp src/tdr.cpp src/analysis.cpp
+    src/jobs.cpp src/export.cpp)
+set_source_files_properties(${SPARAMVIEW_CORE_PARTITIONS} PROPERTIES HEADER_FILE_ONLY TRUE)
+add_library(si_core src/core.cpp ${SPARAMVIEW_CORE_PARTITIONS})
 target_include_directories(si_core PUBLIC include)
 if(MSVC)
   target_compile_options(si_core PUBLIC /utf-8 /W4)
@@ -31,6 +36,14 @@ endforeach()
 add_executable(si_tests tests/core_tests.cpp)
 target_link_libraries(si_tests PRIVATE si_core)
 add_test(NAME core COMMAND si_tests)
+add_executable(si_v116_regression_tests tests/v116_regression_tests.cpp)
+target_link_libraries(si_v116_regression_tests PRIVATE si_core)
+add_test(NAME v116_core_hardening COMMAND si_v116_regression_tests)
+install(TARGETS si_v116_regression_tests RUNTIME DESTINATION .)
+add_executable(si_v121_regression_tests tests/v121_regression_tests.cpp)
+target_link_libraries(si_v121_regression_tests PRIVATE si_core)
+add_test(NAME v121_ranking_tdr_range COMMAND si_v121_regression_tests)
+install(TARGETS si_v121_regression_tests RUNTIME DESTINATION .)
 add_executable(si_algorithm_regression_tests tests/algorithm_regression_tests.cpp)
 target_link_libraries(si_algorithm_regression_tests PRIVATE si_core)
 add_test(NAME algorithm_boundary_regressions COMMAND si_algorithm_regression_tests)
@@ -69,9 +82,14 @@ if(SI_BUILD_GUI)
   target_link_libraries(si_qt_tests PRIVATE si_core si_qt_workers Qt6::Widgets)
   add_test(NAME qt_workers_and_labels COMMAND si_qt_tests)
   set_tests_properties(qt_workers_and_labels PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 45)
+  set(SPARAMVIEW_WINDOW_PARTITIONS
+      src/window_ui.cpp src/window_workspace.cpp src/window_mapping.cpp
+      src/window_analysis.cpp src/window_results.cpp src/window_plot_controller.cpp
+      src/window_project.cpp src/window_export.cpp src/window_validation.cpp)
+  set_source_files_properties(${SPARAMVIEW_WINDOW_PARTITIONS} PROPERTIES HEADER_FILE_ONLY TRUE)
   set(SPARAMVIEW_SOURCES
-      src/main.cpp src/window.cpp src/plot.cpp src/report.cpp src/theme.cpp
-      src/navigation.cpp assets/SParamView.qrc)
+      src/main.cpp src/window.cpp ${SPARAMVIEW_WINDOW_PARTITIONS}
+      src/plot.cpp src/report.cpp src/theme.cpp src/navigation.cpp assets/SParamView.qrc)
   if(WIN32)
     list(APPEND SPARAMVIEW_SOURCES assets/SParamView.rc)
   endif()

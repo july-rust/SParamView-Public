@@ -2,8 +2,8 @@
 
 IDI_ICON1 ICON DISCARDABLE "SParamView.ico"
 1 VERSIONINFO
-FILEVERSION 1,1,5,0
-PRODUCTVERSION 1,1,5,0
+FILEVERSION 1,2,1,0
+PRODUCTVERSION 1,2,1,0
 FILEOS 0x40004
 FILETYPE 1
 BEGIN
@@ -13,12 +13,12 @@ BEGIN
   BEGIN
    VALUE "CompanyName", "july\0"
    VALUE "FileDescription", "SParamView\0"
-   VALUE "FileVersion", "1.1.5\0"
+   VALUE "FileVersion", "1.2.1\0"
    VALUE "InternalName", "SParamView\0"
    VALUE "LegalCopyright", "Copyright © 2026 july\0"
    VALUE "OriginalFilename", "SParamView.exe\0"
    VALUE "ProductName", "SParamView\0"
-   VALUE "ProductVersion", "1.1.5\0"
+   VALUE "ProductVersion", "1.2.1\0"
   END
  END
  BLOCK "VarFileInfo"

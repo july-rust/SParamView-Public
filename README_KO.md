@@ -1,4 +1,4 @@
-# SParamView v1.1.5
+# SParamView v1.2.1
 
 SParamView는 Touchstone S-parameter 데이터를 열고 채널 기준으로 분석하는 C++20 / Qt 6 데스크톱 프로그램입니다.
 
@@ -22,13 +22,14 @@ Quick TDR은 제한된 주파수 대역을 이용한 추정값이며 계측기 T
 - [한국어 사용자 설명서](docs/USER_GUIDE_KO.md)
 - [English User Guide](docs/USER_GUIDE_EN.md)
 
-## v1.1.5 변경사항
+## v1.2.1 변경사항
 
-- 우측 상단 헤더에 **Open Project**, **Save Project** 버튼을 **+ Open Touchstone** 옆에 추가했습니다.
-- 기존 프로젝트 Load/Save 경로를 그대로 재사용하며 프로젝트 파일 형식은 변경하지 않았습니다.
-- 이번 릴리스는 UI와 플랫폼 지원 확대가 중심이며 기존 Touchstone 파싱 및 분석 계산식은 의도적으로 변경하지 않았습니다.
+- Margin이 있는 결과와 없는 결과가 섞인 경우에도 정렬 기준을 일관되게 적용합니다.
+- Quick TDR 적합성을 선택한 시간 범위 안에서 판정하도록 수정했습니다.
+- v1.1.6/v1.1.7의 입력 검증 및 TDR 초기 표시 개선과 v1.2.0의 기능별 소스 분할을 포함합니다.
+- 결과 정렬 및 TDR 선택 범위 판정을 확인하는 회귀시험을 추가했습니다.
 
-세부 범위는 [v1.1.5 Release Notes](docs/Release_1.1.5.md)를 확인하세요.
+세부 범위는 [v1.2.1 Release Notes](docs/Release_1.2.1.md)를 확인하세요. 이전 변경사항: [v1.1.6](docs/Release_1.1.6.md), [v1.1.7](docs/Release_1.1.7.md), [v1.2.0](docs/Release_1.2.0.md).
 
 ## 지원 릴리스 플랫폼
 

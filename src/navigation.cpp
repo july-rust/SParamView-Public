@@ -15,11 +15,11 @@ PlotWidget::View PlotWidget::currentView() const {
   if (graphLayerValid()) return cachedView;
   auto [l,r] = graphXRange(snapshot);
   auto [b,t] = graphYRange(snapshot);
-  return {l,r,b,t};
+  return {l,r,b,t,snapshot.fitAll};
 }
 void PlotWidget::rememberView() {
   history.push_back({snapshot.viewStart, snapshot.viewStop,
-                     snapshot.viewBottom, snapshot.viewTop});
+                     snapshot.viewBottom, snapshot.viewTop, snapshot.fitAll});
   if (history.size() > 40) history.erase(history.begin());
 }
 void PlotWidget::invalidateGraph() { graphLayer = {}; update(); }
@@ -33,19 +33,23 @@ void PlotWidget::notifyRange() { update(); settleTimer.start(); }
 void PlotWidget::resetView() {
   settleTimer.stop();
   snapshot.viewStart = snapshot.viewStop = snapshot.viewBottom = snapshot.viewTop = si::NaN;
+  snapshot.fitAll = false;
   history.clear(); dragging = false; selection = {};
   invalidateGraph();
 }
 void PlotWidget::fitView() {
   rememberView();
   snapshot.viewStart = snapshot.viewStop = snapshot.viewBottom = snapshot.viewTop = si::NaN;
+  snapshot.fitAll = true;
+  invalidateGraph();
   notifyRange();
 }
 void PlotWidget::previousView() {
   if (history.empty()) return;
   auto v = history.back(); history.pop_back();
   snapshot.viewStart=v.left; snapshot.viewStop=v.right;
-  snapshot.viewBottom=v.bottom; snapshot.viewTop=v.top;
+  snapshot.viewBottom=v.bottom; snapshot.viewTop=v.top; snapshot.fitAll=v.fitAll;
+  invalidateGraph();
   notifyRange();
 }
 void PlotWidget::setView(double l, double r, double b, double t, bool remember) {
@@ -54,21 +58,27 @@ void PlotWidget::setView(double l, double r, double b, double t, bool remember) 
   if (snapshot.metric != si::Metric::TDR && l < 0) { r -= l; l=0; }
   if (remember) rememberView();
   snapshot.viewStart=l; snapshot.viewStop=r;
-  snapshot.viewBottom=b; snapshot.viewTop=t;
+  snapshot.viewBottom=b; snapshot.viewTop=t; snapshot.fitAll=false;
   notifyRange();
 }
 void PlotWidget::setBoxZoom(bool enabled) { boxZoom=enabled; setCursor(enabled ? Qt::CrossCursor : Qt::OpenHandCursor); }
 void PlotWidget::zoomAt(double factor, QPointF pixel, bool x, bool y) {
   if (snapshot.curves.empty()) return;
-  if (snapshot.heatmap && snapshot.metric!=si::Metric::TDR) { x=true; y=false; }
+  const bool categoricalHeatmap =
+      snapshot.heatmap && snapshot.metric != si::Metric::TDR;
+  if (categoricalHeatmap) { x=true; y=false; }
   auto box=graphArea(rect(),snapshot); auto v=currentView();
   double fx=std::clamp((pixel.x()-box.left())/box.width(),0.,1.);
   double fy=std::clamp((box.bottom()-pixel.y())/box.height(),0.,1.);
   double cx=v.left+fx*(v.right-v.left), cy=v.bottom+fy*(v.top-v.bottom);
   double l=x ? cx+(v.left-cx)*factor : v.left;
   double r=x ? cx+(v.right-cx)*factor : v.right;
-  double b=y ? cy+(v.bottom-cy)*factor : snapshot.viewBottom;
-  double t=y ? cy+(v.top-cy)*factor : snapshot.viewTop;
+  // Numeric plots preserve the currently visible orthogonal axis when only
+  // one axis is zoomed. A categorical heatmap keeps its automatic Y rows.
+  double b=y ? cy+(v.bottom-cy)*factor
+             : (categoricalHeatmap ? snapshot.viewBottom : v.bottom);
+  double t=y ? cy+(v.top-cy)*factor
+             : (categoricalHeatmap ? snapshot.viewTop : v.top);
   if (r-l < std::max(1e-18,std::abs(cx)*1e-12)) return;
   setView(l,r,b,t);
 }

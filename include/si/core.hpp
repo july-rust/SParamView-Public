@@ -15,7 +15,7 @@
 namespace si {
 using Complex = std::complex<double>;
 namespace fs = std::filesystem;
-inline constexpr const char *version = "1.1.5";
+inline constexpr const char *version = "1.2.1";
 inline constexpr double NaN = std::numeric_limits<double>::quiet_NaN();
 struct Error : std::runtime_error {
   using std::runtime_error::runtime_error;
@@ -173,7 +173,7 @@ struct Job {
   std::shared_ptr<Cache> cache;
   Channel victim;
   std::optional<Channel> aggressor;
-  Metric metric;
+  Metric metric = Metric::RL;
   std::string revision;
   Termination termination = Termination::Reference;
   // nullopt keeps legacy callers tied to Settings::reverse. GUI dual-direction

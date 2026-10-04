@@ -35,7 +35,7 @@ struct PlotSnapshot {
   si::Settings settings;
   QString project = "Untitled";
   si::Metric metric = si::Metric::RL;
-  bool heatmap = false, margin = false, bothDirections = false;
+  bool heatmap = false, margin = false, bothDirections = false, fitAll = false;
   std::set<std::string> highlightChannelIds;
   double viewStart = si::NaN, viewStop = si::NaN;
   double viewBottom = si::NaN, viewTop = si::NaN;
@@ -84,7 +84,7 @@ protected:
   void contextMenuEvent(QContextMenuEvent *) override;
 
 private:
-  struct View { double left, right, bottom, top; };
+  struct View { double left, right, bottom, top; bool fitAll = false; };
   QPixmap graphLayer;
   View cachedAxes{}, cachedView{};
   QSize cachedSize;

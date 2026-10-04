@@ -23,11 +23,30 @@ std::pair<double, double> graphXRange(const PlotSnapshot &s) {
     lo = 0;
     hi = 1;
   }
-  if (s.metric == si::Metric::TDR && hi > lo)
-    lo -= (hi - lo) / 4;
-  if (std::isfinite(s.viewStart)) {
+  if (std::isfinite(s.viewStart) && std::isfinite(s.viewStop) &&
+      s.viewStop > s.viewStart) {
     lo = s.viewStart;
     hi = s.viewStop;
+  } else if (s.metric == si::Metric::TDR && !s.fitAll && hi > lo) {
+    // Keep the initial engineering view stable rather than feature-seeking.
+    // A small pre-zero margin separates time zero from the left plot border,
+    // while the 1.5 ns right edge keeps the long low-value tail out of the
+    // initial view. Fit All still restores the complete computed range.
+    constexpr double reviewStart = -0.1e-9;
+    constexpr double reviewStop = 1.5e-9;
+    const double fullLo = lo, fullHi = hi;
+    constexpr double zeroStartTolerance = 1e-15;
+    if (fullHi >= 0.0 && std::abs(fullLo) <= zeroStartTolerance) {
+      lo = reviewStart;
+      hi = reviewStop;
+    } else {
+      // Unusual non-zero-based data keeps the same 1.6 ns review span and
+      // receives the same 0.1 ns pre-roll before its first available sample.
+      constexpr double preRoll = 0.1e-9;
+      const double reviewSpan = reviewStop - reviewStart;
+      lo = fullLo - preRoll;
+      hi = lo + reviewSpan;
+    }
   }
   if (hi <= lo)
     hi = lo + std::max(1., std::abs(lo) * .01);
@@ -48,7 +67,7 @@ std::pair<double, double> graphYRange(const PlotSnapshot &s) {
   double ymin = std::numeric_limits<double>::infinity(), ymax = -ymin;
   std::vector<double> tdrFocus;
   const bool terminationAwareTdr =
-      s.metric == si::Metric::TDR && !s.settings.tdrReflection &&
+      s.metric == si::Metric::TDR && !s.fitAll && !s.settings.tdrReflection &&
       std::any_of(s.curves.begin(), s.curves.end(), [](const auto &c) {
         return c.termination != si::Termination::Reference;
       });
