@@ -1,9 +1,9 @@
 # SParamView 사용자 설명서
 
-**적용 기준:** SParamView v1.1.5 공개 릴리스  
+**적용 기준:** SParamView v1.2.1 공개 릴리스  
 **지원 플랫폼:** Windows x64 / Windows ARM64 / macOS Apple Silicon (arm64)
 
-[English User Guide](USER_GUIDE_EN.md) | [한국어 README](../README_KO.md) | [v1.1.5 Release Notes](Release_1.1.5.md)
+[English User Guide](USER_GUIDE_EN.md) | [한국어 README](../README_KO.md) | [v1.2.1 Release Notes](Release_1.2.1.md)
 
 ---
 
@@ -27,6 +27,17 @@ SParamView는 Touchstone S-parameter 데이터를 열어 채널 단위로 분석
 
 특히 **Quick TDR은 제한된 주파수 대역으로부터 계산한 추정값**이며 실제 TDR 계측기를 대체하지 않습니다.
 
+### 1.1 v1.2.1에서 알아둘 변경사항
+
+| 항목 | 사용 시 달라진 점 |
+|---|---|
+| 입력 검증 | 잘못된 숫자·범위와 모호한 입력 조건을 안전하게 거부합니다. 오류가 나면 입력과 설정을 확인하십시오. |
+| TDR 초기 화면 | 일반적인 0 ns 기반 결과는 약 −0.1~1.5 ns를 먼저 보여줍니다. 전체 계산 구간은 **Fit All**로 확인합니다. |
+| TDR 선택 범위 | Uniform FFT 경로에서 선택 시간 범위 밖의 임피던스 특이점이 정상 선택 구간까지 `UNSUITABLE`로 만들던 문제를 수정했습니다. |
+| Worst Margin 정렬 | 같은 분석 항목 안에서 Margin이 있는 결과를 먼저 표시하고, Margin이 없는 결과는 별도 그룹으로 정렬합니다. |
+
+v1.2.0의 기능별 소스 분할은 내부 코드 구조 변경입니다. 사용자가 파일을 나누거나 별도로 설정할 필요는 없습니다. 세부 변경 이력은 [v1.1.6](Release_1.1.6.md), [v1.1.7](Release_1.1.7.md), [v1.2.0](Release_1.2.0.md), [v1.2.1](Release_1.2.1.md)을 참고하십시오.
+
 ---
 
 ## 2. 설치 및 처음 실행
@@ -37,9 +48,9 @@ GitHub Releases에서 사용 중인 시스템에 맞는 패키지를 선택합�
 
 | 시스템 | 권장 패키지 |
 |---|---|
-| Windows x64 | `SParamView_Windows_x64_v1.1.5.zip` |
-| Windows ARM64 | `SParamView_Windows_ARM64_v1.1.5.zip` |
-| macOS Apple Silicon | `SParamView_macOS_AppleSilicon_arm64_v1.1.5.dmg` 또는 `.zip` |
+| Windows x64 | `SParamView_Windows_x64_v1.2.1.zip` |
+| Windows ARM64 | `SParamView_Windows_ARM64_v1.2.1.zip` |
+| macOS Apple Silicon | `SParamView_macOS_AppleSilicon_arm64_v1.2.1.dmg` 또는 `.zip` |
 
 릴리스에는 SHA-256 확인용 파일도 함께 제공됩니다. 다운로드 무결성을 확인하려면 Windows PowerShell에서 `Get-FileHash <파일명> -Algorithm SHA256`, macOS Terminal에서 `shasum -a 256 <파일명>`을 실행한 뒤 릴리스의 `.sha256` 값과 비교할 수 있습니다.
 
@@ -59,23 +70,13 @@ ZIP 파일을 압축 해제한 뒤 SParamView 실행 파일을 실행합니다. 
 
 처음 사용할 때는 아래 순서만 따르면 됩니다.
 
-```text
-Touchstone 열기
-      ↓
-Channel Mapping 확인/확정
-      ↓
-Revision 및 Channel 선택
-      ↓
-필요한 분석 항목 선택
-      ↓
-QUICK ANALYSIS
-      ↓
-Plot / Results 확인
-      ↓
-필요하면 Limit 설정 후 다시 분석
-      ↓
-Project 저장 또는 XLSX / PNG / CSV Export
-```
+1. **+ Open Touchstone**으로 파일을 엽니다.
+2. **Channel Mapping**에서 Near/Far 및 P/N을 확인하고 확정합니다.
+3. Revision과 Channel을 선택합니다.
+4. 필요한 분석 항목을 선택한 뒤 **QUICK ANALYSIS**를 누릅니다.
+5. Plot과 Results를 확인합니다.
+6. 필요하면 Limit 또는 분석 범위를 변경한 뒤 다시 분석합니다.
+7. **Save Project**로 저장하거나 XLSX / PNG / CSV로 내보냅니다.
 
 화면 하단 안내도 기본 흐름을 `Open file → Confirm mapping → Select channels → QUICK ANALYSIS` 순서로 안내합니다.
 
@@ -84,12 +85,13 @@ Project 저장 또는 XLSX / PNG / CSV Export
 ## 4. 메인 화면 구성
 
 > **자동 검증 화면** — 아래 이미지는 SParamView v1.1.5 네이티브 Windows ARM64 검증에서 synthetic sample project를 사용해 프로그램이 자동 생성한 화면입니다. OS, DPI 및 창 크기에 따라 실제 배치는 조금 달라질 수 있습니다.
+> v1.2.1 화면을 새로 촬영한 이미지가 아니며 화면 구성 참고용입니다. v1.2.1의 TDR 표시 및 판정 동작은 아래 10절을 확인하십시오. [이미지 출처](images/README.md).
 
 ![SParamView v1.1.5 메인 화면](images/01_Main_Window.png)
 
 ### 4.1 상단 바로가기
 
-v1.1.5의 상단에는 다음 버튼이 배치됩니다.
+v1.2.1의 상단에는 다음 버튼이 배치됩니다.
 
 - **+ Open Touchstone**: Touchstone 파일 열기
 - **Open Project**: `.siproject` 프로젝트 열기
@@ -251,7 +253,7 @@ Pass/Fail 판정은 사용자가 해당 Limit 체크박스를 활성화했을 �
 - **NG**: 활성화된 Limit 위반 검출
 - **N/A**: 해당 조건에서 판정을 만들 수 없음
 
-> **N/A는 PASS가 아닙니다.** Limit이 비활성화되었거나, 정의된 주파수 Limit 범위 밖이거나, 판정 조건이 충족되지 않는 경우 N/A가 될 수 있습니다.
+> **N/A는 PASS가 아닙니다.** Limit이 비활성화되었거나, 정의된 주파수 Limit 범위 밖이거나, 판정 조건이 충족되지 않는 경우 N/A가 될 수 있습니다. 요청한 주파수/시간 범위를 입력 또는 계산 결과가 충분히 포함하지 못할 때에도, 검사한 부분에 위반이 없다는 이유만으로 전체를 OK로 판단하지 않습니다. 검사한 부분에서 위반을 찾으면 NG를 유지하며, 위반이 없지만 요청 범위가 불완전하면 N/A로 표시합니다. Results의 설명/툴팁을 함께 확인하십시오.
 
 ### 9.1 주파수별 Limit
 
@@ -306,6 +308,33 @@ Forward 분석에서는 Far 쪽, Reverse 분석에서는 Near 쪽에 선택한 t
 
 **Show Reflection Coefficient ρ**를 활성화하면 Open/Short 비교에 유용한 반사계수를 볼 수 있습니다. 이 경우 impedance tolerance Limit은 ρ에 적용되지 않습니다.
 
+### 10.5 초기 표시 범위와 실제 분석 범위
+
+일반적인 0 ns 기반 TDR 결과의 초기 X축은 약 **−0.1 ns~1.5 ns**입니다. 0 ns 왼쪽의 여유는 그래프를 보기 위한 공간이며 음의 시간 데이터를 새로 계산한다는 의미가 아닙니다. 계산 시작점이 0 ns가 아닌 경우에는 첫 계산 샘플보다 약 0.1 ns 앞에서 시작해 약 1.6 ns 폭을 먼저 표시합니다.
+
+**초기 화면, Zoom/Pan, Axis Limits는 표시 범위**를 바꿉니다. 실제 TDR 계산·판정 범위를 바꾸려면 **Advanced > TDR time [ns]**의 Start/Stop을 수정한 뒤 분석을 다시 실행해야 합니다. Stop의 **Auto**는 사용 가능한 계산 범위에 따라 종료 시간을 정합니다. 입력 주파수 간격 등에 따라 실제 계산 가능한 시간 범위는 제한됩니다.
+
+- **Fit All** 또는 Plot에 포커스를 둔 상태에서 **Home**: 현재 계산 결과의 전체 시간 범위를 표시합니다.
+- **Previous View** 또는 **Backspace**: 이전 표시 범위로 돌아갑니다.
+- TDR 분석 버튼을 다시 누르거나 Single-ended / Differential TDR 보기를 전환하면 초기 표시 범위로 돌아갑니다.
+- 같은 데이터 화면에서 Zoom/Pan한 범위는 그래프를 다시 그리거나 상세 데이터를 갱신할 때 유지됩니다.
+
+종단 조건으로 생기는 큰 임피던스 값이 초기 Y축을 과도하게 넓히지 않도록 표시 범위를 조정할 수 있습니다. **자동 축 범위가 어떤 값을 화면 밖에 두더라도 그 값이 계산 결과나 판정에서 삭제된 것은 아닙니다.** 전체 계산 결과를 검토하려면 Fit All과 Results를 함께 확인하십시오.
+
+### 10.6 Quality와 선택 범위 판정
+
+`Quality`는 Quick TDR 계산 조건에 대한 정보이고 `Result`의 OK / NG / N/A와 구분됩니다. **GOOD이 곧 OK 또는 계측 정확도 보장을 의미하지 않습니다.**
+
+| Quality | 해석 |
+|---|---|
+| GOOD | 계산 경로에서 제한 또는 부적합 조건으로 분류되지 않은 결과입니다. 입력 데이터와 매핑 검토는 여전히 필요합니다. |
+| LIMITED | 근사·종단 조건 등으로 해석에 제한이 있는 결과입니다. Results의 설명/툴팁을 확인하십시오. |
+| UNSUITABLE | 현재 입력·변환 조건에서 임피던스 평가에 부적합한 결과입니다. 파형을 계산할 수 없거나 무효 샘플이 있을 수 있습니다. |
+
+v1.2.1의 Uniform FFT 경로는 **Advanced에서 선택한 시간 구간 안의 임피던스 샘플**을 기준으로 특이점 여부를 확인합니다. 구간 밖에 특이점이 있다는 이유만으로 정상 선택 구간을 부적합하게 만들지 않습니다. 구간 안에 특이점이 있으면 Reference 종단은 `UNSUITABLE`, 다른 종단 뷰는 기존과 같이 `LIMITED`로 처리될 수 있습니다. 이 수정은 다른 입력·변환·범위 오류까지 무시하는 기능이 아닙니다.
+
+예를 들어 0~1 ns는 약 50 Ω이고 5~6 ns에 특이점이 있는 합성 시험 데이터에서, **TDR time을 0~1 ns로 설정하고 재분석**하면 뒤쪽 특이점 때문에 선택 구간이 부적합해지는 문제를 피할 수 있습니다. 그래프만 0~1 ns로 확대하는 것은 분석 범위를 바꾸지 않습니다. 이 예시는 회귀시험용 합성 데이터이며 모든 실제 입력에서 GOOD 또는 OK를 보장하지 않습니다.
+
 ---
 
 ## 11. Plot 사용법
@@ -346,6 +375,18 @@ Plot은 다음 조작을 지원합니다.
 - **Termination / Unit**: TDR termination 및 Ω/ρ, 또는 dB
 
 상단 Summary는 전체 결과의 OK / NG / N/A 개수를 보여줍니다. 정렬은 **Worst Margin / Worst Value / Channel / Result** 기준으로 바꿀 수 있습니다.
+
+### 12.1 Worst Margin 정렬 읽기
+
+같은 분석 항목 안에서 **Margin이 있는 결과를 먼저, Margin 값이 작은 순서로** 표시합니다. Margin이 없는 결과는 뒤쪽의 별도 그룹에 두고 Worst Value의 심각도 기준으로 정렬합니다. 유효 Margin이 같을 때도 Worst Value 기준을 적용합니다. Margin과 심각도까지 같으면 기존 순서를 유지하므로 채널 이름순까지 보장하는 정렬은 아닙니다.
+
+| 같은 분석 항목의 결과 예 | Margin | Worst Margin 정렬 |
+|---|---|---|
+| 채널 C | −1 dB | 1번째 |
+| 채널 A | 0 dB | 2번째 |
+| 채널 B | 없음 | 3번째 |
+
+Margin 없음은 여유가 충분하다는 뜻이 아닙니다. Limit 비활성화나 판정 불가 조건을 확인하십시오. **Worst Value**는 RL/NEXT/FEXT에서 값이 큰 쪽, IL에서 값이 더 작은 쪽, TDR에서 Target Ω로부터 편차가 큰 쪽을 우선합니다.
 
 ---
 
@@ -452,6 +493,9 @@ Limit Preset 저장/불러오기와 주파수별 Limit 편집을 제공합니다
 | NEXT/FEXT 결과가 없음 | Victim 외에 같은 Group의 유효한 Aggressor와 Near/Far 매핑이 있는지 확인 |
 | Result가 N/A | Limit 활성화 여부, 주파수 Limit 범위, 판정 가능 조건 확인 |
 | 설정을 바꿨는데 결과가 그대로임 | 설정 변경 후 분석을 다시 실행 |
+| TDR 초기 화면에서 뒤쪽 구간이 안 보임 | **Fit All**로 전체 계산 구간 표시; 실제 분석 범위를 바꾸려면 **TDR time [ns]** 수정 후 재분석 |
+| 정상처럼 보이는 TDR 구간이 N/A | Quality, Limit, 실제 선택 시간 범위와 계산 가능 범위 확인; 그래프 확대만으로 분석 범위는 바뀌지 않음 |
+| Margin 없는 행이 표 아래에 표시됨 | v1.2.1 Worst Margin의 정상 정렬 규칙; Margin 없음과 OK는 별개 |
 | TDR가 예상과 크게 다름 | 주파수 span/spacing, mapping, target Z₀, termination, source 품질 확인 |
 | Project가 원본 파일을 찾지 못함 | Touchstone 위치를 다시 지정; 파일이 변경되었다면 mapping 재확인 |
 | CSV Export가 안 됨 | Results에서 정확히 한 행 선택 |
@@ -482,6 +526,19 @@ SParamView 소스는 MIT License로 배포됩니다. Third-party component와 fo
 
 ---
 
+## 22. 문서 검증 근거
+
+이 설명서의 변경 내용은 [v1.2.1 릴리스 노트](Release_1.2.1.md)와 다음 릴리스 소스를 대조했습니다.
+
+- [TDR 초기 축 범위 및 자동 스케일](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/src/plot.cpp)
+- [그래프 조작 및 초기 화면 복귀](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/src/navigation.cpp)
+- [TDR 선택 구간 적합성](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/src/tdr.cpp)
+- [결과 정렬](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/src/jobs.cpp)
+- [범위 포함 여부 및 OK/NG/N/A 판정](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/src/analysis.cpp)
+- [정렬 및 TDR 범위 회귀시험](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/tests/v121_regression_tests.cpp)
+
+---
+
 ### 문서 버전
 
-이 문서는 **SParamView v1.1.5 공개 릴리스**의 UI와 소스를 기준으로 작성되었습니다. 이후 버전에서는 메뉴, 기능 또는 분석 설정이 달라질 수 있습니다.
+이 문서는 **SParamView v1.2.1 공개 릴리스**의 UI와 소스를 기준으로 개정되었습니다(2026-10-04). 기존 v1.1.5 화면 이미지는 출처를 유지한 참고 이미지입니다. 이후 버전에서는 메뉴, 기능 또는 분석 설정이 달라질 수 있습니다.

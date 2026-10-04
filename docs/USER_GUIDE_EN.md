@@ -1,9 +1,9 @@
 # SParamView User Guide
 
-**Applies to:** SParamView v1.1.5 public release  
+**Applies to:** SParamView v1.2.1 public release  
 **Supported platforms:** Windows x64 / Windows ARM64 / macOS Apple Silicon (arm64)
 
-[한국어 사용자 설명서](USER_GUIDE_KO.md) | [English README](../README_EN.md) | [v1.1.5 Release Notes](Release_1.1.5.md)
+[한국어 사용자 설명서](USER_GUIDE_KO.md) | [English README](../README_EN.md) | [v1.2.1 Release Notes](Release_1.2.1.md)
 
 ---
 
@@ -27,6 +27,17 @@ SParamView is a desktop tool for opening, analyzing, and visualizing Touchstone 
 
 In particular, **Quick TDR is an estimate derived from a finite frequency band** and is not a substitute for an instrument TDR measurement.
 
+### 1.1 Changes relevant to v1.2.1 users
+
+| Area | User-visible behavior |
+|---|---|
+| Input validation | Invalid numbers, ranges, and ambiguous input conditions are rejected safely. Review the input and settings when an error appears. |
+| Initial TDR view | Typical zero-based results initially show approximately −0.1 to 1.5 ns. Use **Fit All** to inspect the full computed interval. |
+| Selected TDR interval | The uniform FFT path no longer marks an otherwise valid selected interval `UNSUITABLE` solely because an impedance singularity exists outside it. |
+| Worst Margin ranking | Within each analysis metric, results with defined margins appear first; missing-margin results form a separate group. |
+
+The v1.2.0 source partitioning is an internal code-structure change and requires no extra user configuration. For the intervening changes, see [v1.1.6](Release_1.1.6.md), [v1.1.7](Release_1.1.7.md), [v1.2.0](Release_1.2.0.md), and [v1.2.1](Release_1.2.1.md).
+
 ---
 
 ## 2. Installation and First Launch
@@ -37,9 +48,9 @@ Download the package that matches your system from GitHub Releases.
 
 | System | Recommended package |
 |---|---|
-| Windows x64 | `SParamView_Windows_x64_v1.1.5.zip` |
-| Windows ARM64 | `SParamView_Windows_ARM64_v1.1.5.zip` |
-| macOS Apple Silicon | `SParamView_macOS_AppleSilicon_arm64_v1.1.5.dmg` or `.zip` |
+| Windows x64 | `SParamView_Windows_x64_v1.2.1.zip` |
+| Windows ARM64 | `SParamView_Windows_ARM64_v1.2.1.zip` |
+| macOS Apple Silicon | `SParamView_macOS_AppleSilicon_arm64_v1.2.1.dmg` or `.zip` |
 
 SHA-256 files are also provided with the release. To verify download integrity, run `Get-FileHash <filename> -Algorithm SHA256` in Windows PowerShell or `shasum -a 256 <filename>` in macOS Terminal, then compare the result with the corresponding `.sha256` file.
 
@@ -59,23 +70,13 @@ The current public macOS package is **ad-hoc signed** and is not Apple-notarized
 
 For a first analysis, follow this sequence:
 
-```text
-Open Touchstone
-      ↓
-Review / confirm Channel Mapping
-      ↓
-Select Revision and Channels
-      ↓
-Choose analysis types
-      ↓
-QUICK ANALYSIS
-      ↓
-Review Plot / Results
-      ↓
-Configure Limits and rerun if needed
-      ↓
-Save Project or Export XLSX / PNG / CSV
-```
+1. Open files with **+ Open Touchstone**.
+2. Review Near/Far and P/N assignments and confirm **Channel Mapping**.
+3. Select the Revision and Channels.
+4. Choose the required metrics and press **QUICK ANALYSIS**.
+5. Review Plot and Results.
+6. Adjust Limits or analysis ranges if needed, then rerun analysis.
+7. Use **Save Project** or export XLSX / PNG / CSV.
 
 The status guidance at the bottom of the main window follows the same basic sequence: `Open file → Confirm mapping → Select channels → QUICK ANALYSIS`.
 
@@ -84,12 +85,13 @@ The status guidance at the bottom of the main window follows the same basic sequ
 ## 4. Main Window
 
 > **Automated validation screenshot** — The image below was generated automatically by SParamView v1.1.5 during native Windows ARM64 validation using the synthetic sample project. Layout can vary slightly with OS, DPI, and window size.
+> These are not newly captured v1.2.1 screenshots. Use them as layout examples; see section 10 for the v1.2.1 TDR display and evaluation behavior. [Image provenance](images/README.md).
 
 ![SParamView v1.1.5 main window](images/01_Main_Window.png)
 
 ### 4.1 Header shortcuts
 
-SParamView v1.1.5 provides these header buttons:
+SParamView v1.2.1 provides these header buttons:
 
 - **+ Open Touchstone**: open one or more Touchstone files
 - **Open Project**: open an SParamView `.siproject`
@@ -251,7 +253,7 @@ Result states are:
 - **NG**: a limit violation is detected
 - **N/A**: no valid pass/fail determination is available for that condition
 
-> **N/A is not PASS.** It can appear when a limit is disabled, when a point lies outside a defined frequency-limit range, or when the required evaluation conditions are not available.
+> **N/A is not PASS.** It can appear when a limit is disabled, when a point lies outside a defined frequency-limit range, or when the required evaluation conditions are not available. If the input or computed result does not cover a requested frequency/time interval, a passing evaluated portion does not establish OK for the whole request. An observed violation keeps the verdict NG; incomplete requested coverage without an observed violation produces N/A. Read the Results notes/tooltips.
 
 ### 9.1 Frequency-dependent limits
 
@@ -306,6 +308,33 @@ In Forward analysis the selected termination is applied at the Far end; in Rever
 
 Enable **Show Reflection Coefficient ρ** when reflection-coefficient display is more useful, especially for open/short comparisons. Impedance-tolerance limits do not apply to ρ.
 
+### 10.5 Initial viewport versus analysis interval
+
+Typical zero-based TDR results initially use an X-axis of approximately **−0.1 to 1.5 ns**. The margin before zero is display space; it does not create negative-time samples. For results that start materially away from zero, the initial view starts approximately 0.1 ns before the first computed sample and spans approximately 1.6 ns.
+
+**The initial viewport, Zoom/Pan, and Axis Limits change the display.** To change the interval used for TDR calculation and evaluation, edit Start/Stop under **Advanced > TDR time [ns]** and rerun analysis. Stop set to **Auto** uses the available computed interval. The attainable time range remains limited by the input frequency spacing and other transform conditions.
+
+- **Fit All**, or **Home** with the Plot focused: display the full interval of the current computed result.
+- **Previous View** or **Backspace**: restore the previous viewport.
+- Pressing the TDR metric button again or switching between Single-ended / Differential TDR restores the initial view.
+- A manual Zoom/Pan viewport is preserved during repaint and detail refresh of the same data view.
+
+Automatic Y scaling can prevent large termination-related impedance values from dominating the initial view. **Values outside the automatic viewport are not deleted from the calculation or evaluation.** Review Fit All and Results together when inspecting the complete computed result.
+
+### 10.6 Quality and selected-interval suitability
+
+`Quality` describes Quick TDR calculation conditions and is separate from the `Result` verdict OK / NG / N/A. **GOOD does not mean OK or guarantee measurement accuracy.**
+
+| Quality | Interpretation |
+|---|---|
+| GOOD | The calculation path did not classify the result as limited or unsuitable. Input data and mapping still require review. |
+| LIMITED | Approximation, termination, or other conditions limit interpretation. Read the Results notes/tooltips. |
+| UNSUITABLE | The current input/transform conditions are unsuitable for impedance evaluation. A waveform may be unavailable or contain invalid samples. |
+
+In v1.2.1, the uniform FFT path checks impedance singularities **inside the time interval selected in Advanced**. A singularity outside that interval alone does not make a valid selected interval unsuitable. A singularity inside the interval can still produce `UNSUITABLE` for Reference termination and the existing `LIMITED` classification for other termination views. Other input, transform, and range checks remain applicable.
+
+For example, a synthetic regression fixture has approximately 50 Ω from 0 to 1 ns and a singularity from 5 to 6 ns. **Setting TDR time to 0–1 ns and rerunning analysis** avoids inheriting that later singularity's unsuitable classification. Merely zooming the plot to 0–1 ns does not change the analysis interval. This is a synthetic test example, not a guarantee of GOOD or OK for every real input.
+
 ---
 
 ## 11. Plot Controls
@@ -344,6 +373,18 @@ Important columns include:
 - **Termination / Unit**: TDR termination and Ω/ρ, or dB
 
 The summary area shows overall OK / NG / N/A counts. Rows can be ranked by **Worst Margin / Worst Value / Channel / Result**.
+
+### 12.1 Interpreting Worst Margin ranking
+
+Within each analysis metric, **defined margins sort first, from smallest to largest**. Missing-margin results form a separate group after them and use Worst Value severity ordering. Equal defined margins also use Worst Value severity. If both margin and severity are equivalent, the previous order is retained; this is not a guarantee of alphabetical channel order.
+
+| Example within one metric | Margin | Worst Margin position |
+|---|---|---|
+| Channel C | −1 dB | 1st |
+| Channel A | 0 dB | 2nd |
+| Channel B | Missing | 3rd |
+
+A missing margin does not mean ample margin. Check for a disabled limit or unavailable evaluation conditions. **Worst Value** prioritizes larger RL/NEXT/FEXT values, smaller IL values, and larger absolute deviations from Target Ω for TDR.
 
 ---
 
@@ -450,6 +491,9 @@ Save/load limit presets and edit frequency-dependent limits.
 | No NEXT/FEXT result | Check for a valid same-group aggressor and valid Near/Far mapping |
 | Result is N/A | Check whether the limit is enabled, whether the point is inside the frequency-limit range, and whether evaluation conditions exist |
 | Settings changed but results did not | Rerun analysis after changing settings |
+| Later TDR times are absent from the initial view | Use **Fit All**; to change the analysis interval, edit **TDR time [ns]** and rerun |
+| Apparently normal TDR interval is N/A | Check Quality, Limit, selected interval, and attainable range; zooming alone does not change analysis coverage |
+| Missing-margin rows appear later | Expected v1.2.1 Worst Margin ordering; missing margin is separate from an OK verdict |
 | TDR differs greatly from expectation | Review frequency span/spacing, mapping, target Z₀, termination, and source-data quality |
 | Project cannot find its source file | Relocate the Touchstone file; reconfirm mapping if the file changed |
 | CSV export fails | Select exactly one Results row |
@@ -480,6 +524,19 @@ Contact: **sparamview@gmail.com**
 
 ---
 
+## 22. Documentation verification sources
+
+The revised instructions were checked against the [v1.2.1 release notes](Release_1.2.1.md) and the following release sources:
+
+- [Initial TDR axes and automatic scaling](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/src/plot.cpp)
+- [Plot interaction and viewport restoration](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/src/navigation.cpp)
+- [Selected-interval TDR suitability](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/src/tdr.cpp)
+- [Result ranking](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/src/jobs.cpp)
+- [Requested coverage and OK/NG/N/A evaluation](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/src/analysis.cpp)
+- [Ranking and TDR interval regression tests](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/tests/v121_regression_tests.cpp)
+
+---
+
 ### Document Version
 
-This guide was written against the UI and source of the **SParamView v1.1.5 public release**. Menus, functions, or analysis settings may change in later versions.
+This guide was revised against the UI and source of the **SParamView v1.2.1 public release** on 2026-10-04. Existing v1.1.5 screenshots retain their original provenance as reference images. Menus, functions, or analysis settings may change in later versions.
