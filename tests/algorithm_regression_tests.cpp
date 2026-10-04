@@ -133,6 +133,58 @@ int main() {
     expect(missingFmax.note.find("frequency stop") != std::string::npos,
            "TDR missing-frequency coverage is disclosed");
 
+    // v1.2.1 P2 regression: Margin sorting must use one transitive policy even
+    // when a result has no margin. These values formed A < B < C < A with the
+    // old pair-dependent comparator.
+    Result rankA, rankB, rankC;
+    for (auto *value : {&rankA, &rankB, &rankC})
+      value->metric = Metric::RL;
+    rankA.channel = "A"; rankA.margin = 0.0; rankA.worst = 3.0;
+    rankB.channel = "B"; rankB.margin = NaN; rankB.worst = 2.0;
+    rankC.channel = "C"; rankC.margin = -1.0; rankC.worst = 1.0;
+    const std::vector<std::vector<Result>> permutations = {
+        {rankA, rankB, rankC}, {rankA, rankC, rankB}, {rankB, rankA, rankC},
+        {rankB, rankC, rankA}, {rankC, rankA, rankB}, {rankC, rankB, rankA}};
+    for (auto ranked : permutations) {
+      rankResults(ranked, "Margin");
+      expect(ranked[0].channel == "C" && ranked[1].channel == "A" &&
+                 ranked[2].channel == "B",
+             "v1.2.1 mixed-margin ordering stays deterministic");
+    }
+
+    // v1.2.1 P2 regression: a deliberate >1 reflection plateau at 5..6 ns
+    // must not contaminate a selected 0..1 ns range. 10 GHz bandwidth gives
+    // 50 ps spacing, hence 21 selected samples including both endpoints.
+    Trace delayed;
+    delayed.parameter = "S11";
+    delayed.referenceOhm = 50;
+    constexpr size_t bins = 1024;
+    constexpr double fmax = 10e9;
+    constexpr double pi = 3.14159265358979323846;
+    constexpr double amplitude = 1.2;
+    constexpr double firstDelay = 5e-9;
+    constexpr double secondDelay = 6e-9;
+    for (size_t i = 0; i <= bins; ++i) {
+      const double frequency = fmax * double(i) / double(bins);
+      delayed.x.push_back(frequency);
+      delayed.s.push_back(
+          std::polar(amplitude, -2 * pi * frequency * firstDelay) -
+          std::polar(amplitude, -2 * pi * frequency * secondDelay));
+    }
+    Settings fullRange;
+    fullRange.tdrStopSeconds = 8e-9;
+    expect(transformTdr(delayed, fullRange).quality == "UNSUITABLE",
+           "v1.2.1 TDR fixture still fails safe when singularity is selected");
+    Settings selectedRange;
+    selectedRange.tdrStopSeconds = 1.001e-9;
+    const auto selected = transformTdr(delayed, selectedRange);
+    expect(selected.quality == "GOOD" && selected.time.size() == 21 &&
+               selected.impedance.size() == 21,
+           "v1.2.1 out-of-range TDR singularity does not poison selected range");
+    for (double ohms : selected.impedance)
+      expect(std::isfinite(ohms) && std::abs(ohms - 50.0) < 0.5,
+             "v1.2.1 selected TDR samples remain finite and near 50 ohms");
+
     std::cout << "PASS: " << checks << " algorithm boundary checks\n";
     return 0;
   } catch (const std::exception &e) {
