@@ -84,10 +84,10 @@ The status guidance at the bottom of the main window follows the same basic sequ
 
 ## 4. Main Window
 
-> **Automated validation screenshot** — The image below was generated automatically by SParamView v1.1.5 during native Windows ARM64 validation using the synthetic sample project. Layout can vary slightly with OS, DPI, and window size.
-> These are not newly captured v1.2.1 screenshots. Use them as layout examples; see section 10 for the v1.2.1 TDR display and evaluation behavior. [Image provenance](images/README.md).
+> **Automated validation screenshot** — The image below was generated automatically by SParamView v1.2.1 during native Windows ARM64 validation using the synthetic sample project. Layout can vary slightly with OS, DPI, and window size.
+> These screenshots were generated during public v1.2.1 release validation. See section 10 for TDR display and evaluation behavior. [Image provenance](images/README.md).
 
-![SParamView v1.1.5 main window](images/01_Main_Window.png)
+![SParamView v1.2.1 main window](images/01_Main_Window.png)
 
 ### 4.1 Header shortcuts
 
@@ -539,4 +539,4 @@ The revised instructions were checked against the [v1.2.1 release notes](Release
 
 ### Document Version
 
-This guide was revised against the UI and source of the **SParamView v1.2.1 public release** on 2026-10-04. Existing v1.1.5 screenshots retain their original provenance as reference images. Menus, functions, or analysis settings may change in later versions.
+This guide was revised against the UI and source of the **SParamView v1.2.1 public release** on 2026-10-04. Screenshots have been refreshed from the public v1.2.1 automated validation results. Menus, functions, or analysis settings may change in later versions.

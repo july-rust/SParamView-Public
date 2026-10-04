@@ -1,0 +1,56 @@
+name: Refresh v1.2.1 release documentation
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/refresh-v121-documentation.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: refresh-v121-documentation
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    name: Verify unchanged binaries and refresh release packages
+    if: github.repository == 'july-rust/SParamView-Public'
+    runs-on: macos-14
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Download the published v1.2.1 release packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release download v1.2.1 --repo "$GITHUB_REPOSITORY" --dir originals \
+            --pattern 'SParamView_Windows_*_v1.2.1.zip*' \
+            --pattern 'SParamView_macOS_AppleSilicon_arm64_v1.2.1.*' \
+            --pattern 'SParamView_v1.2.1_Release_Status_FINAL.json'
+
+      - name: Update documentation and verify both package formats
+        run: python3 docs/release_tools/refresh_v121_docs.py --originals originals --output refreshed
+
+      - name: Preserve verification evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: SParamView-v1.2.1-documentation-refresh-verification
+          path: refreshed/SParamView_v1.2.1_Documentation_Refresh.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish verified documentation updates
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release upload v1.2.1 --repo "$GITHUB_REPOSITORY" --clobber refreshed/*
