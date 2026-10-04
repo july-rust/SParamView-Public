@@ -84,10 +84,10 @@ ZIP 파일을 압축 해제한 뒤 SParamView 실행 파일을 실행합니다. 
 
 ## 4. 메인 화면 구성
 
-> **자동 검증 화면** — 아래 이미지는 SParamView v1.1.5 네이티브 Windows ARM64 검증에서 synthetic sample project를 사용해 프로그램이 자동 생성한 화면입니다. OS, DPI 및 창 크기에 따라 실제 배치는 조금 달라질 수 있습니다.
-> v1.2.1 화면을 새로 촬영한 이미지가 아니며 화면 구성 참고용입니다. v1.2.1의 TDR 표시 및 판정 동작은 아래 10절을 확인하십시오. [이미지 출처](images/README.md).
+> **자동 검증 화면** — 아래 이미지는 SParamView v1.2.1 네이티브 Windows ARM64 검증에서 synthetic sample project를 사용해 프로그램이 자동 생성한 화면입니다. OS, DPI 및 창 크기에 따라 실제 배치는 조금 달라질 수 있습니다.
+> v1.2.1 공개 릴리스 검증에서 생성한 화면입니다. TDR 표시 및 판정 동작은 아래 10절을 확인하십시오. [이미지 출처](images/README.md).
 
-![SParamView v1.1.5 메인 화면](images/01_Main_Window.png)
+![SParamView v1.2.1 메인 화면](images/01_Main_Window.png)
 
 ### 4.1 상단 바로가기
 
@@ -541,4 +541,4 @@ SParamView 소스는 MIT License로 배포됩니다. Third-party component와 fo
 
 ### 문서 버전
 
-이 문서는 **SParamView v1.2.1 공개 릴리스**의 UI와 소스를 기준으로 개정되었습니다(2026-10-04). 기존 v1.1.5 화면 이미지는 출처를 유지한 참고 이미지입니다. 이후 버전에서는 메뉴, 기능 또는 분석 설정이 달라질 수 있습니다.
+이 문서는 **SParamView v1.2.1 공개 릴리스**의 UI와 소스를 기준으로 개정되었습니다(2026-10-04). 화면 이미지는 v1.2.1 공개 릴리스의 자동 검증 결과로 갱신했습니다. 이후 버전에서는 메뉴, 기능 또는 분석 설정이 달라질 수 있습니다.
