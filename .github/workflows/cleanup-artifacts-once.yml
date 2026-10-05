@@ -1,0 +1,31 @@
+name: Cleanup approved Actions artifacts once
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/cleanup-artifacts-once.yml'
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete approved redundant artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ids=(
+            11289322127 11289112341 11289062868
+            11289047768 11288917336 11288658483
+          )
+          for id in "${ids[@]}"; do
+            echo "Deleting artifact $id"
+            gh api --method DELETE "repos/${GITHUB_REPOSITORY}/actions/artifacts/${id}"
+          done
+          echo "Deleted ${#ids[@]} approved artifacts."
