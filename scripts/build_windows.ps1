@@ -113,6 +113,17 @@ if (-not $SkipDeploy -and $Architecture -eq 'ARM64' -and $osArch -ne 'Arm64') {
 } elseif (-not $SkipDeploy) {
   $deployQt = Join-Path $QtRoot 'bin\windeployqt.exe'
   if (Test-Path $deployQt) {
+    # windeployqt needs the actual Visual Studio VC directory to collect
+    # deployable MSVC runtime components. Do not silence its warning.
+    $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
+    if (-not (Test-Path $vswhere)) { throw 'vswhere.exe missing: cannot audit MSVC runtime deployment' }
+    $vsRoot = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+    if ($LASTEXITCODE -ne 0 -or -not $vsRoot) { throw 'Visual Studio C++ tools not found for windeployqt' }
+    $vcDirectory = Join-Path ($vsRoot | Select-Object -First 1) 'VC'
+    if (-not (Test-Path (Join-Path $vcDirectory 'Redist/MSVC'))) {
+      throw 'Installed Visual Studio is missing MSVC redistributables'
+    }
+    $env:VCINSTALLDIR = $vcDirectory + [IO.Path]::DirectorySeparatorChar
     try {
       Invoke-Checked $deployQt @('--release','--no-translations','--no-system-dxc-compiler','--compiler-runtime',(Join-Path $deployRoot 'SParamView.exe'))
       $offscreen = Join-Path $QtRoot 'plugins\platforms\qoffscreen.dll'
