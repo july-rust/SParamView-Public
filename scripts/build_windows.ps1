@@ -149,7 +149,7 @@ if (-not $SkipDeploy -and $Architecture -eq 'ARM64' -and $osArch -ne 'Arm64') {
       # Validate the CRT source architecture before copying anything. The
       # later full-bundle PE audit verifies the exact deployed files too.
       Invoke-Checked $python.Source @((Join-Path $PSScriptRoot 'verify_pe_machine.py'),$runtimeDir,$Architecture,(Join-Path $validationRoot 'source_crt_architecture.json'))
-      Copy-Item -LiteralPath (Join-Path $runtimeDir '*.dll') -Destination $deployRoot -Force
+      Get-ChildItem -LiteralPath $runtimeDir -Filter '*.dll' -File | Copy-Item -Destination $deployRoot -Force
       $offscreen = Join-Path $QtRoot 'plugins\platforms\qoffscreen.dll'
       if (Test-Path $offscreen) {
         New-Item -ItemType Directory -Path (Join-Path $deployRoot 'platforms') -Force | Out-Null
