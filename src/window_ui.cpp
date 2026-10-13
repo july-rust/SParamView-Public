@@ -256,13 +256,12 @@ MainWindow::MainWindow() {
   setAcceptDrops(true);
   auto file = menuBar()->addMenu("File");
   file->addAction(
-      "Open Touchstone...", this,
+      "Open Touchstone...", QKeySequence::Open, this,
       [this] {
         openPaths(QFileDialog::getOpenFileNames(
             this, "Select Touchstone Files", {},
             "Touchstone (*.s*p *.ts);;All files (*)"));
-      },
-      QKeySequence::Open);
+      });
   file->addAction("Open Project...", this, [this] {
     auto p = QFileDialog::getOpenFileName(this, "Project", {},
                                           "SI Project (*.siproject)");
@@ -270,7 +269,7 @@ MainWindow::MainWindow() {
       loadProject(p);
   });
   file->addAction(
-      "Save Project", this, [this] { saveProject(); }, QKeySequence::Save);
+      "Save Project", QKeySequence::Save, this, [this] { saveProject(); });
   file->addAction("Save Project As...", this, [this] { saveProject(true); });
   file->addSeparator();
   file->addAction("Export Excel Workbook...", this, [this] { exportXlsx(); });

@@ -80,12 +80,13 @@ $cmakeText = Get-Content (Join-Path $projectRoot 'CMakeLists.txt') -Raw
 $coreText = Get-Content (Join-Path $projectRoot 'include\si\core.hpp') -Raw
 $rcText = Get-Content (Join-Path $projectRoot 'assets\SParamView.rc') -Raw
 $cmakeVersion = [regex]::Match($cmakeText, 'project\(SParamView VERSION ([0-9.]+)').Groups[1].Value
-$coreVersion = [regex]::Match($coreText, 'version\s*=\s*"([0-9.]+)"').Groups[1].Value
-$rcVersion = [regex]::Match($rcText, 'VALUE "ProductVersion", "([0-9.]+)').Groups[1].Value
-if (-not $cmakeVersion -or $cmakeVersion -ne $coreVersion -or $cmakeVersion -ne $rcVersion) {
+$coreVersion = [regex]::Match($coreText, 'version\s*=\s*"([0-9]+\.[0-9]+\.[0-9]+[a-z]?)"').Groups[1].Value
+$rcVersion = [regex]::Match($rcText, 'VALUE "ProductVersion", "([0-9]+\.[0-9]+\.[0-9]+[a-z]?)').Groups[1].Value
+if (-not $cmakeVersion -or $cmakeVersion -ne '1.2.4' -or
+    $coreVersion -ne ($cmakeVersion + 'a') -or $coreVersion -ne $rcVersion) {
   throw "Application version mismatch: CMake=$cmakeVersion core=$coreVersion resource=$rcVersion"
 }
-$checks['application_version'] = $cmakeVersion
+$checks['application_version'] = $coreVersion
 
 $drive = Get-PSDrive -Name ([System.IO.Path]::GetPathRoot($projectRoot).Substring(0,1)) -ErrorAction SilentlyContinue
 if ($drive) {

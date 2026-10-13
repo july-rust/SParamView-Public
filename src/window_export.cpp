@@ -73,8 +73,8 @@ void MainWindow::saveCsv() {
   if (!ptr)
     return;
   auto job = *ptr;
-  auto settings = lastSettings;
-  settings.reverse = job.reverse.value_or(settings.reverse);
+  auto exportSettings = lastSettings;
+  exportSettings.reverse = job.reverse.value_or(exportSettings.reverse);
   QString path = withExtension(
       QFileDialog::getSaveFileName(
           this, "Raw CSV",
@@ -82,10 +82,10 @@ void MainWindow::saveCsv() {
       ".csv");
   if (path.isEmpty())
     return;
-  task([job, settings, path](si::Control *c) {
-    auto t = si::loadTrace(*job.cache, job.victim, job.metric, settings,
+  task([job, exportSettings, path](si::Control *c) {
+    auto t = si::loadTrace(*job.cache, job.victim, job.metric, exportSettings,
                            job.aggressor ? &*job.aggressor : nullptr, c, job.termination);
-    si::exportRawCsv(fp(path), t, job.metric, settings, c);
+    si::exportRawCsv(fp(path), t, job.metric, exportSettings, c);
   });
 }
 void MainWindow::compareRevisions() {

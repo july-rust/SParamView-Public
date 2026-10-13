@@ -1,4 +1,4 @@
-# SParamView 1.2.4
+# SParamView 1.2.4a
 
 SParamView is a desktop application for Touchstone-based S-parameter analysis and visualization.
 
@@ -25,7 +25,7 @@ Quick TDR is a band-limited estimate affected by frequency span, spacing, extrap
 - [English User Guide](docs/USER_GUIDE_EN.md)
 - [한국어 사용자 설명서](docs/USER_GUIDE_KO.md)
 
-## v1.2.4
+## v1.2.4a
 - Reuse results only when the exact selected analysis jobs match.
 - Preserve Single-ended review choices through mapping and project restoration.
 - Verify complete source SHA-256 on project restore and rebuild candidates after changes.
@@ -34,7 +34,7 @@ Quick TDR is a band-limited estimate affected by frequency span, spacing, extrap
 - Export analysis-time signal/mapping/source evidence and publish immutable, verified packages.
 - Includes the compact v1.2.2 controls and v1.2.3 signal detection changes.
 
-See [Release_1.2.4.md](docs/Release_1.2.4.md) for details. Earlier changes: [v1.1.6](docs/Release_1.1.6.md), [v1.1.7](docs/Release_1.1.7.md), [v1.2.0](docs/Release_1.2.0.md).
+See [Release_1.2.4a.md](docs/Release_1.2.4a.md) for details. Earlier changes: [v1.1.6](docs/Release_1.1.6.md), [v1.1.7](docs/Release_1.1.7.md), [v1.2.0](docs/Release_1.2.0.md).
 
 ## Build
 SParamView uses C++20, CMake, and Qt 6.8.3 (Core, Gui, Widgets, Concurrent).

@@ -10,10 +10,18 @@
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $cmakeProject = Get-Content (Join-Path $projectRoot 'CMakeLists.txt') -Raw
+$coreHeader = Get-Content (Join-Path $projectRoot 'include/si/core.hpp') -Raw
 if ($cmakeProject -notmatch 'project\(SParamView VERSION ([0-9]+\.[0-9]+\.[0-9]+)') {
-  throw 'Unable to determine SParamView release version from CMakeLists.txt.'
+  throw 'Unable to determine the numeric release version from CMakeLists.txt.'
+}
+$numericVersion = $Matches[1]
+if ($coreHeader -notmatch 'inline constexpr const char \*version = "([0-9]+\.[0-9]+\.[0-9]+[a-z]?)"') {
+  throw 'Unable to determine the release label from core.hpp.'
 }
 $releaseVersion = $Matches[1]
+if ($releaseVersion -ne ($numericVersion + 'a')) {
+  throw "CMake numeric version and the public release label disagree: $numericVersion / $releaseVersion"
+}
 
 if (-not $QtRoot -or -not (Test-Path $QtRoot)) {
   throw 'Set -QtRoot to the Qt target kit. x64: msvc2022_64 or mingw_64; ARM64: msvc2022_arm64.'
@@ -69,7 +77,8 @@ $appCandidate = Join-Path $buildRoot 'Release\SParamView.exe'
 if (-not (Test-Path $appCandidate)) { $appCandidate = Join-Path $buildRoot 'SParamView.exe' }
 if (-not (Test-Path $appCandidate)) { throw "SParamView.exe not found under $buildRoot" }
 $versionInfo = (Get-Item $appCandidate).VersionInfo
-$versionRegex = '^' + [regex]::Escape($releaseVersion) + '(?:\.0)?$'
+# Windows fixed-file metadata is numeric (1.2.4.1); StringFileInfo uses 1.2.4a.
+$versionRegex = '^(?:' + [regex]::Escape($releaseVersion) + '|' + [regex]::Escape($numericVersion + '.1') + ')$'
 if ($versionInfo.ProductName -ne 'SParamView') { throw "EXE ProductName mismatch: $($versionInfo.ProductName)" }
 if ($versionInfo.ProductVersion -notmatch $versionRegex) { throw "EXE ProductVersion mismatch: $($versionInfo.ProductVersion) expected $releaseVersion" }
 if ($versionInfo.FileVersion -notmatch $versionRegex) { throw "EXE FileVersion mismatch: $($versionInfo.FileVersion) expected $releaseVersion" }
@@ -104,8 +113,43 @@ if (-not $SkipDeploy -and $Architecture -eq 'ARM64' -and $osArch -ne 'Arm64') {
 } elseif (-not $SkipDeploy) {
   $deployQt = Join-Path $QtRoot 'bin\windeployqt.exe'
   if (Test-Path $deployQt) {
+    # windeployqt needs the actual Visual Studio VC directory to collect
+    # deployable MSVC runtime components. Do not silence its warning.
+    $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
+    if (-not (Test-Path $vswhere)) { throw 'vswhere.exe missing: cannot audit MSVC runtime deployment' }
+    $vsRoot = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+    if ($LASTEXITCODE -ne 0 -or -not $vsRoot) { throw 'Visual Studio C++ tools not found for windeployqt' }
+    $vcDirectory = Join-Path ($vsRoot | Select-Object -First 1) 'VC'
+    if (-not (Test-Path (Join-Path $vcDirectory 'Redist/MSVC'))) {
+      throw 'Installed Visual Studio is missing MSVC redistributables'
+    }
+    # The redistributable EXE is a 32-bit bootstrapper even for an x64
+    # payload. Keep the release portable and machine-pure by deploying the
+    # native CRT DLLs, never the 32-bit installer.
+    $redistRoot = Join-Path $vcDirectory 'Redist/MSVC'
+    $runtimeCandidates = @(Get-ChildItem -LiteralPath $redistRoot -Directory |
+      Where-Object {
+        $parsed = $null
+        [version]::TryParse($_.Name, [ref]$parsed)
+      } |
+      Sort-Object { [version]$_.Name } -Descending |
+      ForEach-Object { Join-Path $_.FullName 'x64/Microsoft.VC143.CRT' })
+    $runtimeCandidates += Join-Path $redistRoot 'v143/x64/Microsoft.VC143.CRT'
+    $runtimeDir = $runtimeCandidates |
+      Where-Object { Test-Path -LiteralPath $_ -PathType Container } |
+      Select-Object -First 1
+    if (-not $runtimeDir) { throw 'x64 Microsoft.VC143.CRT runtime DLLs missing' }
+    foreach ($crt in @('msvcp140.dll','vcruntime140.dll')) {
+      if (-not (Test-Path (Join-Path $runtimeDir $crt))) {
+        throw "Missing required native x64 CRT: $crt"
+      }
+    }
     try {
-      Invoke-Checked $deployQt @('--release','--no-translations','--compiler-runtime',(Join-Path $deployRoot 'SParamView.exe'))
+      Invoke-Checked $deployQt @('--release','--no-translations','--no-system-dxc-compiler','--no-compiler-runtime',(Join-Path $deployRoot 'SParamView.exe'))
+      # Validate the CRT source architecture before copying anything. The
+      # later full-bundle PE audit verifies the exact deployed files too.
+      Invoke-Checked $python.Source @((Join-Path $PSScriptRoot 'verify_pe_machine.py'),$runtimeDir,$Architecture,(Join-Path $validationRoot 'source_crt_architecture.json'))
+      Get-ChildItem -LiteralPath $runtimeDir -Filter '*.dll' -File | Copy-Item -Destination $deployRoot -Force
       $offscreen = Join-Path $QtRoot 'plugins\platforms\qoffscreen.dll'
       if (Test-Path $offscreen) {
         New-Item -ItemType Directory -Path (Join-Path $deployRoot 'platforms') -Force | Out-Null

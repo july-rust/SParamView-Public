@@ -430,12 +430,12 @@ void paintGraph(QPainter &p, QRectF r, const PlotSnapshot &s, bool interactive) 
             fill = v < 0
                        ? QColor("#d44851")
                        : QColor::fromRgbF(
-                             .25, .60 + .30 * std::clamp(v / 10., 0., 1.), .60);
+                             0.25f, float(0.60 + 0.30 * std::clamp(v / 10., 0., 1.)), 0.60f);
           else {
             double z = std::clamp((v - mn) / (mx - mn), 0., 1.);
             if (s.metric == si::Metric::IL)
               z = 1 - z;
-            fill = QColor::fromHsvF((1 - z) * .48, .55, .93);
+            fill = QColor::fromHsvF(float((1 - z) * 0.48), 0.55f, 0.93f);
           }
         }
         p.fillRect(

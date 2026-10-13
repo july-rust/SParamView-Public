@@ -15,15 +15,15 @@ void MainWindow::saveProject(bool as) {
     QJsonArray sources;
     QDir base = QFileInfo(path).absoluteDir();
     for (auto &r : revisions) {
-      QJsonArray channels, candidates;
+      QJsonArray revisionChannels, candidates;
       for (auto &c : r.channels)
-        channels.append(channelJson(c));
+        revisionChannels.append(channelJson(c));
       for (auto &c : r.candidates)
         candidates.append(channelJson(c));
       sources.append(QJsonObject{{"name", r.name},
                                  {"source", base.relativeFilePath(r.source)},
                                  {"absoluteSource", r.source},
-                                 {"channels", channels},
+                                 {"channels", revisionChannels},
                                  {"mappingCandidates", candidates},
                                  {"mappingSource", r.mappingSource},
                                  {"signalType", r.signalType},

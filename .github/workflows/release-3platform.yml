@@ -42,7 +42,7 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           persist-credentials: false
 
@@ -64,10 +64,11 @@ jobs:
                   raise SystemExit(f'Cannot determine {label} version')
               return m.group(1)
 
-          core_v = match(r'inline constexpr const char \*version = "([0-9]+\.[0-9]+\.[0-9]+)"', core, 'core')
+          core_v = match(r'inline constexpr const char \*version = "([0-9]+\.[0-9]+\.[0-9]+[a-z]?)"', core, 'core')
           cmake_v = match(r'project\(SParamView VERSION ([0-9]+\.[0-9]+\.[0-9]+)', cmake, 'CMake')
-          rc_v = match(r'VALUE "ProductVersion", "([0-9]+\.[0-9]+\.[0-9]+)\\0"', rc, 'Windows resource')
-          if len({core_v, cmake_v, rc_v}) != 1:
+          rc_v = match(r'VALUE "ProductVersion", "([0-9]+\.[0-9]+\.[0-9]+[a-z]?)\\0"', rc, 'Windows resource')
+          # Suffix releases use CMake's numeric base, with a lettered public label.
+          if core_v != '1.2.4a' or cmake_v != '1.2.4' or rc_v != core_v:
               raise SystemExit(f'Version mismatch: core={core_v}, cmake={cmake_v}, rc={rc_v}')
           notes = pathlib.Path(f'docs/Release_{core_v}.md')
           if not notes.is_file():
@@ -84,7 +85,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           persist-credentials: false
 
@@ -117,7 +118,7 @@ jobs:
 
       - name: Upload core test evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: SParamView-v${{ needs.prepare.outputs.version }}-core-validation
           path: |
@@ -147,17 +148,17 @@ jobs:
       run:
         shell: pwsh
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           persist-credentials: false
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
 
       - name: Cache Qt ${{ matrix.arch }} kit
         id: qt-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: C:/Qt/6.8.3
           key: qt-${{ runner.os }}-${{ env.QT_VERSION }}-${{ matrix.arch }}-v1
@@ -201,7 +202,7 @@ jobs:
 
       - name: Upload validation evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: SParamView-v${{ needs.prepare.outputs.version }}-${{ matrix.arch }}-validation
           path: ${{ matrix.validation_dir }}/
@@ -218,7 +219,7 @@ jobs:
 
       - name: Upload runnable Windows bundle
         if: success()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: SParamView-v${{ needs.prepare.outputs.version }}-Windows-${{ matrix.arch }}
           path: dist/SParamView-Windows-${{ matrix.arch }}/
@@ -236,7 +237,7 @@ jobs:
         shell: pwsh
     steps:
       - name: Download ARM64 bundle
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: SParamView-v${{ needs.prepare.outputs.version }}-Windows-ARM64
           path: bundle
@@ -250,7 +251,7 @@ jobs:
           $app = Join-Path $PWD 'bundle\SParamView.exe'
           if (-not (Test-Path $app)) { throw 'SParamView.exe missing from ARM64 bundle' }
           $v = (Get-Item $app).VersionInfo
-          $expected = '^' + [regex]::Escape($env:SPARAMVIEW_VERSION) + '(?:\.0)?$'
+          $expected = '^(?:' + [regex]::Escape($env:SPARAMVIEW_VERSION) + '|1\.2\.4\.1)$'
           if ($v.ProductVersion -notmatch $expected) { throw "ProductVersion mismatch: $($v.ProductVersion)" }
           if ($v.FileVersion -notmatch $expected) { throw "FileVersion mismatch: $($v.FileVersion)" }
           if ($v.LegalCopyright -ne 'Copyright © 2026 july') { throw "LegalCopyright mismatch: $($v.LegalCopyright)" }
@@ -299,7 +300,7 @@ jobs:
 
       - name: Upload native ARM64 validation evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: SParamView-v${{ needs.prepare.outputs.version }}-Native-Windows-ARM64-validation
           path: ${{ runner.temp }}/native-arm64-v${{ needs.prepare.outputs.version }}/
@@ -316,7 +317,7 @@ jobs:
       QT_ROOT: ${{ github.workspace }}/Qt/6.8.3/macos
       MACOS_DEPLOYMENT_TARGET: '12.0'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           persist-credentials: false
 
@@ -326,13 +327,13 @@ jobs:
           set -euo pipefail
           test "$(uname -m)" = 'arm64'
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
 
       - name: Cache Qt
         id: qt-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ${{ github.workspace }}/Qt/6.8.3
           key: qt-macos-arm64-${{ env.QT_VERSION }}-v1
@@ -430,8 +431,9 @@ jobs:
             <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
             <key>CFBundleName</key><string>SParamView</string>
             <key>CFBundlePackageType</key><string>APPL</string>
-            <key>CFBundleShortVersionString</key><string>${SPARAMVIEW_VERSION}</string>
-            <key>CFBundleVersion</key><string>${SPARAMVIEW_VERSION}</string>
+            <key>CFBundleShortVersionString</key><string>1.2.4</string>
+            <key>CFBundleVersion</key><string>1.2.4.1</string>
+            <key>SParamViewDisplayVersion</key><string>${SPARAMVIEW_VERSION}</string>
             <key>LSMinimumSystemVersion</key><string>${MACOS_DEPLOYMENT_TARGET}</string>
             <key>NSHighResolutionCapable</key><true/>
           </dict></plist>
@@ -473,7 +475,9 @@ jobs:
           import json, os, pathlib, plistlib
           app=pathlib.Path('package/SParamView.app/Contents')
           info=plistlib.loads((app/'Info.plist').read_bytes())
-          assert info['CFBundleShortVersionString']==os.environ['SPARAMVIEW_VERSION']
+          assert info['CFBundleShortVersionString']=='1.2.4'
+          assert info['CFBundleVersion']=='1.2.4.1'
+          assert info['SParamViewDisplayVersion']==os.environ['SPARAMVIEW_VERSION']
           (app/'Resources/build-provenance.json').write_text(json.dumps(dict(version=os.environ['SPARAMVIEW_VERSION'],commit=os.environ['GITHUB_SHA'],platform='macOS arm64',run_id=os.environ['GITHUB_RUN_ID'])))
           PYTHON
 
@@ -505,7 +509,7 @@ jobs:
 
       - name: Upload macOS test evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: SParamView-v${{ needs.prepare.outputs.version }}-macOS-validation
           path: |
@@ -530,7 +534,7 @@ jobs:
           shasum -a 256 "$dmgname" > "$dmgname.sha256"
 
       - name: Upload Apple Silicon package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: SParamView-v${{ needs.prepare.outputs.version }}-macOS-AppleSilicon-arm64
           path: |
@@ -553,30 +557,30 @@ jobs:
     env:
       SPARAMVIEW_VERSION: ${{ needs.prepare.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           persist-credentials: false
 
       - name: Download validated Windows x64 bundle
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: SParamView-v${{ needs.prepare.outputs.version }}-Windows-x64
           path: package/windows-x64
 
       - name: Download validated Windows ARM64 bundle
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: SParamView-v${{ needs.prepare.outputs.version }}-Windows-ARM64
           path: package/windows-arm64
 
       - name: Download validated macOS Apple Silicon package
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: SParamView-v${{ needs.prepare.outputs.version }}-macOS-AppleSilicon-arm64
           path: package/macos
 
       - name: Download validation evidence
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           pattern: SParamView-v${{ needs.prepare.outputs.version }}-*-validation
           path: package/evidence

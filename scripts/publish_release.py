@@ -46,6 +46,41 @@ def check_provenance(data, version, commit):
         raise RuntimeError('Package provenance does not match release version and build commit')
 
 
+def retire_v124_after_v124a_published(endpoint, repo, version, commit, expected_assets):
+    """Remove the superseded official release only after complete v1.2.4a publication.
+
+    The exact old tag/commit is pinned to avoid ever deleting an unrelated
+    release. This is intentionally not called for draft/incomplete packages.
+    """
+    if version != '1.2.4a' or repo != 'july-rust/SParamView-Public':
+        return
+    replacement = api(f'{endpoint}/releases/tags/v1.2.4a')
+    new_ref = api(f'{endpoint}/git/ref/tags/v1.2.4a')
+    remote_names = {asset['name'] for asset in replacement.get('assets', [])}
+    if (replacement.get('draft') or replacement.get('prerelease')
+            or replacement.get('tag_name') != 'v1.2.4a'
+            or replacement.get('target_commitish') != commit
+            or new_ref.get('object', {}).get('sha') != commit
+            or remote_names != set(expected_assets)):
+        raise RuntimeError('Refusing to remove v1.2.4: replacement release not fully verified')
+
+    old = api(f'{endpoint}/releases/tags/v1.2.4', missing=True)
+    old_ref = api(f'{endpoint}/git/ref/tags/v1.2.4', missing=True)
+    if old and (old.get('id') != 411355784 or old.get('tag_name') != 'v1.2.4'):
+        raise RuntimeError('Refusing to delete an unexpected legacy release')
+    if old_ref and (old_ref.get('object', {}).get('type') != 'commit'
+                    or old_ref['object']['sha'] !=
+                    '92fe88c83fd1171c8171b04660c95bfebc723264'):
+        raise RuntimeError('Refusing to delete a legacy tag that moved')
+    if old:
+        gh('api', '--method', 'DELETE', f'{endpoint}/releases/{old["id"]}')
+    if old_ref:
+        gh('api', '--method', 'DELETE', f'{endpoint}/git/refs/tags/v1.2.4')
+    if (api(f'{endpoint}/releases/tags/v1.2.4', missing=True)
+            or api(f'{endpoint}/git/ref/tags/v1.2.4', missing=True)):
+        raise RuntimeError('Legacy v1.2.4 removal not complete')
+
+
 def main():
     version, commit, repo = (os.environ[k] for k in
                              ('SPARAMVIEW_VERSION', 'GITHUB_SHA', 'GITHUB_REPOSITORY'))
@@ -136,6 +171,8 @@ def main():
         raise RuntimeError('Tag moved during publication')
     gh('api','--method','PATCH',f'{endpoint}/releases/{existing["id"]}',
        payload=dict(draft=False,prerelease=False,make_latest='true'))
+    retire_v124_after_v124a_published(endpoint, repo, version, commit,
+                                     {path.name for path in output.iterdir()})
     print(final['html_url'])
 
 

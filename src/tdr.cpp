@@ -125,7 +125,7 @@ static Tdr nonuniformStep(const Trace &t, const Settings &set, Control *control,
     double sine = 0, cosine = 1, stepSine = 0, stepCosine = 1;
   };
   std::vector<Node> nodes8, nodes4;
-  constexpr double pi = 3.14159265358979323846;
+  constexpr double quadraturePi = 3.14159265358979323846;
   const double windowNorm = bessel0(set.kaiserBeta);
   size_t pieces = 0;
   for (size_t i = 1; i < f.size(); ++i) {
@@ -157,9 +157,9 @@ static Tdr nonuniformStep(const Trace &t, const Settings &set, Control *control,
           double v = frequency / fmax;
           double weight = (b - a) / 2 * ww[q] *
               bessel0(set.kaiserBeta * std::sqrt(std::max(0., 1 - v*v))) /
-              windowNorm / (pi * frequency);
+              windowNorm / (quadraturePi * frequency);
           auto delta = cubic - linear;
-          nodes.push_back({2*pi*frequency, weight*linear.real(),
+          nodes.push_back({2*quadraturePi*frequency, weight*linear.real(),
                            weight*linear.imag(), weight*delta.real(),
                            weight*delta.imag()});
         }
