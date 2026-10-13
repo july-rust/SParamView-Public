@@ -81,6 +81,35 @@ def retire_v124_after_v124a_published(endpoint, repo, version, commit, expected_
         raise RuntimeError('Legacy v1.2.4 removal not complete')
 
 
+def validated_ci_only_v124a(endpoint, repo, version, existing, ref, commit):
+    """Keep the published v1.2.4a tag/assets untouched for CI-only fixes.
+
+    A new program binary requires a NEW release version. The compare endpoint
+    must prove that no runtime, algorithm, packaging or user-document files
+    changed since the exact published commit.
+    """
+    old_commit = '139b05fb112aec3aba4637a32eec48d1cc796672'
+    if (repo != 'july-rust/SParamView-Public' or version != '1.2.4a'
+            or not existing or existing.get('id') != 411430037
+            or existing.get('tag_name') != 'v1.2.4a'
+            or existing.get('target_commitish') != old_commit
+            or not ref or ref.get('object', {}).get('type') != 'commit'
+            or ref.get('object', {}).get('sha') != old_commit):
+        return False
+    comparison = api(f'{endpoint}/compare/{old_commit}...{commit}')
+    allowed = {
+        '.github/workflows/release-3platform.yml',
+        'tests/open_tests.cpp',
+        'scripts/publish_release.py',
+        'tests/publish_release_tests.py',
+    }
+    changes = comparison.get('files', [])
+    return (comparison.get('status') == 'ahead' and bool(changes)
+            and all(item.get('status') == 'modified'
+                    and item.get('filename') in allowed for item in changes)
+            and len(changes) == len({item['filename'] for item in changes}))
+
+
 def main():
     version, commit, repo = (os.environ[k] for k in
                              ('SPARAMVIEW_VERSION', 'GITHUB_SHA', 'GITHUB_REPOSITORY'))
@@ -95,8 +124,12 @@ def main():
     ref = api(f'{endpoint}/git/ref/tags/{tag}', missing=True)
     if ref and (ref['object']['type'] != 'commit' or ref['object']['sha'] != commit):
         raise RuntimeError('Existing release tag points to another object; refusing replacement')
+    ci_only_maintenance = False
     if existing and not existing['draft']:
-        raise RuntimeError('This official release already exists; use a new version. No asset was changed.')
+        ci_only_maintenance = validated_ci_only_v124a(endpoint, repo, version,
+                                                      existing, ref, commit)
+        if not ci_only_maintenance:
+            raise RuntimeError('This official release already exists; use a new version. No asset was changed.')
     if existing and not ref:
         raise RuntimeError('Existing draft has no pinned tag; manual inspection required')
 
@@ -109,6 +142,11 @@ def main():
         if len(matching) != 1 or matching[0]['conclusion'] != 'success':
             raise RuntimeError('Required gate did not succeed: ' + name)
         gates[name] = dict(conclusion='success', url=matching[0]['html_url'])
+
+    if ci_only_maintenance:
+        print('Validated CI/test-only maintenance of SParamView v1.2.4a. '
+              'Published tag, release ID, source commit and SHA-256 assets remain unchanged.')
+        return
 
     output = Path('release-assets')
     output.mkdir(exist_ok=True)
