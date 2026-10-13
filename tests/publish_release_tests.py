@@ -102,6 +102,28 @@ class ReleaseSafety(unittest.TestCase):
                 existing,ref,'b'*40))
             self.assertEqual(api.call_count,1)
 
+    def test_existing_v124a_allows_repository_only_guide_updates(self):
+        endpoint = 'repos/july-rust/SParamView-Public'
+        old = '139b05fb112aec3aba4637a32eec48d1cc796672'
+        existing = dict(id=411430037,tag_name='v1.2.4a',draft=False,
+                        target_commitish=old)
+        ref = {'object': {'type':'commit','sha':old}}
+        updated = {'status':'ahead','files': [
+            {'status':'modified','filename':'docs/USER_GUIDE_KO.md'},
+            {'status':'modified','filename':'docs/USER_GUIDE_EN.md'},
+            {'status':'modified','filename':'docs/Revision_History.md'},
+            {'status':'modified','filename':'docs/Release_1.2.4a.md'},
+            {'status':'modified','filename':'README.md'}]}
+        with patch.object(publisher,'api',return_value=updated):
+            self.assertTrue(publisher.validated_ci_only_v124a(
+                endpoint,'july-rust/SParamView-Public','1.2.4a',
+                existing,ref,'b'*40))
+        updated['files'].append({'status':'modified','filename':'README_FIRST.txt'})
+        with patch.object(publisher,'api',return_value=updated):
+            self.assertFalse(publisher.validated_ci_only_v124a(
+                endpoint,'july-rust/SParamView-Public','1.2.4a',
+                existing,ref,'b'*40))
+
     def test_existing_v124a_rejects_binary_changes_and_moved_tag(self):
         endpoint = 'repos/july-rust/SParamView-Public'
         old = '139b05fb112aec3aba4637a32eec48d1cc796672'

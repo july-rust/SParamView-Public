@@ -2,6 +2,7 @@
 
 **Applies to:** SParamView v1.2.4a public release
 **Supported platforms:** Windows x64 / Windows ARM64 / macOS Apple Silicon (arm64)
+**Documentation reviewed:** 2026-10-13 (KST); published v1.2.4a executables and checksums remain unchanged.
 
 [한국어 사용자 설명서](USER_GUIDE_KO.md) | [English README](../README_EN.md) | [v1.2.4a Release Notes](Release_1.2.4a.md)
 
@@ -48,7 +49,9 @@ The v1.2.0 source partitioning is an internal code-structure change and requires
 - Saved controls, marker settings, selected channels, search and Aggressor participate in unsaved-change tracking. Switching projects offers Save / Discard / Cancel; cancelled or failed saves retain the current project.
 - Excel Configuration includes signal type, confidence/evidence, mapping source/confirmation, source SHA-256 and verification, analysis completion time, report generation time and the actual analysis settings snapshot. Settings changed after analysis are not relabeled as the settings used for those results.
 - Additional Touchstone option lines are ignored with a diagnostic; the first option line remains authoritative. Symmetric Lower/Upper mixed-mode matrices are supported.
-- The retained screenshots below document v1.2.1; they are not new v1.2.4a platform screenshots. The compact settings strip from v1.2.2 is preserved at 74 px.
+- The retained screenshots below were captured with v1.2.1 test fixtures; they are **not** screenshots from v1.2.4a. The compact settings strip introduced in v1.2.2 remains 74 px.
+
+**Post-release validation (2026-10-13):** The published v1.2.4a binaries are unchanged. CI/test updates use GCC for the Release core and Clang for ASan/UBSan, native Cocoa for macOS GUI validation, and GitHub CLI for artifact retrieval. The official [main validation](https://github.com/july-rust/SParamView-Public/actions/runs/38383938009) reported no compiler, Qt test-platform, or artifact-download warning messages; all ten native Windows ARM64 fallback mapping checks passed. These are test-infrastructure and documentation updates, not new application features.
 
 ## 2. Installation and First Launch
 
@@ -101,7 +104,7 @@ The status guidance at the bottom of the main window follows the same basic sequ
 
 ### 4.1 Header shortcuts
 
-SParamView v1.2.1 provides these header buttons:
+The historical v1.2.1 screenshot shows these header shortcuts; use the current application UI as the source of truth if placement differs:
 
 - **+ Open Touchstone**: open one or more Touchstone files
 - **Open Project**: open an SParamView `.siproject`
@@ -536,7 +539,7 @@ Contact: **sparamview@gmail.com**
 
 ## 22. Documentation verification sources
 
-The revised instructions were checked against the [v1.2.1 release notes](Release_1.2.1.md) and the following release sources:
+Historical v1.2.1 feature changes are supported by the [v1.2.1 release notes](Release_1.2.1.md) and the source links below. For the current release, also see the [v1.2.4a release notes](Release_1.2.4a.md), [revision history](Revision_History.md), [tagged source](https://github.com/july-rust/SParamView-Public/tree/v1.2.4a), and [2026-10-13 official post-release CI](https://github.com/july-rust/SParamView-Public/actions/runs/38383938009). The `main` branch may contain later CI/documentation fixes not present in the tagged binaries:
 
 - [Initial TDR axes and automatic scaling](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/src/plot.cpp)
 - [Plot interaction and viewport restoration](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/src/navigation.cpp)
@@ -549,4 +552,4 @@ The revised instructions were checked against the [v1.2.1 release notes](Release
 
 ### Document Version
 
-This guide was revised against the UI and source of the **SParamView v1.2.4a public release** on 2026-10-04. Screenshots have been refreshed from the public v1.2.1 automated validation results. Menus, functions, or analysis settings may change in later versions.
+This guide was reviewed on **2026-10-13 (KST)** for the currently published **SParamView v1.2.4a** release. The embedded screenshots are **unchanged v1.2.1 validation captures**, with provenance recorded in [images/README.md](images/README.md); they were not newly captured from v1.2.4a. Later CI/documentation-only changes do not alter the v1.2.4a release assets or SHA-256 checksums.

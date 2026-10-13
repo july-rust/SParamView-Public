@@ -2,6 +2,7 @@
 
 **적용 기준:** SParamView v1.2.4a 공개 릴리스
 **지원 플랫폼:** Windows x64 / Windows ARM64 / macOS Apple Silicon (arm64)
+**문서 재검토:** 2026-10-13(KST). 공개된 v1.2.4a 실행 파일과 SHA-256은 변경하지 않았습니다.
 
 [English User Guide](USER_GUIDE_EN.md) | [한국어 README](../README_KO.md) | [v1.2.4a Release Notes](Release_1.2.4a.md)
 
@@ -48,7 +49,9 @@ v1.2.0의 기능별 소스 분할은 내부 코드 구조 변경입니다. 사�
 - 설정·마커·채널 선택·검색·Aggressor 변경은 저장 상태에 반영됩니다. 프로젝트 전환에서 Save / Discard / Cancel을 선택할 수 있으며 저장 취소·실패 시 현재 프로젝트를 유지합니다.
 - Excel Configuration에는 신호 종류·신뢰도·근거·매핑 출처 및 확인 상태, 원본 SHA-256 및 검증 상태, 분석 완료 시각·보고서 생성 시각, 실제 분석 설정 스냅샷을 기록합니다. 분석 후 바꾼 설정을 기존 결과의 계산 조건으로 표시하지 않습니다.
 - 첫 번째 이후 Touchstone 옵션 줄은 진단을 남기고 무시합니다. 첫 옵션의 해석을 유지하며 대칭 Lower/Upper mixed-mode 행렬을 지원합니다.
-- 아래 기존 화면은 v1.2.1 검증 자료이며 v1.2.4a의 새 플랫폼 화면으로 제시하지 않습니다. v1.2.2의 74 px 설정 영역은 유지됩니다.
+- 아래 기존 화면은 v1.2.1 검증 자료이며 v1.2.4a의 신규 화면이 아닙니다. v1.2.2부터 적용한 74 px 설정 영역은 유지됩니다.
+
+**2026-10-13 릴리즈 후 검증:** 공식 v1.2.4a 실행 파일은 그대로 유지했습니다. GCC Release와 Clang ASan/UBSan, macOS Cocoa GUI, GitHub CLI 다운로드로 CI를 개선했으며, [공식 main 검증](https://github.com/july-rust/SParamView-Public/actions/runs/38383938009)에서 컴파일러·Qt 시험 환경·다운로드 경고 0건 및 Windows ARM64 수동 매핑 시험 10/10 PASS를 확인했습니다. 이는 사용자 기능의 추가가 아닌 검증 환경 개선입니다.
 
 ## 2. 설치 및 처음 실행
 
@@ -95,13 +98,13 @@ ZIP 파일을 압축 해제한 뒤 SParamView 실행 파일을 실행합니다. 
 ## 4. 메인 화면 구성
 
 > **자동 검증 화면** — 아래 이미지는 SParamView v1.2.1 네이티브 Windows ARM64 검증에서 synthetic sample project를 사용해 프로그램이 자동 생성한 화면입니다. OS, DPI 및 창 크기에 따라 실제 배치는 조금 달라질 수 있습니다.
-> v1.2.4a 공개 릴리스 검증에서 생성한 화면입니다. TDR 표시 및 판정 동작은 아래 10절을 확인하십시오. [이미지 출처](images/README.md).
+> 이 화면은 **v1.2.1 검증에서 촬영된 기존 자료**이며 v1.2.4a에서 새로 생성하지 않았습니다. TDR 표시 및 판정 동작은 10절을 확인하십시오. [이미지 출처](images/README.md).
 
 ![SParamView v1.2.1 메인 화면](images/01_Main_Window.png)
 
 ### 4.1 상단 바로가기
 
-v1.2.1의 상단에는 다음 버튼이 배치됩니다.
+과거 v1.2.1 화면의 상단 버튼은 아래와 같습니다. 실제 v1.2.4a 실행 환경에서는 배치가 달라질 수 있습니다.
 
 - **+ Open Touchstone**: Touchstone 파일 열기
 - **Open Project**: `.siproject` 프로젝트 열기
@@ -538,7 +541,7 @@ SParamView 소스는 MIT License로 배포됩니다. Third-party component와 fo
 
 ## 22. 문서 검증 근거
 
-이 설명서의 변경 내용은 [v1.2.1 릴리스 노트](Release_1.2.1.md)와 다음 릴리스 소스를 대조했습니다.
+v1.2.1에서 도입된 과거 기능은 [v1.2.1 릴리스 노트](Release_1.2.1.md)와 다음 소스 자료를 참고했습니다. 현재 버전은 [v1.2.4a 릴리스 노트](Release_1.2.4a.md), [변경 이력](Revision_History.md), [v1.2.4a 태그 소스](https://github.com/july-rust/SParamView-Public/tree/v1.2.4a) 및 [2026-10-13 공식 검증](https://github.com/july-rust/SParamView-Public/actions/runs/38383938009)을 함께 확인했습니다. `main`에는 공식 태그 이후의 CI·문서 전용 수정이 포함될 수 있습니다.
 
 - [TDR 초기 축 범위 및 자동 스케일](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/src/plot.cpp)
 - [그래프 조작 및 초기 화면 복귀](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/src/navigation.cpp)
@@ -551,4 +554,4 @@ SParamView 소스는 MIT License로 배포됩니다. Third-party component와 fo
 
 ### 문서 버전
 
-이 문서는 **SParamView v1.2.4a 공개 릴리스**의 UI와 소스를 기준으로 개정되었습니다(2026-10-04). 화면 이미지는 v1.2.4a 공개 릴리스의 자동 검증 결과로 갱신했습니다. 이후 버전에서는 메뉴, 기능 또는 분석 설정이 달라질 수 있습니다.
+이 설명서는 현재 공식 배포 버전인 **SParamView v1.2.4a**를 기준으로 **2026-10-13(KST)**에 재검토했습니다. 수록 이미지는 [출처가 확인된 v1.2.1 검증 화면](images/README.md)으로, v1.2.4a에서 새로 촬영하거나 교체한 이미지가 아닙니다. 이후 CI 및 문서 수정으로 기존 릴리즈 바이너리와 SHA-256 값은 변경하지 않았습니다.
