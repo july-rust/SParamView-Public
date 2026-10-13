@@ -86,4 +86,38 @@ class ReleaseSafety(unittest.TestCase):
             self.assertEqual(gh.call_args_list[1].args,
                              ('api', '--method', 'DELETE', endpoint+'/git/refs/tags/v1.2.4'))
 
+
+    def test_existing_v124a_is_preserved_for_ci_only_changes(self):
+        endpoint = 'repos/july-rust/SParamView-Public'
+        old = '139b05fb112aec3aba4637a32eec48d1cc796672'
+        existing = dict(id=411430037,tag_name='v1.2.4a',draft=False,
+                        target_commitish=old)
+        ref = {'object': {'type':'commit','sha':old}}
+        changed = {'status':'ahead','files': [
+            {'status':'modified','filename':'tests/open_tests.cpp'},
+            {'status':'modified','filename':'.github/workflows/release-3platform.yml'}]}
+        with patch.object(publisher,'api',return_value=changed) as api:
+            self.assertTrue(publisher.validated_ci_only_v124a(
+                endpoint,'july-rust/SParamView-Public','1.2.4a',
+                existing,ref,'b'*40))
+            self.assertEqual(api.call_count,1)
+
+    def test_existing_v124a_rejects_binary_changes_and_moved_tag(self):
+        endpoint = 'repos/july-rust/SParamView-Public'
+        old = '139b05fb112aec3aba4637a32eec48d1cc796672'
+        existing = dict(id=411430037,tag_name='v1.2.4a',draft=False,
+                        target_commitish=old)
+        ref = {'object': {'type':'commit','sha':old}}
+        changed = {'status':'ahead','files': [
+            {'status':'modified','filename':'src/tdr.cpp'}]}
+        with patch.object(publisher,'api',return_value=changed):
+            self.assertFalse(publisher.validated_ci_only_v124a(
+                endpoint,'july-rust/SParamView-Public','1.2.4a',
+                existing,ref,'b'*40))
+        with patch.object(publisher,'api') as api:
+            self.assertFalse(publisher.validated_ci_only_v124a(
+                endpoint,'july-rust/SParamView-Public','1.2.4a',
+                existing,{'object':{'type':'commit','sha':'c'*40}},'b'*40))
+            api.assert_not_called()
+
 if __name__=='__main__':unittest.main()
