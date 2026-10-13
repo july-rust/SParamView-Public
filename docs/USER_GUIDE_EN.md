@@ -1,9 +1,9 @@
 # SParamView User Guide
 
-**Applies to:** SParamView v1.2.4 public release
+**Applies to:** SParamView v1.2.4a public release
 **Supported platforms:** Windows x64 / Windows ARM64 / macOS Apple Silicon (arm64)
 
-[한국어 사용자 설명서](USER_GUIDE_KO.md) | [English README](../README_EN.md) | [v1.2.4 Release Notes](Release_1.2.4.md)
+[한국어 사용자 설명서](USER_GUIDE_KO.md) | [English README](../README_EN.md) | [v1.2.4a Release Notes](Release_1.2.4a.md)
 
 ---
 
@@ -40,7 +40,7 @@ The v1.2.0 source partitioning is an internal code-structure change and requires
 
 ---
 
-### v1.2.4 workflow changes
+### v1.2.4a workflow changes
 
 - Review **Signal Type Detection** before Channel Mapping when prompted. A Single-ended choice disables name-based P/N inference, including **Suggest from Labels**. Explicit `.DiffChannels` and Mixed-Mode descriptors remain separate evidence. Confirm Near/Far manually where required; the dialog identifies unmapped ports.
 - Analysis buttons calculate the current selected channels, filters and Aggressor. Identical completed requests can be reused. The Metric selector only changes the displayed results; it does not execute a new request. Direction buttons select views of calculated directions.
@@ -48,7 +48,7 @@ The v1.2.0 source partitioning is an internal code-structure change and requires
 - Saved controls, marker settings, selected channels, search and Aggressor participate in unsaved-change tracking. Switching projects offers Save / Discard / Cancel; cancelled or failed saves retain the current project.
 - Excel Configuration includes signal type, confidence/evidence, mapping source/confirmation, source SHA-256 and verification, analysis completion time, report generation time and the actual analysis settings snapshot. Settings changed after analysis are not relabeled as the settings used for those results.
 - Additional Touchstone option lines are ignored with a diagnostic; the first option line remains authoritative. Symmetric Lower/Upper mixed-mode matrices are supported.
-- The retained screenshots below document v1.2.1; they are not new v1.2.4 platform screenshots. The compact settings strip from v1.2.2 is preserved at 74 px.
+- The retained screenshots below document v1.2.1; they are not new v1.2.4a platform screenshots. The compact settings strip from v1.2.2 is preserved at 74 px.
 
 ## 2. Installation and First Launch
 
@@ -58,9 +58,9 @@ Download the package that matches your system from GitHub Releases.
 
 | System | Recommended package |
 |---|---|
-| Windows x64 | `SParamView_Windows_x64_v1.2.4.zip` |
-| Windows ARM64 | `SParamView_Windows_ARM64_v1.2.4.zip` |
-| macOS Apple Silicon | `SParamView_macOS_AppleSilicon_arm64_v1.2.4.dmg` or `.zip` |
+| Windows x64 | `SParamView_Windows_x64_v1.2.4a.zip` |
+| Windows ARM64 | `SParamView_Windows_ARM64_v1.2.4a.zip` |
+| macOS Apple Silicon | `SParamView_macOS_AppleSilicon_arm64_v1.2.4a.dmg` or `.zip` |
 
 SHA-256 files are also provided with the release. To verify download integrity, run `Get-FileHash <filename> -Algorithm SHA256` in Windows PowerShell or `shasum -a 256 <filename>` in macOS Terminal, then compare the result with the corresponding `.sha256` file.
 
@@ -549,4 +549,4 @@ The revised instructions were checked against the [v1.2.1 release notes](Release
 
 ### Document Version
 
-This guide was revised against the UI and source of the **SParamView v1.2.4 public release** on 2026-10-04. Screenshots have been refreshed from the public v1.2.1 automated validation results. Menus, functions, or analysis settings may change in later versions.
+This guide was revised against the UI and source of the **SParamView v1.2.4a public release** on 2026-10-04. Screenshots have been refreshed from the public v1.2.1 automated validation results. Menus, functions, or analysis settings may change in later versions.
