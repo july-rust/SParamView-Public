@@ -1,9 +1,9 @@
 # SParamView 사용자 설명서
 
-**적용 기준:** SParamView v1.2.4 공개 릴리스
+**적용 기준:** SParamView v1.2.4a 공개 릴리스
 **지원 플랫폼:** Windows x64 / Windows ARM64 / macOS Apple Silicon (arm64)
 
-[English User Guide](USER_GUIDE_EN.md) | [한국어 README](../README_KO.md) | [v1.2.4 Release Notes](Release_1.2.4.md)
+[English User Guide](USER_GUIDE_EN.md) | [한국어 README](../README_KO.md) | [v1.2.4a Release Notes](Release_1.2.4a.md)
 
 ---
 
@@ -40,7 +40,7 @@ v1.2.0의 기능별 소스 분할은 내부 코드 구조 변경입니다. 사�
 
 ---
 
-### v1.2.4 사용 흐름 변경
+### v1.2.4a 사용 흐름 변경
 
 - 안내가 나오면 Channel Mapping 전에 **Signal Type Detection**을 검토합니다. Single-ended를 선택하면 **Suggest from Labels**에서도 이름 기반 P/N 추론이 꺼진 상태를 유지합니다. 명시적 `.DiffChannels`와 Mixed-Mode descriptor는 별도 근거입니다. 필요한 경우 Near/Far를 직접 확인하고 대화상자의 미매핑 포트 수도 확인하십시오.
 - 분석 버튼은 현재 선택 채널·필터·Aggressor에 맞춰 계산합니다. 완료된 동일 요청은 재사용합니다. Metric 선택은 기존 결과의 조회만 변경하며 새 분석을 실행하지 않습니다. Direction 버튼은 계산된 방향의 표시를 전환합니다.
@@ -48,7 +48,7 @@ v1.2.0의 기능별 소스 분할은 내부 코드 구조 변경입니다. 사�
 - 설정·마커·채널 선택·검색·Aggressor 변경은 저장 상태에 반영됩니다. 프로젝트 전환에서 Save / Discard / Cancel을 선택할 수 있으며 저장 취소·실패 시 현재 프로젝트를 유지합니다.
 - Excel Configuration에는 신호 종류·신뢰도·근거·매핑 출처 및 확인 상태, 원본 SHA-256 및 검증 상태, 분석 완료 시각·보고서 생성 시각, 실제 분석 설정 스냅샷을 기록합니다. 분석 후 바꾼 설정을 기존 결과의 계산 조건으로 표시하지 않습니다.
 - 첫 번째 이후 Touchstone 옵션 줄은 진단을 남기고 무시합니다. 첫 옵션의 해석을 유지하며 대칭 Lower/Upper mixed-mode 행렬을 지원합니다.
-- 아래 기존 화면은 v1.2.1 검증 자료이며 v1.2.4의 새 플랫폼 화면으로 제시하지 않습니다. v1.2.2의 74 px 설정 영역은 유지됩니다.
+- 아래 기존 화면은 v1.2.1 검증 자료이며 v1.2.4a의 새 플랫폼 화면으로 제시하지 않습니다. v1.2.2의 74 px 설정 영역은 유지됩니다.
 
 ## 2. 설치 및 처음 실행
 
@@ -58,9 +58,9 @@ GitHub Releases에서 사용 중인 시스템에 맞는 패키지를 선택합�
 
 | 시스템 | 권장 패키지 |
 |---|---|
-| Windows x64 | `SParamView_Windows_x64_v1.2.4.zip` |
-| Windows ARM64 | `SParamView_Windows_ARM64_v1.2.4.zip` |
-| macOS Apple Silicon | `SParamView_macOS_AppleSilicon_arm64_v1.2.4.dmg` 또는 `.zip` |
+| Windows x64 | `SParamView_Windows_x64_v1.2.4a.zip` |
+| Windows ARM64 | `SParamView_Windows_ARM64_v1.2.4a.zip` |
+| macOS Apple Silicon | `SParamView_macOS_AppleSilicon_arm64_v1.2.4a.dmg` 또는 `.zip` |
 
 릴리스에는 SHA-256 확인용 파일도 함께 제공됩니다. 다운로드 무결성을 확인하려면 Windows PowerShell에서 `Get-FileHash <파일명> -Algorithm SHA256`, macOS Terminal에서 `shasum -a 256 <파일명>`을 실행한 뒤 릴리스의 `.sha256` 값과 비교할 수 있습니다.
 
@@ -95,7 +95,7 @@ ZIP 파일을 압축 해제한 뒤 SParamView 실행 파일을 실행합니다. 
 ## 4. 메인 화면 구성
 
 > **자동 검증 화면** — 아래 이미지는 SParamView v1.2.1 네이티브 Windows ARM64 검증에서 synthetic sample project를 사용해 프로그램이 자동 생성한 화면입니다. OS, DPI 및 창 크기에 따라 실제 배치는 조금 달라질 수 있습니다.
-> v1.2.4 공개 릴리스 검증에서 생성한 화면입니다. TDR 표시 및 판정 동작은 아래 10절을 확인하십시오. [이미지 출처](images/README.md).
+> v1.2.4a 공개 릴리스 검증에서 생성한 화면입니다. TDR 표시 및 판정 동작은 아래 10절을 확인하십시오. [이미지 출처](images/README.md).
 
 ![SParamView v1.2.1 메인 화면](images/01_Main_Window.png)
 
@@ -551,4 +551,4 @@ SParamView 소스는 MIT License로 배포됩니다. Third-party component와 fo
 
 ### 문서 버전
 
-이 문서는 **SParamView v1.2.4 공개 릴리스**의 UI와 소스를 기준으로 개정되었습니다(2026-10-04). 화면 이미지는 v1.2.4 공개 릴리스의 자동 검증 결과로 갱신했습니다. 이후 버전에서는 메뉴, 기능 또는 분석 설정이 달라질 수 있습니다.
+이 문서는 **SParamView v1.2.4a 공개 릴리스**의 UI와 소스를 기준으로 개정되었습니다(2026-10-04). 화면 이미지는 v1.2.4a 공개 릴리스의 자동 검증 결과로 갱신했습니다. 이후 버전에서는 메뉴, 기능 또는 분석 설정이 달라질 수 있습니다.
