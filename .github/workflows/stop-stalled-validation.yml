@@ -1,0 +1,39 @@
+name: Stop stalled v1.2.4 workspace validation
+on:
+  push:
+    branches: ['release/v1.2.4']
+    paths: ['.github/workflows/stop-stalled-validation.yml']
+permissions:
+  actions: write
+  contents: read
+jobs:
+  stop-specific-stalled-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Cancel only the verified stalled test run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import datetime, json, subprocess
+          repo='july-rust/SParamView-Public'
+          run_id='38346238608'
+          def api(path):
+              return json.loads(subprocess.check_output(['gh','api',f'repos/{repo}/'+path],text=True))
+          run=api('actions/runs/'+run_id)
+          assert run['head_sha']=='fe7d7d5c2eac684e6f695e60c45b68a033e4005f'
+          assert run['head_branch']=='main'
+          if run['status']=='completed':
+              print('Run already finished; nothing cancelled')
+          else:
+              jobs=api('actions/runs/'+run_id+'/jobs?per_page=100')['jobs']
+              assert not any(j['name']=='Publish three-platform release' and j['status'] in ('in_progress','completed') for j in jobs)
+              mac=next(j for j in jobs if j['name']=='macOS Apple Silicon arm64')
+              step=next(s for s in mac['steps'] if s['name']=='Run macOS GUI integration tests')
+              assert step['status']=='in_progress'
+              elapsed=(datetime.datetime.now(datetime.timezone.utc)-datetime.datetime.fromisoformat(step['started_at'].replace('Z','+00:00'))).total_seconds()
+              assert elapsed>600,elapsed
+              subprocess.run(['gh','api','--method','POST',f'repos/{repo}/actions/runs/{run_id}/cancel'],check=True)
+              print('Cancelled only stalled run',run_id)
+          PY
