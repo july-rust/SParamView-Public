@@ -120,4 +120,32 @@ class ReleaseSafety(unittest.TestCase):
                 existing,{'object':{'type':'commit','sha':'c'*40}},'b'*40))
             api.assert_not_called()
 
+
+    def test_published_ci_only_main_succeeds_without_release_mutation(self):
+        old = '139b05fb112aec3aba4637a32eec48d1cc796672'
+        new = 'b'*40
+        repo = 'july-rust/SParamView-Public'
+        env = dict(SPARAMVIEW_VERSION='1.2.4a',GITHUB_SHA=new,
+                   GITHUB_REPOSITORY=repo,GITHUB_REF='refs/heads/main',
+                   GITHUB_EVENT_NAME='push',GITHUB_RUN_ID='42')
+        release = dict(id=411430037,tag_name='v1.2.4a',
+                       draft=False,target_commitish=old)
+        ref = {'object': {'type':'commit','sha':old}}
+        comparison = {'status':'ahead','files': [
+            {'status':'modified','filename':'tests/open_tests.cpp'}]}
+        jobs = {'jobs': [dict(name=name,conclusion='success',html_url='https://example.invalid')
+                         for name in ['Version and release consistency','Core quality gates',
+                                      'Windows x64','Windows ARM64',
+                                      'Native Windows ARM64 packaged-binary gate',
+                                      'macOS Apple Silicon arm64']]}
+        with patch.dict(os.environ,env), \\
+             patch.object(publisher.subprocess,'check_output',return_value=new), \\
+             patch.object(publisher,'api',side_effect=[release,ref,comparison,jobs]) as api, \\
+             patch.object(publisher,'gh') as gh:
+            publisher.main()
+            self.assertEqual(api.call_count,4)
+            for call in api.call_args_list:
+                self.assertEqual(len(call.args),1)
+            gh.assert_not_called()
+
 if __name__=='__main__':unittest.main()
