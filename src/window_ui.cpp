@@ -286,6 +286,11 @@ MainWindow::MainWindow() {
     workspaceActions[i] = viewMenu->addAction(
         QStringList{"Split View", "Maximize Plot", "Maximize Results"}[i]);
     workspaceActions[i]->setObjectName(QString("workspaceMode%1").arg(i));
+    // QToolButton::setDefaultAction() re-reads QAction::iconText whenever the
+    // action's checked/enabled state changes. Give toolbar labels their own
+    // stable short text instead of allowing long menu titles to expand the
+    // workspace's minimum width during Split/Plot/Results transitions.
+    workspaceActions[i]->setIconText(QStringList{"Split", "Plot", "Results"}[i]);
     workspaceActions[i]->setCheckable(true);
     workspaceActions[i]->setShortcut(QKeySequence(QString("Ctrl+%1").arg(i + 1)));
     modes->addAction(workspaceActions[i]);
@@ -295,12 +300,16 @@ MainWindow::MainWindow() {
   workspaceActions[0]->setChecked(true);
   viewMenu->addSeparator();
   channelsAction = viewMenu->addAction("Channel List");
+  channelsAction->setIconText("Channels");
   channelsAction->setCheckable(true);
   channelsAction->setChecked(true);
   settingsAction = viewMenu->addAction("Analysis Settings");
+  settingsAction->setIconText("Settings");
   settingsAction->setCheckable(true);
   settingsAction->setChecked(true);
   fullscreenAction = viewMenu->addAction("Full Screen");
+  fullscreenAction->setIconText("⛶");
+  fullscreenAction->setToolTip("Full Screen (F11)");
   fullscreenAction->setCheckable(true);
   fullscreenAction->setShortcut(QKeySequence(Qt::Key_F11));
   connect(fullscreenAction, &QAction::triggered, this, &MainWindow::toggleFullscreen);
