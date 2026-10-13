@@ -115,7 +115,7 @@ if (-not $SkipDeploy -and $Architecture -eq 'ARM64' -and $osArch -ne 'Arm64') {
   $deployQt = Join-Path $QtRoot 'bin\windeployqt.exe'
   if (Test-Path $deployQt) {
     try {
-      Invoke-Checked $deployQt @('--release','--no-translations','--compiler-runtime',(Join-Path $deployRoot 'SParamView.exe'))
+      Invoke-Checked $deployQt @('--release','--no-translations','--no-system-dxc-compiler','--compiler-runtime',(Join-Path $deployRoot 'SParamView.exe'))
       $offscreen = Join-Path $QtRoot 'plugins\platforms\qoffscreen.dll'
       if (Test-Path $offscreen) {
         New-Item -ItemType Directory -Path (Join-Path $deployRoot 'platforms') -Force | Out-Null
