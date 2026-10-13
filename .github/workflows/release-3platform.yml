@@ -238,15 +238,24 @@ jobs:
     needs: [prepare, windows]
     runs-on: windows-11-vs2026-arm
     timeout-minutes: 50
+    permissions:
+      actions: read
+      contents: read
     defaults:
       run:
         shell: pwsh
     steps:
-      - name: Download ARM64 bundle
-        uses: actions/download-artifact@v7
-        with:
-          name: SParamView-v${{ needs.prepare.outputs.version }}-Windows-ARM64
-          path: bundle
+      # GitHub CLI is Go-based. The upstream actions/download-artifact@v7
+      # runtime emits Node DEP0005 on Windows ARM64 despite successful downloads.
+      # Keep authenticated Actions artifact retrieval; never hide Node warnings.
+      - name: Download ARM64 bundle via GitHub CLI
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh --version
+          gh run download $env:GITHUB_RUN_ID --repo $env:GITHUB_REPOSITORY --name 'SParamView-v${{ needs.prepare.outputs.version }}-Windows-ARM64' --dir bundle
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to download ARM64 artifact using GitHub CLI' }
+          if (-not (Test-Path 'bundle/SParamView.exe')) { throw 'ARM64 release package missing executable' }
 
       - name: Verify native architecture and executable metadata
         env:
@@ -297,7 +306,11 @@ jobs:
             Invoke-Test -Name 'si_hardening_tests' -TestArgs @($case,(Join-Path $qa "hardening\$case"))
           }
           Invoke-Test -Name 'si_navigation_tests' -TestArgs @((Join-Path $qa 'navigation'))
-          Invoke-Test -Name 'si_open_tests' -TestArgs @((Join-Path $qa 'open'),'fallback')
+          # Exercise the modal warning / manual row preservation sequence
+          # repeatedly on native ARM64 to catch event-loop-order regressions.
+          foreach ($iteration in 1..10) {
+            Invoke-Test -Name 'si_open_tests' -TestArgs @((Join-Path $qa "open-$iteration"),'fallback')
+          }
           Invoke-Test -Name 'si_open_tests' -TestArgs @((Join-Path $qa 'signal-type'),'signaltype')
           Invoke-Test -Name 'si_workspace_tests' -TestArgs @((Join-Path $bundle 'examples\demo.siproject'),(Join-Path $qa 'workspace'),'1366','768')
           & (Join-Path $bundle 'SParamView.exe') --selftest (Join-Path $bundle 'examples') (Join-Path $qa 'workflow') 2>&1 | Tee-Object -FilePath $log -Append
