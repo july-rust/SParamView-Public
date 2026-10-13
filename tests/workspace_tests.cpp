@@ -192,7 +192,8 @@ int main(int argc,char**argv){
  QSettings::setPath(QSettings::IniFormat,QSettings::UserScope,out+"/preferences");
  {QSettings p(QSettings::IniFormat,QSettings::UserScope,"SParamView",app.applicationName());p.clear();}
  QLocale::setDefault(QLocale(QLocale::German,QLocale::Germany));
- applyLightTheme(app);check(QLocale().decimalPoint()==".","Technical UI must use decimal points");QFontDatabase::addApplicationFont(QCoreApplication::applicationDirPath()+"/fonts/NanumGothic-Regular.ttf");#ifdef Q_OS_WIN
+ applyLightTheme(app);check(QLocale().decimalPoint()==".","Technical UI must use decimal points");QFontDatabase::addApplicationFont(QCoreApplication::applicationDirPath()+"/fonts/NanumGothic-Regular.ttf");
+#ifdef Q_OS_WIN
  QFont::insertSubstitution("Segoe UI","NanumGothic");
 #else
  check(!app.styleSheet().contains("Segoe UI"),"Non-Windows stylesheet requires a native font");
