@@ -160,6 +160,20 @@ struct WorkspaceProbe {
      check(ready(),message);settle(w);
    };
    w.toggleFullscreen();waitForWindow([&]{return w.isFullScreen();},"Fullscreen enter");
+   // The Cocoa full-screen Space transition is asynchronous. Qt can report
+   // WindowFullScreen before macOS finishes its animation; immediately calling
+   // showNormal() can be ignored by AppKit while that transition is in flight.
+   // Preserve real native Cocoa coverage rather than treating it as skipped.
+   if(QGuiApplication::platformName().compare("cocoa",Qt::CaseInsensitive)==0){
+     stage("wait for native Cocoa fullscreen entry to settle");
+     QElapsedTimer nativeTransition;nativeTransition.start();
+     while(nativeTransition.elapsed()<1800){
+       QApplication::processEvents(QEventLoop::AllEvents,20);
+       QThread::msleep(10);
+     }
+     check(w.isFullScreen(),"Native fullscreen lost before exit request");
+   }
+   stage("request fullscreen exit");
    w.toggleFullscreen();waitForWindow([&]{return !w.isFullScreen()&&w.size()==normalGeometry.size();},"Fullscreen normal-size restoration");
   }else{
    result["fullscreen_headless_skipped"]=true;
