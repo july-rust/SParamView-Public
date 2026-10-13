@@ -11,7 +11,7 @@ spec.loader.exec_module(publisher)
 
 class ReleaseSafety(unittest.TestCase):
     def stopped(self, answers, message, environment=None):
-        env=dict(SPARAMVIEW_VERSION='1.2.4',GITHUB_SHA='a'*40,GITHUB_REPOSITORY='owner/repo',
+        env=dict(SPARAMVIEW_VERSION='1.2.4a',GITHUB_SHA='a'*40,GITHUB_REPOSITORY='owner/repo',
                  GITHUB_REF='refs/heads/main',GITHUB_EVENT_NAME='push',GITHUB_RUN_ID='42')
         env.update(environment or {})
         with patch.dict(os.environ,env), patch.object(publisher.subprocess,'check_output',return_value='a'*40), \
@@ -30,8 +30,8 @@ class ReleaseSafety(unittest.TestCase):
     def test_pr_never_publishes(self):
         self.stopped([],'main push',{'GITHUB_EVENT_NAME':'pull_request'})
     def test_provenance(self):
-        publisher.check_provenance({'version':'1.2.4','commit':'abc'},'1.2.4','abc')
-        for data in [{'version':'1.2.3','commit':'abc'},{'version':'1.2.4','commit':'def'}]:
-            with self.assertRaises(RuntimeError):publisher.check_provenance(data,'1.2.4','abc')
+        publisher.check_provenance({'version':'1.2.4a','commit':'abc'},'1.2.4a','abc')
+        for data in [{'version':'1.2.3','commit':'abc'},{'version':'1.2.4a','commit':'def'}]:
+            with self.assertRaises(RuntimeError):publisher.check_provenance(data,'1.2.4a','abc')
 
 if __name__=='__main__':unittest.main()
