@@ -44,11 +44,15 @@ The first platform run [38342671961](https://github.com/july-rust/SParamView-Pub
 
 Leading double/mixed signs are now rejected before normalization on both parser backends. The invalid-number corpus includes `++1`, `+-1`, `-+1` and `--1`. This changes malformed-input rejection only; valid decimal parsing and all analysis formulas are unchanged. Windows also executes the actual deployed x64 bundle's project/analysis/Excel/roundtrip self-test in addition to build-tree CTest and the PE audit. The full final commit must pass all platform gates before publication; earlier successful binaries are not substituted.
 
+The second platform run [38345389103](https://github.com/july-rust/SParamView-Public/actions/runs/38345389103) passed all 36 macOS deterministic tests, including the corrected number corpus, and Windows x64 including its deployed self-test. The newly enabled macOS workspace test failed its requested-size constraint under the minimal plugin, which reported no support for application fonts. That is a failed layout execution, not a PASS or an exclusion.
+
+The workspace test now uses native Cocoa on macOS, applies the same compact settings/header setup as the production app, retains the 1440×900 viewport constraint and tightens the normal settings-height assertion to 74 px. It reports actual/minimum size and font/platform details, waits for asynchronous fullscreen restoration, and records offscreen fullscreen checks as unexecuted rather than successful. No production layout or graph-area calculation was relaxed.
+
 ## Release-platform gates
 
 Local evidence does not establish Windows/macOS package success. Official publication separately requires successful GitHub Actions jobs for core/sanitizers/analyzer, Windows x64 build/test/deployment audit, Windows ARM64 cross-build/audit, **native ARM64 packaged executable tests**, and macOS arm64 build/regression/integration/deployment/self-test.
 
-On macOS four GUI tests are excluded from offscreen CTest and run explicitly with `QT_QPA_PLATFORM=minimal`, including workspace layout at 1440×900. They are not marked PASS merely because of exclusion. ARM64 cross-build `-SkipTests` is build-only; native packaged execution is mandatory before publication.
+On macOS four GUI tests are excluded from offscreen CTest and run explicitly: navigation and open tests use `QT_QPA_PLATFORM=minimal`; workspace layout at 1440×900 uses the native Cocoa platform and real font support. They are not marked PASS merely because of exclusion. ARM64 cross-build `-SkipTests` is build-only; native packaged execution is mandatory before publication.
 
 Consult the official release's `Release_Status_FINAL.json` for the exact commit, successful job URLs and asset digests, and its `Validation_Evidence.zip` for CI logs. These are generated only after all required jobs succeed. Tag/commit, build provenance, executable versions, remote asset sizes and SHA-256 digests are verified before the draft becomes public.
 

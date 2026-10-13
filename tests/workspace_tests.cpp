@@ -1,5 +1,6 @@
 #include "app.hpp"
 #include <iostream>
+void applyCompactAnalysisSettings(MainWindow &window);
 static void check(bool ok, const char *message) { if (!ok) throw si::Error(message); }
 struct WorkspaceProbe {
  static void settle(MainWindow &w) {
@@ -18,6 +19,7 @@ struct WorkspaceProbe {
  static QJsonObject run(MainWindow &w, const QString &project, const QString &out, QSize size) {
   w.resetWorkspaceLayout(); w.resize(size); w.show(); settle(w);
   w.loadProject(project); settle(w); check(!w.revisions.empty(),"Project missing");
+  w.resize(size); settle(w);
   // Regression: RL -> IL -> NEXT -> FEXT -> TDR must calculate each missing
   // metric and immediately form a graph, even when the previous result exists.
   w.results.clear(); w.lastJobs.clear();
@@ -64,6 +66,10 @@ struct WorkspaceProbe {
    {"normal_plot_width",normalPlot.width()},{"normal_plot_height",normalPlot.height()},
    {"normal_graph_area",area.width()*area.height()},{"normal_table_height",normalTable.height()},
    {"analysis_rows",w.table->rowCount()}};
+  result["platform"]=QGuiApplication::platformName();
+  result["font_family"]=w.font().family();
+  result["minimum_width"]=w.minimumSizeHint().width();result["minimum_height"]=w.minimumSizeHint().height();
+  std::cout<<QJsonDocument(result).toJson().constData()<<std::flush;
   check(w.width()<=size.width() && w.height()<=size.height(),"Layout exceeds requested screen size");
   w.grab().save(out+"/Split.png");
   QStringList expectedQuick{"RL","IL","NEXT","FEXT","TDR"};
@@ -72,7 +78,7 @@ struct WorkspaceProbe {
    check(quick&&quick->text()==expectedQuick[i],"Compact Quick Analysis control labels");
   }
   auto compactSettings=w.findChild<QScrollArea*>("analysisSettingsPanel");
-  check(compactSettings&&compactSettings->maximumHeight()<=190,"Compact analysis settings preserve more plot height");
+  check(compactSettings&&compactSettings->maximumHeight()<=74,"Compact analysis settings preserve more plot height");
   result["compact_quick_analysis_ui"]=true;
 
   auto advancedButton=w.findChild<QToolButton*>("advancedToggle");
@@ -135,9 +141,15 @@ struct WorkspaceProbe {
   auto normalGeometry=w.geometry();
   const bool offscreen=QGuiApplication::platformName().compare("offscreen",Qt::CaseInsensitive)==0;
   if(!offscreen){
-   w.toggleFullscreen();settle(w);check(w.isFullScreen(),"Fullscreen enter");
-   w.toggleFullscreen();settle(w);check(!w.isFullScreen(),"Fullscreen exit");
-   check(w.size()==normalGeometry.size(),"Fullscreen changed normal size");
+   auto waitForWindow=[&](const std::function<bool()> &ready,const char *message){
+     QElapsedTimer transition;transition.start();
+     while(!ready()&&transition.elapsed()<5000){
+       QApplication::processEvents(QEventLoop::AllEvents,20);QThread::msleep(5);
+     }
+     check(ready(),message);settle(w);
+   };
+   w.toggleFullscreen();waitForWindow([&]{return w.isFullScreen();},"Fullscreen enter");
+   w.toggleFullscreen();waitForWindow([&]{return !w.isFullScreen()&&w.size()==normalGeometry.size();},"Fullscreen normal-size restoration");
   }else{
    result["fullscreen_headless_skipped"]=true;
   }
@@ -153,7 +165,7 @@ struct WorkspaceProbe {
   }
   w.setWorkspaceMode(2);w.saveWorkspaceLayout();
   check(w.workspaceMode==0,"Saving focus did not normalize layout");
-  result["axes_selection_results_preserved"]=true;result["divider_adjustable"]=true;result["fullscreen_restored"]=true;
+  result["axes_selection_results_preserved"]=true;result["divider_adjustable"]=true;result["fullscreen_restored"]=!offscreen;
   result["metric_switch_without_analysis"]=true;result["passed"]=true;w.dirty=false;return result;
  }
  static void persistence(MainWindow&w) {
@@ -172,7 +184,7 @@ int main(int argc,char**argv){
  try{
   QSize size(argc>3?QString::fromLocal8Bit(argv[3]).toInt():1440,argc>4?QString::fromLocal8Bit(argv[4]).toInt():980);
   QJsonObject result;
-  {MainWindow w;result=WorkspaceProbe::run(w,QString::fromLocal8Bit(argv[1]),out,size);}
+  {MainWindow w;applyCompactAnalysisSettings(w);w.installHeaderProjectButtons();result=WorkspaceProbe::run(w,QString::fromLocal8Bit(argv[1]),out,size);}
   {MainWindow w;WorkspaceProbe::persistence(w);}
   result["preferences_restored"]=true;QFile f(out+"/Workspace.json");check(f.open(QIODevice::WriteOnly),"Cannot save QA");f.write(QJsonDocument(result).toJson());std::cout<<QJsonDocument(result).toJson().constData();return 0;
  }catch(const std::exception&e){std::cerr<<e.what()<<'\n';return 1;}

@@ -384,7 +384,7 @@ jobs:
           QT_QPA_PLATFORM=minimal build-macos/si_header_ui_tests
           QT_QPA_PLATFORM=minimal build-macos/si_navigation_tests build-macos/navigation-test-macos
           QT_QPA_PLATFORM=minimal build-macos/si_open_tests build-macos/open-test-macos fallback
-          QT_QPA_PLATFORM=minimal build-macos/si_workspace_tests examples/demo.siproject build-macos/workspace-test-macos 1440 900
+          QT_QPA_PLATFORM=cocoa build-macos/si_workspace_tests examples/demo.siproject build-macos/workspace-test-macos 1440 900
           QT_QPA_PLATFORM=minimal build-macos/si_open_tests build-macos/signal-type-test-macos signaltype
 
       - name: Create macOS app bundle

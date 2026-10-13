@@ -14,14 +14,14 @@ Public starting commit: `0dc652014773766a6723045f4e3004e1a8f0315d` (public v1.2.
 - Touchstone 2.1 additional option lines are ignored with diagnostics. The first option line stays authoritative. Symmetric Full/Lower/Upper mixed-mode representations produce equivalent physical S matrices. See the [IBIS specification](https://www.ibis.org/touchstone_ver2.1/touchstone_ver2_1.pdf), pp. 6 and 23.
 - Excel Configuration records analysis-time signal type, confidence, evidence, mapping source/confirmation, source SHA-256 verification and settings, plus separate analysis-completion and report-generation timestamps.
 - Invalid repeated or mixed leading numeric signs are consistently rejected on macOS and Windows; the macOS-specific discrepancy was caught before publication.
-- macOS number parsing and thread joining are explicit source-level portability code. CI no longer rewrites source strings. macOS workspace layout runs as a separate minimal-platform integration test.
+- macOS number parsing and thread joining are explicit source-level portability code. CI no longer rewrites source strings. macOS workspace layout runs as a separate native Cocoa integration test with real font support.
 - Includes the v1.2.2 compact 74 px settings area and v1.2.3 signal-detection improvements. The C++ numerical engine, English technical UI and established graph behavior are preserved.
 
 ## Validation and evidence
 
 The [validation record](validation-v124/README.md) separates reproduced baseline defects, local tests, seven-file comparisons and platform gates. Raw customer Touchstone files are not redistributed. Source SHA-256, dimensions, mapping audit and numerical/export comparisons are retained as compact evidence.
 
-Official publication requires all six GitHub Actions gates to finish successfully: version consistency, core regression/sanitizers/analyzer, Windows x64, Windows ARM64 build/audit, native Windows ARM64 packaged execution and macOS Apple Silicon. A skipped or excluded test is not counted as a passing execution. The macOS layout/navigation/open tests excluded from offscreen CTest run explicitly with the minimal platform plugin.
+Official publication requires all six GitHub Actions gates to finish successfully: version consistency, core regression/sanitizers/analyzer, Windows x64, Windows ARM64 build/audit, native Windows ARM64 packaged execution and macOS Apple Silicon. A skipped or excluded test is not counted as a passing execution. The macOS tests excluded from offscreen CTest run explicitly: workspace layout uses native Cocoa; navigation/open tests use the minimal platform plugin.
 
 The release status JSON records the exact release commit, gate URLs and asset SHA-256 values. The validation-evidence ZIP retains relevant CI logs and the seven-file audit. Every downloadable asset has a SHA-256 sidecar.
 
