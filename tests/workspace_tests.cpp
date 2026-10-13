@@ -3,6 +3,7 @@
 void applyCompactAnalysisSettings(MainWindow &window);
 static void check(bool ok, const char *message) { if (!ok) throw si::Error(message); }
 struct WorkspaceProbe {
+ static void stage(const char *name) { std::cerr<<"WORKSPACE STAGE: "<<name<<std::endl; }
  static void settle(MainWindow &w) {
   QElapsedTimer t; t.start();
   do { QApplication::processEvents(QEventLoop::AllEvents, 10); QThread::msleep(1);
@@ -17,13 +18,17 @@ struct WorkspaceProbe {
   return QJsonDocument(a).toJson(QJsonDocument::Compact);
  }
  static QJsonObject run(MainWindow &w, const QString &project, const QString &out, QSize size) {
+  stage("show window");
   w.resetWorkspaceLayout(); w.resize(size); w.show(); settle(w);
+  stage("load project");
   w.loadProject(project); settle(w); check(!w.revisions.empty(),"Project missing");
   w.resize(size); settle(w);
   // Regression: RL -> IL -> NEXT -> FEXT -> TDR must calculate each missing
   // metric and immediately form a graph, even when the previous result exists.
   w.results.clear(); w.lastJobs.clear();
+  stage("individual metrics");
   for(int i=0;i<5;++i){
+   std::cerr<<"WORKSPACE metric: "<<i<<std::endl;
    w.metricButtons[i]->click(); settle(w);
    check(!w.results.empty(),"Individual metric analysis returned no results");
    check(std::all_of(w.results.begin(),w.results.end(),[i](const si::Result&r){return int(r.metric)==i;}),"Individual metric button did not calculate requested metric");
@@ -32,6 +37,7 @@ struct WorkspaceProbe {
   // And make sure returning to RL is a fresh valid calculation/display path.
   w.metricButtons[0]->click(); settle(w);
   check(w.displayed==si::Metric::RL&&!w.plot->snapshot.curves.empty(),"RL return after sequential metric run failed");
+  stage("quick analysis");
   w.run(w.settings.quick); settle(w); check(!w.results.empty(),"Analysis missing");
   if (w.revisions.size() > 1) {
    const int originalRevision=w.revisionBox->currentIndex();
@@ -54,6 +60,7 @@ struct WorkspaceProbe {
    check(std::all_of(w.resultRows.begin(),w.resultRows.end(),[&](size_t row){return w.results[row].revision==restored;}),
          "Returning to the original revision did not restore its result view");
   }
+  stage("select and capture layout");
   w.table->selectRow(0); settle(w);
   auto original=values(w); auto jobs=w.lastJobs.size(); auto settings=settingsJson(w.lastSettings);
   auto selection=w.table->selectionModel()->selectedRows(); check(selection.size()==1,"Selection missing");
@@ -71,7 +78,9 @@ struct WorkspaceProbe {
   result["minimum_width"]=w.minimumSizeHint().width();result["minimum_height"]=w.minimumSizeHint().height();
   std::cout<<QJsonDocument(result).toJson().constData()<<std::flush;
   check(w.width()<=size.width() && w.height()<=size.height(),"Layout exceeds requested screen size");
+  stage("split screenshot");
   w.grab().save(out+"/Split.png");
+  stage("compact controls");
   QStringList expectedQuick{"RL","IL","NEXT","FEXT","TDR"};
   for(int i=0;i<expectedQuick.size();++i){
    auto quick=w.findChild<QCheckBox*>(QString("quickMetric%1").arg(i));
@@ -88,6 +97,7 @@ struct WorkspaceProbe {
   check(advancedButton&&advancedPanel&&resultsButton,"Advanced controls missing");
   auto resultsPos=resultsButton->mapTo(&w,QPoint(0,0)), advancedPos=advancedButton->mapTo(&w,QPoint(0,0));
   check(std::abs((advancedPos.y()+advancedButton->height()/2)-(resultsPos.y()+resultsButton->height()/2))<=2 && advancedPos.x()>resultsPos.x()+resultsButton->width() && advancedPos.x()-resultsPos.x()-resultsButton->width()<=12,"Advanced is not adjacent to Maximize Results");
+  stage("advanced controls");
   advancedButton->click();settle(w);
   check(advancedPanel->isVisible()&&w.settingsPanel->isVisible(),"Advanced did not reveal settings");
   check(w.width()<=size.width()&&w.height()<=size.height(),"Advanced exceeds viewport");
@@ -101,6 +111,7 @@ struct WorkspaceProbe {
   w.settingsAction->setChecked(true); settle(w);
   split=w.analysisSplit->sizes();
 
+  stage("graph focus");
   w.workspaceActions[1]->trigger(); settle(w);
   check(w.plot->isVisible()&&!w.resultsPanel->isVisible()&&!w.channelPanel->isVisible(),"Graph focus visibility");
   check(w.plot->height()>normalPlot.height()&&w.plot->width()>normalPlot.width(),"Graph did not grow");
@@ -108,6 +119,7 @@ struct WorkspaceProbe {
   auto large=graphArea(w.plot->rect(),w.plot->snapshot);result["focused_graph_area"]=large.width()*large.height();
   check(w.plot->snapshot.viewStart==1e9&&w.plot->snapshot.viewStop==4e9&&w.plot->snapshot.viewBottom==-30,"Focus reset axes");
   w.grab().save(out+"/Graph.png");
+  stage("results focus");
   w.workspaceActions[2]->trigger(); settle(w);
   check(!w.tabs->isVisible()&&w.table->isVisible(),"Table focus visibility");
   advancedButton->click();settle(w);
@@ -120,11 +132,13 @@ struct WorkspaceProbe {
   check(w.table->verticalHeader()->defaultSectionSize()==34,"Table font row size");
   check(w.table->selectionModel()->selectedRows()==selection,"Font/focus changed selection");
   w.grab().save(out+"/Results.png");
+  stage("restore split");
   w.workspaceActions[0]->trigger();settle(w);
   auto restored=w.analysisSplit->sizes();
   check(restored.size()==2&&std::abs(restored[0]-split[0])<=2,"Split proportions not restored");
   check(w.channelPanel->isVisible()&&w.settingsPanel->isVisible(),"Panels not restored");
   check(w.plot->snapshot.viewStart==1e9&&w.plot->snapshot.viewStop==4e9,"Table focus reset axes");
+  stage("repeated focus switching");
   for(int i=0;i<15;++i){w.setWorkspaceMode(1);w.setWorkspaceMode(2);w.setWorkspaceMode(0);}
   settle(w);
   check(values(w)==original&&w.lastJobs.size()==jobs&&settingsJson(w.lastSettings)==settings,"Layout altered analysis or limits");
@@ -138,6 +152,7 @@ struct WorkspaceProbe {
   auto scroll=qobject_cast<QScrollArea*>(w.settingsPanel);check(scroll&&scroll->widget(),"Settings scroll container missing");
   w.grab().save(out+"/Settings.png");w.settingsAction->setChecked(false);settle(w);
   check(!w.analysisSplit->opaqueResize(),"Splitter triggers continuous redraw");
+  stage("fullscreen");
   auto normalGeometry=w.geometry();
   const bool offscreen=QGuiApplication::platformName().compare("offscreen",Qt::CaseInsensitive)==0;
   if(!offscreen){
@@ -153,6 +168,7 @@ struct WorkspaceProbe {
   }else{
    result["fullscreen_headless_skipped"]=true;
   }
+  stage("metric viewing");
   // Separate metric selection reads completed data without starting new jobs.
   auto selectedMetric=si::Metric::TDR;w.metricView->setCurrentIndex(int(selectedMetric));settle(w);
   check(w.displayed==selectedMetric&&values(w)==original&&w.lastJobs.size()==jobs,"Metric selector changed analysis");
@@ -163,6 +179,7 @@ struct WorkspaceProbe {
    w.compareRevisions();settle(w);
    check(w.tabs->isVisible()&&w.tabs->currentIndex()==1,"Comparison hidden by table focus");
   }
+  stage("save workspace");
   w.setWorkspaceMode(2);w.saveWorkspaceLayout();
   check(w.workspaceMode==0,"Saving focus did not normalize layout");
   result["axes_selection_results_preserved"]=true;result["divider_adjustable"]=true;result["fullscreen_restored"]=!offscreen;
@@ -175,16 +192,21 @@ struct WorkspaceProbe {
  }
 };
 int main(int argc,char**argv){
+ std::cerr<<"WORKSPACE STAGE: QApplication construction"<<std::endl;
  QApplication app(argc,argv);app.setApplicationName("SParamView-WorkspaceTests");
  if(argc<3)return 2;QString out=QString::fromLocal8Bit(argv[2]);QDir().mkpath(out);
  QSettings::setPath(QSettings::IniFormat,QSettings::UserScope,out+"/preferences");
  {QSettings p(QSettings::IniFormat,QSettings::UserScope,"SParamView",app.applicationName());p.clear();}
  QLocale::setDefault(QLocale(QLocale::German,QLocale::Germany));
+ std::cerr<<"WORKSPACE STAGE: theme and fonts"<<std::endl;
  applyLightTheme(app);check(QLocale().decimalPoint()==".","Technical UI must use decimal points");QFontDatabase::addApplicationFont(QCoreApplication::applicationDirPath()+"/fonts/NanumGothic-Regular.ttf");QFont::insertSubstitution("Segoe UI","NanumGothic");
+ QTimer modalLog;QObject::connect(&modalLog,&QTimer::timeout,[]{if(auto dialog=QApplication::activeModalWidget()){std::cerr<<"WORKSPACE MODAL: "<<dialog->metaObject()->className()<<" :: "<<dialog->windowTitle().toStdString();if(auto message=qobject_cast<QMessageBox*>(dialog))std::cerr<<" :: "<<message->text().toStdString();std::cerr<<std::endl;}});modalLog.start(5000);
  try{
   QSize size(argc>3?QString::fromLocal8Bit(argv[3]).toInt():1440,argc>4?QString::fromLocal8Bit(argv[4]).toInt():980);
   QJsonObject result;
+  std::cerr<<"WORKSPACE STAGE: MainWindow construction"<<std::endl;
   {MainWindow w;applyCompactAnalysisSettings(w);w.installHeaderProjectButtons();result=WorkspaceProbe::run(w,QString::fromLocal8Bit(argv[1]),out,size);}
+  std::cerr<<"WORKSPACE STAGE: persistence"<<std::endl;
   {MainWindow w;WorkspaceProbe::persistence(w);}
   result["preferences_restored"]=true;QFile f(out+"/Workspace.json");check(f.open(QIODevice::WriteOnly),"Cannot save QA");f.write(QJsonDocument(result).toJson());std::cout<<QJsonDocument(result).toJson().constData();return 0;
  }catch(const std::exception&e){std::cerr<<e.what()<<'\n';return 1;}
