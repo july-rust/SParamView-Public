@@ -1,10 +1,4 @@
-void MainWindow::run(std::vector<si::Metric> metrics) {
-  if (busy)
-    return;
-  try {
-    syncSettings();
-    if (metrics.empty())
-      throw si::Error("Select at least one analysis type.");
+std::vector<si::Job> MainWindow::requestedJobs(const std::vector<si::Metric> &metrics) const {
     auto selected = selectedChannels();
     if (selected.empty())
       throw si::Error("Select channels to analyze.");
@@ -13,13 +7,13 @@ void MainWindow::run(std::vector<si::Metric> metrics) {
         throw si::Error("Mapping confirmation required: " + ss(r.name));
       si::validateMapping(r.channels, r.cache->meta());
     }
-    auto jobs = std::make_shared<std::vector<si::Job>>();
+    std::vector<si::Job> jobs;
   auto appendDirections = [&](si::Job base) {
     for (bool reverse : {false, true}) {
       if (!si::directionAvailable(base, reverse)) continue;
       auto job = base;
       job.reverse = reverse;
-      jobs->push_back(std::move(job));
+      jobs.push_back(std::move(job));
     }
   };
   for (auto &rev : revisions) {
@@ -42,9 +36,26 @@ void MainWindow::run(std::vector<si::Metric> metrics) {
       }
     }
   }
-  if (jobs->empty())
+  if (jobs.empty())
     throw si::Error("No selected channels have valid mapped endpoints for the requested analysis.");
-    *jobs=si::expandTdrJobs(*jobs,settings);
+    jobs=si::expandTdrJobs(jobs,settings);
+    return jobs;
+}
+
+void MainWindow::run(std::vector<si::Metric> metrics) {
+  if (busy)
+    return;
+  try {
+    syncSettings();
+    if (metrics.empty())
+      throw si::Error("Select at least one analysis type.");
+    if(sameAnalysisContext(settings,lastSettings) &&
+       std::all_of(metrics.begin(),metrics.end(),[&](auto metric){return hasCurrentResult(metric);})) {
+      showMetric(metrics.front());
+      notice->setText("Using completed results for the identical analysis request.");
+      return;
+    }
+    auto jobs = std::make_shared<std::vector<si::Job>>(requestedJobs(metrics));
     auto set = settings;
     auto output = std::make_shared<std::vector<si::Result>>();
     displayed = metrics.front();
@@ -86,6 +97,9 @@ void MainWindow::run(std::vector<si::Metric> metrics) {
           lastJobs = std::move(*jobs);
           results = std::move(*output);
           lastSettings = set;
+          lastRevisions = revisions;
+          const auto stamp=QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs);
+          for(auto &r:lastRevisions)r.analysisTime=stamp;
           dirty = true;
           refreshResults();
           showMetric(displayed);

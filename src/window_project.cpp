@@ -26,13 +26,19 @@ void MainWindow::saveProject(bool as) {
                                  {"channels", channels},
                                  {"mappingCandidates", candidates},
                                  {"mappingSource", r.mappingSource},
+                                 {"signalType", r.signalType},
+                                 {"signalConfidence", r.signalConfidence},
+                                 {"signalEvidence", r.signalEvidence},
+                                 {"signalTypeReviewed", r.signalTypeReviewed},
+                                 {"inferNamedDifferential", r.inferNamedDifferential},
                                  {"confirmed", r.confirmed},
                                  {"cache", qs(si::utf8(r.cache->path()))},
                                  {"sourceSha256", qs(r.cache->meta().sha256)}});
     }
     QJsonArray selected;
-    for (auto &c : selectedChannels())
-      selected.append(qs(c.id));
+    for (int i=0;i<channels->count();++i)
+      if(channels->item(i)->checkState()==Qt::Checked)
+        selected.append(channels->item(i)->data(Qt::UserRole).toString());
     QJsonObject obj{
         {"format", "SIAnalyzerProject"},
         {"schema", 1},
@@ -43,6 +49,8 @@ void MainWindow::saveProject(bool as) {
         {"ui", QJsonObject{{"revision", revisionBox->currentIndex()},
                            {"selected", selected},
                            {"group", groupBox->currentText()},
+                           {"search", search->text()},
+                           {"aggressor", aggressorBox->currentText()},
                            {"metric", int(displayed)},
                            {"directionMode", directionMode},
                            {"geometry",
@@ -61,6 +69,7 @@ void MainWindow::saveProject(bool as) {
 void MainWindow::loadProject(QString path) {
   if (busy)
     return;
+  if (!confirmProjectTransition()) return;
   try {
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly))
@@ -99,6 +108,17 @@ void MainWindow::loadProject(QString path) {
       rev.confirmed = r["confirmed"].toBool();
       rev.mappingSource = r["mappingSource"].toString(
           rev.confirmed ? "Legacy Confirmed Mapping" : "Manual Mapping");
+      rev.signalType = r["signalType"].toString(
+          rev.confirmed ? signalTypeForChannels(rev.channels) : "Unknown");
+      rev.signalConfidence = r["signalConfidence"].toString(
+          rev.confirmed ? "Confirmed" : "Low");
+      rev.signalEvidence = r["signalEvidence"].toString(
+          rev.confirmed ? "Restored confirmed Channel Mapping." : QString{});
+      rev.signalTypeReviewed =
+          r.contains("signalTypeReviewed") ? r["signalTypeReviewed"].toBool()
+                                           : rev.confirmed;
+      rev.inferNamedDifferential = r.contains("inferNamedDifferential")
+          ? r["inferNamedDifferential"].toBool(true) : rev.signalType != "Single-ended";
       loaded->push_back(rev);
     }
     auto settingsLoaded = settingsFromJson(obj["settings"].toObject());
@@ -108,21 +128,34 @@ void MainWindow::loadProject(QString path) {
         [loaded, cacheRoot, sources](si::Control *c) {
           for (size_t i = 0; i < loaded->size(); ++i) {
             auto &r = (*loaded)[i];
-            r.cache = si::Cache::open(fp(r.source), fp(cacheRoot), c);
-            si::validateMapping(r.channels, r.cache->meta());
-            auto original =
-                sources[int(i)].toObject()["sourceSha256"].toString();
-            if (!original.isEmpty() && original != qs(r.cache->meta().sha256))
-              r.confirmed = false;
+            r.cache = si::Cache::open(fp(r.source), fp(cacheRoot), c, true);
+            const auto original=sources[int(i)].toObject()["sourceSha256"].toString();
+            const bool changed=!original.isEmpty() && original!=qs(r.cache->meta().sha256);
+            bool valid=true;
+            try {si::validateMapping(r.channels,r.cache->meta());}
+            catch(const si::Error &){valid=false;}
+            if(changed || !valid) {
+              r.channels.clear();r.candidates.clear();r.confirmed=false;
+              r.signalTypeReviewed=false;r.inferNamedDifferential=true;
+              detectRevision(r);
+              if(!r.channels.empty()){r.candidates=std::move(r.channels);r.channels.clear();}
+              r.confirmed=false;r.signalTypeReviewed=false;
+              r.mappingWarning="Saved mapping invalidated: source changed or stored ports are no longer valid. " + r.mappingWarning;
+              r.signalEvidence="Current source re-evaluated; previous mapping was discarded. " + r.signalEvidence;
+            }
+            r.sourceVerification=changed?"Changed; current source fully verified SHA-256":
+                original.isEmpty()?"Current SHA-256 verified; legacy project has no saved hash":
+                                   "Saved SHA-256 matches fully verified current source";
           }
         },
         [this, loaded, settingsLoaded, path, obj] {
+          QScopedValueRollback<bool> restoring(restoringProject,true);
           revisions = std::move(*loaded);
           settings = settingsLoaded;
           projectName = obj["name"].toString("Untitled");
           projectPath = path;
           results.clear();
-          lastJobs.clear();
+          lastJobs.clear();lastRevisions.clear();
           QSignalBlocker b(revisionBox);
           revisionBox->clear();
           for (auto &r : revisions)
@@ -135,6 +168,8 @@ void MainWindow::loadProject(QString path) {
           applySettings();
           setDirectionMode(ui.contains("directionMode") ? std::clamp(ui["directionMode"].toInt(),0,2) : (settings.reverse?1:0));
           groupBox->setCurrentText(ui["group"].toString("All groups"));
+          search->setText(ui["search"].toString());
+          aggressorBox->setCurrentText(ui["aggressor"].toString("AUTO (same group)"));
           auto selected = ui["selected"].toArray();
           for (int i = 0; i < channels->count(); ++i)
             channels->item(i)->setCheckState(

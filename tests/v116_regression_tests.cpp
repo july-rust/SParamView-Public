@@ -53,13 +53,11 @@ int main() {
                multiref->meta().reference[1] == 75 &&
                multiref->meta().version == "1.1",
            "Touchstone 1.1 per-port R values survive reordered options");
-    expectError(
-        [&] {
-          Cache::open(write("duplicate-option.s2p",
-                            "# GHz S RI R 50\n# GHz S RI R 50\n" + data),
-                      dir / "cache");
-        },
-        "Duplicate option line is rejected");
+    auto repeated=Cache::open(write("duplicate-option.s2p",
+                            "# GHz S RI R 50\n# GHz S RI R 50\n" + data),dir/"cache");
+    expect(repeated->trace({{1,1}},{{0,1}})==canonical->trace({{1,1}},{{0,1}}) &&
+           !repeated->meta().warnings.empty(),
+           "Touchstone 2.1 additional option ignored with diagnostic");
 
     Trace ideal;
     ideal.parameter = "S11";

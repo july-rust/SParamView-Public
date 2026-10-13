@@ -1,0 +1,144 @@
+{
+  "files": [
+    {
+      "name": "2670-SGM023_EVB-260907_260907_171218_13384_ETC.S14P",
+      "sha256": "2c3115b64e811014cd2b3ce901a73a51939c3446748262b36b93f57fe716bde9",
+      "analysis_results": 62,
+      "exact_analysis_match": true,
+      "raw_csv_count": 10,
+      "raw_csv_byte_identical": true,
+      "excel_rows": {
+        "Summary": 5,
+        "Return_Loss": 10,
+        "Insertion_Loss": 10,
+        "NEXT": 16,
+        "FEXT": 16,
+        "TDR": 10
+      },
+      "excel_numerical_sheets_identical": true,
+      "excel_provenance": true,
+      "project_roundtrip": true,
+      "source_unchanged": true
+    },
+    {
+      "name": "2670-SGM023_EVB-260907_260908_084002_11328_INPUT.S20P",
+      "sha256": "a40882881e0be49f204755c4fb4e7ffc907477907fcd88d164ced4171e78b2a1",
+      "analysis_results": 420,
+      "exact_analysis_match": true,
+      "raw_csv_count": 10,
+      "raw_csv_byte_identical": true,
+      "excel_rows": {
+        "Summary": 10,
+        "Return_Loss": 20,
+        "Insertion_Loss": 20,
+        "NEXT": 180,
+        "FEXT": 180,
+        "TDR": 20
+      },
+      "excel_numerical_sheets_identical": true,
+      "excel_provenance": true,
+      "project_roundtrip": true,
+      "source_unchanged": true
+    },
+    {
+      "name": "2670-SGM023_EVB-260907_260908_085837_8344_OUTPUT_0_1_2.S36P",
+      "sha256": "c7a11bbc6dfd9106abd3ee83f378a79a36a0b0e857ea3b12631153bf00917187",
+      "analysis_results": 342,
+      "exact_analysis_match": true,
+      "raw_csv_count": 10,
+      "raw_csv_byte_identical": true,
+      "excel_rows": {
+        "Summary": 9,
+        "Return_Loss": 18,
+        "Insertion_Loss": 18,
+        "NEXT": 144,
+        "FEXT": 144,
+        "TDR": 18
+      },
+      "excel_numerical_sheets_identical": true,
+      "excel_provenance": true,
+      "project_roundtrip": true,
+      "source_unchanged": true
+    },
+    {
+      "name": "2670-SGM023_EVB-260907_260908_093259_11056_OUTPUT_CLK.S12P",
+      "sha256": "82c1462cc8cf4bf3364528a50b69951c3865a9f3c08af71e96cfbefea8228805",
+      "analysis_results": 42,
+      "exact_analysis_match": true,
+      "raw_csv_count": 10,
+      "raw_csv_byte_identical": true,
+      "excel_rows": {
+        "Summary": 3,
+        "Return_Loss": 6,
+        "Insertion_Loss": 6,
+        "NEXT": 12,
+        "FEXT": 12,
+        "TDR": 6
+      },
+      "excel_numerical_sheets_identical": true,
+      "excel_provenance": true,
+      "project_roundtrip": true,
+      "source_unchanged": true
+    },
+    {
+      "name": "2670-SGM023_EVB-260907_260908_100357_5968_OUTPUT_FMC.S36P",
+      "sha256": "11ac7063b6820ef172bcbb212a5bdc8d2677656c9c99db39942628439d5c66c6",
+      "analysis_results": 342,
+      "exact_analysis_match": true,
+      "raw_csv_count": 10,
+      "raw_csv_byte_identical": true,
+      "excel_rows": {
+        "Summary": 9,
+        "Return_Loss": 18,
+        "Insertion_Loss": 18,
+        "NEXT": 144,
+        "FEXT": 144,
+        "TDR": 18
+      },
+      "excel_numerical_sheets_identical": true,
+      "excel_provenance": true,
+      "project_roundtrip": true,
+      "source_unchanged": true
+    },
+    {
+      "name": "SAFARI2_20260908_260915_084931_13032_OUTPUT.S24P",
+      "sha256": "4394f32bc9f7bb427fdcae31402d3b8ce83ee92db58c186b623ce4069661e45a",
+      "analysis_results": 600,
+      "exact_analysis_match": true,
+      "raw_csv_count": 10,
+      "raw_csv_byte_identical": true,
+      "excel_rows": {
+        "Summary": 12,
+        "Return_Loss": 24,
+        "Insertion_Loss": 24,
+        "NEXT": 264,
+        "FEXT": 264,
+        "TDR": 24
+      },
+      "excel_numerical_sheets_identical": true,
+      "excel_provenance": true,
+      "project_roundtrip": true,
+      "source_unchanged": true
+    },
+    {
+      "name": "SAFARI2_20260908_260915_085800_11512_INPUT.S40P",
+      "sha256": "012db512b985546e51c2530cd46d50680e36a2388531f11b85e42d5d3e9369c3",
+      "analysis_results": 420,
+      "exact_analysis_match": true,
+      "raw_csv_count": 10,
+      "raw_csv_byte_identical": true,
+      "excel_rows": {
+        "Summary": 10,
+        "Return_Loss": 20,
+        "Insertion_Loss": 20,
+        "NEXT": 180,
+        "FEXT": 180,
+        "TDR": 20
+      },
+      "excel_numerical_sheets_identical": true,
+      "excel_provenance": true,
+      "project_roundtrip": true,
+      "source_unchanged": true
+    }
+  ]
+}

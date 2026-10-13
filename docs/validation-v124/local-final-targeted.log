@@ -1,0 +1,21 @@
+Test project <validation-workspace>/SParamView-Public/build-gui
+    Start 33: v124_gui_reuse
+1/8 Test #33: v124_gui_reuse ...................   Passed    0.15 sec
+    Start 34: v124_gui_dirty
+2/8 Test #34: v124_gui_dirty ...................   Passed    0.09 sec
+    Start 35: v124_gui_project_changed
+3/8 Test #35: v124_gui_project_changed .........   Passed    0.09 sec
+    Start 36: v124_gui_single_review
+4/8 Test #36: v124_gui_single_review ...........   Passed    0.14 sec
+    Start 37: v124_gui_mixed
+5/8 Test #37: v124_gui_mixed ...................   Passed    0.14 sec
+    Start 38: v124_gui_transition
+6/8 Test #38: v124_gui_transition ..............   Passed    0.17 sec
+    Start 39: v124_gui_roundtrip
+7/8 Test #39: v124_gui_roundtrip ...............   Passed    0.17 sec
+    Start 40: release_publication_safety
+8/8 Test #40: release_publication_safety .......   Passed    0.10 sec
+
+100% tests passed out of 8
+
+Total Test time (real) =   1.07 sec

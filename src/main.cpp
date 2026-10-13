@@ -1,5 +1,8 @@
 #include "app.hpp"
 #include <iostream>
+
+void applyCompactAnalysisSettings(MainWindow &window);
+
 int main(int argc, char **argv) {
   QApplication app(argc, argv);
   QApplication::setApplicationName("SParamView");
@@ -12,6 +15,7 @@ int main(int argc, char **argv) {
   QFont::insertSubstitution("Segoe UI", "NanumGothic");
   QFont::insertSubstitution("Noto Sans CJK KR", "NanumGothic");
   MainWindow window;
+  applyCompactAnalysisSettings(window);
   window.installHeaderProjectButtons();
   window.show();
   auto args = app.arguments();

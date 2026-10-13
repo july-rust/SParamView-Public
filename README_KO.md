@@ -1,4 +1,4 @@
-# SParamView v1.2.1
+# SParamView v1.2.4
 
 SParamView는 Touchstone S-parameter 데이터를 열고 채널 기준으로 분석하는 C++20 / Qt 6 데스크톱 프로그램입니다.
 
@@ -22,14 +22,17 @@ Quick TDR은 제한된 주파수 대역을 이용한 추정값이며 계측기 T
 - [한국어 사용자 설명서](docs/USER_GUIDE_KO.md)
 - [English User Guide](docs/USER_GUIDE_EN.md)
 
-## v1.2.1 변경사항
+## v1.2.4 변경사항
 
-- Margin이 있는 결과와 없는 결과가 섞인 경우에도 정렬 기준을 일관되게 적용합니다.
-- Quick TDR 적합성을 선택한 시간 범위 안에서 판정하도록 수정했습니다.
-- v1.1.6/v1.1.7의 입력 검증 및 TDR 초기 표시 개선과 v1.2.0의 기능별 소스 분할을 포함합니다.
-- 결과 정렬 및 TDR 선택 범위 판정을 확인하는 회귀시험을 추가했습니다.
+- 선택 채널·Aggressor·매핑 등 실제 분석 요청이 일치할 때만 결과를 재사용합니다.
+- Single-ended 선택을 매핑 재검토와 프로젝트 복원 후에도 유지합니다.
+- 프로젝트 복원 시 원본 전체 SHA-256을 검증하고 변경 시 후보를 다시 생성합니다.
+- 저장 대상 설정의 변경 상태와 프로젝트 전환 시 저장·취소 처리를 보강했습니다.
+- Touchstone 2.1의 추가 옵션 줄 무시 규칙과 대칭 mixed-mode 삼각 행렬을 지원합니다.
+- Excel에 분석 시점의 신호·매핑·원본 근거를 기록하고 검증된 패키지만 공식 공개합니다.
+- v1.2.2의 간결한 설정 UI와 v1.2.3의 신호 감지 개선을 포함합니다.
 
-세부 범위는 [v1.2.1 Release Notes](docs/Release_1.2.1.md)를 확인하세요. 이전 변경사항: [v1.1.6](docs/Release_1.1.6.md), [v1.1.7](docs/Release_1.1.7.md), [v1.2.0](docs/Release_1.2.0.md).
+세부 범위는 [v1.2.4 Release Notes](docs/Release_1.2.4.md)를 확인하세요. 이전 변경사항: [v1.1.6](docs/Release_1.1.6.md), [v1.1.7](docs/Release_1.1.7.md), [v1.2.0](docs/Release_1.2.0.md).
 
 ## 지원 릴리스 플랫폼
 

@@ -375,9 +375,8 @@ static Header importFile(const fs::path &source, const fs::path &temporary,
     if (m.version[0] != '2' && optionRef.size() > 1)
       m.version = "1.1";
     parseBasis(m);
-    if (m.matrix != "Full" && !m.mixedOrder.empty())
-      throw Error(
-          "Triangular mixed-mode matrices are not defined by Touchstone 2.x");
+    // Touchstone 2.1: triangular data declares a symmetric matrix in the
+    // supplied (single-ended or mixed-mode) basis; mirror without conjugation.
     h.n = m.ports;
     h.tile = std::max<uint64_t>(
         1, std::min<uint64_t>(64, (8 * 1024 * 1024) / (8 + 16 * h.n * h.n)));
@@ -456,8 +455,10 @@ static Header importFile(const fs::path &source, const fs::path &temporary,
         throw Error("Unexpected data after [End]");
       if (t.kind == Scanner::Option) {
         auto s = words(scan.restLine());
-        if (option)
-          throw Error("Duplicate # option line");
+        if (option) {
+          m.warnings.push_back("Additional # option line ignored; the first option line remains authoritative.");
+          continue;
+        }
         if (initialized)
           throw Error("Option line after network data");
         option = true;

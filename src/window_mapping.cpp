@@ -1,3 +1,169 @@
+static QString mixedDescriptorType(const si::Metadata &meta) {
+  bool d=false,s=false;
+  for (const auto &token:meta.mixedOrder) {
+    if (token.empty()) continue;
+    const char c=char(std::tolower(static_cast<unsigned char>(token[0])));
+    d |= c=='d'||c=='c'; s |= c=='s';
+  }
+  return d ? (s?"Mixed":"Differential") : (s?"Single-ended":"Unknown");
+}
+static int unmappedPorts(const Revision &r) {
+  std::set<int> used;
+  const auto &mapped=r.channels.empty()?r.candidates:r.channels;
+  for(const auto &c:mapped)for(int p:{c.nearP,c.nearN,c.farP,c.farN})if(p>=0)used.insert(p);
+  return int(r.cache->meta().ports)-int(used.size());
+}
+static void detectRevision(Revision &r) {
+          try {
+            std::string mappingDiagnostic;
+            auto proposed = si::suggestMapping(r.cache->meta(), &mappingDiagnostic);
+            const auto &meta = r.cache->meta();
+            const bool explicitPowerSI = !meta.differentialHints.empty();
+            const bool explicitMixedMode = !meta.mixedOrder.empty();
+            const bool proposedDifferential = hasDifferentialChannels(proposed);
+            const bool mixedVerified = explicitMixedMode &&
+                                       mixedModeConfirmsDifferentialPairs(meta, proposed);
+
+            const QString proposedType = signalTypeForChannels(proposed);
+            if (!mappingDiagnostic.empty() && explicitPowerSI) {
+              r.signalType = "Differential";
+              r.signalConfidence = "High";
+              r.signalEvidence = "Explicit .DiffChannels metadata is present, but the declared P/N polarity could not be validated.";
+              r.signalTypeReviewed = true;
+              r.candidates.clear();
+              r.mappingWarning =
+                  qs(mappingDiagnostic) +
+                  " Explicit differential metadata takes priority, so the compatibility single-ended fallback was not accepted. Confirm P/N and Near/Far manually.";
+              r.mappingSource = "PowerSI .DiffChannels / P/N Review";
+            } else if (!mappingDiagnostic.empty() && explicitMixedMode) {
+              r.signalType = "Differential";
+              r.signalConfidence = "High";
+              r.signalEvidence = "Touchstone [Mixed-Mode Order] declares differential data, but physical P/N linkage could not be validated.";
+              r.signalTypeReviewed = true;
+              r.candidates.clear();
+              r.mappingWarning =
+                  qs(mappingDiagnostic) +
+                  " Explicit mixed-mode metadata takes priority, so a single-ended fallback was not accepted. Confirm P/N and Near/Far manually.";
+              r.mappingSource = "Mixed-Mode / P/N Review";
+            } else if (!mappingDiagnostic.empty()) {
+              r.candidates = std::move(proposed);
+              r.signalType = signalTypeForChannels(r.candidates);
+              r.signalConfidence = "Low";
+              r.signalEvidence = "Automatic mapping returned a diagnostic and requires review.";
+              r.mappingWarning = qs(mappingDiagnostic);
+              r.mappingSource = "Auto Mapping Failed / Manual Mapping";
+            } else if (explicitPowerSI && proposedDifferential) {
+              r.channels = std::move(proposed);
+              r.confirmed = true;
+              r.signalType = signalTypeForChannels(r.channels);
+              r.signalConfidence = "High";
+              r.signalEvidence = "Validated .DiffChannels metadata and physical port labels.";
+              r.signalTypeReviewed = true;
+              r.mappingSource = "PowerSI .DiffChannels";
+            } else if (explicitPowerSI) {
+              r.signalType = "Differential";
+              r.signalConfidence = "High";
+              r.signalEvidence = "Explicit .DiffChannels metadata declares a differential channel.";
+              r.signalTypeReviewed = true;
+              r.candidates.clear();
+              r.mappingWarning =
+                  "PowerSI .DiffChannels was present but did not produce a validated differential P/N mapping. Single-ended fallback was intentionally suppressed; confirm P/N and Near/Far manually.";
+              r.mappingSource = "PowerSI .DiffChannels / Manual Mapping";
+            } else if (explicitMixedMode) {
+              r.signalType = proposedDifferential ? proposedType : "Differential";
+              r.signalConfidence = "High";
+              r.signalEvidence = "Touchstone [Mixed-Mode Order] is explicit differential metadata.";
+              r.signalTypeReviewed = true;
+              if (proposedDifferential)
+                r.candidates = std::move(proposed);
+              else
+                r.candidates.clear();
+              r.mappingWarning = mixedVerified
+                  ? "Touchstone [Mixed-Mode Order] confirms the differential P/N pairs, but it does not establish which endpoint is Near versus Far. Confirm Near/Far manually."
+                  : "Touchstone mixed-mode metadata declares differential data, but P/N plus Near/Far channel linkage could not be proven. Single-ended fallback was not accepted; confirm it manually.";
+              r.mappingSource = mixedVerified
+                  ? "Touchstone [Mixed-Mode Order] / Direction Review"
+                  : "Mixed-Mode / Manual Mapping";
+            } else if (proposedDifferential) {
+              r.candidates = std::move(proposed);
+              r.signalType = signalTypeForChannels(r.candidates);
+              r.signalConfidence = "Medium";
+              r.signalEvidence =
+                  "Regular repeated port labels differ by exactly one P/N character; no explicit differential metadata is present.";
+              r.mappingWarning =
+                  "Regular P/N naming was found, but naming alone is evidence rather than an explicit declaration. Confirm the detected signal type before Channel Mapping.";
+              r.mappingSource = "Name-based Differential Candidate";
+            } else if (si::requiresManualDirectionConfirmation(meta, proposed)) {
+              r.candidates = std::move(proposed);
+              r.signalType = "Single-ended";
+              r.signalConfidence = "Medium";
+              r.signalEvidence = "Matching endpoint names were found without explicit differential metadata.";
+              r.mappingWarning =
+                  "Single-ended labels identify matching endpoints, but Near/Far direction is inferred from source order. Confirm the signal type and Near/Far manually.";
+              r.mappingSource = "Single-ended Direction Candidate";
+            } else {
+              r.channels = std::move(proposed);
+              r.confirmed = !r.channels.empty();
+              r.signalType = r.confirmed ? "Single-ended" : "Unknown";
+              r.signalConfidence = r.confirmed ? "High" : "Low";
+              r.signalEvidence = r.confirmed
+                  ? "Direction-free reflection ports require no inferred Near/Far transmission direction."
+                  : "No unambiguous signal-type evidence was found.";
+              r.signalTypeReviewed = r.confirmed;
+              r.mappingSource = r.confirmed ? "Single-ended Reflection Ports" : "Manual Mapping";
+              if (!r.confirmed)
+                r.mappingWarning = "No unambiguous channel mapping was found. Confirm the signal type, then create or import a mapping manually.";
+            }
+          } catch (const si::Cancelled &) {
+            throw;
+          } catch (const si::Error &e) {
+            // Valid data remains accessible; do not invent fallback polarity.
+            r.mappingWarning = qs(e.what());
+            r.mappingSource = "Auto Mapping Failed / Manual Mapping";
+            r.channels.clear();
+            r.candidates.clear();
+            const auto &meta = r.cache->meta();
+            if (!meta.differentialHints.empty() || !meta.mixedOrder.empty()) {
+              r.signalType = "Differential";
+              r.signalConfidence = "High";
+              r.signalEvidence = "Explicit differential metadata is present, but automatic physical mapping failed.";
+              r.signalTypeReviewed = true;
+            } else {
+              r.signalType = "Unknown";
+              r.signalConfidence = "Low";
+              r.signalEvidence = "Automatic mapping failed without explicit differential metadata.";
+            }
+          }
+
+  const auto &meta=r.cache->meta();
+  if (!meta.mixedOrder.empty()) {
+    r.signalType=mixedDescriptorType(meta);
+    r.signalConfidence="High";r.signalTypeReviewed=true;
+    r.signalEvidence="Touchstone [Mixed-Mode Order] S/D/C descriptors declare " + r.signalType + ". P/N membership and Near/Far direction are separate.";
+    auto &mapped=r.channels.empty()?r.candidates:r.channels;
+    if (r.signalType=="Single-ended") {
+      std::string diagnostic;
+      r.inferNamedDifferential=false;
+      try { r.candidates=si::suggestMapping(meta,&diagnostic,false); }
+      catch(const si::Error &e) { r.candidates.clear();diagnostic=e.what(); }
+      if(hasDifferentialChannels(r.candidates)) {
+        r.candidates.clear();
+        diagnostic="Conflicting .DiffChannels and S-only descriptors require manual mapping.";
+      }
+      r.channels.clear();r.confirmed=false;
+      r.mappingSource="Touchstone S descriptors / Direction Review";
+      r.mappingWarning="S descriptors declare single-ended data. Confirm the physical mapping and Near/Far direction. " + qs(diagnostic);
+    } else if (!mixedModeConfirmsDifferentialPairs(meta,mapped)) {
+      r.channels.clear();r.candidates.clear();r.confirmed=false;
+      r.mappingSource="Mixed-Mode / P/N Review";
+      r.mappingWarning="Name-derived physical mapping does not match all declared D/C pairs. Enter P/N and Near/Far manually.";
+    } else {
+      if(!r.channels.empty()){r.candidates=std::move(r.channels);r.channels.clear();}
+      r.confirmed=false;
+    }
+  }
+}
+
 void MainWindow::openPaths(QStringList paths) {
   if (paths.isEmpty() || busy)
     return;
@@ -16,63 +182,7 @@ void MainWindow::openPaths(QStringList paths) {
           r.source = QFileInfo(p).absoluteFilePath();
           r.name = QFileInfo(p).completeBaseName();
           r.cache = si::Cache::open(fp(r.source), fp(cacheRoot), c);
-          try {
-            std::string mappingDiagnostic;
-            auto proposed = si::suggestMapping(r.cache->meta(), &mappingDiagnostic);
-            const auto &meta = r.cache->meta();
-            const bool explicitPowerSI = !meta.differentialHints.empty();
-            const bool explicitMixedMode = !meta.mixedOrder.empty();
-            const bool proposedDifferential = hasDifferentialChannels(proposed);
-            const bool mixedVerified = explicitMixedMode &&
-                                       mixedModeConfirmsDifferentialPairs(meta, proposed);
-
-            if (!mappingDiagnostic.empty()) {
-              r.candidates = std::move(proposed);
-              r.mappingWarning = qs(mappingDiagnostic);
-              r.mappingSource = "Auto Mapping Failed / Manual Mapping";
-            } else if (explicitPowerSI && proposedDifferential) {
-              r.channels = std::move(proposed);
-              r.confirmed = true;
-              r.mappingSource = "PowerSI .DiffChannels";
-            } else if (explicitPowerSI) {
-              r.candidates = std::move(proposed);
-              r.mappingWarning =
-                  "PowerSI .DiffChannels was present but did not produce a validated differential mapping.";
-              r.mappingSource = "PowerSI .DiffChannels / Manual Mapping";
-            } else if (explicitMixedMode) {
-              r.candidates = std::move(proposed);
-              r.mappingWarning = mixedVerified
-                  ? "Touchstone [Mixed-Mode Order] confirms the differential P/N pairs, but it does not establish which endpoint is Near versus Far. Confirm Near/Far manually."
-                  : "Touchstone mixed-mode data is valid, but P/N plus Near/Far channel linkage could not be proven from metadata and labels. Confirm it manually.";
-              r.mappingSource = mixedVerified
-                  ? "Touchstone [Mixed-Mode Order] / Direction Review"
-                  : "Mixed-Mode / Manual Mapping";
-            } else if (proposedDifferential) {
-              r.candidates = std::move(proposed);
-              r.mappingWarning =
-                  "P/N-like names were found, but naming alone does not prove a differential channel. Review the candidate and confirm P/N and Near/Far manually.";
-              r.mappingSource = "Name-based Differential Candidate";
-            } else if (si::requiresManualDirectionConfirmation(meta, proposed)) {
-              r.candidates = std::move(proposed);
-              r.mappingWarning =
-                  "Single-ended labels identify matching endpoints, but Near/Far direction is inferred from source order. Confirm Near/Far manually.";
-              r.mappingSource = "Single-ended Direction Candidate";
-            } else {
-              r.channels = std::move(proposed);
-              r.confirmed = !r.channels.empty();
-              r.mappingSource = r.confirmed ? "Single-ended Reflection Ports" : "Manual Mapping";
-              if (!r.confirmed)
-                r.mappingWarning = "No unambiguous channel mapping was found. Create or import a mapping manually.";
-            }
-          } catch (const si::Cancelled &) {
-            throw;
-          } catch (const si::Error &e) {
-            // Valid data remains accessible; do not invent fallback polarity.
-            r.mappingWarning = qs(e.what());
-            r.mappingSource = "Auto Mapping Failed / Manual Mapping";
-            r.channels.clear();
-            r.candidates.clear();
-          }
+          detectRevision(r);
           loaded->push_back(r);
         }
       },
@@ -102,6 +212,7 @@ void MainWindow::openPaths(QStringList paths) {
       });
 }
 void MainWindow::rebuildChannels() {
+  QScopedValueRollback<bool> restoring(restoringProject,true);
   QSignalBlocker block(groupBox);
   channels->clear();
   groupBox->clear();
@@ -127,11 +238,13 @@ void MainWindow::rebuildChannels() {
     groupBox->addItem(qs(g));
   auto &m = r.cache->meta();
   selectionInfo->setText(
-      QString("%1 ports · %2 points\n%3 · %4\nSource: %5\nMapping: %6")
+      QString("%1 ports · %2 points\n%3 · %4\nSignal: %5 (%6)\nSource: %7\nMapping: %8")
           .arg(m.ports)
           .arg(m.points)
           .arg(qs(m.version))
           .arg(r.cache->reused() ? "Cache reused" : "Imported")
+          .arg(r.signalType)
+          .arg(r.signalConfidence)
           .arg(r.mappingSource.isEmpty() ? "Unknown" : r.mappingSource)
           .arg(r.confirmed ? "Confirmed" : "Review required"));
 }
@@ -156,11 +269,32 @@ std::string MainWindow::activeRevisionName() const {
   return ss(revisions[size_t(index)].name);
 }
 bool MainWindow::hasCurrentResult(si::Metric metric) const {
-  const auto revision = activeRevisionName();
-  return !revision.empty() &&
-         std::any_of(results.begin(), results.end(), [&](const si::Result &r) {
-           return r.metric == metric && r.revision == revision;
-         });
+  try {
+    const auto requested = requestedJobs({metric});
+    auto sameChannel = [](const si::Channel &a, const si::Channel &b) {
+      return channelJson(a) == channelJson(b);
+    };
+    auto sameJob = [&](const si::Job &a, const si::Job &b) {
+      return a.cache == b.cache && a.cache->meta().sha256 == b.cache->meta().sha256 &&
+             a.revision == b.revision && a.metric == b.metric &&
+             a.reverse == b.reverse && a.termination == b.termination &&
+             sameChannel(a.victim,b.victim) && bool(a.aggressor)==bool(b.aggressor) &&
+             (!a.aggressor || sameChannel(*a.aggressor,*b.aggressor));
+    };
+    // Other metrics may coexist after Quick Analysis. Compare the complete
+    // requested metric job set, not merely one result for the active revision.
+    if (requested.empty() || size_t(std::count_if(lastJobs.begin(),lastJobs.end(),
+          [&](const si::Job &j){return j.metric==metric;})) != requested.size()) return false;
+    for (const auto &job : requested) {
+      if (std::none_of(lastJobs.begin(),lastJobs.end(),[&](const auto &j){return sameJob(job,j);})) return false;
+      if (std::none_of(results.begin(),results.end(),[&](const auto &r){
+          return r.metric==job.metric && r.revision==job.revision &&
+                 r.channelId==job.victim.id && r.aggressorId==(job.aggressor?job.aggressor->id:"") &&
+                 r.termination==job.termination && r.reverse==job.reverse.value_or(settings.reverse);
+          })) return false;
+    }
+    return true;
+  } catch (const si::Error &) { return false; }
 }
 void MainWindow::invalidateRevisionResults(const QString &revision) {
   const auto name = ss(revision);
@@ -207,6 +341,7 @@ void MainWindow::syncSettings() {
       settings.quick.push_back(si::Metric(j));
 }
 void MainWindow::applySettings() {
+  QScopedValueRollback<bool> restoring(restoringProject,true);
   start->setValue(settings.startHz * 1e-9);
   stop->setValue(std::isfinite(settings.stopHz) ? settings.stopHz * 1e-9 : 0);
   markerBox->setCurrentIndex(settings.markers == 1   ? 0
@@ -274,20 +409,99 @@ void MainWindow::chooseTerminations() {
   dirty=true;applySettings();notice->setText("TDR options changed. Run TDR or Quick Analysis to update results.");
 }
 
+bool MainWindow::reviewSignalType(Revision &rev) {
+  if (rev.signalTypeReviewed || rev.confirmed)
+    return true;
+  QDialog dialog(this);
+  dialog.setWindowTitle("Signal Type Detection — " + rev.name);
+  dialog.setObjectName("signalTypeDetectionDialog");
+  dialog.resize(560, 300);
+  auto *layout = new QVBoxLayout(&dialog);
+  auto *summary = new QLabel(
+      QString("<b>Detected:</b> %1 &nbsp;&nbsp; <b>Confidence:</b> %2")
+          .arg(rev.signalType, rev.signalConfidence));
+  layout->addWidget(summary);
+  auto *evidence = new QLabel(
+      "<b>Evidence:</b> " + rev.signalEvidence +
+      "<br><br>SParamView recognizes a name-based P/N pair only when two net names have the same length and differ at exactly one character, where that character is P versus N. The P/N position may be anywhere in the name. Irregular or ambiguous names are not guessed.");
+  evidence->setWordWrap(true);
+  layout->addWidget(evidence);
+  layout->addWidget(new QLabel(
+      "Confirm the electrical signal type before Channel Mapping. You can still edit every physical P/N and Near/Far assignment in the next step."));
+  auto *selector = new QComboBox;
+  selector->setObjectName("signalTypeSelector");
+  selector->addItem("Select signal type…", "");
+  selector->addItem("Differential", "Differential");
+  selector->addItem("Single-ended", "Single-ended");
+  selector->addItem("Mixed (Differential + Single-ended)", "Mixed");
+  const int detected = selector->findData(rev.signalType);
+  if (detected > 0)
+    selector->setCurrentIndex(detected);
+  layout->addWidget(selector);
+  auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok |
+                                       QDialogButtonBox::Cancel);
+  buttons->button(QDialogButtonBox::Ok)->setText("Continue to Channel Mapping");
+  buttons->button(QDialogButtonBox::Ok)->setEnabled(!selector->currentData().toString().isEmpty());
+  connect(selector, &QComboBox::currentIndexChanged, &dialog, [=] {
+    buttons->button(QDialogButtonBox::Ok)
+        ->setEnabled(!selector->currentData().toString().isEmpty());
+  });
+  connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+  connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+  layout->addWidget(buttons);
+  if (dialog.exec() != QDialog::Accepted)
+    return false;
+
+  const QString selected = selector->currentData().toString();
+  rev.inferNamedDifferential = selected != "Single-ended";
+  if (selected == "Single-ended") {
+    std::string diagnostic;
+    auto proposed = si::suggestMapping(rev.cache->meta(), &diagnostic, false);
+    rev.candidates = std::move(proposed);
+    if (!diagnostic.empty())
+      rev.mappingWarning = qs(diagnostic);
+    else
+      rev.mappingWarning =
+          "Signal type confirmed as Single-ended. Name-based P/N pairing is disabled for this revision; verify Near/Far in Channel Mapping.";
+  } else if (selected == "Differential") {
+    if (!hasDifferentialChannels(rev.candidates))
+      rev.candidates.clear();
+    rev.mappingWarning =
+        "Signal type confirmed as Differential. Verify or enter the physical P/N and Near/Far mapping.";
+  } else {
+    rev.mappingWarning =
+        "Signal type confirmed as Mixed. Verify both differential and single-ended channel assignments.";
+  }
+  rev.signalType = selected;
+  rev.signalConfidence = "User Confirmed";
+  rev.signalEvidence += " User confirmed the signal type before Channel Mapping.";
+  rev.signalTypeReviewed = true;
+  dirty = true;
+  return true;
+}
+
 void MainWindow::editMapping() {
   int index = revisionBox->currentIndex();
   if (index < 0 || busy)
     return;
   auto &rev = revisions[size_t(index)];
+  if (!reviewSignalType(rev)) {
+    notice->setText("Signal type confirmation is required before Channel Mapping.");
+    return;
+  }
   QDialog dialog(this);
   dialog.setWindowTitle("Channel Mapping — " + rev.name);
   dialog.setObjectName("channelMappingDialog");
   dialog.resize(980, 540);
   auto layout = new QVBoxLayout(&dialog);
   auto info = new QLabel(
-      QString("Source: %1\nPort numbering starts at 1. Leave Near−/Far− blank for single-ended channels.\nVerify Near/Far and P/N against the physical connections. A blank Far end supports reflection/TDR only.")
+      QString("Signal Type: %1 (%2)\nEvidence: %3\nSource: %4\nPort numbering starts at 1. Leave Near−/Far− blank for single-ended channels.\nVerify Near/Far and P/N against the physical connections. A blank Far end supports reflection/TDR only.")
+          .arg(rev.signalType)
+          .arg(rev.signalConfidence)
+          .arg(rev.signalEvidence)
           .arg(rev.mappingSource.isEmpty() ? "Unknown" : rev.mappingSource));
   info->setWordWrap(true);
+  info->setText(info->text()+"\nUnmapped physical ports: "+QString::number(unmappedPorts(rev)));
   layout->addWidget(info);
   if (!rev.mappingWarning.isEmpty()) {
     auto warning = new QLabel(
@@ -344,7 +558,7 @@ void MainWindow::editMapping() {
   button("Suggest from Labels", actions, [&] {
     try {
       std::string diagnostic;
-      auto proposed = si::suggestMapping(rev.cache->meta(), &diagnostic);
+      auto proposed = si::suggestMapping(rev.cache->meta(), &diagnostic, rev.inferNamedDifferential);
       if (!diagnostic.empty()) {
         error(qs(diagnostic)); // Preserve manually entered rows on uncertain fallback.
         return;
@@ -500,9 +714,18 @@ void MainWindow::editMapping() {
       if (cs.empty())
         throw si::Error("Define at least one channel.");
       si::validateMapping(cs, rev.cache->meta());
+      const auto mappedType = signalTypeForChannels(cs);
+      if (rev.signalTypeReviewed && rev.signalType != mappedType &&
+          QMessageBox::question(&dialog, "Signal Type Changed",
+              "The physical mapping is " + mappedType + ", but the reviewed signal type was " + rev.signalType + ". Accept this change?",
+              QMessageBox::Yes | QMessageBox::No, QMessageBox::No) != QMessageBox::Yes) return;
       rev.channels = std::move(cs);
       rev.candidates.clear();
       rev.confirmed = true;
+      rev.signalType = signalTypeForChannels(rev.channels);
+      rev.signalConfidence = "User Confirmed";
+      rev.signalEvidence = "User-confirmed physical Channel Mapping.";
+      rev.signalTypeReviewed = true;
       rev.mappingSource = "Manual Mapping";
       rev.mappingWarning.clear();
       dirty = true;
@@ -528,9 +751,20 @@ void MainWindow::importMapping() {
   try {
     auto cs = si::readMappingCsv(fp(path));
     si::validateMapping(cs, revisions[size_t(i)].cache->meta());
+    const auto mappedType=signalTypeForChannels(cs);
+    const auto &prior=revisions[size_t(i)];
+    if(prior.signalTypeReviewed && prior.signalType!=mappedType &&
+       QMessageBox::question(this,"Signal Type Changed",
+         "Imported mapping is "+mappedType+", but the reviewed signal type was "+prior.signalType+". Accept this change?",
+         QMessageBox::Yes|QMessageBox::No,QMessageBox::No)!=QMessageBox::Yes)return;
     revisions[size_t(i)].channels = std::move(cs);
     revisions[size_t(i)].candidates.clear();
     revisions[size_t(i)].confirmed = true;
+    revisions[size_t(i)].signalType =
+        signalTypeForChannels(revisions[size_t(i)].channels);
+    revisions[size_t(i)].signalConfidence = "User Confirmed";
+    revisions[size_t(i)].signalEvidence = "Imported and validated Mapping CSV.";
+    revisions[size_t(i)].signalTypeReviewed = true;
     revisions[size_t(i)].mappingSource = "Mapping CSV";
     revisions[size_t(i)].mappingWarning.clear();
     dirty = true;

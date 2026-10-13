@@ -1,0 +1,27 @@
+[
+  {
+    "case": "named",
+    "exit_code": 1,
+    "output": "FAIL named: Single-ended override ignored by directional label path\n"
+  },
+  {
+    "case": "options",
+    "exit_code": 1,
+    "output": "FAIL options: options.s1p / line 2 / frequency -1.000000 Hz: Duplicate # option line\n"
+  },
+  {
+    "case": "triangle",
+    "exit_code": 1,
+    "output": "FAIL triangle: Lower.ts / line 7 / frequency -1.000000 Hz: Triangular mixed-mode matrices are not defined by Touchstone 2.x\n"
+  },
+  {
+    "case": "hash",
+    "exit_code": 0,
+    "output": "PASS hash\n"
+  },
+  {
+    "case": "numbers",
+    "exit_code": 0,
+    "output": "PASS numbers\n"
+  }
+]

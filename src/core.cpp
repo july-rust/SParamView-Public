@@ -3,6 +3,11 @@
 #include <bit>
 #include <charconv>
 #include <chrono>
+#ifdef __APPLE__
+#include <cerrno>
+#include <locale.h>
+#include <stdlib.h>
+#endif
 #include <cmath>
 #include <cstring>
 #include <fstream>
@@ -31,18 +36,29 @@
 namespace si {
 #include "core_common.cpp"
 
-// These small platform-sensitive primitives remain in the aggregator so the
-// established macOS release shim continues to patch the same verified contexts.
+// Platform-specific parsing preserves the same finite decimal grammar.
 static double number(std::string s) {
   for (char &c : s)
     if (c == 'D' || c == 'd')
       c = 'e';
   if (!s.empty() && s[0] == '+')
     s.erase(0, 1);
+#ifdef __APPLE__
+  static const locale_t locale = newlocale(LC_NUMERIC_MASK, "C", nullptr);
+  if (!locale) throw Error("Cannot initialize C numeric locale");
+  if (s.empty() || s.find_first_of("xXpP \t\r\n") != std::string::npos)
+    throw Error("Invalid finite number: " + s);
+  errno = 0;
+  char *end = nullptr;
+  const double v = strtod_l(s.c_str(), &end, locale);
+  if (errno == ERANGE || end == s.c_str() || end != s.c_str()+s.size() || !std::isfinite(v))
+    throw Error("Invalid finite number: " + s);
+#else
   double v;
   auto r = std::from_chars(s.data(), s.data() + s.size(), v);
   if (r.ec != std::errc() || r.ptr != s.data() + s.size() || !std::isfinite(v))
     throw Error("Invalid finite number: " + s);
+#endif
   return v;
 }
 static uint64_t fingerprint(const fs::path &path) {
@@ -53,7 +69,8 @@ static uint64_t fingerprint(const fs::path &path) {
   uint64_t h = hashBytes(&n, sizeof(n));
   std::array<char, 65536> b;
   for (uint64_t off :
-       {uint64_t(0), n / 2, n > 65536 ? n - 65536 : uint64_t(0)}) {
+       {uint64_t(0), static_cast<uint64_t>(n / 2),
+        n > 65536 ? static_cast<uint64_t>(n - 65536) : uint64_t(0)}) {
     in.clear();
     in.seekg(static_cast<std::streamoff>(off));
     if (!in)
@@ -167,7 +184,7 @@ std::vector<Result> runJobs(const std::vector<Job> &jobs,
   if (runner)
     runner(threads, guarded);
   else {
-    std::vector<std::jthread> pool;
+    std::vector<JoiningThread> pool;
     for (size_t i = 0; i < threads; ++i)
       pool.emplace_back(guarded);
   }

@@ -21,7 +21,7 @@ bool MainWindow::selftest(const QString &examples, const QString &output) {
   ReportOptions options;
   options.raw = true;
   si::Control c;
-  writeReport(output + "/SParamView_sample.xlsx", results, revisions,
+  writeReport(output + "/SParamView_sample.xlsx", results, lastRevisions,
               lastSettings, projectName, options, lastJobs, snapshot, &c);
   compareRevisions();
   while (busy && timer.elapsed() < 120000)
@@ -141,7 +141,7 @@ bool MainWindow::validateProject(const QString &project,
   ReportOptions options;
   options.raw = false;
   si::Control c;
-  writeReport(output + "/Analysis.xlsx", results, revisions, lastSettings,
+  writeReport(output + "/Analysis.xlsx", results, lastRevisions, lastSettings,
               projectName, options, lastJobs, plot->snapshot, &c);
   if (revisions.size() > 1) {
     QJsonObject comparisons;
@@ -164,6 +164,28 @@ bool MainWindow::validateProject(const QString &project,
     }
     log["comparisons"] = comparisons;
   }
+  // Deterministic validation exports use the same trace/export path as Raw CSV.
+  std::set<std::pair<int,bool>> exported;
+  for(const auto &job:lastJobs) {
+    const bool reverse=job.reverse.value_or(lastSettings.reverse);
+    if(!exported.emplace(int(job.metric),reverse).second)continue;
+    auto selected=lastSettings;selected.reverse=reverse;
+    const auto trace=si::loadTrace(*job.cache,job.victim,job.metric,selected,
+                                  job.aggressor?&*job.aggressor:nullptr,&c,job.termination);
+    const auto name=qs(si::name(job.metric))+(reverse?"_reverse":"_forward")+".csv";
+    si::exportRawCsv(fp(output+"/"+name),trace,job.metric,selected,&c);
+  }
+  log["raw_csv_exports"]=int(exported.size());
+  const auto previousChannels=revisions.front().channels.size();
+  const auto previousHash=revisions.front().cache->meta().sha256;
+  projectPath=output+"/roundtrip.siproject";saveProject();
+  if(dirty)throw si::Error("Validation project save failed");
+  loadProject(projectPath);settle();
+  if(revisions.empty()||!revisions.front().confirmed||
+     revisions.front().channels.size()!=previousChannels||
+     revisions.front().cache->meta().sha256!=previousHash)
+    throw si::Error("Validation project roundtrip mismatch");
+  log["project_roundtrip"]=true;
   log["elapsed_seconds"] = total.elapsed() / 1000.0;
   QSaveFile file(output + "/Validation.json");
   if (!file.open(QIODevice::WriteOnly))

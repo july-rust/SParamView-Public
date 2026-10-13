@@ -16,12 +16,15 @@ int main(){try{
  struct Case{const char*a,*b,*name;bool positive;};
  for(auto c:std::vector<Case>{{"DATA_P","DATA_N","DATA",true},{"DATA_N","DATA_P","DATA",false},
  {"CLK_N_OUT_0_MP","CLK_P_OUT_0_MP","CLK_OUT_0_MP",false},{"DPHY_CLK_P_MP_I","DPHY_CLK_N_MP_I","DPHY_CLK_MP_I",true},
- {"P_CLK","N_CLK","CLK",true},{"clk_p_out","clk_n_out","clk_out",true},{"CLK_P_1","CLK_N_1","CLK_1",true}}){
+ {"P_CLK","N_CLK","CLK",true},{"clk_p_out","clk_n_out","clk_out",true},{"CLK_P_1","CLK_N_1","CLK_1",true},
+ {"DATAP0","DATAN0","DATA0",true},{"CLKP1","CLKN1","CLK1",true},{"DPP0","DPN0","DP0",true},
+ {"PDATA0","NDATA0","DATA0",true},{"PCLK1","NCLK1","CLK1",true},{"PDP0","NDP0","DP0",true},
+ {"AP","AN","A",true},{"CLK_P0","CLK_N0","CLK_0",true}}){
   auto cs=suggestMapping(fixture(c.a,c.b));require(cs.size()==1);auto &ch=cs[0];require(ch.name==c.name);
   require(ch.nearP==(c.positive?0:1));require(ch.nearN==(c.positive?1:0));require(ch.farP==(c.positive?2:3));require(ch.farN==(c.positive?3:2));
  }
  require(suggestMapping(fixture("DATA_P","DATA_N"))[0].id=="net:data");
- for(auto [a,b]:std::vector<std::pair<std::string,std::string>>{{"CLK_POS","CLK_NEG"},{"CLK_P_MP","CLK_N_OTHER"},{"AP","AN"},{"P","N"},{"CLK_P_P","CLK_N_N"},{"CLK_P","CLK_P"},{"CLK_P0","CLK_N0"},{"CLK_P_MP","CLK_N_MP_EXTRA"}})rejected(fixture(a,b));
+ for(auto [a,b]:std::vector<std::pair<std::string,std::string>>{{"CLK_POS","CLK_NEG"},{"CLK_P_MP","CLK_N_OTHER"},{"P","N"},{"CLK_P_P","CLK_N_N"},{"CLK_P","CLK_P"},{"DATA_P0","DATA_N1"},{"CLKPP","CLKNN"},{"CLK_P_MP","CLK_N_MP_EXTRA"}})rejected(fixture(a,b));
  auto m=fixture("CLK_P_MP","CLK_N_MP");m.labels[0]="BGA-1 OTHER";rejected(m);
  m=fixture("CLK_P_MP","CLK_N_MP");m.reference[1]=75;rejected(m);
  m=fixture("CLK_P_MP","CLK_N_MP");m.differentialHints.push_back(m.differentialHints[0]);rejected(m);

@@ -19,6 +19,15 @@ static bool hasDifferentialChannels(const std::vector<si::Channel> &channels) {
   return std::any_of(channels.begin(), channels.end(),
                      [](const auto &c) { return c.differential(); });
 }
+static QString signalTypeForChannels(const std::vector<si::Channel> &channels) {
+  bool differential = false, singleEnded = false;
+  for (const auto &c : channels)
+    (c.differential() ? differential : singleEnded) = true;
+  if (differential && singleEnded) return "Mixed";
+  if (differential) return "Differential";
+  if (singleEnded) return "Single-ended";
+  return "Unknown";
+}
 static std::vector<std::string>
 tdrViewIdentity(const std::vector<si::Result> &results) {
   std::vector<std::string> keys;
@@ -738,9 +747,19 @@ MainWindow::MainWindow() {
   };
   for (auto w : body->findChildren<QDoubleSpinBox *>())
     connect(w, &QDoubleSpinBox::valueChanged, this, [this] {
-      dirty = true;
-      if (!results.empty())
+      markDirty();
+      if (!results.empty() && !restoringProject)
         notice->setText("Settings changed. Run analysis to apply them. Export uses the last completed analysis settings.");
     });
+  for (auto *box : body->findChildren<QCheckBox *>())
+    connect(box,&QCheckBox::toggled,this,[this]{markDirty();});
+  for (auto *box : {markerBox,performanceBox,revisionBox,groupBox,aggressorBox,metricView})
+    connect(box,&QComboBox::currentIndexChanged,this,[this]{markDirty();});
+  connect(manualMarkers,&QLineEdit::textChanged,this,[this]{markDirty();});
+  connect(search,&QLineEdit::textChanged,this,[this]{markDirty();});
+  connect(channels,&QListWidget::itemChanged,this,[this]{markDirty();});
   restoreWorkspaceLayout();
+}
+void MainWindow::markDirty() {
+  if(!restoringProject && !revisions.empty()) dirty=true;
 }

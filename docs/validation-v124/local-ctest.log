@@ -1,0 +1,85 @@
+Test project <validation-workspace>/SParamView-Public/build-gui
+      Start  1: hardening_snapshot
+ 1/40 Test  #1: hardening_snapshot ...................   Passed    0.01 sec
+      Start  2: hardening_cr_only
+ 2/40 Test  #2: hardening_cr_only ....................   Passed    0.01 sec
+      Start  3: hardening_false_noise
+ 3/40 Test  #3: hardening_false_noise ................   Passed    0.01 sec
+      Start  4: hardening_valid_noise
+ 4/40 Test  #4: hardening_valid_noise ................   Passed    0.00 sec
+      Start  5: hardening_empty_tdr
+ 5/40 Test  #5: hardening_empty_tdr ..................   Passed    0.00 sec
+      Start  6: hardening_truncated_live_cache
+ 6/40 Test  #6: hardening_truncated_live_cache .......   Passed    0.00 sec
+      Start  7: hardening_invalid_cached_frequency
+ 7/40 Test  #7: hardening_invalid_cached_frequency ...   Passed    0.00 sec
+      Start  8: hardening_zero_transfer
+ 8/40 Test  #8: hardening_zero_transfer ..............   Passed    0.00 sec
+      Start  9: hardening_cancel_reopen
+ 9/40 Test  #9: hardening_cancel_reopen ..............   Passed    0.00 sec
+      Start 10: hardening_parallel_import
+10/40 Test #10: hardening_parallel_import ............   Passed    0.01 sec
+      Start 11: core
+11/40 Test #11: core .................................   Passed    0.21 sec
+      Start 12: v116_core_hardening
+12/40 Test #12: v116_core_hardening ..................   Passed    0.01 sec
+      Start 13: v121_ranking_tdr_range
+13/40 Test #13: v121_ranking_tdr_range ...............   Passed    0.00 sec
+      Start 14: algorithm_boundary_regressions
+14/40 Test #14: algorithm_boundary_regressions .......   Passed    0.00 sec
+      Start 15: bidirectional_direction_delta
+15/40 Test #15: bidirectional_direction_delta ........   Passed    0.01 sec
+      Start 16: golden_touchstone_numerics
+16/40 Test #16: golden_touchstone_numerics ...........   Passed    0.01 sec
+      Start 17: mapping_and_sign
+17/40 Test #17: mapping_and_sign .....................   Passed    0.02 sec
+      Start 18: polarity_token_mapping
+18/40 Test #18: polarity_token_mapping ...............   Passed    0.01 sec
+      Start 19: qt_workers_and_labels
+19/40 Test #19: qt_workers_and_labels ................   Passed    0.30 sec
+      Start 20: termination_circuits
+20/40 Test #20: termination_circuits .................   Passed    0.07 sec
+      Start 21: tdr_cache_invariants
+21/40 Test #21: tdr_cache_invariants .................   Passed    0.03 sec
+      Start 22: mapping_confirmation_policy
+22/40 Test #22: mapping_confirmation_policy ..........   Passed    0.00 sec
+      Start 23: header_project_buttons
+23/40 Test #23: header_project_buttons ...............   Passed    0.04 sec
+      Start 24: workspace_layout
+24/40 Test #24: workspace_layout .....................   Passed    6.70 sec
+      Start 25: navigation_responsiveness
+25/40 Test #25: navigation_responsiveness ............   Passed    1.16 sec
+      Start 26: mapping_fallback_gui
+26/40 Test #26: mapping_fallback_gui .................   Passed    0.22 sec
+      Start 27: signal_type_detection_gui
+27/40 Test #27: signal_type_detection_gui ............   Passed    0.28 sec
+      Start 28: v124_named
+28/40 Test #28: v124_named ...........................   Passed    0.00 sec
+      Start 29: v124_options
+29/40 Test #29: v124_options .........................   Passed    0.00 sec
+      Start 30: v124_triangle
+30/40 Test #30: v124_triangle ........................   Passed    0.01 sec
+      Start 31: v124_hash
+31/40 Test #31: v124_hash ............................   Passed    0.04 sec
+      Start 32: v124_numbers
+32/40 Test #32: v124_numbers .........................   Passed    0.02 sec
+      Start 33: v124_gui_reuse
+33/40 Test #33: v124_gui_reuse .......................   Passed    0.17 sec
+      Start 34: v124_gui_dirty
+34/40 Test #34: v124_gui_dirty .......................   Passed    0.09 sec
+      Start 35: v124_gui_project_changed
+35/40 Test #35: v124_gui_project_changed .............   Passed    0.10 sec
+      Start 36: v124_gui_single_review
+36/40 Test #36: v124_gui_single_review ...............   Passed    0.13 sec
+      Start 37: v124_gui_mixed
+37/40 Test #37: v124_gui_mixed .......................   Passed    0.15 sec
+      Start 38: v124_gui_transition
+38/40 Test #38: v124_gui_transition ..................   Passed    0.18 sec
+      Start 39: v124_gui_roundtrip
+39/40 Test #39: v124_gui_roundtrip ...................   Passed    0.16 sec
+      Start 40: release_publication_safety
+40/40 Test #40: release_publication_safety ...........   Passed    0.10 sec
+
+100% tests passed out of 40
+
+Total Test time (real) =  10.31 sec

@@ -30,7 +30,7 @@ permissions:
 
 concurrency:
   group: three-platform-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
   QT_VERSION: '6.8.3'
@@ -115,6 +115,17 @@ jobs:
       - name: Run clang analyzer checks
         run: clang-tidy src/core.cpp -p build-tidy --checks='-*,clang-analyzer-*' --warnings-as-errors='clang-analyzer-*'
 
+      - name: Upload core test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: SParamView-v${{ needs.prepare.outputs.version }}-core-validation
+          path: |
+            build-core/Testing/Temporary/*.log
+            build-san/Testing/Temporary/*.log
+          if-no-files-found: error
+          retention-days: ${{ github.ref == 'refs/heads/main' && 14 || 1 }}
+
   windows:
     name: Windows ${{ matrix.arch }}
     needs: [prepare, quality]
@@ -195,8 +206,15 @@ jobs:
           name: SParamView-v${{ needs.prepare.outputs.version }}-${{ matrix.arch }}-validation
           path: ${{ matrix.validation_dir }}/
           if-no-files-found: ignore
-          retention-days: 7
+          retention-days: ${{ github.ref == 'refs/heads/main' && 7 || 1 }}
           compression-level: 9
+
+      - name: Record bundle build provenance
+        env:
+          SPARAMVIEW_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          @{version=$env:SPARAMVIEW_VERSION;commit=$env:GITHUB_SHA;platform='Windows ${{ matrix.arch }}';run_id=$env:GITHUB_RUN_ID} |
+            ConvertTo-Json | Set-Content -Encoding utf8 'dist/SParamView-Windows-${{ matrix.arch }}/build-provenance.json'
 
       - name: Upload runnable Windows bundle
         if: success()
@@ -205,7 +223,7 @@ jobs:
           name: SParamView-v${{ needs.prepare.outputs.version }}-Windows-${{ matrix.arch }}
           path: dist/SParamView-Windows-${{ matrix.arch }}/
           if-no-files-found: error
-          retention-days: 7
+          retention-days: ${{ github.ref == 'refs/heads/main' && 7 || 1 }}
           compression-level: 6
 
   windows-arm64-native:
@@ -257,8 +275,14 @@ jobs:
             & $exe @TestArgs 2>&1 | Tee-Object -FilePath $log -Append
             if ($LASTEXITCODE -ne 0) { throw "$Name failed with exit code $LASTEXITCODE" }
           }
-          foreach ($name in @('si_tests','si_algorithm_regression_tests','si_mapping_tests','si_mapping_policy_tests','si_polarity_tests','si_termination_tests','si_performance_tests','si_qt_tests','si_header_ui_tests')) {
+          foreach ($name in @('si_tests','si_v116_regression_tests','si_v121_regression_tests','si_algorithm_regression_tests','si_mapping_tests','si_mapping_policy_tests','si_polarity_tests','si_termination_tests','si_performance_tests','si_qt_tests','si_header_ui_tests')) {
             Invoke-Test -Name $name
+          }
+          foreach ($case in @('named','options','triangle','hash','numbers')) {
+            Invoke-Test -Name 'si_v124_regression_tests' -TestArgs @($case)
+          }
+          foreach ($case in @('reuse','dirty','project_changed','single_review','mixed','transition','roundtrip')) {
+            Invoke-Test -Name 'si_v124_gui_tests' -TestArgs @($case,(Join-Path $qa "v124-$case"))
           }
           Invoke-Test -Name 'si_direction_tests' -TestArgs @((Join-Path $qa 'direction'))
           Invoke-Test -Name 'si_golden_tests' -TestArgs @((Join-Path $qa 'golden'))
@@ -267,6 +291,7 @@ jobs:
           }
           Invoke-Test -Name 'si_navigation_tests' -TestArgs @((Join-Path $qa 'navigation'))
           Invoke-Test -Name 'si_open_tests' -TestArgs @((Join-Path $qa 'open'),'fallback')
+          Invoke-Test -Name 'si_open_tests' -TestArgs @((Join-Path $qa 'signal-type'),'signaltype')
           Invoke-Test -Name 'si_workspace_tests' -TestArgs @((Join-Path $bundle 'examples\demo.siproject'),(Join-Path $qa 'workspace'),'1366','768')
           & (Join-Path $bundle 'SParamView.exe') --selftest (Join-Path $bundle 'examples') (Join-Path $qa 'workflow') 2>&1 | Tee-Object -FilePath $log -Append
           if ($LASTEXITCODE -ne 0) { throw "SParamView.exe --selftest failed with exit code $LASTEXITCODE" }
@@ -279,7 +304,7 @@ jobs:
           name: SParamView-v${{ needs.prepare.outputs.version }}-Native-Windows-ARM64-validation
           path: ${{ runner.temp }}/native-arm64-v${{ needs.prepare.outputs.version }}/
           if-no-files-found: warn
-          retention-days: 30
+          retention-days: ${{ github.ref == 'refs/heads/main' && 14 || 1 }}
           compression-level: 9
 
   macos-arm64:
@@ -300,96 +325,6 @@ jobs:
         run: |
           set -euo pipefail
           test "$(uname -m)" = 'arm64'
-
-      - name: Apply macOS-only portability shim
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-
-          p = Path('src/core.cpp')
-          s = p.read_text(encoding='utf-8')
-          pairs = [
-            ("#include <charconv>\n", "#include <charconv>\n#include <cerrno>\n#include <locale.h>\n#include <stdlib.h>\n"),
-            ("""static double number(std::string s) {
-            for (char &c : s)
-              if (c == 'D' || c == 'd')
-                c = 'e';
-            if (!s.empty() && s[0] == '+')
-              s.erase(0, 1);
-            double v;
-            auto r = std::from_chars(s.data(), s.data() + s.size(), v);
-            if (r.ec != std::errc() || r.ptr != s.data() + s.size() || !std::isfinite(v))
-              throw Error("Invalid finite number: " + s);
-            return v;
-          }
-          """, """static locale_t cNumericLocale() {
-            static locale_t locale = newlocale(LC_NUMERIC_MASK, "C", nullptr);
-            if (!locale)
-              throw Error("Cannot initialize C numeric locale");
-            return locale;
-          }
-          static double number(std::string s) {
-            for (char &c : s)
-              if (c == 'D' || c == 'd')
-                c = 'e';
-            if (!s.empty() && s[0] == '+')
-              s.erase(0, 1);
-            if (s.empty() || s.find_first_of("xXpP") != std::string::npos)
-              throw Error("Invalid finite number: " + s);
-            errno = 0;
-            char *end = nullptr;
-            const char *begin = s.c_str();
-            double v = strtod_l(begin, &end, cNumericLocale());
-            if (errno == ERANGE || end != begin + s.size() || !std::isfinite(v))
-              throw Error("Invalid finite number: " + s);
-            return v;
-          }
-          """),
-            ("""  for (uint64_t off :
-                 {uint64_t(0), n / 2, n > 65536 ? n - 65536 : uint64_t(0)}) {
-          """, """  for (uint64_t off :
-                 {uint64_t(0), static_cast<uint64_t>(n / 2),
-                  n > 65536 ? static_cast<uint64_t>(n - 65536) : uint64_t(0)}) {
-          """),
-            ("""    std::vector<std::jthread> pool;
-              for (size_t i = 0; i < threads; ++i)
-                pool.emplace_back(guarded);
-          """, """    std::vector<std::thread> pool;
-              for (size_t i = 0; i < threads; ++i)
-                pool.emplace_back(guarded);
-              for (auto &thread : pool)
-                if (thread.joinable())
-                  thread.join();
-          """),
-          ]
-          for old, new in pairs:
-              if old not in s:
-                  raise SystemExit('core portability patch context not found')
-              s = s.replace(old, new, 1)
-          p.write_text(s, encoding='utf-8')
-
-          test_patches = {
-            'tests/hardening_tests.cpp': [
-              ("      std::vector<std::jthread> threads;\n", "      std::vector<std::thread> threads;\n"),
-              ("      threads.clear();\n", "      for(auto &thread:threads)if(thread.joinable())thread.join();\n      threads.clear();\n"),
-            ],
-            'tests/performance_tests.cpp': [
-              ("  si::clearTdrCache(); std::barrier gate(8); std::vector<std::jthread> threads;\n", "  si::clearTdrCache(); std::barrier gate(8); std::vector<std::thread> threads;\n"),
-              ("  threads.clear(); auto stats=si::tdrCacheStats();\n", "  for(auto &thread:threads)if(thread.joinable())thread.join();\n  threads.clear(); auto stats=si::tdrCacheStats();\n"),
-            ],
-          }
-          for name, patches in test_patches.items():
-              p = Path(name)
-              s = p.read_text(encoding='utf-8')
-              for old, new in patches:
-                  if old not in s:
-                      raise SystemExit(f'{name} portability patch context not found')
-                  s = s.replace(old, new, 1)
-              p.write_text(s, encoding='utf-8')
-          PY
-          git diff --check
 
       - uses: actions/setup-python@v5
         with:
@@ -440,7 +375,7 @@ jobs:
         run: |
           set -euo pipefail
           ctest --test-dir build-macos --output-on-failure \
-            -E 'workspace_layout|navigation_responsiveness|mapping_fallback_gui'
+            -E 'workspace_layout|navigation_responsiveness|mapping_fallback_gui|signal_type_detection_gui'
 
       - name: Run macOS GUI integration tests
         shell: bash
@@ -449,6 +384,8 @@ jobs:
           QT_QPA_PLATFORM=minimal build-macos/si_header_ui_tests
           QT_QPA_PLATFORM=minimal build-macos/si_navigation_tests build-macos/navigation-test-macos
           QT_QPA_PLATFORM=minimal build-macos/si_open_tests build-macos/open-test-macos fallback
+          QT_QPA_PLATFORM=minimal build-macos/si_workspace_tests examples/demo.siproject build-macos/workspace-test-macos 1440 900
+          QT_QPA_PLATFORM=minimal build-macos/si_open_tests build-macos/signal-type-test-macos signaltype
 
       - name: Create macOS app bundle
         env:
@@ -460,6 +397,26 @@ jobs:
           mkdir -p "$app/Contents/MacOS/fonts" "$app/Contents/Resources"
           cp build-macos/SParamView "$app/Contents/MacOS/SParamView"
           cp -R assets/fonts/. "$app/Contents/MacOS/fonts/"
+
+          iconset="${RUNNER_TEMP}/SParamView.iconset"
+          iconpng="${RUNNER_TEMP}/SParamView-icon.png"
+          rm -rf "$iconset" "$iconpng"
+          mkdir -p "$iconset"
+          sips -s format png assets/SParamView.ico --out "$iconpng" >/dev/null
+          sips -z 16 16 "$iconpng" --out "$iconset/icon_16x16.png" >/dev/null
+          sips -z 32 32 "$iconpng" --out "$iconset/icon_16x16@2x.png" >/dev/null
+          sips -z 32 32 "$iconpng" --out "$iconset/icon_32x32.png" >/dev/null
+          sips -z 64 64 "$iconpng" --out "$iconset/icon_32x32@2x.png" >/dev/null
+          sips -z 128 128 "$iconpng" --out "$iconset/icon_128x128.png" >/dev/null
+          sips -z 256 256 "$iconpng" --out "$iconset/icon_128x128@2x.png" >/dev/null
+          sips -z 256 256 "$iconpng" --out "$iconset/icon_256x256.png" >/dev/null
+          sips -z 512 512 "$iconpng" --out "$iconset/icon_256x256@2x.png" >/dev/null
+          sips -z 512 512 "$iconpng" --out "$iconset/icon_512x512.png" >/dev/null
+          sips -z 1024 1024 "$iconpng" --out "$iconset/icon_512x512@2x.png" >/dev/null
+          iconutil -c icns "$iconset" -o "$app/Contents/Resources/SParamView.icns"
+          test -s "$app/Contents/Resources/SParamView.icns"
+          rm -rf "$iconset" "$iconpng"
+
           cat > "$app/Contents/Info.plist" <<PLIST
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -467,6 +424,7 @@ jobs:
             <key>CFBundleDevelopmentRegion</key><string>English</string>
             <key>CFBundleDisplayName</key><string>SParamView</string>
             <key>CFBundleExecutable</key><string>SParamView</string>
+            <key>CFBundleIconFile</key><string>SParamView.icns</string>
             <key>CFBundleIdentifier</key><string>com.july.sparamview</string>
             <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
             <key>CFBundleName</key><string>SParamView</string>
@@ -478,6 +436,8 @@ jobs:
           </dict></plist>
           PLIST
           "$QT_ROOT/bin/macdeployqt" "$app" -always-overwrite -verbose=2
+          test -s "$app/Contents/Resources/SParamView.icns"
+          test "$(plutil -extract CFBundleIconFile raw -o - "$app/Contents/Info.plist")" = 'SParamView.icns'
 
       - name: Thin and audit deployed Mach-O files to arm64
         shell: bash
@@ -504,6 +464,18 @@ jobs:
           done < <(find "$app/Contents" -type f -print0)
           test "$count" -gt 0
 
+      - name: Record macOS build provenance
+        env:
+          SPARAMVIEW_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          python3 - <<'PYTHON'
+          import json, os, pathlib, plistlib
+          app=pathlib.Path('package/SParamView.app/Contents')
+          info=plistlib.loads((app/'Info.plist').read_bytes())
+          assert info['CFBundleShortVersionString']==os.environ['SPARAMVIEW_VERSION']
+          (app/'Resources/build-provenance.json').write_text(json.dumps(dict(version=os.environ['SPARAMVIEW_VERSION'],commit=os.environ['GITHUB_SHA'],platform='macOS arm64',run_id=os.environ['GITHUB_RUN_ID'])))
+          PYTHON
+
       - name: Ad-hoc sign and verify bundle
         shell: bash
         run: |
@@ -521,6 +493,25 @@ jobs:
           set -euo pipefail
           mkdir -p package/selftest
           package/SParamView.app/Contents/MacOS/SParamView --selftest examples package/selftest
+
+      - name: Include release documentation in macOS bundle
+        run: |
+          mkdir -p package/SParamView.app/Contents/Resources/docs
+          cp README_FIRST.txt package/SParamView.app/Contents/Resources/
+          cp docs/USER_GUIDE_*.md docs/Release_${{ needs.prepare.outputs.version }}.md package/SParamView.app/Contents/Resources/docs/
+          codesign --force --deep --sign - package/SParamView.app
+          codesign --verify --deep --strict package/SParamView.app
+
+      - name: Upload macOS test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: SParamView-v${{ needs.prepare.outputs.version }}-macOS-validation
+          path: |
+            build-macos/Testing/Temporary/*.log
+            build-macos/workspace-test-macos/*.json
+          if-no-files-found: error
+          retention-days: ${{ github.ref == 'refs/heads/main' && 14 || 1 }}
 
       - name: Package Apple Silicon ZIP and DMG
         env:
@@ -547,7 +538,7 @@ jobs:
             SParamView_macOS_AppleSilicon_arm64_v${{ needs.prepare.outputs.version }}.dmg
             SParamView_macOS_AppleSilicon_arm64_v${{ needs.prepare.outputs.version }}.dmg.sha256
           if-no-files-found: error
-          retention-days: 30
+          retention-days: ${{ github.ref == 'refs/heads/main' && 14 || 1 }}
           compression-level: 0
 
   release:
@@ -557,6 +548,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: read
     env:
       SPARAMVIEW_VERSION: ${{ needs.prepare.outputs.version }}
     steps:
@@ -582,60 +574,13 @@ jobs:
           name: SParamView-v${{ needs.prepare.outputs.version }}-macOS-AppleSilicon-arm64
           path: package/macos
 
-      - name: Package Windows assets and release manifest
-        shell: bash
-        run: |
-          set -euo pipefail
-          (cd package/windows-x64 && zip -qr ../../SParamView_Windows_x64_v${SPARAMVIEW_VERSION}.zip .)
-          (cd package/windows-arm64 && zip -qr ../../SParamView_Windows_ARM64_v${SPARAMVIEW_VERSION}.zip .)
-          sha256sum SParamView_Windows_x64_v${SPARAMVIEW_VERSION}.zip > SParamView_Windows_x64_v${SPARAMVIEW_VERSION}.zip.sha256
-          sha256sum SParamView_Windows_ARM64_v${SPARAMVIEW_VERSION}.zip > SParamView_Windows_ARM64_v${SPARAMVIEW_VERSION}.zip.sha256
-          python3 - <<'PY'
-          import json, os
-          version = os.environ['SPARAMVIEW_VERSION']
-          data = {
-              'application': 'SParamView',
-              'version': version,
-              'release_commit': os.environ['GITHUB_SHA'],
-              'platforms': [
-                  'Windows x64',
-                  'Windows ARM64',
-                  'macOS Apple Silicon arm64',
-              ],
-              'common_core_tests': 'PASS',
-              'windows_x64_native_tests': 'PASS',
-              'windows_arm64_native_packaged_binary_regression': 'PASS',
-              'macos_apple_silicon_native_build_and_tests': 'PASS',
-          }
-          with open(f'SParamView_v{version}_Release_Status_FINAL.json','w',encoding='utf-8') as f:
-              json.dump(data,f,indent=2)
-              f.write('\n')
-          PY
+      - name: Download validation evidence
+        uses: actions/download-artifact@v4
+        with:
+          pattern: SParamView-v${{ needs.prepare.outputs.version }}-*-validation
+          path: package/evidence
 
-      - name: Create or refresh GitHub release
-        shell: bash
+      - name: Package and publish verified new release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          assets=(
-            "SParamView_Windows_x64_v${SPARAMVIEW_VERSION}.zip"
-            "SParamView_Windows_x64_v${SPARAMVIEW_VERSION}.zip.sha256"
-            "SParamView_Windows_ARM64_v${SPARAMVIEW_VERSION}.zip"
-            "SParamView_Windows_ARM64_v${SPARAMVIEW_VERSION}.zip.sha256"
-            "package/macos/SParamView_macOS_AppleSilicon_arm64_v${SPARAMVIEW_VERSION}.zip"
-            "package/macos/SParamView_macOS_AppleSilicon_arm64_v${SPARAMVIEW_VERSION}.zip.sha256"
-            "package/macos/SParamView_macOS_AppleSilicon_arm64_v${SPARAMVIEW_VERSION}.dmg"
-            "package/macos/SParamView_macOS_AppleSilicon_arm64_v${SPARAMVIEW_VERSION}.dmg.sha256"
-            "SParamView_v${SPARAMVIEW_VERSION}_Release_Status_FINAL.json"
-          )
-          if gh release view "v${SPARAMVIEW_VERSION}" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "v${SPARAMVIEW_VERSION}" --repo "$GITHUB_REPOSITORY" --clobber "${assets[@]}"
-          else
-            gh release create "v${SPARAMVIEW_VERSION}" \
-              --repo "$GITHUB_REPOSITORY" \
-              --target "$GITHUB_SHA" \
-              --title "SParamView v${SPARAMVIEW_VERSION} — Windows x64 + Windows ARM64 + macOS Apple Silicon" \
-              --notes-file "docs/Release_${SPARAMVIEW_VERSION}.md" \
-              "${assets[@]}"
-          fi
+        run: python3 scripts/publish_release.py

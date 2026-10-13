@@ -8,6 +8,7 @@ void MainWindow::setResultsTextSize(int pixels) {
   }
 }
 void MainWindow::setDirectionMode(int mode) {
+  if(directionMode != (mode % 3 + 3) % 3) markDirty();
   directionMode = (mode % 3 + 3) % 3;
   if (directionButton) { directionButton->setText(QStringList{"Near → Far", "Far → Near", "Both"}[directionMode]); directionButton->setToolTip("Direction: Near → Far → Far → Near → Both"); }
   settings.reverse = directionMode == 1;

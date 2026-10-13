@@ -19,20 +19,37 @@ int main(int argc,char**argv){
   "!\"D\" \"CLK_POS\" \"CLK_NEG\" \"a\" \"b\" \"c\" \"d\" \"0\" \"1\" \"2\" \"3\"\n!.EndDiffChannels\n# Hz S RI R 50\n";
   for(int i=0;i<32;++i){out<<i*1e8;for(int j=0;j<16;++j)out<<" 0 0";out<<'\n';}out.close();paths<<qs(si::utf8(file));
  }
+ if(mode=="signaltype"){
+  auto file=fp(folder+"/regular-pn.s4p");std::ofstream out(file);
+  out<<"! Port 1 = U1-A DATAP0\n! Port 2 = U1-B DATAN0\n! Port 3 = J1-1 DATAP0\n! Port 4 = J1-2 DATAN0\n# Hz S RI R 50\n";
+  for(int i=0;i<32;++i){out<<i*1e8;for(int j=0;j<16;++j)out<<" 0 0";out<<'\n';}out.close();paths<<qs(si::utf8(file));
+ }
  MainWindow w;w.show();QElapsedTimer clock;clock.start();QTimer timer;
- bool mappingSeen=false,warningSeen=false,labelErrorSeen=false,saved=false,done=false,clicked=false;QString failure;int rows=-1;
+ bool mappingSeen=false,signalSeen=false,warningSeen=false,labelErrorSeen=false,saved=false,done=false,clicked=false;QString failure;int rows=-1;
  QObject::connect(&timer,&QTimer::timeout,[&]{
   if(done)return;
   for(auto *widget:QApplication::topLevelWidgets())if(auto *box=qobject_cast<QMessageBox*>(widget);box&&box->isVisible()){
-   labelErrorSeen=box->text().contains("Cannot establish P/N polarity");if(!clicked)failure="Unexpected open error: "+box->text();box->accept();
+   labelErrorSeen=box->text().contains("Cannot establish a unique P/N polarity") ||
+                  box->text().contains("Cannot establish P/N polarity");
+   if(!clicked)failure="Unexpected open error: "+box->text();box->accept();
+  }
+  auto *signalDialog=w.findChild<QDialog*>("signalTypeDetectionDialog");
+  if(mode=="signaltype"&&signalDialog&&signalDialog->isVisible()&&!signalSeen){
+   auto *selector=signalDialog->findChild<QComboBox*>("signalTypeSelector");
+   if(!selector||selector->currentData().toString()!="Differential")failure="Signal Type Detection did not preselect Differential";
+   signalSeen=true;
+   if(auto *buttons=signalDialog->findChild<QDialogButtonBox*>())
+    buttons->button(QDialogButtonBox::Ok)->click();
+   else failure="Signal Type Detection buttons missing";
+   return;
   }
   auto *dialog=w.findChild<QDialog*>("channelMappingDialog");
   if(dialog&&dialog->isVisible()&&!mappingSeen){
    auto *grid=dialog->findChild<QTableWidget*>();rows=grid->rowCount();warningSeen=dialog->findChild<QLabel*>("mappingWarning")!=nullptr;
    bool fallback=mode=="fallback"||mode=="batch";
    if(fallback&&!clicked){
-    if(rows!=2||!warningSeen)failure="Missing compatibility mapping/warning";
-    grid->setRowCount(0); // Test manual-row preservation independently of fallback rows.
+    if(rows!=0||!warningSeen)failure="Explicit differential metadata incorrectly accepted a single-ended compatibility fallback";
+    grid->setRowCount(0); // Auto candidates are intentionally empty; test manual-row preservation.
     for(auto *b:dialog->findChildren<QPushButton*>())if(b->text()=="Add Row")b->click();
     if(grid->rowCount()!=1)failure="Add row failed";
     QStringList v{"MANUAL","1","2","3","4","Default","","manual"};for(int j=0;j<v.size();++j)grid->setItem(0,j,new QTableWidgetItem(v[j]));
@@ -42,6 +59,15 @@ int main(int argc,char**argv){
    if(fallback){
     if(!labelErrorSeen||grid->rowCount()!=1||grid->item(0,0)->text()!="MANUAL")failure="Manual rows lost";
     dialog->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Save)->click();saved=true;
+   }else if(mode=="signaltype"){
+    if(!signalSeen||rows!=1)failure="Signal Type Detection did not lead to one differential candidate";
+    if(rows==1){
+     QStringList expected{"1","2","3","4"};
+     for(int col=1;col<=4;++col)
+      if(!grid->item(0,col)||grid->item(0,col)->text()!=expected[col-1])
+       failure="Signal Type Detection produced incorrect P/N or Near/Far mapping";
+    }
+    dialog->reject();
    }else{
     for(const auto&r:NavigationProbe::revisions(w)){
      if(r.cache->meta().ports==16){if(r.channels.size()!=4||r.channels[0].nearP!=4||r.channels[0].nearN!=0||r.channels[0].farP!=12||r.channels[0].farN!=8)failure="CLK mapping";}
@@ -53,7 +79,8 @@ int main(int argc,char**argv){
   if((mappingSeen&&!NavigationProbe::busy(w))||clock.elapsed()>30000||!failure.isEmpty()){
    done=true;timer.stop();auto &revs=NavigationProbe::revisions(w);bool ok=failure.isEmpty()&&mappingSeen&&revs.size()==size_t(paths.size());
    if(saved)ok=ok&&revs.back().confirmed&&revs.back().channels.size()==1&&revs.back().mappingWarning.isEmpty();
-   QJsonObject r{{"passed",ok},{"mode",mode},{"revisions",int(revs.size())},{"initial_mapping_rows",rows},{"mapping_dialog_seen",mappingSeen},{"warning_seen",warningSeen},{"label_error_caught",labelErrorSeen},{"manual_mapping_saved",saved},{"failure",failure},{"elapsed_ms",double(clock.elapsed())}};
+   if(mode=="signaltype")ok=ok&&signalSeen&&revs.back().signalTypeReviewed&&revs.back().signalType=="Differential";
+   QJsonObject r{{"passed",ok},{"mode",mode},{"revisions",int(revs.size())},{"initial_mapping_rows",rows},{"signal_dialog_seen",signalSeen},{"mapping_dialog_seen",mappingSeen},{"warning_seen",warningSeen},{"label_error_caught",labelErrorSeen},{"manual_mapping_saved",saved},{"failure",failure},{"elapsed_ms",double(clock.elapsed())}};
    QFile f(folder+"/open.json");if(f.open(QIODevice::WriteOnly))f.write(QJsonDocument(r).toJson());w.grab().save(folder+"/application.png");
    std::cout<<QJsonDocument(r).toJson().constData();NavigationProbe::clean(w);app.exit(ok?0:1);
   }

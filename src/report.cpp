@@ -301,7 +301,7 @@ void writeReport(const QString &path, const std::vector<si::Result> &results,
     config.append({"Project", project});
     config.append({"Program version", si::version});
     config.append(
-        {"Analysis date", QDateTime::currentDateTime().toString(Qt::ISODate)});
+        {"Report generated UTC", QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs)});
     config.append({"Settings JSON",
                    QString::fromUtf8(QJsonDocument(settingsJson(settings))
                                          .toJson(QJsonDocument::Compact))});
@@ -335,8 +335,15 @@ void writeReport(const QString &path, const std::vector<si::Result> &results,
       auto &m = r.cache->meta();
       config.append({"Revision", r.name});
       config.append({"Source", r.source});
-      config.append({"Source modified",
-                     QFileInfo(r.source).lastModified().toString(Qt::ISODate)});
+      config.append({"Analysis completed UTC",r.analysisTime.isEmpty()?"Not recorded":r.analysisTime});
+      config.append({"Signal Type",r.signalType});
+      config.append({"Confidence",r.signalConfidence});
+      config.append({"Evidence",r.signalEvidence});
+      config.append({"Mapping Source",r.mappingSource});
+      config.append({"Mapping confirmed",r.confirmed?"Yes":"No"});
+      config.append({"Source SHA-256 verification",r.sourceVerification});
+      config.append({"Source metadata scope","Immutable parsed-data snapshot used for calculation; current disk file is not re-read during export."});
+      config.append({"Snapshot source modified ticks",QString::number(m.modified)});
       config.append({"Source size bytes", QString::number(m.sourceSize)});
       config.append({"Source SHA-256", qs(m.sha256)});
       config.append({"Touchstone", qs(m.version) + " / " + qs(m.format) +

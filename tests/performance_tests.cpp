@@ -60,7 +60,7 @@ int main() {
   si::Control cancelled; cancelled.cancelled=true; bool caught=false;
   try { si::transformTdr(t,s,&cancelled); } catch(const si::Cancelled &) {caught=true;}
   expect(caught,"Cache hit ignored cancellation");
-  si::clearTdrCache(); std::barrier gate(8); std::vector<std::jthread> threads;
+  si::clearTdrCache(); std::barrier gate(8); std::vector<si::JoiningThread> threads;
   for(int i=0;i<8;++i) threads.emplace_back([&]{gate.arrive_and_wait();si::transformTdr(t,s);});
   threads.clear(); auto stats=si::tdrCacheStats();
   expect(stats.misses==1 && stats.hits==7,"Identical concurrent inputs recomputed");

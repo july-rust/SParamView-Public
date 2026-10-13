@@ -11,11 +11,12 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include "joining_thread.hpp"
 
 namespace si {
 using Complex = std::complex<double>;
 namespace fs = std::filesystem;
-inline constexpr const char *version = "1.2.1";
+inline constexpr const char *version = "1.2.4";
 inline constexpr double NaN = std::numeric_limits<double>::quiet_NaN();
 struct Error : std::runtime_error {
   using std::runtime_error::runtime_error;
@@ -75,7 +76,8 @@ struct Channel {
 };
 void validateMapping(const std::vector<Channel> &, const Metadata &);
 std::vector<Channel> suggestMapping(const Metadata &,
-                                    std::string *diagnostic = nullptr);
+                                    std::string *diagnostic = nullptr,
+                                    bool inferNamedDifferential = true);
 std::vector<Channel> readMappingCsv(const fs::path &);
 void writeMappingCsv(const fs::path &, const std::vector<Channel> &);
 std::vector<int> matchChannels(const std::vector<Channel> &baseline,

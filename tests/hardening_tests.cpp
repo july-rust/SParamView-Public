@@ -34,7 +34,7 @@ int main(int argc,char **argv){
       auto p=write("parallel.s1p",data);
       std::vector<std::shared_ptr<Cache>> v(16);
       std::vector<std::exception_ptr> errors(16);
-      std::vector<std::jthread> threads;
+      std::vector<si::JoiningThread> threads;
       for(int i=0;i<16;++i)
         threads.emplace_back([&,i]{
           try{v[i]=Cache::open(p,dir/"cache");}

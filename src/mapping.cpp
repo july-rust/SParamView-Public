@@ -29,8 +29,66 @@ void validateMapping(const std::vector<Channel> &channels, const Metadata &m) {
             c.name);
   }
 }
+struct PnDifference {
+  size_t index = std::string::npos;
+  bool firstPositive = false;
+};
+static bool pnDelimiter(char c) {
+  return c == '_' || c == ' ' || c == '.' || c == ':' || c == '/' ||
+         c == '-';
+}
+static std::optional<PnDifference>
+uniquePnDifference(const std::string &first, const std::string &second) {
+  const auto a = lower(trim(first));
+  const auto b = lower(trim(second));
+  if (a.size() != b.size() || a.empty())
+    return std::nullopt;
+  size_t difference = std::string::npos;
+  for (size_t i = 0; i < a.size(); ++i) {
+    if (a[i] == b[i])
+      continue;
+    if (difference != std::string::npos ||
+        !((a[i] == 'p' && b[i] == 'n') ||
+          (a[i] == 'n' && b[i] == 'p')))
+      return std::nullopt;
+    difference = i;
+  }
+  if (difference == std::string::npos)
+    return std::nullopt;
+  std::string base = trim(first);
+  if (difference >= base.size())
+    return std::nullopt;
+  const bool atStart = difference == 0;
+  const bool atEnd = difference + 1 == base.size();
+  const bool leftDelimiter = !atStart && pnDelimiter(base[difference - 1]);
+  const bool rightDelimiter = !atEnd && pnDelimiter(base[difference + 1]);
+  if (leftDelimiter && (rightDelimiter || atEnd))
+    base.erase(atEnd ? difference - 1 : difference, 2);
+  else if (atStart && rightDelimiter)
+    base.erase(0, 2);
+  else
+    base.erase(difference, 1);
+  if (trim(base).empty())
+    return std::nullopt;
+  return PnDifference{difference, a[difference] == 'p'};
+}
+static std::string pnBaseName(std::string name, size_t difference) {
+  name = trim(name);
+  const bool atStart = difference == 0;
+  const bool atEnd = difference + 1 == name.size();
+  const bool leftDelimiter = !atStart && pnDelimiter(name[difference - 1]);
+  const bool rightDelimiter = !atEnd && pnDelimiter(name[difference + 1]);
+  if (leftDelimiter && (rightDelimiter || atEnd))
+    name.erase(atEnd ? difference - 1 : difference, 2);
+  else if (atStart && rightDelimiter)
+    name.erase(0, 2);
+  else
+    name.erase(difference, 1);
+  return trim(name);
+}
 std::vector<Channel> suggestMapping(const Metadata &m,
-                                    std::string *diagnostic) {
+                                    std::string *diagnostic,
+                                    bool inferNamedDifferential) {
   // PowerSI exports explicit endpoint indices in .DiffChannels comments.
   // They are physical single-ended ports, NOT pre-converted mixed-mode data.
   if (!m.differentialHints.empty()) {
@@ -44,30 +102,12 @@ std::vector<Channel> suggestMapping(const Metadata &m,
           fields.push_back(token);
         if (fields.size() < 11)
           throw Error("Invalid PowerSI differential channel hint");
-        const auto firstNet = lower(fields[1]), secondNet = lower(fields[2]);
-        // Only one differing, underscore-delimited P/N token is unambiguous.
-        size_t polarity = std::string::npos;
-        if (firstNet.size() == secondNet.size()) {
-          for (size_t i = 0; i < firstNet.size(); ++i) {
-            if (firstNet[i] == secondNet[i]) continue;
-            if (polarity != std::string::npos ||
-                !((firstNet[i] == 'p' && secondNet[i] == 'n') ||
-                  (firstNet[i] == 'n' && secondNet[i] == 'p')) ||
-                (i > 0 && firstNet[i - 1] != '_') ||
-                (i + 1 < firstNet.size() && firstNet[i + 1] != '_')) {
-              polarity = std::string::npos;
-              break;
-            }
-            polarity = i;
-          }
-        }
-        if (polarity == std::string::npos)
-          throw Error("Cannot establish P/N polarity from PowerSI channel hint");
-        const bool firstPositive = firstNet[polarity] == 'p';
-        std::string base = fields[1];
-        if (polarity + 1 < base.size()) base.erase(polarity, 2);
-        else if (polarity > 0) base.erase(polarity - 1, 2);
-        else base.clear();
+        const auto pn = uniquePnDifference(fields[1], fields[2]);
+        if (!pn)
+          throw Error("Cannot establish a unique P/N polarity from PowerSI channel hint");
+        const size_t polarity = pn->index;
+        const bool firstPositive = pn->firstPositive;
+        std::string base = pnBaseName(fields[1], polarity);
         if (base.empty()) throw Error("PowerSI hint has no channel name");
         std::array<int, 4> ports;
         for (size_t i = 0; i < 4; ++i) {
@@ -162,77 +202,72 @@ std::vector<Channel> suggestMapping(const Metadata &m,
     terminalCandidates.push_back(c);
   }
   if (!terminalCandidates.empty()) {
-    // Net labels such as DATA_P / DATA_N are useful evidence, but without an
-    // explicit differential declaration they are suggestions only. Build a
-    // differential-shaped candidate here; the GUI policy decides whether it
-    // is authoritative or requires manual confirmation.
-    auto namedPolarity = [](const std::string &name)
-        -> std::optional<std::pair<std::string, bool>> {
-      auto delimiter = [](char c) {
-        return c == '_' || c == ' ' || c == '.' || c == ':' || c == '/' ||
-               c == '-';
-      };
-      auto folded = lower(name);
-      size_t polarity = std::string::npos;
-      for (size_t i = 0; i < folded.size(); ++i) {
-        if (folded[i] != 'p' && folded[i] != 'n') continue;
-        const bool left = i == 0 || delimiter(folded[i - 1]);
-        const bool right = i + 1 == folded.size() || delimiter(folded[i + 1]);
-        if (!left || !right) continue;
-        if (polarity != std::string::npos) return std::nullopt;
-        polarity = i;
+    // Names are differential evidence only when two terminal nets are identical
+    // case-insensitively except for exactly one P/N character. The P/N character
+    // may appear anywhere in the net name (DATAP0/DATAN0, PCLK1/NCLK1, etc.).
+    // Ambiguous, incomplete or multiply differing names remain single-ended
+    // candidates and are never guessed into a differential pair.
+    if (inferNamedDifferential) {
+      std::vector<std::vector<size_t>> matches(terminalCandidates.size());
+      for (size_t i = 0; i < terminalCandidates.size(); ++i)
+        for (size_t j = i + 1; j < terminalCandidates.size(); ++j)
+          if (uniquePnDifference(terminalCandidates[i].name,
+                                 terminalCandidates[j].name)) {
+            matches[i].push_back(j);
+            matches[j].push_back(i);
+          }
+      std::map<std::string, std::vector<std::pair<size_t, size_t>>> pairsByBase;
+      for (size_t i = 0; i < terminalCandidates.size(); ++i) {
+        if (matches[i].size() != 1)
+          continue;
+        const size_t j = matches[i].front();
+        if (j <= i || matches[j].size() != 1 || matches[j].front() != i)
+          continue;
+        const auto pn = uniquePnDifference(terminalCandidates[i].name,
+                                           terminalCandidates[j].name);
+        if (!pn)
+          continue;
+        const auto base = pnBaseName(terminalCandidates[i].name, pn->index);
+        if (!base.empty())
+          pairsByBase[lower(base)].push_back({i, j});
       }
-      if (polarity == std::string::npos) return std::nullopt;
-      std::string base = name;
-      if (polarity + 1 < base.size() && delimiter(base[polarity + 1]))
-        base.erase(polarity, 2);
-      else if (polarity > 0 && delimiter(base[polarity - 1]))
-        base.erase(polarity - 1, 2);
-      else
-        base.erase(polarity, 1);
-      if (trim(base).empty()) return std::nullopt;
-      return std::pair{trim(base), folded[polarity] == 'p'};
-    };
-    struct NamedPair {
-      std::optional<Channel> positive, negative;
-      std::string name;
-      bool ambiguous = false;
-    };
-    std::map<std::string, NamedPair> namedPairs;
-    for (const auto &candidate : terminalCandidates) {
-      auto polarity = namedPolarity(candidate.name);
-      if (!polarity) continue;
-      auto &[base, positive] = *polarity;
-      auto &pair = namedPairs[lower(base)];
-      pair.name = base;
-      auto &slot = positive ? pair.positive : pair.negative;
-      if (slot) pair.ambiguous = true;
-      else slot = candidate;
-    }
-    std::set<std::string> consumed;
-    std::vector<Channel> combined;
-    for (const auto &[key, pair] : namedPairs) {
-      if (pair.ambiguous || !pair.positive || !pair.negative) continue;
-      Channel c;
-      c.name = pair.name;
-      c.id = "namepair:" + key;
-      c.group = "Differential";
-      c.nearP = pair.positive->nearP;
-      c.nearN = pair.negative->nearP;
-      c.farP = pair.positive->farP;
-      c.farN = pair.negative->farP;
-      combined.push_back(c);
-      consumed.insert(pair.positive->id);
-      consumed.insert(pair.negative->id);
-    }
-    if (!combined.empty()) {
-      for (auto candidate : terminalCandidates) {
-        if (consumed.count(candidate.id)) continue;
-        candidate.group = "Single-ended";
-        combined.push_back(std::move(candidate));
+      std::set<size_t> consumed;
+      std::vector<Channel> combined;
+      for (const auto &[key, pairs] : pairsByBase) {
+        if (pairs.size() != 1)
+          continue;
+        const auto [i, j] = pairs.front();
+        const auto pn = uniquePnDifference(terminalCandidates[i].name,
+                                           terminalCandidates[j].name);
+        if (!pn)
+          continue;
+        const auto &positive =
+            pn->firstPositive ? terminalCandidates[i] : terminalCandidates[j];
+        const auto &negative =
+            pn->firstPositive ? terminalCandidates[j] : terminalCandidates[i];
+        Channel c;
+        c.name = pnBaseName(terminalCandidates[i].name, pn->index);
+        c.id = "namepair:" + key;
+        c.group = "Differential";
+        c.nearP = positive.nearP;
+        c.nearN = negative.nearP;
+        c.farP = positive.farP;
+        c.farN = negative.farP;
+        combined.push_back(c);
+        consumed.insert(i);
+        consumed.insert(j);
       }
-      validateMapping(combined, m);
-      return combined;
+      if (!combined.empty()) {
+        for (size_t i = 0; i < terminalCandidates.size(); ++i) {
+          if (consumed.count(i))
+            continue;
+          auto candidate = terminalCandidates[i];
+          candidate.group = "Single-ended";
+          combined.push_back(std::move(candidate));
+        }
+        validateMapping(combined, m);
+        return combined;
+      }
     }
     validateMapping(terminalCandidates, m);
     return terminalCandidates;
@@ -265,6 +300,10 @@ std::vector<Channel> suggestMapping(const Metadata &m,
       end = "near";
     } else
       continue;
+    if (!inferNamedDifferential && !pol.empty()) {
+      base += "_" + pol;
+      pol.clear();
+    }
     if (ambiguous.count(base))
       continue;
     auto &c = found[base];

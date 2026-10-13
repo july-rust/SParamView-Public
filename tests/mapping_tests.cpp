@@ -204,6 +204,33 @@ int main() {
       expect(mapped.size() == 1 && mapped[0].differential() &&
                  mapped[0].name == "CLK_OUT_0_MP",
              "Middle P/N token terminal names form one candidate");
+
+      struct NameCase { const char *p; const char *n; };
+      for (const auto &test : std::vector<NameCase>{
+               {"DATAP0", "DATAN0"}, {"CLKP1", "CLKN1"},
+               {"DPP0", "DPN0"}, {"PDATA0", "NDATA0"},
+               {"PCLK1", "NCLK1"}, {"PDP0", "NDP0"}}) {
+        names.labels = {std::string("U1-A ") + test.p,
+                        std::string("U1-B ") + test.n,
+                        std::string("J1-1 ") + test.p,
+                        std::string("J1-2 ") + test.n};
+        mapped = suggestMapping(names, &diagnostic);
+        expect(mapped.size() == 1 && mapped[0].differential(),
+               "Exact one-character P/N difference is recognized anywhere");
+      }
+      auto forcedSingleEnded = suggestMapping(names, &diagnostic, false);
+      expect(forcedSingleEnded.size() == 2 &&
+                 !forcedSingleEnded[0].differential() &&
+                 !forcedSingleEnded[1].differential(),
+             "Signal type confirmation can suppress name-based differential inference");
+
+      names.labels = {"U1-A DATAP0", "U1-B DATAN1",
+                      "J1-1 DATAP0", "J1-2 DATAN1"};
+      mapped = suggestMapping(names, &diagnostic);
+      expect(mapped.size() == 2 &&
+                 std::none_of(mapped.begin(), mapped.end(),
+                              [](const auto &c) { return c.differential(); }),
+             "Irregular multi-character differences are not guessed as differential");
     }
     std::cout << "PASS " << checks << " mapping/sign checks\n";
   } catch (const std::exception &e) {

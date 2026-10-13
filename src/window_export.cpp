@@ -34,7 +34,7 @@ void MainWindow::exportXlsx() {
   ReportOptions options{a->isChecked(), b->isChecked(), c->isChecked(),
                         raw->isChecked()};
   auto rs = results;
-  auto revs = revisions;
+  auto revs = lastRevisions;
   auto set = lastSettings;
   auto jobs = lastJobs;
   auto snap = plot->snapshot;
@@ -238,22 +238,17 @@ void MainWindow::closeEvent(QCloseEvent *e) {
     notice->setText("Cancelling the active task. Close the window after cancellation completes.");
     return;
   }
-  if (dirty && !revisions.empty()) {
-    auto choice = QMessageBox::question(
-        this, "Save Project", "Save the modified settings and channel mapping?",
-        QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel);
-    if (choice == QMessageBox::Cancel) {
-      e->ignore();
-      return;
-    }
-    if (choice == QMessageBox::Save) {
-      saveProject();
-      if (dirty) {
-        e->ignore();
-        return;
-      }
-    }
-  }
+  if (!confirmProjectTransition()) {e->ignore();return;}
   saveWorkspaceLayout();
   e->accept();
+}
+
+bool MainWindow::confirmProjectTransition() {
+  if (!dirty || revisions.empty()) return true;
+  const auto choice=QMessageBox::question(this,"Save Project",
+      "Save the modified settings and channel mapping?",
+      QMessageBox::Save|QMessageBox::Discard|QMessageBox::Cancel);
+  if(choice==QMessageBox::Cancel) return false;
+  if(choice==QMessageBox::Save){saveProject();return !dirty;}
+  return choice==QMessageBox::Discard;
 }

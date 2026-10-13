@@ -43,3 +43,7 @@ _deps/
 # Keep source-controlled documentation, screenshots, JSON, logs,
 # Touchstone fixtures, and spreadsheet evidence explicit rather than
 # ignoring those extensions globally.
+
+# Python release/validation helpers
+__pycache__/
+*.pyc
