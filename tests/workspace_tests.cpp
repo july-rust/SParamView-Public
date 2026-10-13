@@ -146,6 +146,11 @@ struct WorkspaceProbe {
      while(!ready()&&transition.elapsed()<5000){
        QApplication::processEvents(QEventLoop::AllEvents,20);QThread::msleep(5);
      }
+     if(!ready()) std::cerr << "WORKSPACE FULLSCREEN RESTORE DIAGNOSTIC: "
+       << "requested=" << normalGeometry.width() << "x" << normalGeometry.height()
+       << " actual=" << w.width() << "x" << w.height()
+       << " fullscreen=" << w.isFullScreen()
+       << " maximized=" << w.isMaximized() << std::endl;
      check(ready(),message);settle(w);
    };
    w.toggleFullscreen();waitForWindow([&]{return w.isFullScreen();},"Fullscreen enter");
