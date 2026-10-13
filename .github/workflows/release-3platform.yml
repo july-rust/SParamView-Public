@@ -583,29 +583,27 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Download validated Windows x64 bundle
-        uses: actions/download-artifact@v7
-        with:
-          name: SParamView-v${{ needs.prepare.outputs.version }}-Windows-x64
-          path: package/windows-x64
-
-      - name: Download validated Windows ARM64 bundle
-        uses: actions/download-artifact@v7
-        with:
-          name: SParamView-v${{ needs.prepare.outputs.version }}-Windows-ARM64
-          path: package/windows-arm64
-
-      - name: Download validated macOS Apple Silicon package
-        uses: actions/download-artifact@v7
-        with:
-          name: SParamView-v${{ needs.prepare.outputs.version }}-macOS-AppleSilicon-arm64
-          path: package/macos
-
-      - name: Download validation evidence
-        uses: actions/download-artifact@v7
-        with:
-          pattern: SParamView-v${{ needs.prepare.outputs.version }}-*-validation
-          path: package/evidence
+      # The official GitHub CLI uses the Actions artifact REST API without
+      # the Node.js Buffer() deprecation reported by download-artifact@v7.
+      # The publication script independently checks package provenance, jobs
+      # and SHA-256 digests before any remote release write.
+      - name: Download validated bundles and validation evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh --version
+          run_id="$GITHUB_RUN_ID"
+          repo="$GITHUB_REPOSITORY"
+          version="$SPARAMVIEW_VERSION"
+          gh run download "$run_id" --repo "$repo" --name "SParamView-v${version}-Windows-x64" --dir package/windows-x64
+          gh run download "$run_id" --repo "$repo" --name "SParamView-v${version}-Windows-ARM64" --dir package/windows-arm64
+          gh run download "$run_id" --repo "$repo" --name "SParamView-v${version}-macOS-AppleSilicon-arm64" --dir package/macos
+          gh run download "$run_id" --repo "$repo" --pattern "SParamView-v${version}-*-validation" --dir package/evidence
+          test -f package/windows-x64/build-provenance.json
+          test -f package/windows-arm64/build-provenance.json
+          test -f "package/macos/SParamView_macOS_AppleSilicon_arm64_v${version}.zip"
+          test -d package/evidence
 
       - name: Package and publish verified new release
         env:
