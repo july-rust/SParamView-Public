@@ -102,6 +102,16 @@ def validated_ci_only_v124a(endpoint, repo, version, existing, ref, commit):
         'tests/open_tests.cpp',
         'scripts/publish_release.py',
         'tests/publish_release_tests.py',
+        # Repository-only current-version documentation; existing release
+        # attachments (including guides, checksums and binaries) remain pinned.
+        'README.md',
+        'README_EN.md',
+        'README_KO.md',
+        'docs/USER_GUIDE_EN.md',
+        'docs/USER_GUIDE_KO.md',
+        'docs/Revision_History.md',
+        'docs/Release_1.2.4a.md',
+        'docs/images/README.md',
     }
     changes = comparison.get('files', [])
     return (comparison.get('status') == 'ahead' and bool(changes)

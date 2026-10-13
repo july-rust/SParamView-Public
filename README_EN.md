@@ -34,12 +34,14 @@ Quick TDR is a band-limited estimate affected by frequency span, spacing, extrap
 - Export analysis-time signal/mapping/source evidence and publish immutable, verified packages.
 - Includes the compact v1.2.2 controls and v1.2.3 signal detection changes.
 
+The [v1.2.4a published artifacts](https://github.com/july-rust/SParamView-Public/releases/tag/v1.2.4a) remain unchanged. On 2026-10-13, a separate documentation and CI maintenance pass verified zero warning messages across the six required validation gates, native Windows ARM64 mapping fallback 10/10 passes, and native Cocoa macOS GUI tests. These changes do not replace the tagged binaries. See [Revision History](docs/Revision_History.md) and [CI evidence](https://github.com/july-rust/SParamView-Public/actions/runs/38383938009).
+
 See [Release_1.2.4a.md](docs/Release_1.2.4a.md) for details. Earlier changes: [v1.1.6](docs/Release_1.1.6.md), [v1.1.7](docs/Release_1.1.7.md), [v1.2.0](docs/Release_1.2.0.md).
 
 ## Build
 SParamView uses C++20, CMake, and Qt 6.8.3 (Core, Gui, Widgets, Concurrent).
 
-The GitHub Actions workflow performs version consistency checks, common regression tests, sanitizer checks, Windows x64/ARM64 builds, a native Windows ARM64 packaged-binary gate, and an Apple Silicon macOS build/test gate.
+The GitHub Actions workflow performs version consistency checks, GCC Release core regression tests, Clang ASan/UBSan checks, Windows x64/ARM64 builds, a native Windows ARM64 packaged-binary gate (including repeated manual-mapping tests), and Apple Silicon macOS builds with Cocoa GUI tests. Release artifact retrieval uses authenticated GitHub CLI. These tests do not imply hardware measurement acceptance.
 
 ## License
 SParamView source is distributed under the MIT License. See [LICENSE](LICENSE).

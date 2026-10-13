@@ -21,6 +21,7 @@ Quick TDR은 제한된 주파수 대역을 이용한 추정값이며 계측기 T
 
 - [한국어 사용자 설명서](docs/USER_GUIDE_KO.md)
 - [English User Guide](docs/USER_GUIDE_EN.md)
+- [전체 변경 이력](docs/Revision_History.md)
 
 ## v1.2.4a 변경사항
 
@@ -31,6 +32,8 @@ Quick TDR은 제한된 주파수 대역을 이용한 추정값이며 계측기 T
 - Touchstone 2.1의 추가 옵션 줄 무시 규칙과 대칭 mixed-mode 삼각 행렬을 지원합니다.
 - Excel에 분석 시점의 신호·매핑·원본 근거를 기록하고 검증된 패키지만 공식 공개합니다.
 - v1.2.2의 간결한 설정 UI와 v1.2.3의 신호 감지 개선을 포함합니다.
+
+**2026-10-13 검증 유지보수:** GCC Release와 Clang ASan/UBSan 검증, macOS Cocoa GUI 시험, Windows ARM64 매핑 보존 반복시험(10/10 PASS)을 적용했습니다. [공식 Actions](https://github.com/july-rust/SParamView-Public/actions/runs/38383938009)에서 컴파일러·Qt 테스트 환경·다운로드 관련 경고 0건을 확인했습니다. 분석 엔진 및 [기존 v1.2.4a 배포 파일](https://github.com/july-rust/SParamView-Public/releases/tag/v1.2.4a)은 교체하지 않았으며 SHA-256도 그대로입니다.
 
 세부 범위는 [v1.2.4a Release Notes](docs/Release_1.2.4a.md)를 확인하세요. 이전 변경사항: [v1.1.6](docs/Release_1.1.6.md), [v1.1.7](docs/Release_1.1.7.md), [v1.2.0](docs/Release_1.2.0.md).
 
