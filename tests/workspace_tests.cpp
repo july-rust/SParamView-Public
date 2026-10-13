@@ -3,6 +3,7 @@
 void applyCompactAnalysisSettings(MainWindow &window);
 static void check(bool ok, const char *message) { if (!ok) throw si::Error(message); }
 struct WorkspaceProbe {
+ static void stage(const char *name) { std::cerr << "WORKSPACE STAGE: " << name << std::endl; }
  static void settle(MainWindow &w) {
   QElapsedTimer t; t.start();
   do { QApplication::processEvents(QEventLoop::AllEvents, 10); QThread::msleep(1);
@@ -17,12 +18,15 @@ struct WorkspaceProbe {
   return QJsonDocument(a).toJson(QJsonDocument::Compact);
  }
  static QJsonObject run(MainWindow &w, const QString &project, const QString &out, QSize size) {
+  stage("show and settle window");
   w.resetWorkspaceLayout(); w.resize(size); w.show(); settle(w);
+  stage("load project");
   w.loadProject(project); settle(w); check(!w.revisions.empty(),"Project missing");
   w.resize(size); settle(w);
   // Regression: RL -> IL -> NEXT -> FEXT -> TDR must calculate each missing
   // metric and immediately form a graph, even when the previous result exists.
   w.results.clear(); w.lastJobs.clear();
+  stage("individual metrics");
   for(int i=0;i<5;++i){
    w.metricButtons[i]->click(); settle(w);
    check(!w.results.empty(),"Individual metric analysis returned no results");
@@ -32,6 +36,7 @@ struct WorkspaceProbe {
   // And make sure returning to RL is a fresh valid calculation/display path.
   w.metricButtons[0]->click(); settle(w);
   check(w.displayed==si::Metric::RL&&!w.plot->snapshot.curves.empty(),"RL return after sequential metric run failed");
+  stage("quick analysis");
   w.run(w.settings.quick); settle(w); check(!w.results.empty(),"Analysis missing");
   if (w.revisions.size() > 1) {
    const int originalRevision=w.revisionBox->currentIndex();
@@ -138,6 +143,7 @@ struct WorkspaceProbe {
   auto scroll=qobject_cast<QScrollArea*>(w.settingsPanel);check(scroll&&scroll->widget(),"Settings scroll container missing");
   w.grab().save(out+"/Settings.png");w.settingsAction->setChecked(false);settle(w);
   check(!w.analysisSplit->opaqueResize(),"Splitter triggers continuous redraw");
+  stage("fullscreen transitions");
   auto normalGeometry=w.geometry();
   const bool offscreen=QGuiApplication::platformName().compare("offscreen",Qt::CaseInsensitive)==0;
   if(!offscreen){
@@ -158,6 +164,7 @@ struct WorkspaceProbe {
   }else{
    result["fullscreen_headless_skipped"]=true;
   }
+  stage("metric viewing and persistence");
   // Separate metric selection reads completed data without starting new jobs.
   auto selectedMetric=si::Metric::TDR;w.metricView->setCurrentIndex(int(selectedMetric));settle(w);
   check(w.displayed==selectedMetric&&values(w)==original&&w.lastJobs.size()==jobs,"Metric selector changed analysis");
@@ -185,11 +192,16 @@ int main(int argc,char**argv){
  QSettings::setPath(QSettings::IniFormat,QSettings::UserScope,out+"/preferences");
  {QSettings p(QSettings::IniFormat,QSettings::UserScope,"SParamView",app.applicationName());p.clear();}
  QLocale::setDefault(QLocale(QLocale::German,QLocale::Germany));
- applyLightTheme(app);check(QLocale().decimalPoint()==".","Technical UI must use decimal points");QFontDatabase::addApplicationFont(QCoreApplication::applicationDirPath()+"/fonts/NanumGothic-Regular.ttf");QFont::insertSubstitution("Segoe UI","NanumGothic");
+ applyLightTheme(app);check(QLocale().decimalPoint()==".","Technical UI must use decimal points");QFontDatabase::addApplicationFont(QCoreApplication::applicationDirPath()+"/fonts/NanumGothic-Regular.ttf");#ifdef Q_OS_WIN
+ QFont::insertSubstitution("Segoe UI","NanumGothic");
+#else
+ check(!app.styleSheet().contains("Segoe UI"),"Non-Windows stylesheet requires a native font");
+#endif
  try{
   QSize size(argc>3?QString::fromLocal8Bit(argv[3]).toInt():1440,argc>4?QString::fromLocal8Bit(argv[4]).toInt():980);
   QJsonObject result;
-  {MainWindow w;applyCompactAnalysisSettings(w);w.installHeaderProjectButtons();result=WorkspaceProbe::run(w,QString::fromLocal8Bit(argv[1]),out,size);}
+  WorkspaceProbe::stage("construct MainWindow");
+  {MainWindow w;WorkspaceProbe::stage("MainWindow constructed");applyCompactAnalysisSettings(w);w.installHeaderProjectButtons();result=WorkspaceProbe::run(w,QString::fromLocal8Bit(argv[1]),out,size);}
   {MainWindow w;WorkspaceProbe::persistence(w);}
   result["preferences_restored"]=true;QFile f(out+"/Workspace.json");check(f.open(QIODevice::WriteOnly),"Cannot save QA");f.write(QJsonDocument(result).toJson());std::cout<<QJsonDocument(result).toJson().constData();return 0;
  }catch(const std::exception&e){std::cerr<<e.what()<<'\n';return 1;}
