@@ -138,9 +138,9 @@ class ReleaseSafety(unittest.TestCase):
                                       'Windows x64','Windows ARM64',
                                       'Native Windows ARM64 packaged-binary gate',
                                       'macOS Apple Silicon arm64']]}
-        with patch.dict(os.environ,env), \\
-             patch.object(publisher.subprocess,'check_output',return_value=new), \\
-             patch.object(publisher,'api',side_effect=[release,ref,comparison,jobs]) as api, \\
+        with patch.dict(os.environ,env), \
+             patch.object(publisher.subprocess,'check_output',return_value=new), \
+             patch.object(publisher,'api',side_effect=[release,ref,comparison,jobs]) as api, \
              patch.object(publisher,'gh') as gh:
             publisher.main()
             self.assertEqual(api.call_count,4)
