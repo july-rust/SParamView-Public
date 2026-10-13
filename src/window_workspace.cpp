@@ -44,10 +44,25 @@ void MainWindow::setWorkspaceMode(int mode) {
 }
 void MainWindow::toggleFullscreen() {
   if (isFullScreen()) {
-    if (fullscreenWasMaximized) showMaximized();
-    else showNormal();
+    if (fullscreenWasMaximized) {
+      showMaximized();
+    } else {
+      // Cocoa's native fullscreen transition can return a different window
+      // size after showNormal(). Restore the actual pre-fullscreen geometry.
+      const QRect restore = fullscreenNormalGeometry;
+      showNormal();
+      if (restore.isValid()) {
+        setGeometry(restore);
+        // Also restore after the event loop processes the platform state
+        // transition. This is deliberately a single deferred correction.
+        QTimer::singleShot(0, this, [this, restore] {
+          if (!isFullScreen() && !isMaximized()) setGeometry(restore);
+        });
+      }
+    }
   } else {
     fullscreenWasMaximized = isMaximized();
+    if (!fullscreenWasMaximized) fullscreenNormalGeometry = geometry();
     showFullScreen();
   }
   fullscreenAction->setChecked(isFullScreen());
