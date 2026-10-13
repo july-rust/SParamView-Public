@@ -90,7 +90,7 @@ HostSpec=win32-msvc
     if (-not $BundleRoot -or -not (Test-Path (Join-Path $BundleRoot 'SParamView.exe'))) {
       throw 'BundleRoot must contain the built SParamView.exe.'
     }
-    & $hostDeploy --qtpaths $queryTool --release --no-translations --no-compiler-runtime --no-opengl-sw (Join-Path $BundleRoot 'SParamView.exe')
+    & $hostDeploy --qtpaths $queryTool --release --no-translations --no-compiler-runtime --no-system-dxc-compiler --no-opengl-sw (Join-Path $BundleRoot 'SParamView.exe')
     if ($LASTEXITCODE -ne 0) { throw 'Host windeployqt with target Qt paths failed.' }
     $offscreen = Join-Path $targetRoot 'plugins/platforms/qoffscreen.dll'
     if (-not (Test-Path $offscreen)) { throw 'Target qoffscreen.dll was not found.' }
