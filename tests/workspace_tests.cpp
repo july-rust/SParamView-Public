@@ -198,7 +198,7 @@ struct WorkspaceProbe {
        QApplication::processEvents(QEventLoop::AllEvents,20);QThread::msleep(5);
      }
      if(!ready()) widthDiagnostics(w,"transition-failed");
-     if(!ready()) std::cerr << "WORKSPACE FULLSCREEN RESTORE DIAGNOSTIC: 
+     if(!ready()) std::cerr << "WORKSPACE FULLSCREEN RESTORE DIAGNOSTIC: "
        << "requested=" << normalGeometry.width() << "x" << normalGeometry.height()
        << " actual=" << w.width() << "x" << w.height()
        << " fullscreen=" << w.isFullScreen()
