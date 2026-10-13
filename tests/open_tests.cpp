@@ -29,8 +29,10 @@ int main(int argc,char**argv){
  QObject::connect(&timer,&QTimer::timeout,[&]{
   if(done)return;
   for(auto *widget:QApplication::topLevelWidgets())if(auto *box=qobject_cast<QMessageBox*>(widget);box&&box->isVisible()){
-   labelErrorSeen=box->text().contains("Cannot establish a unique P/N polarity") ||
-                  box->text().contains("Cannot establish P/N polarity");
+   // A separate message box may also appear; never erase a prior match.
+   labelErrorSeen = labelErrorSeen ||
+       box->text().contains("Cannot establish a unique P/N polarity") ||
+       box->text().contains("Cannot establish P/N polarity");
    if(!clicked)failure="Unexpected open error: "+box->text();box->accept();
   }
   auto *signalDialog=w.findChild<QDialog*>("signalTypeDetectionDialog");
@@ -55,10 +57,21 @@ int main(int argc,char**argv){
     QStringList v{"MANUAL","1","2","3","4","Default","","manual"};for(int j=0;j<v.size();++j)grid->setItem(0,j,new QTableWidgetItem(v[j]));
     clicked=true;for(auto *b:dialog->findChildren<QPushButton*>())if(b->text()=="Suggest from Labels"){QTimer::singleShot(0,b,[b]{b->click();});break;}return;
    }
+   // The suggestion's error dialog is queued for a later event-loop turn.
+   // Do not check rows or submit Save until the expected modal warning has
+   // actually been observed and accepted; the old 20 ms timer raced it.
+   if(fallback && clicked && !labelErrorSeen && clock.elapsed() < 30000)return;
    dialog->grab().save(folder+"/mapping.png");
    if(fallback){
-    if(!labelErrorSeen||grid->rowCount()!=1||grid->item(0,0)->text()!="MANUAL")failure="Manual rows lost";
-    dialog->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Save)->click();saved=true;
+    const QStringList expected{"MANUAL","1","2","3","4","Default","","manual"};
+    bool preserved=grid->rowCount()==1;
+    if(preserved)for(int col=0;col<expected.size();++col){
+      const auto *item=grid->item(0,col);
+      if(!item||item->text()!=expected[col]){preserved=false;break;}
+    }
+    if(!labelErrorSeen)failure="Expected polarity warning never appeared";
+    else if(!preserved)failure="Manual rows lost after suggestion warning";
+    else {dialog->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Save)->click();saved=true;}
    }else if(mode=="signaltype"){
     if(!signalSeen||rows!=1)failure="Signal Type Detection did not lead to one differential candidate";
     if(rows==1){

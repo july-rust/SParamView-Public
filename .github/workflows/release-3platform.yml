@@ -98,8 +98,14 @@ jobs:
       - name: Run common regression tests
         run: ctest --test-dir build-core --output-on-failure
 
+      # Use an independent Clang ASan/UBSan toolchain. GCC Release remains
+      # mandatory above; GCC 13's libstdc++ regex NFA move has a false
+      # -Wmaybe-uninitialized diagnostic in optimized GCC sanitizer builds.
+      # Preserve RelWithDebInfo optimization and ALL existing sanitizer tests.
       - name: Configure sanitizer build
-        run: cmake -S . -B build-san -DSI_BUILD_GUI=OFF -DSI_SANITIZE=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo
+        run: |
+          clang++ --version
+          cmake -S . -B build-san -DSI_BUILD_GUI=OFF -DSI_SANITIZE=ON -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=RelWithDebInfo
 
       - name: Build sanitizer targets
         run: cmake --build build-san --parallel 2
@@ -232,15 +238,24 @@ jobs:
     needs: [prepare, windows]
     runs-on: windows-11-vs2026-arm
     timeout-minutes: 50
+    permissions:
+      actions: read
+      contents: read
     defaults:
       run:
         shell: pwsh
     steps:
-      - name: Download ARM64 bundle
-        uses: actions/download-artifact@v7
-        with:
-          name: SParamView-v${{ needs.prepare.outputs.version }}-Windows-ARM64
-          path: bundle
+      # GitHub CLI is Go-based. The upstream actions/download-artifact@v7
+      # runtime emits Node DEP0005 on Windows ARM64 despite successful downloads.
+      # Keep authenticated Actions artifact retrieval; never hide Node warnings.
+      - name: Download ARM64 bundle via GitHub CLI
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh --version
+          gh run download $env:GITHUB_RUN_ID --repo $env:GITHUB_REPOSITORY --name 'SParamView-v${{ needs.prepare.outputs.version }}-Windows-ARM64' --dir bundle
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to download ARM64 artifact using GitHub CLI' }
+          if (-not (Test-Path 'bundle/SParamView.exe')) { throw 'ARM64 release package missing executable' }
 
       - name: Verify native architecture and executable metadata
         env:
@@ -291,7 +306,11 @@ jobs:
             Invoke-Test -Name 'si_hardening_tests' -TestArgs @($case,(Join-Path $qa "hardening\$case"))
           }
           Invoke-Test -Name 'si_navigation_tests' -TestArgs @((Join-Path $qa 'navigation'))
-          Invoke-Test -Name 'si_open_tests' -TestArgs @((Join-Path $qa 'open'),'fallback')
+          # Exercise the modal warning / manual row preservation sequence
+          # repeatedly on native ARM64 to catch event-loop-order regressions.
+          foreach ($iteration in 1..10) {
+            Invoke-Test -Name 'si_open_tests' -TestArgs @((Join-Path $qa "open-$iteration"),'fallback')
+          }
           Invoke-Test -Name 'si_open_tests' -TestArgs @((Join-Path $qa 'signal-type'),'signaltype')
           Invoke-Test -Name 'si_workspace_tests' -TestArgs @((Join-Path $bundle 'examples\demo.siproject'),(Join-Path $qa 'workspace'),'1366','768')
           & (Join-Path $bundle 'SParamView.exe') --selftest (Join-Path $bundle 'examples') (Join-Path $qa 'workflow') 2>&1 | Tee-Object -FilePath $log -Append
@@ -383,11 +402,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          QT_QPA_PLATFORM=minimal build-macos/si_header_ui_tests
-          QT_QPA_PLATFORM=minimal build-macos/si_navigation_tests build-macos/navigation-test-macos
-          QT_QPA_PLATFORM=minimal build-macos/si_open_tests build-macos/open-test-macos fallback
+          # Run all macOS GUI checks with native Cocoa. Qt's minimal platform
+          # cannot load application fonts or propagate window size hints and
+          # logs unsupported-feature warnings instead of exercising them.
+          QT_QPA_PLATFORM=cocoa build-macos/si_header_ui_tests
+          QT_QPA_PLATFORM=cocoa build-macos/si_navigation_tests build-macos/navigation-test-macos
+          QT_QPA_PLATFORM=cocoa build-macos/si_open_tests build-macos/open-test-macos fallback
           QT_QPA_PLATFORM=cocoa build-macos/si_workspace_tests examples/demo.siproject build-macos/workspace-test-macos 1440 900
-          QT_QPA_PLATFORM=minimal build-macos/si_open_tests build-macos/signal-type-test-macos signaltype
+          QT_QPA_PLATFORM=cocoa build-macos/si_open_tests build-macos/signal-type-test-macos signaltype
 
       - name: Create macOS app bundle
         env:
@@ -492,7 +514,7 @@ jobs:
       - name: Run packaged application self-test
         shell: bash
         env:
-          QT_QPA_PLATFORM: minimal
+          QT_QPA_PLATFORM: cocoa
           QT_QPA_PLATFORM_PLUGIN_PATH: ${{ env.QT_ROOT }}/plugins/platforms
         run: |
           set -euo pipefail
@@ -561,29 +583,27 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Download validated Windows x64 bundle
-        uses: actions/download-artifact@v7
-        with:
-          name: SParamView-v${{ needs.prepare.outputs.version }}-Windows-x64
-          path: package/windows-x64
-
-      - name: Download validated Windows ARM64 bundle
-        uses: actions/download-artifact@v7
-        with:
-          name: SParamView-v${{ needs.prepare.outputs.version }}-Windows-ARM64
-          path: package/windows-arm64
-
-      - name: Download validated macOS Apple Silicon package
-        uses: actions/download-artifact@v7
-        with:
-          name: SParamView-v${{ needs.prepare.outputs.version }}-macOS-AppleSilicon-arm64
-          path: package/macos
-
-      - name: Download validation evidence
-        uses: actions/download-artifact@v7
-        with:
-          pattern: SParamView-v${{ needs.prepare.outputs.version }}-*-validation
-          path: package/evidence
+      # The official GitHub CLI uses the Actions artifact REST API without
+      # the Node.js Buffer() deprecation reported by download-artifact@v7.
+      # The publication script independently checks package provenance, jobs
+      # and SHA-256 digests before any remote release write.
+      - name: Download validated bundles and validation evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh --version
+          run_id="$GITHUB_RUN_ID"
+          repo="$GITHUB_REPOSITORY"
+          version="$SPARAMVIEW_VERSION"
+          gh run download "$run_id" --repo "$repo" --name "SParamView-v${version}-Windows-x64" --dir package/windows-x64
+          gh run download "$run_id" --repo "$repo" --name "SParamView-v${version}-Windows-ARM64" --dir package/windows-arm64
+          gh run download "$run_id" --repo "$repo" --name "SParamView-v${version}-macOS-AppleSilicon-arm64" --dir package/macos
+          gh run download "$run_id" --repo "$repo" --pattern "SParamView-v${version}-*-validation" --dir package/evidence
+          test -f package/windows-x64/build-provenance.json
+          test -f package/windows-arm64/build-provenance.json
+          test -f "package/macos/SParamView_macOS_AppleSilicon_arm64_v${version}.zip"
+          test -d package/evidence
 
       - name: Package and publish verified new release
         env:
