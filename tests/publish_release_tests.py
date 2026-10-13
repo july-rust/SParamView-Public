@@ -41,7 +41,7 @@ class ReleaseSafety(unittest.TestCase):
                        'tag_name': 'v1.2.4a', 'target_commitish': 'a'*40,
                        'assets': [{'name': 'sample.zip'}]}
         with patch.object(publisher, 'api', side_effect=[
-                replacement, {'object': {'sha': 'a'*40}}]), \\
+                replacement, {'object': {'sha': 'a'*40}}]), \
              patch.object(publisher, 'gh') as gh:
             with self.assertRaisesRegex(RuntimeError, 'not fully verified'):
                 publisher.retire_v124_after_v124a_published(
@@ -57,7 +57,7 @@ class ReleaseSafety(unittest.TestCase):
         old = {'id': 411355784, 'tag_name': 'v1.2.4'}
         old_ref = {'object': {'sha': 'b'*40, 'type': 'commit'}}
         with patch.object(publisher, 'api', side_effect=[
-                replacement, {'object': {'sha': 'a'*40}}, old, old_ref]), \\
+                replacement, {'object': {'sha': 'a'*40}}, old, old_ref]), \
              patch.object(publisher, 'gh') as gh:
             with self.assertRaisesRegex(RuntimeError, 'tag that moved'):
                 publisher.retire_v124_after_v124a_published(
@@ -75,7 +75,7 @@ class ReleaseSafety(unittest.TestCase):
                              'sha': '92fe88c83fd1171c8171b04660c95bfebc723264'}}
         with patch.object(publisher, 'api', side_effect=[
                 replacement, {'object': {'sha': 'a'*40}},
-                old, old_ref, None, None]), \\
+                old, old_ref, None, None]), \
              patch.object(publisher, 'gh') as gh:
             publisher.retire_v124_after_v124a_published(
                 endpoint, 'july-rust/SParamView-Public',
