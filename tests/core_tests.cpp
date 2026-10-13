@@ -192,16 +192,16 @@ int main() {
     s = Settings{};
     auto td = transformTdr(ideal, s);
     expect(td.quality == "GOOD", "ideal quality");
-    for (auto z : td.impedance)
-      near(z, 50, 1e-12, "ideal 50 ohm");
+    for (const auto impedanceOhms : td.impedance)
+      near(impedanceOhms, 50, 1e-12, "ideal 50 ohm");
     ideal.parameter = "Sdd11";
     ideal.referenceOhm = 100;
     near(transformTdr(ideal, s).impedance[100], 100, 1e-12,
          "ideal differential");
     ideal.referenceOhm = 50;
     ideal.parameter = "S11";
-    for (auto &z : ideal.s)
-      z = 0.2;
+    for (auto &sample : ideal.s)
+      sample = 0.2;
     td = transformTdr(ideal, s);
     near(td.impedance[300], 75, .1, "known 75 ohm step");
     s.targetOhm = 100;
