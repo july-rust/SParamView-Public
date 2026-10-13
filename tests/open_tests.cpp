@@ -60,7 +60,7 @@ int main(int argc,char**argv){
    // The suggestion's error dialog is queued for a later event-loop turn.
    // Do not check rows or submit Save until the expected modal warning has
    // actually been observed and accepted; the old 20 ms timer raced it.
-   if(fallback && clicked && !labelErrorSeen)return;
+   if(fallback && clicked && !labelErrorSeen && clock.elapsed() < 30000)return;
    dialog->grab().save(folder+"/mapping.png");
    if(fallback){
     const QStringList expected{"MANUAL","1","2","3","4","Default","","manual"};
@@ -69,7 +69,8 @@ int main(int argc,char**argv){
       const auto *item=grid->item(0,col);
       if(!item||item->text()!=expected[col]){preserved=false;break;}
     }
-    if(!preserved)failure="Manual rows lost after suggestion warning";
+    if(!labelErrorSeen)failure="Expected polarity warning never appeared";
+    else if(!preserved)failure="Manual rows lost after suggestion warning";
     else {dialog->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Save)->click();saved=true;}
    }else if(mode=="signaltype"){
     if(!signalSeen||rows!=1)failure="Signal Type Detection did not lead to one differential candidate";
