@@ -417,10 +417,10 @@ bool MainWindow::reviewSignalType(Revision &rev) {
   dialog.setObjectName("signalTypeDetectionDialog");
   dialog.resize(560, 300);
   auto *layout = new QVBoxLayout(&dialog);
-  auto *summary = new QLabel(
+  auto *signalSummary = new QLabel(
       QString("<b>Detected:</b> %1 &nbsp;&nbsp; <b>Confidence:</b> %2")
           .arg(rev.signalType, rev.signalConfidence));
-  layout->addWidget(summary);
+  layout->addWidget(signalSummary);
   auto *evidence = new QLabel(
       "<b>Evidence:</b> " + rev.signalEvidence +
       "<br><br>SParamView recognizes a name-based P/N pair only when two net names have the same length and differ at exactly one character, where that character is P versus N. The P/N position may be anywhere in the name. Irregular or ambiguous names are not guessed.");
