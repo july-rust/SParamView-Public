@@ -123,9 +123,33 @@ if (-not $SkipDeploy -and $Architecture -eq 'ARM64' -and $osArch -ne 'Arm64') {
     if (-not (Test-Path (Join-Path $vcDirectory 'Redist/MSVC'))) {
       throw 'Installed Visual Studio is missing MSVC redistributables'
     }
-    $env:VCINSTALLDIR = $vcDirectory + [IO.Path]::DirectorySeparatorChar
+    # The redistributable EXE is a 32-bit bootstrapper even for an x64
+    # payload. Keep the release portable and machine-pure by deploying the
+    # native CRT DLLs, never the 32-bit installer.
+    $redistRoot = Join-Path $vcDirectory 'Redist/MSVC'
+    $runtimeCandidates = @(Get-ChildItem -LiteralPath $redistRoot -Directory |
+      Where-Object {
+        $parsed = $null
+        [version]::TryParse($_.Name, [ref]$parsed)
+      } |
+      Sort-Object { [version]$_.Name } -Descending |
+      ForEach-Object { Join-Path $_.FullName 'x64/Microsoft.VC143.CRT' })
+    $runtimeCandidates += Join-Path $redistRoot 'v143/x64/Microsoft.VC143.CRT'
+    $runtimeDir = $runtimeCandidates |
+      Where-Object { Test-Path -LiteralPath $_ -PathType Container } |
+      Select-Object -First 1
+    if (-not $runtimeDir) { throw 'x64 Microsoft.VC143.CRT runtime DLLs missing' }
+    foreach ($crt in @('msvcp140.dll','vcruntime140.dll')) {
+      if (-not (Test-Path (Join-Path $runtimeDir $crt))) {
+        throw "Missing required native x64 CRT: $crt"
+      }
+    }
     try {
-      Invoke-Checked $deployQt @('--release','--no-translations','--no-system-dxc-compiler','--compiler-runtime',(Join-Path $deployRoot 'SParamView.exe'))
+      Invoke-Checked $deployQt @('--release','--no-translations','--no-system-dxc-compiler','--no-compiler-runtime',(Join-Path $deployRoot 'SParamView.exe'))
+      # Validate the CRT source architecture before copying anything. The
+      # later full-bundle PE audit verifies the exact deployed files too.
+      Invoke-Checked $python.Source @((Join-Path $PSScriptRoot 'verify_pe_machine.py'),$runtimeDir,$Architecture,(Join-Path $validationRoot 'source_crt_architecture.json'))
+      Copy-Item -LiteralPath (Join-Path $runtimeDir '*.dll') -Destination $deployRoot -Force
       $offscreen = Join-Path $QtRoot 'plugins\platforms\qoffscreen.dll'
       if (Test-Path $offscreen) {
         New-Item -ItemType Directory -Path (Join-Path $deployRoot 'platforms') -Force | Out-Null
