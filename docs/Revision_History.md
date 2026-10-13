@@ -34,6 +34,7 @@ Historical entries before v1.1.5 refer to private development records, not files
 | **1.2.3** | Differential auto-detection upgrade: exact one-character P↔N recognition anywhere in names, Signal Type Detection/confirmation before Channel Mapping for non-authoritative cases, metadata-priority fail-safe, and signal-type persistence. | `docs/Release_1.2.3.md` |
 
 | **1.2.4** | Exact analysis-job reuse, persistent Single-ended choice, full-hash project restore, complete dirty-state handling, Touchstone 2.1 compatibility, report provenance and immutable three-platform publication. | [Release notes](Release_1.2.4.md) |
+| **1.2.4a** | Warning cleanup in Qt/UI, C++ local identifiers and cross-platform release tooling; preserves the validated v1.2.4 analysis engine. | [Release notes](Release_1.2.4a.md) |
 
 ## Stable engineering principles carried forward
 
