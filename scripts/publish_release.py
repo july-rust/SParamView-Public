@@ -122,7 +122,7 @@ def main():
     endpoint = f'repos/{repo}'
     existing = api(f'{endpoint}/releases/tags/{tag}', missing=True)
     ref = api(f'{endpoint}/git/ref/tags/{tag}', missing=True)
-    if ref and (ref['object']['type'] != 'commit' or ref['object']['sha'] != commit):
+    if ref and (ref['object']['type'] != 'commit' or ref['object']['sha'] != commit) and (not existing or existing['draft']):
         raise RuntimeError('Existing release tag points to another object; refusing replacement')
     ci_only_maintenance = False
     if existing and not existing['draft']:
