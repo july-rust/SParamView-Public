@@ -44,6 +44,33 @@ struct WorkspaceProbe {
   layout("result-bar",resultsLayout&&resultsLayout->count()>0?resultsLayout->itemAt(0)->layout():nullptr);
   std::cerr << std::endl;
  }
+ static void assertCompactToolbar(MainWindow &w) {
+   // QAction emits changed() on check state transitions. QToolButton may
+   // replace manually assigned compact text with QAction::text() unless
+   // iconText() is explicitly kept compact for both menu and toolbar usage.
+   int located=0;
+   for(auto *tool:w.findChildren<QToolButton*>()) {
+     auto *action=tool->defaultAction();
+     if(!action) continue;
+     QString expected;
+     if(action==w.workspaceActions[0]) expected="Split";
+     else if(action==w.workspaceActions[1]) expected="Plot";
+     else if(action==w.workspaceActions[2]) expected="Results";
+     else if(action==w.channelsAction) expected="Channels";
+     else if(action==w.settingsAction) expected="Settings";
+     else if(action==w.fullscreenAction) expected="⛶";
+     else continue;
+     ++located;
+     if(tool->text()!=expected) {
+       std::cerr << "WORKSPACE TOOLBAR LABEL DRIFT: expected="
+                 << expected.toStdString()
+                 << " actual=" << tool->text().toStdString()
+                 << " action=" << action->text().toStdString() << std::endl;
+     }
+     check(tool->text()==expected,"QAction changed compact toolbar button text");
+   }
+   check(located==6,"Expected all six compact workspace toolbar actions");
+ }
  static void settle(MainWindow &w) {
   QElapsedTimer t; t.start();
   do { QApplication::processEvents(QEventLoop::AllEvents, 10); QThread::msleep(1);
@@ -80,6 +107,7 @@ struct WorkspaceProbe {
   widthDiagnostics(w,"before-quick");
   w.run(w.settings.quick); settle(w); check(!w.results.empty(),"Analysis missing");
   widthDiagnostics(w,"after-quick");
+  assertCompactToolbar(w);
   if (w.revisions.size() > 1) {
    const int originalRevision=w.revisionBox->currentIndex();
    const int otherRevision=originalRevision==0?1:0;
@@ -165,11 +193,13 @@ struct WorkspaceProbe {
   result["focused_table_width"]=w.table->width();result["focused_table_height"]=w.table->height();
   w.tableTextSize->setCurrentIndex(w.tableTextSize->findData(18));settle(w);
   widthDiagnostics(w,"table-font-18");
+  assertCompactToolbar(w);
   check(w.table->verticalHeader()->defaultSectionSize()==34,"Table font row size");
   check(w.table->selectionModel()->selectedRows()==selection,"Font/focus changed selection");
   w.grab().save(out+"/Results.png");
   w.workspaceActions[0]->trigger();settle(w);
   widthDiagnostics(w,"returned-to-split");
+  assertCompactToolbar(w);
   auto restored=w.analysisSplit->sizes();
   check(restored.size()==2&&std::abs(restored[0]-split[0])<=2,"Split proportions not restored");
   check(w.channelPanel->isVisible()&&w.settingsPanel->isVisible(),"Panels not restored");
@@ -189,6 +219,7 @@ struct WorkspaceProbe {
   check(!w.analysisSplit->opaqueResize(),"Splitter triggers continuous redraw");
   stage("fullscreen transitions");
   widthDiagnostics(w,"before-fullscreen");
+  assertCompactToolbar(w);
   auto normalGeometry=w.geometry();
   const bool offscreen=QGuiApplication::platformName().compare("offscreen",Qt::CaseInsensitive)==0;
   if(!offscreen){
@@ -229,7 +260,9 @@ struct WorkspaceProbe {
      check(w.isFullScreen(),"Native fullscreen lost before exit request");
    }
    stage("request fullscreen exit");
+   assertCompactToolbar(w);
    w.toggleFullscreen();waitForWindow([&]{return !w.isFullScreen()&&w.size()==normalGeometry.size();},"Fullscreen normal-size restoration");
+   assertCompactToolbar(w);
   }else{
    result["fullscreen_headless_skipped"]=true;
   }
