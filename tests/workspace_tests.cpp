@@ -156,7 +156,16 @@ struct WorkspaceProbe {
        << "requested=" << normalGeometry.width() << "x" << normalGeometry.height()
        << " actual=" << w.width() << "x" << w.height()
        << " fullscreen=" << w.isFullScreen()
-       << " maximized=" << w.isMaximized() << std::endl;
+       << " maximized=" << w.isMaximized()
+       << " saved=" << w.fullscreenNormalGeometry.width()
+       << "x" << w.fullscreenNormalGeometry.height()
+       << " minimumHint=" << w.minimumSizeHint().width()
+       << "x" << w.minimumSizeHint().height()
+       << " minimumSize=" << w.minimumWidth()
+       << "x" << w.minimumHeight()
+       << " centralHint=" << (w.centralWidget() ? w.centralWidget()->minimumSizeHint().width() : -1)
+       << "x" << (w.centralWidget() ? w.centralWidget()->minimumSizeHint().height() : -1)
+       << std::endl;
      check(ready(),message);settle(w);
    };
    w.toggleFullscreen();waitForWindow([&]{return w.isFullScreen();},"Fullscreen enter");
