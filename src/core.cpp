@@ -41,6 +41,11 @@ static double number(std::string s) {
   for (char &c : s)
     if (c == 'D' || c == 'd')
       c = 'e';
+  // Reject repeated/mixed leading signs before normalizing a single '+'.
+  // strtod_l accepts a leading '+', unlike floating-point from_chars.
+  if (s.size() > 1 && (s[0] == '+' || s[0] == '-') &&
+      (s[1] == '+' || s[1] == '-'))
+    throw Error("Invalid finite number: " + s);
   if (!s.empty() && s[0] == '+')
     s.erase(0, 1);
 #ifdef __APPLE__

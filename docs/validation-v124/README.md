@@ -38,6 +38,12 @@ Physical mappings were reviewed against the original endpoint net labels and exa
 
 Reproduction helpers: `scripts/validate_release_samples.py` (NumPy, scikit-rf), `scripts/validate_release_exports.py` (openpyxl). Export instrumentation is documented in `MainWindow::validateProject`. Customer source files and complete analysis data are not published in this repository.
 
+## Platform feedback before publication
+
+The first platform run [38342671961](https://github.com/july-rust/SParamView-Public/actions/runs/38342671961) passed Windows x64, native packaged Windows ARM64, 27 core tests, 27 sanitizer tests and the analyzer. macOS passed 35 of 36 deterministic tests but correctly failed `v124_numbers`: `strtod_l` accepted `++1` after one leading plus had been removed. Publication was skipped; no v1.2.4 release or tag was created.
+
+Leading double/mixed signs are now rejected before normalization on both parser backends. The invalid-number corpus includes `++1`, `+-1`, `-+1` and `--1`. This changes malformed-input rejection only; valid decimal parsing and all analysis formulas are unchanged. Windows also executes the actual deployed x64 bundle's project/analysis/Excel/roundtrip self-test in addition to build-tree CTest and the PE audit. The full final commit must pass all platform gates before publication; earlier successful binaries are not substituted.
+
 ## Release-platform gates
 
 Local evidence does not establish Windows/macOS package success. Official publication separately requires successful GitHub Actions jobs for core/sanitizers/analyzer, Windows x64 build/test/deployment audit, Windows ARM64 cross-build/audit, **native ARM64 packaged executable tests**, and macOS arm64 build/regression/integration/deployment/self-test.

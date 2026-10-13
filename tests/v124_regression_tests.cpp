@@ -56,7 +56,7 @@ int main(int argc, char **argv) {
     } else if (test == "numbers") {
       for(const std::string value : {"0","+0","-0",".5","1.","+1.25D-2","-3.4e+1"})
         Cache::open(write("valid.s1p","# Hz S RI R 50\n1 "+value+" 0\n"),dir/"cache",nullptr,true);
-      for(const std::string value : {"nan","inf","0x1p0","1e9999","1e-9999","++1","1x","1e"}) {
+      for(const std::string value : {"nan","inf","0x1p0","1e9999","1e-9999","++1","+-1","-+1","--1","1x","1e"}) {
         bool rejected=false;try{Cache::open(write("bad.s1p","# Hz S RI R 50\n1 "+value+" 0\n"),dir/"cache",nullptr,true);}catch(const Error&){rejected=true;}
         require(rejected,"Invalid number accepted: "+value);
       }

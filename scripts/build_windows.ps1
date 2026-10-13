@@ -148,5 +148,13 @@ $manifest = [ordered]@{
   })
 }
 $manifest | ConvertTo-Json -Depth 6 | Set-Content -Path (Join-Path $validationRoot 'build_manifest.json') -Encoding UTF8
+# Execute the actual deployed bundle as well as the build-tree CTest suite.
+if ($canRunTarget -and -not $SkipTests) {
+  $env:PATH = $deployRoot + [IO.Path]::PathSeparator + $env:PATH
+  $env:QT_PLUGIN_PATH = $deployRoot
+  $env:QT_QPA_PLATFORM = 'offscreen'
+  Invoke-Checked (Join-Path $deployRoot 'SParamView.exe') @('--selftest',(Join-Path $deployRoot 'examples'),(Join-Path $validationRoot 'packaged-selftest'))
+}
+
 Write-Host "Ready: $deployRoot\SParamView.exe ($Architecture)"
 Write-Host "Validation metadata: $validationRoot"

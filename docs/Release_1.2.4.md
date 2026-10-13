@@ -13,6 +13,7 @@ Public starting commit: `0dc652014773766a6723045f4e3004e1a8f0315d` (public v1.2.
 - Mixed-Mode Order classification uses actual S/D/C descriptors. P/N evidence is separate from Near/Far confirmation, conflicting mappings require manual review, and the mapping dialog identifies unmapped ports.
 - Touchstone 2.1 additional option lines are ignored with diagnostics. The first option line stays authoritative. Symmetric Full/Lower/Upper mixed-mode representations produce equivalent physical S matrices. See the [IBIS specification](https://www.ibis.org/touchstone_ver2.1/touchstone_ver2_1.pdf), pp. 6 and 23.
 - Excel Configuration records analysis-time signal type, confidence, evidence, mapping source/confirmation, source SHA-256 verification and settings, plus separate analysis-completion and report-generation timestamps.
+- Invalid repeated or mixed leading numeric signs are consistently rejected on macOS and Windows; the macOS-specific discrepancy was caught before publication.
 - macOS number parsing and thread joining are explicit source-level portability code. CI no longer rewrites source strings. macOS workspace layout runs as a separate minimal-platform integration test.
 - Includes the v1.2.2 compact 74 px settings area and v1.2.3 signal-detection improvements. The C++ numerical engine, English technical UI and established graph behavior are preserved.
 
