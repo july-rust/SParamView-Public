@@ -12,7 +12,9 @@ int main(int argc, char **argv) {
   QApplication::setWindowIcon(QIcon(":/SParamView.ico"));
   QFontDatabase::addApplicationFont(QCoreApplication::applicationDirPath() +
                                     "/fonts/NanumGothic-Regular.ttf");
+#ifdef Q_OS_WIN
   QFont::insertSubstitution("Segoe UI", "NanumGothic");
+#endif
   QFont::insertSubstitution("Noto Sans CJK KR", "NanumGothic");
   MainWindow window;
   applyCompactAnalysisSettings(window);

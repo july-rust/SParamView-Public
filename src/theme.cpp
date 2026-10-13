@@ -25,8 +25,15 @@ void applyLightTheme(QApplication &app) {
     palette.setColor(group, QPalette::Shadow, QColor("#20374f"));
   }
   app.setPalette(palette);
-  app.setStyleSheet(R"(
-QWidget { font-family:'Segoe UI','Malgun Gothic','NanumGothic'; font-size:12px; color:#20374f; }
+  // Preserve the Windows font policy, but use native system fonts on macOS
+  // and Linux rather than forcing the Windows-only Segoe UI family.
+#ifdef Q_OS_WIN
+  const QString fontRule = QStringLiteral("font-family:'Segoe UI','Malgun Gothic','NanumGothic'; ");
+#else
+  const QString fontRule;
+#endif
+  app.setStyleSheet(QString(R"(
+QWidget { %1font-size:12px; color:#20374f; }
 QMainWindow,QDialog { background:#f1f5f9; }
 QMenuBar,QMenu,QStatusBar { background:#ffffff; color:#20374f; }
 QMenu::item:selected,QMenuBar::item:selected { background:#006c70; color:#ffffff; }
@@ -52,5 +59,5 @@ QGroupBox::title { subcontrol-origin:margin; left:10px; padding:0 5px; }
 QProgressBar { border:0; background:#e2ebf3; height:8px; }
 QProgressBar::chunk { background:#006c70; }
 QToolTip { background:#ffffff; color:#20374f; border:1px solid #607286; padding:5px; }
-)");
+)" ).arg(fontRule));
 }

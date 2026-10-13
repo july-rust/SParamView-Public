@@ -378,6 +378,7 @@ jobs:
             -E 'workspace_layout|navigation_responsiveness|mapping_fallback_gui|signal_type_detection_gui'
 
       - name: Run macOS GUI integration tests
+        timeout-minutes: 5
         shell: bash
         run: |
           set -euo pipefail

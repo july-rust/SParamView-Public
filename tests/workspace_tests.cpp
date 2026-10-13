@@ -3,6 +3,74 @@
 void applyCompactAnalysisSettings(MainWindow &window);
 static void check(bool ok, const char *message) { if (!ok) throw si::Error(message); }
 struct WorkspaceProbe {
+ static void stage(const char *name) { std::cerr << "WORKSPACE STAGE: " << name << std::endl; }
+ static void widthDiagnostics(MainWindow &w,const char *phase) {
+  // Query the layout tree, not only the outer window. A 49-pixel increase in
+  // minimumSizeHint after focus changes is the native Cocoa failure signature.
+  auto widget = [](const char *name,QWidget *v) {
+    if (!v) return;
+    std::cerr << " [" << name
+              << ":hint=" << v->minimumSizeHint().width()
+              << ",min=" << v->minimumWidth()
+              << ",size=" << v->width() << "]";
+  };
+  auto layout = [](const char *name,QLayout *v) {
+    if (!v) return;
+    std::cerr << " [" << name << ":min=" << v->minimumSize().width()
+              << ",hint=" << v->sizeHint().width() << "]";
+  };
+  auto *left=w.horizontalSplit->widget(0);
+  auto *right=w.horizontalSplit->widget(1);
+  QLayout *rightLayout=right ? right->layout() : nullptr;
+  auto *plotPage=w.tabs->widget(0);
+  QLayout *plotLayout=plotPage ? plotPage->layout() : nullptr;
+  QLayout *resultsLayout=w.resultsPanel->layout();
+  std::cerr << "WORKSPACE MINWIDTH PHASE=" << phase;
+  widget("window",&w);
+  widget("central",w.centralWidget());
+  widget("split",w.horizontalSplit);
+  widget("left",left);
+  widget("right",right);
+  widget("tabs",w.tabs);
+  widget("plot",w.plot);
+  widget("results",w.resultsPanel);
+  widget("table",w.table);
+  widget("summary",w.summary);
+  widget("settings",w.settingsPanel);
+  layout("root",w.centralWidget()?w.centralWidget()->layout():nullptr);
+  layout("right-layout",rightLayout);
+  layout("workspace-bar",rightLayout&&rightLayout->count()>0?rightLayout->itemAt(0)->layout():nullptr);
+  layout("graph-options",plotLayout&&plotLayout->count()>0?plotLayout->itemAt(0)->layout():nullptr);
+  layout("result-bar",resultsLayout&&resultsLayout->count()>0?resultsLayout->itemAt(0)->layout():nullptr);
+  std::cerr << std::endl;
+ }
+ static void assertCompactToolbar(MainWindow &w) {
+   // QAction emits changed() on check state transitions. QToolButton may
+   // replace manually assigned compact text with QAction::text() unless
+   // iconText() is explicitly kept compact for both menu and toolbar usage.
+   int located=0;
+   for(auto *tool:w.findChildren<QToolButton*>()) {
+     auto *action=tool->defaultAction();
+     if(!action) continue;
+     QString expected;
+     if(action==w.workspaceActions[0]) expected="Split";
+     else if(action==w.workspaceActions[1]) expected="Plot";
+     else if(action==w.workspaceActions[2]) expected="Results";
+     else if(action==w.channelsAction) expected="Channels";
+     else if(action==w.settingsAction) expected="Settings";
+     else if(action==w.fullscreenAction) expected="⛶";
+     else continue;
+     ++located;
+     if(tool->text()!=expected) {
+       std::cerr << "WORKSPACE TOOLBAR LABEL DRIFT: expected="
+                 << expected.toStdString()
+                 << " actual=" << tool->text().toStdString()
+                 << " action=" << action->text().toStdString() << std::endl;
+     }
+     check(tool->text()==expected,"QAction changed compact toolbar button text");
+   }
+   check(located==6,"Expected all six compact workspace toolbar actions");
+ }
  static void settle(MainWindow &w) {
   QElapsedTimer t; t.start();
   do { QApplication::processEvents(QEventLoop::AllEvents, 10); QThread::msleep(1);
@@ -17,12 +85,15 @@ struct WorkspaceProbe {
   return QJsonDocument(a).toJson(QJsonDocument::Compact);
  }
  static QJsonObject run(MainWindow &w, const QString &project, const QString &out, QSize size) {
+  stage("show and settle window");
   w.resetWorkspaceLayout(); w.resize(size); w.show(); settle(w);
+  stage("load project");
   w.loadProject(project); settle(w); check(!w.revisions.empty(),"Project missing");
   w.resize(size); settle(w);
   // Regression: RL -> IL -> NEXT -> FEXT -> TDR must calculate each missing
   // metric and immediately form a graph, even when the previous result exists.
   w.results.clear(); w.lastJobs.clear();
+  stage("individual metrics");
   for(int i=0;i<5;++i){
    w.metricButtons[i]->click(); settle(w);
    check(!w.results.empty(),"Individual metric analysis returned no results");
@@ -32,7 +103,11 @@ struct WorkspaceProbe {
   // And make sure returning to RL is a fresh valid calculation/display path.
   w.metricButtons[0]->click(); settle(w);
   check(w.displayed==si::Metric::RL&&!w.plot->snapshot.curves.empty(),"RL return after sequential metric run failed");
+  stage("quick analysis");
+  widthDiagnostics(w,"before-quick");
   w.run(w.settings.quick); settle(w); check(!w.results.empty(),"Analysis missing");
+  widthDiagnostics(w,"after-quick");
+  assertCompactToolbar(w);
   if (w.revisions.size() > 1) {
    const int originalRevision=w.revisionBox->currentIndex();
    const int otherRevision=originalRevision==0?1:0;
@@ -117,10 +192,14 @@ struct WorkspaceProbe {
   check(w.table->height()>normalTable.height()&&w.table->width()>normalTable.width(),"Table did not grow");
   result["focused_table_width"]=w.table->width();result["focused_table_height"]=w.table->height();
   w.tableTextSize->setCurrentIndex(w.tableTextSize->findData(18));settle(w);
+  widthDiagnostics(w,"table-font-18");
+  assertCompactToolbar(w);
   check(w.table->verticalHeader()->defaultSectionSize()==34,"Table font row size");
   check(w.table->selectionModel()->selectedRows()==selection,"Font/focus changed selection");
   w.grab().save(out+"/Results.png");
   w.workspaceActions[0]->trigger();settle(w);
+  widthDiagnostics(w,"returned-to-split");
+  assertCompactToolbar(w);
   auto restored=w.analysisSplit->sizes();
   check(restored.size()==2&&std::abs(restored[0]-split[0])<=2,"Split proportions not restored");
   check(w.channelPanel->isVisible()&&w.settingsPanel->isVisible(),"Panels not restored");
@@ -138,6 +217,9 @@ struct WorkspaceProbe {
   auto scroll=qobject_cast<QScrollArea*>(w.settingsPanel);check(scroll&&scroll->widget(),"Settings scroll container missing");
   w.grab().save(out+"/Settings.png");w.settingsAction->setChecked(false);settle(w);
   check(!w.analysisSplit->opaqueResize(),"Splitter triggers continuous redraw");
+  stage("fullscreen transitions");
+  widthDiagnostics(w,"before-fullscreen");
+  assertCompactToolbar(w);
   auto normalGeometry=w.geometry();
   const bool offscreen=QGuiApplication::platformName().compare("offscreen",Qt::CaseInsensitive)==0;
   if(!offscreen){
@@ -146,13 +228,45 @@ struct WorkspaceProbe {
      while(!ready()&&transition.elapsed()<5000){
        QApplication::processEvents(QEventLoop::AllEvents,20);QThread::msleep(5);
      }
+     if(!ready()) widthDiagnostics(w,"transition-failed");
+     if(!ready()) std::cerr << "WORKSPACE FULLSCREEN RESTORE DIAGNOSTIC: "
+       << "requested=" << normalGeometry.width() << "x" << normalGeometry.height()
+       << " actual=" << w.width() << "x" << w.height()
+       << " fullscreen=" << w.isFullScreen()
+       << " maximized=" << w.isMaximized()
+       << " saved=" << w.fullscreenNormalGeometry.width()
+       << "x" << w.fullscreenNormalGeometry.height()
+       << " minimumHint=" << w.minimumSizeHint().width()
+       << "x" << w.minimumSizeHint().height()
+       << " minimumSize=" << w.minimumWidth()
+       << "x" << w.minimumHeight()
+       << " centralHint=" << (w.centralWidget() ? w.centralWidget()->minimumSizeHint().width() : -1)
+       << "x" << (w.centralWidget() ? w.centralWidget()->minimumSizeHint().height() : -1)
+       << std::endl;
      check(ready(),message);settle(w);
    };
    w.toggleFullscreen();waitForWindow([&]{return w.isFullScreen();},"Fullscreen enter");
+   // The Cocoa full-screen Space transition is asynchronous. Qt can report
+   // WindowFullScreen before macOS finishes its animation; immediately calling
+   // showNormal() can be ignored by AppKit while that transition is in flight.
+   // Preserve real native Cocoa coverage rather than treating it as skipped.
+   if(QGuiApplication::platformName().compare("cocoa",Qt::CaseInsensitive)==0){
+     stage("wait for native Cocoa fullscreen entry to settle");
+     QElapsedTimer nativeTransition;nativeTransition.start();
+     while(nativeTransition.elapsed()<1800){
+       QApplication::processEvents(QEventLoop::AllEvents,20);
+       QThread::msleep(10);
+     }
+     check(w.isFullScreen(),"Native fullscreen lost before exit request");
+   }
+   stage("request fullscreen exit");
+   assertCompactToolbar(w);
    w.toggleFullscreen();waitForWindow([&]{return !w.isFullScreen()&&w.size()==normalGeometry.size();},"Fullscreen normal-size restoration");
+   assertCompactToolbar(w);
   }else{
    result["fullscreen_headless_skipped"]=true;
   }
+  stage("metric viewing and persistence");
   // Separate metric selection reads completed data without starting new jobs.
   auto selectedMetric=si::Metric::TDR;w.metricView->setCurrentIndex(int(selectedMetric));settle(w);
   check(w.displayed==selectedMetric&&values(w)==original&&w.lastJobs.size()==jobs,"Metric selector changed analysis");
@@ -180,11 +294,17 @@ int main(int argc,char**argv){
  QSettings::setPath(QSettings::IniFormat,QSettings::UserScope,out+"/preferences");
  {QSettings p(QSettings::IniFormat,QSettings::UserScope,"SParamView",app.applicationName());p.clear();}
  QLocale::setDefault(QLocale(QLocale::German,QLocale::Germany));
- applyLightTheme(app);check(QLocale().decimalPoint()==".","Technical UI must use decimal points");QFontDatabase::addApplicationFont(QCoreApplication::applicationDirPath()+"/fonts/NanumGothic-Regular.ttf");QFont::insertSubstitution("Segoe UI","NanumGothic");
+ applyLightTheme(app);check(QLocale().decimalPoint()==".","Technical UI must use decimal points");QFontDatabase::addApplicationFont(QCoreApplication::applicationDirPath()+"/fonts/NanumGothic-Regular.ttf");
+#ifdef Q_OS_WIN
+ QFont::insertSubstitution("Segoe UI","NanumGothic");
+#else
+ check(!app.styleSheet().contains("Segoe UI"),"Non-Windows stylesheet requires a native font");
+#endif
  try{
   QSize size(argc>3?QString::fromLocal8Bit(argv[3]).toInt():1440,argc>4?QString::fromLocal8Bit(argv[4]).toInt():980);
   QJsonObject result;
-  {MainWindow w;applyCompactAnalysisSettings(w);w.installHeaderProjectButtons();result=WorkspaceProbe::run(w,QString::fromLocal8Bit(argv[1]),out,size);}
+  WorkspaceProbe::stage("construct MainWindow");
+  {MainWindow w;WorkspaceProbe::stage("MainWindow constructed");applyCompactAnalysisSettings(w);w.installHeaderProjectButtons();result=WorkspaceProbe::run(w,QString::fromLocal8Bit(argv[1]),out,size);}
   {MainWindow w;WorkspaceProbe::persistence(w);}
   result["preferences_restored"]=true;QFile f(out+"/Workspace.json");check(f.open(QIODevice::WriteOnly),"Cannot save QA");f.write(QJsonDocument(result).toJson());std::cout<<QJsonDocument(result).toJson().constData();return 0;
  }catch(const std::exception&e){std::cerr<<e.what()<<'\n';return 1;}

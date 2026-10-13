@@ -315,6 +315,13 @@ std::vector<QPolygonF> tdrDisplaySegments(const std::vector<double> &x,
   return output;
 }
 void paintGraph(QPainter &p, QRectF r, const PlotSnapshot &s, bool interactive) {
+  // The plot's former hard-coded Segoe UI fonts are unavailable on macOS.
+  // Use the OS-provided family there without changing Windows typography.
+#ifdef Q_OS_WIN
+  const QString plotFontFamily = QStringLiteral("Segoe UI");
+#else
+  const QString plotFontFamily = QApplication::font().family();
+#endif
   p.save();
   p.setRenderHint(QPainter::Antialiasing);
   p.fillRect(r, Qt::white);
@@ -322,14 +329,14 @@ void paintGraph(QPainter &p, QRectF r, const PlotSnapshot &s, bool interactive) 
   const QString title = qs(si::name(s.metric)) + "  ·  " +
                         graphParameterLabel(s) +
                         (s.heatmap ? "  /  Heatmap" : "");
-  QFont titleFont("Segoe UI", 17, QFont::DemiBold);
+  QFont titleFont(plotFontFamily, 17, QFont::DemiBold);
   while (QFontMetricsF(titleFont).horizontalAdvance(title) > r.width() - 44 &&
          titleFont.pointSizeF() > 9)
     titleFont.setPointSizeF(titleFont.pointSizeF() - .5);
   p.setFont(titleFont);
   p.setPen(QColor("#172e47"));
   p.drawText(r.adjusted(24, 14, -20, 0), Qt::AlignTop, title);
-  p.setFont(QFont("Segoe UI", 9));
+  p.setFont(QFont(plotFontFamily, 9));
   p.setPen(QColor("#64758b"));
   const QString context = QString::number(s.curves.size()) + " traces  •  " +
                           (s.bothDirections ? QString("Both directions")
@@ -344,7 +351,7 @@ void paintGraph(QPainter &p, QRectF r, const PlotSnapshot &s, bool interactive) 
     p.drawText(QRectF(r.left() + 24, r.top() + (compactHeader ? 69 : 91), r.width() - 48, 20),
                Qt::AlignLeft, graphQualityLabel(s));
   if (s.curves.empty()) {
-    p.setFont(QFont("Segoe UI", 13));
+    p.setFont(QFont(plotFontFamily, 13));
     p.drawText(r, Qt::AlignCenter,
                "Open Touchstone → Select channels → QUICK ANALYSIS");
     p.restore();
@@ -355,7 +362,7 @@ void paintGraph(QPainter &p, QRectF r, const PlotSnapshot &s, bool interactive) 
         return c.quality == "UNSUITABLE" && c.plotX.empty();
       })) {
     p.setPen(QColor("#a43f38"));
-    p.setFont(QFont("Segoe UI", 12));
+    p.setFont(QFont(plotFontFamily, 12));
     p.drawText(r.adjusted(40, 110, -40, -35),
                Qt::AlignCenter | Qt::TextWordWrap,
                "Quick TDR unavailable · UNSUITABLE\n\nThe current input data and transform settings cannot produce a Quick TDR waveform.\nDo not use this result for impedance evaluation.\n\n" +
@@ -370,7 +377,7 @@ void paintGraph(QPainter &p, QRectF r, const PlotSnapshot &s, bool interactive) 
   auto px = [&](double x) {
     return box.left() + (x - lo) / (hi - lo) * box.width();
   };
-  p.setFont(QFont("Segoe UI", 9));
+  p.setFont(QFont(plotFontFamily, 9));
   p.drawText(
       QRectF(r.left() + 24, r.top() + (compactHeader ? 47 : 69), r.width() - 48, 20), Qt::AlignLeft,
       QString("Analysis: %1 – %2 %3  |  Limit: %4")
@@ -439,7 +446,7 @@ void paintGraph(QPainter &p, QRectF r, const PlotSnapshot &s, bool interactive) 
       }
       if (rowHeight >= 12) {
         p.setPen(QColor("#172e47"));
-        p.setFont(QFont("Segoe UI", 8));
+        p.setFont(QFont(plotFontFamily, 8));
         p.drawText(
             QRectF(r.left() + 3, box.top() + j * rowHeight, 76, rowHeight),
             Qt::AlignRight | Qt::AlignVCenter, qs(c.channel));
@@ -547,7 +554,7 @@ void paintGraph(QPainter &p, QRectF r, const PlotSnapshot &s, bool interactive) 
                       marker.global ? 4.5 : 3.);
         if ((s.curves.size() <= 4 && marker.global) ||
             (marker.manual && s.curves.size() <= 2)) {
-          p.setFont(QFont("Segoe UI", 8, QFont::DemiBold));
+          p.setFont(QFont(plotFontFamily, 8, QFont::DemiBold));
           QString label = (marker.manual ? "M " : "Worst ") + num(marker.y, 2);
           double left =
               std::clamp(point.x() + 7, box.left() + 2, box.right() - 90);
@@ -567,11 +574,11 @@ void paintGraph(QPainter &p, QRectF r, const PlotSnapshot &s, bool interactive) 
       QColor legendColor=color(curveColors[j]); const bool isFocused=focused(c); if(!s.highlightChannelIds.empty()&&!isFocused) legendColor.setAlpha(85); QPen legendPen(legendColor,(!s.highlightChannelIds.empty()&&isFocused)?4:3); if(s.bothDirections&&c.reverse) legendPen.setStyle(Qt::DashLine); p.setPen(legendPen);
       p.drawLine(QPointF(box.right() + 18, top + 8), QPointF(box.right() + 33, top + 8));
       p.setPen(QColor("#172e47"));
-      p.setFont(QFont("Segoe UI", 9, QFont::DemiBold));
+      p.setFont(QFont(plotFontFamily, 9, QFont::DemiBold));
       QString label = qs(c.channel) + (c.aggressor.empty() ? "" : " ← " + qs(c.aggressor)); if(s.bothDirections) label += c.reverse ? " · F→N" : " · N→F";
       if(c.metric==si::Metric::TDR)label+=" / "+qs(si::shortName(c.termination,c.parameter.starts_with("Sdd")));
       p.drawText(QRectF(box.right() + 40, top, 178, 16), Qt::AlignLeft, label);
-      p.setFont(QFont("Segoe UI", 8));
+      p.setFont(QFont(plotFontFamily, 8));
       p.setPen(c.status == "NG" ? QColor("#cc3f50") : QColor("#64758b"));
       p.drawText(QRectF(box.right() + 40, top + 16, 178, 17), Qt::AlignLeft,
                  qs(c.revision) + " • " + num(c.worst, 2) + " • " +
@@ -585,7 +592,7 @@ void paintGraph(QPainter &p, QRectF r, const PlotSnapshot &s, bool interactive) 
   for (int i = 0; i <= 6; ++i) {
     double x = lo + (hi - lo) * i / 6.;
     p.setPen(QColor("#64758b"));
-    p.setFont(QFont("Segoe UI", 9));
+    p.setFont(QFont(plotFontFamily, 9));
     p.drawText(QRectF(px(x) - 42, box.bottom() + 9, 84, 20), Qt::AlignCenter,
                num(x * scale, 2));
   }
