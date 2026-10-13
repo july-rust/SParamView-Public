@@ -98,8 +98,14 @@ jobs:
       - name: Run common regression tests
         run: ctest --test-dir build-core --output-on-failure
 
+      # Use an independent Clang ASan/UBSan toolchain. GCC Release remains
+      # mandatory above; GCC 13's libstdc++ regex NFA move has a false
+      # -Wmaybe-uninitialized diagnostic in optimized GCC sanitizer builds.
+      # Preserve RelWithDebInfo optimization and ALL existing sanitizer tests.
       - name: Configure sanitizer build
-        run: cmake -S . -B build-san -DSI_BUILD_GUI=OFF -DSI_SANITIZE=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo
+        run: |
+          clang++ --version
+          cmake -S . -B build-san -DSI_BUILD_GUI=OFF -DSI_SANITIZE=ON -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=RelWithDebInfo
 
       - name: Build sanitizer targets
         run: cmake --build build-san --parallel 2
@@ -383,11 +389,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          QT_QPA_PLATFORM=minimal build-macos/si_header_ui_tests
-          QT_QPA_PLATFORM=minimal build-macos/si_navigation_tests build-macos/navigation-test-macos
-          QT_QPA_PLATFORM=minimal build-macos/si_open_tests build-macos/open-test-macos fallback
+          # Run all macOS GUI checks with native Cocoa. Qt's minimal platform
+          # cannot load application fonts or propagate window size hints and
+          # logs unsupported-feature warnings instead of exercising them.
+          QT_QPA_PLATFORM=cocoa build-macos/si_header_ui_tests
+          QT_QPA_PLATFORM=cocoa build-macos/si_navigation_tests build-macos/navigation-test-macos
+          QT_QPA_PLATFORM=cocoa build-macos/si_open_tests build-macos/open-test-macos fallback
           QT_QPA_PLATFORM=cocoa build-macos/si_workspace_tests examples/demo.siproject build-macos/workspace-test-macos 1440 900
-          QT_QPA_PLATFORM=minimal build-macos/si_open_tests build-macos/signal-type-test-macos signaltype
+          QT_QPA_PLATFORM=cocoa build-macos/si_open_tests build-macos/signal-type-test-macos signaltype
 
       - name: Create macOS app bundle
         env:
@@ -492,7 +501,7 @@ jobs:
       - name: Run packaged application self-test
         shell: bash
         env:
-          QT_QPA_PLATFORM: minimal
+          QT_QPA_PLATFORM: cocoa
           QT_QPA_PLATFORM_PLUGIN_PATH: ${{ env.QT_ROOT }}/plugins/platforms
         run: |
           set -euo pipefail
