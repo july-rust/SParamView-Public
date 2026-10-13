@@ -4,6 +4,46 @@ void applyCompactAnalysisSettings(MainWindow &window);
 static void check(bool ok, const char *message) { if (!ok) throw si::Error(message); }
 struct WorkspaceProbe {
  static void stage(const char *name) { std::cerr << "WORKSPACE STAGE: " << name << std::endl; }
+ static void widthDiagnostics(MainWindow &w,const char *phase) {
+  // Query the layout tree, not only the outer window. A 49-pixel increase in
+  // minimumSizeHint after focus changes is the native Cocoa failure signature.
+  auto widget = [](const char *name,QWidget *v) {
+    if (!v) return;
+    std::cerr << " [" << name
+              << ":hint=" << v->minimumSizeHint().width()
+              << ",min=" << v->minimumWidth()
+              << ",size=" << v->width() << "]";
+  };
+  auto layout = [](const char *name,QLayout *v) {
+    if (!v) return;
+    std::cerr << " [" << name << ":min=" << v->minimumSize().width()
+              << ",hint=" << v->sizeHint().width() << "]";
+  };
+  auto *left=w.horizontalSplit->widget(0);
+  auto *right=w.horizontalSplit->widget(1);
+  QLayout *rightLayout=right ? right->layout() : nullptr;
+  auto *plotPage=w.tabs->widget(0);
+  QLayout *plotLayout=plotPage ? plotPage->layout() : nullptr;
+  QLayout *resultsLayout=w.resultsPanel->layout();
+  std::cerr << "WORKSPACE MINWIDTH PHASE=" << phase;
+  widget("window",&w);
+  widget("central",w.centralWidget());
+  widget("split",w.horizontalSplit);
+  widget("left",left);
+  widget("right",right);
+  widget("tabs",w.tabs);
+  widget("plot",w.plot);
+  widget("results",w.resultsPanel);
+  widget("table",w.table);
+  widget("summary",w.summary);
+  widget("settings",w.settingsPanel);
+  layout("root",w.centralWidget()?w.centralWidget()->layout():nullptr);
+  layout("right-layout",rightLayout);
+  layout("workspace-bar",rightLayout&&rightLayout->count()>0?rightLayout->itemAt(0)->layout():nullptr);
+  layout("graph-options",plotLayout&&plotLayout->count()>0?plotLayout->itemAt(0)->layout():nullptr);
+  layout("result-bar",resultsLayout&&resultsLayout->count()>0?resultsLayout->itemAt(0)->layout():nullptr);
+  std::cerr << std::endl;
+ }
  static void settle(MainWindow &w) {
   QElapsedTimer t; t.start();
   do { QApplication::processEvents(QEventLoop::AllEvents, 10); QThread::msleep(1);
@@ -37,7 +77,9 @@ struct WorkspaceProbe {
   w.metricButtons[0]->click(); settle(w);
   check(w.displayed==si::Metric::RL&&!w.plot->snapshot.curves.empty(),"RL return after sequential metric run failed");
   stage("quick analysis");
+  widthDiagnostics(w,"before-quick");
   w.run(w.settings.quick); settle(w); check(!w.results.empty(),"Analysis missing");
+  widthDiagnostics(w,"after-quick");
   if (w.revisions.size() > 1) {
    const int originalRevision=w.revisionBox->currentIndex();
    const int otherRevision=originalRevision==0?1:0;
@@ -122,10 +164,12 @@ struct WorkspaceProbe {
   check(w.table->height()>normalTable.height()&&w.table->width()>normalTable.width(),"Table did not grow");
   result["focused_table_width"]=w.table->width();result["focused_table_height"]=w.table->height();
   w.tableTextSize->setCurrentIndex(w.tableTextSize->findData(18));settle(w);
+  widthDiagnostics(w,"table-font-18");
   check(w.table->verticalHeader()->defaultSectionSize()==34,"Table font row size");
   check(w.table->selectionModel()->selectedRows()==selection,"Font/focus changed selection");
   w.grab().save(out+"/Results.png");
   w.workspaceActions[0]->trigger();settle(w);
+  widthDiagnostics(w,"returned-to-split");
   auto restored=w.analysisSplit->sizes();
   check(restored.size()==2&&std::abs(restored[0]-split[0])<=2,"Split proportions not restored");
   check(w.channelPanel->isVisible()&&w.settingsPanel->isVisible(),"Panels not restored");
@@ -144,6 +188,7 @@ struct WorkspaceProbe {
   w.grab().save(out+"/Settings.png");w.settingsAction->setChecked(false);settle(w);
   check(!w.analysisSplit->opaqueResize(),"Splitter triggers continuous redraw");
   stage("fullscreen transitions");
+  widthDiagnostics(w,"before-fullscreen");
   auto normalGeometry=w.geometry();
   const bool offscreen=QGuiApplication::platformName().compare("offscreen",Qt::CaseInsensitive)==0;
   if(!offscreen){
@@ -152,7 +197,8 @@ struct WorkspaceProbe {
      while(!ready()&&transition.elapsed()<5000){
        QApplication::processEvents(QEventLoop::AllEvents,20);QThread::msleep(5);
      }
-     if(!ready()) std::cerr << "WORKSPACE FULLSCREEN RESTORE DIAGNOSTIC: "
+     if(!ready()) widthDiagnostics(w,"transition-failed");
+     if(!ready()) std::cerr << "WORKSPACE FULLSCREEN RESTORE DIAGNOSTIC: 
        << "requested=" << normalGeometry.width() << "x" << normalGeometry.height()
        << " actual=" << w.width() << "x" << w.height()
        << " fullscreen=" << w.isFullScreen()
