@@ -208,6 +208,7 @@ private:
   int workspaceMode = 0, savedWorkspaceTab = 0, directionMode = 0;
   bool normalChannelsVisible = true, normalSettingsVisible = true;
   bool fullscreenWasMaximized = false;
+  QRect fullscreenNormalGeometry;
   QByteArray normalSplitState, normalHorizontalState;
   void setWorkspaceMode(int);
   void setResultsTextSize(int);
