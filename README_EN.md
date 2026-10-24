@@ -1,4 +1,4 @@
-# SParamView 1.2.4a
+# SParamView 1.2.5
 
 SParamView is a desktop application for Touchstone-based S-parameter analysis and visualization.
 
@@ -25,7 +25,13 @@ Quick TDR is a band-limited estimate affected by frequency span, spacing, extrap
 - [English User Guide](docs/USER_GUIDE_EN.md)
 - [한국어 사용자 설명서](docs/USER_GUIDE_KO.md)
 
-## v1.2.4a
+## v1.2.5
+- Automatically remove each GUI instance's Touchstone conversion cache and Excel report staging files after graceful exit.
+- Reclaim abandoned GUI cache sessions on subsequent launches, with ownership checks and multi-instance leases.
+- Remove default CLI command caches, preserving explicitly selected cache directories.
+- Preserve original Touchstone files, saved projects, reports and UI settings.
+
+## Previous v1.2.4a changes
 - Reuse results only when the exact selected analysis jobs match.
 - Preserve Single-ended review choices through mapping and project restoration.
 - Verify complete source SHA-256 on project restore and rebuild candidates after changes.
@@ -34,9 +40,9 @@ Quick TDR is a band-limited estimate affected by frequency span, spacing, extrap
 - Export analysis-time signal/mapping/source evidence and publish immutable, verified packages.
 - Includes the compact v1.2.2 controls and v1.2.3 signal detection changes.
 
-The [v1.2.4a published artifacts](https://github.com/july-rust/SParamView-Public/releases/tag/v1.2.4a) remain unchanged. On 2026-10-13, a separate documentation and CI maintenance pass verified zero warning messages across the six required validation gates, native Windows ARM64 mapping fallback 10/10 passes, and native Cocoa macOS GUI tests. These changes do not replace the tagged binaries. See [Revision History](docs/Revision_History.md) and [CI evidence](https://github.com/july-rust/SParamView-Public/actions/runs/38383938009).
+The previous [v1.2.4a published artifacts](https://github.com/july-rust/SParamView-Public/releases/tag/v1.2.4a) remain unchanged. On 2026-10-13, a separate documentation and CI maintenance pass verified zero warning messages across the six required validation gates, native Windows ARM64 mapping fallback 10/10 passes, and native Cocoa macOS GUI tests. These changes do not replace the tagged binaries. See [Revision History](docs/Revision_History.md) and [CI evidence](https://github.com/july-rust/SParamView-Public/actions/runs/38383938009).
 
-See [Release_1.2.4a.md](docs/Release_1.2.4a.md) for details. Earlier changes: [v1.1.6](docs/Release_1.1.6.md), [v1.1.7](docs/Release_1.1.7.md), [v1.2.0](docs/Release_1.2.0.md).
+See [Release_1.2.5.md](docs/Release_1.2.5.md) for current release notes and [Release_1.2.4a.md](docs/Release_1.2.4a.md) for historical maintenance details. Earlier changes: [v1.1.6](docs/Release_1.1.6.md), [v1.1.7](docs/Release_1.1.7.md), [v1.2.0](docs/Release_1.2.0.md).
 
 ## Build
 SParamView uses C++20, CMake, and Qt 6.8.3 (Core, Gui, Widgets, Concurrent).
