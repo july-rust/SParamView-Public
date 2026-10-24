@@ -1,10 +1,10 @@
 # SParamView 사용자 설명서
 
-**적용 기준:** SParamView v1.2.4a 공개 릴리스
+**적용 기준:** SParamView v1.2.5 공식 릴리스
 **지원 플랫폼:** Windows x64 / Windows ARM64 / macOS Apple Silicon (arm64)
-**문서 재검토:** 2026-10-13(KST). 공개된 v1.2.4a 실행 파일과 SHA-256은 변경하지 않았습니다.
+**문서 갱신:** 2026-10-24(KST). v1.2.5 임시 캐시 삭제 정책과 신규 공식 배포 구성을 반영했습니다. 이전 v1.2.4a 패키지는 수정하지 않았습니다.
 
-[English User Guide](USER_GUIDE_EN.md) | [한국어 README](../README_KO.md) | [v1.2.4a Release Notes](Release_1.2.4a.md)
+[English User Guide](USER_GUIDE_EN.md) | [한국어 README](../README_KO.md) | [v1.2.5 Release Notes](Release_1.2.5.md)
 
 ---
 
@@ -53,6 +53,16 @@ v1.2.0의 기능별 소스 분할은 내부 코드 구조 변경입니다. 사�
 
 **2026-10-13 릴리즈 후 검증:** 공식 v1.2.4a 실행 파일은 그대로 유지했습니다. GCC Release와 Clang ASan/UBSan, macOS Cocoa GUI, GitHub CLI 다운로드로 CI를 개선했으며, [공식 main 검증](https://github.com/july-rust/SParamView-Public/actions/runs/38383938009)에서 컴파일러·Qt 시험 환경·다운로드 경고 0건 및 Windows ARM64 수동 매핑 시험 10/10 PASS를 확인했습니다. 이는 사용자 기능의 추가가 아닌 검증 환경 개선입니다.
 
+### v1.2.5 종료 시 임시데이터 자동 정리
+
+- GUI는 실행 인스턴스마다 독립된 캐시 디렉터리를 생성하여 `.sicache`, `.sicache.tmp` 및 Excel 보고서 중간파일을 저장합니다. 정상 종료 시 작업 스레드와 열려 있는 캐시 핸들을 모두 닫은 후 해당 캐시 디렉터리를 삭제합니다.
+- 다른 실행 중인 SParamView 인스턴스의 캐시는 잠금 파일로 보호합니다. 프로그램이 비정상 종료된 경우 다음 실행에서 소유권 마커와 활성 잠금을 검증한 세션 폴더만 정리합니다.
+- CLI에서 캐시 경로를 따로 지정하지 않은 경우 실행 중에 만든 캐시를 명령 종료 때 삭제합니다. 사용자가 지정한 CLI 캐시 경로는 자동 삭제하지 않습니다.
+- 원본 Touchstone, 저장된 `.siproject`, XLSX/CSV/PNG 출력, 사용자 설정과 매핑 프리셋은 보존합니다. **이전 버전이 생성한 공유 캐시 파일은 오래된 실행 인스턴스 보호를 위해 삭제하지 않습니다.**
+- 캐시 삭제 후에는 다음 실행에서 원본을 다시 변환해야 하므로 첫 로딩 시간이 늘어날 수 있습니다.
+
+상세 내용: [임시 캐시 정리 설명](Temporary_Cache_Cleanup.md) 및 [v1.2.5 변경사항](Release_1.2.5.md).
+
 ## 2. 설치 및 처음 실행
 
 ### 2.1 릴리스 파일 선택
@@ -61,9 +71,9 @@ GitHub Releases에서 사용 중인 시스템에 맞는 패키지를 선택합�
 
 | 시스템 | 권장 패키지 |
 |---|---|
-| Windows x64 | `SParamView_Windows_x64_v1.2.4a.zip` |
-| Windows ARM64 | `SParamView_Windows_ARM64_v1.2.4a.zip` |
-| macOS Apple Silicon | `SParamView_macOS_AppleSilicon_arm64_v1.2.4a.dmg` 또는 `.zip` |
+| Windows x64 | `SParamView_Windows_x64_v1.2.5.zip` |
+| Windows ARM64 | `SParamView_Windows_ARM64_v1.2.5.zip` |
+| macOS Apple Silicon | `SParamView_macOS_AppleSilicon_arm64_v1.2.5.dmg` 또는 `.zip` |
 
 릴리스에는 SHA-256 확인용 파일도 함께 제공됩니다. 다운로드 무결성을 확인하려면 Windows PowerShell에서 `Get-FileHash <파일명> -Algorithm SHA256`, macOS Terminal에서 `shasum -a 256 <파일명>`을 실행한 뒤 릴리스의 `.sha256` 값과 비교할 수 있습니다.
 
@@ -541,7 +551,7 @@ SParamView 소스는 MIT License로 배포됩니다. Third-party component와 fo
 
 ## 22. 문서 검증 근거
 
-v1.2.1에서 도입된 과거 기능은 [v1.2.1 릴리스 노트](Release_1.2.1.md)와 다음 소스 자료를 참고했습니다. 현재 버전은 [v1.2.4a 릴리스 노트](Release_1.2.4a.md), [변경 이력](Revision_History.md), [v1.2.4a 태그 소스](https://github.com/july-rust/SParamView-Public/tree/v1.2.4a) 및 [2026-10-13 공식 검증](https://github.com/july-rust/SParamView-Public/actions/runs/38383938009)을 함께 확인했습니다. `main`에는 공식 태그 이후의 CI·문서 전용 수정이 포함될 수 있습니다.
+v1.2.1에서 도입된 과거 기능은 [v1.2.1 릴리스 노트](Release_1.2.1.md)와 다음 소스 자료를 참고했습니다. 현재 버전은 [v1.2.5 릴리스 노트](Release_1.2.5.md), [임시 캐시 정리](Temporary_Cache_Cleanup.md), [변경 이력](Revision_History.md) 및 [v1.2.5 소스](https://github.com/july-rust/SParamView-Public/tree/v1.2.5)를 참고하십시오. 이전 v1.2.4a 검증 기록은 [이전 릴리스 노트](Release_1.2.4a.md)에 보존되어 있습니다.
 
 - [TDR 초기 축 범위 및 자동 스케일](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/src/plot.cpp)
 - [그래프 조작 및 초기 화면 복귀](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/src/navigation.cpp)
@@ -554,4 +564,4 @@ v1.2.1에서 도입된 과거 기능은 [v1.2.1 릴리스 노트](Release_1.2.1.
 
 ### 문서 버전
 
-이 설명서는 현재 공식 배포 버전인 **SParamView v1.2.4a**를 기준으로 **2026-10-13(KST)**에 재검토했습니다. 수록 이미지는 [출처가 확인된 v1.2.1 검증 화면](images/README.md)으로, v1.2.4a에서 새로 촬영하거나 교체한 이미지가 아닙니다. 이후 CI 및 문서 수정으로 기존 릴리즈 바이너리와 SHA-256 값은 변경하지 않았습니다.
+이 설명서는 **SParamView v1.2.5** 기능을 기준으로 **2026-10-24(KST)** 갱신했습니다. 수록 이미지는 [출처가 확인된 v1.2.1 검증 화면](images/README.md)이며 v1.2.5에서 새로 촬영하거나 교체한 이미지가 아닙니다.
