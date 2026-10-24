@@ -1,4 +1,4 @@
-# SParamView v1.2.4a — transient cache lifecycle
+# SParamView v1.2.5 — transient cache lifecycle
 
 This change does not change the application version or delete user data.
 
