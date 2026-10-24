@@ -78,7 +78,7 @@ if (-not (Test-Path $appCandidate)) { $appCandidate = Join-Path $buildRoot 'SPar
 if (-not (Test-Path $appCandidate)) { throw "SParamView.exe not found under $buildRoot" }
 $versionInfo = (Get-Item $appCandidate).VersionInfo
 # Windows fixed-file metadata is numeric (e.g. 1.2.5.0); StringFileInfo uses the public release label.
-$versionRegex = '^(?:' + [regex]::Escape($releaseVersion) + '|' + [regex]::Escape($numericVersion + '.0') + '|' + [regex]::Escape($numericVersion + '.1') + ')
+$versionRegex = '^(?:' + [regex]::Escape($releaseVersion) + '|' + [regex]::Escape($numericVersion + '.0') + '|' + [regex]::Escape($numericVersion + '.1') + ')$'
 if ($versionInfo.ProductName -ne 'SParamView') { throw "EXE ProductName mismatch: $($versionInfo.ProductName)" }
 if ($versionInfo.ProductVersion -notmatch $versionRegex) { throw "EXE ProductVersion mismatch: $($versionInfo.ProductVersion) expected $releaseVersion" }
 if ($versionInfo.FileVersion -notmatch $versionRegex) { throw "EXE FileVersion mismatch: $($versionInfo.FileVersion) expected $releaseVersion" }
