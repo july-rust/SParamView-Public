@@ -131,6 +131,13 @@ MainWindow::~MainWindow() {
   if (control)
     control->cancelled = true;
   taskPool.waitForDone();
+  // CacheFile objects are owned by revisions and jobs; release every handle
+  // before deleting Windows-mapped and POSIX-mapped backing files.
+  lastJobs.clear();
+  lastRevisions.clear();
+  revisions.clear();
+  if (!cacheSession.cleanup())
+    qWarning() << "SParamView: private cache will be retried on next launch";
 }
 void MainWindow::error(const QString &text) {
   QMessageBox::warning(this, "SParamView", text);

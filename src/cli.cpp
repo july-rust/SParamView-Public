@@ -3,7 +3,35 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <memory>
+#include <system_error>
 using namespace si;
+namespace {
+struct CommandCache {
+  fs::path directory;
+  CommandCache() {
+    const auto base = fs::temp_directory_path();
+    const auto nonce = std::chrono::steady_clock::now().time_since_epoch().count();
+    for (int n = 0; n < 64; ++n) {
+      auto candidate = base / ("SParamView-cli-session-" + std::to_string(nonce) + "-" + std::to_string(n));
+      std::error_code ec;
+      if (fs::create_directory(candidate, ec)) {
+        directory = std::move(candidate);
+        return;
+      }
+      if (ec && ec != std::errc::file_exists)
+        throw std::runtime_error("Cannot create private CLI cache");
+    }
+    throw std::runtime_error("Cannot allocate unique CLI cache directory");
+  }
+  ~CommandCache() {
+    if (!directory.empty()) {
+      std::error_code ec;
+      fs::remove_all(directory, ec);
+    }
+  }
+};
+}
 int main(int argc, char **argv) {
   try {
     if (argc < 3) {
@@ -16,11 +44,16 @@ int main(int argc, char **argv) {
     }
     std::string command = argv[1];
     auto src = pathFromUtf8(argv[2]);
-    auto dir = fs::temp_directory_path() / "SParamView-cli-cache";
+    std::unique_ptr<CommandCache> commandCache;
+    fs::path dir;
     if ((command == "inspect" || command == "benchmark") && argc > 3)
       dir = pathFromUtf8(argv[3]);
-    if (command == "trace" && argc > 6)
+    else if (command == "trace" && argc > 6)
       dir = pathFromUtf8(argv[6]);
+    else {
+      commandCache = std::make_unique<CommandCache>();
+      dir = commandCache->directory;
+    }
     auto cache = Cache::open(src, dir);
     auto &m = cache->meta();
     if (command == "inspect") {

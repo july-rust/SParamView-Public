@@ -1,6 +1,7 @@
 #pragma once
 #include "si/core.hpp"
 #include "workers.hpp"
+#include "cache_session.hpp"
 #include <QtConcurrent>
 #include <QtWidgets>
 #include <functional>
@@ -167,6 +168,8 @@ protected:
   void closeEvent(QCloseEvent *) override;
 
 private:
+  // Declared before all cache users so its directory outlives their handles.
+  CacheSession cacheSession;
   std::vector<Revision> revisions;
   std::vector<si::Result> results;
   std::vector<si::Job> lastJobs;

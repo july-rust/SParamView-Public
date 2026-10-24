@@ -173,8 +173,7 @@ void MainWindow::openPaths(QStringList paths) {
     return;
   }
   auto loaded = std::make_shared<std::vector<Revision>>();
-  QString cacheRoot =
-      QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + "/v3";
+  const QString cacheRoot = cacheSession.path();
   task(
       [paths, loaded, cacheRoot](si::Control *c) {
         for (auto &p : paths) {
