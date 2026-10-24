@@ -1,4 +1,4 @@
-SParamView v1.2.4a
+SParamView v1.2.5
 =================
 
 SParamView is a reference tool for calculating and visualizing Touchstone S-parameter data.
@@ -23,7 +23,7 @@ Supported release targets:
 Documentation:
 - README_EN.md
 - README_KO.md
-- docs/Release_1.2.4a.md
+- docs/Release_1.2.5.md
 
 License: MIT
 Contact: sparamview@gmail.com
