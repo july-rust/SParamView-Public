@@ -95,8 +95,11 @@ private:
       if (!markerInfo.isFile() || markerInfo.isSymLink())
         continue; // Never delete an unmarked or impersonated folder.
       QFile marker(markerPath);
-      if (!marker.open(QIODevice::ReadOnly) ||
-          marker.readAll() != QByteArray(kOwnedMarker))
+      if (!marker.open(QIODevice::ReadOnly))
+        continue;
+      const bool owned = marker.readAll() == QByteArray(kOwnedMarker);
+      marker.close(); // Windows cannot unlink a still-open QFile.
+      if (!owned)
         continue;
       QLockFile owner(QDir(folder).filePath(".owner.lock"));
       owner.setStaleLockTime(0);
