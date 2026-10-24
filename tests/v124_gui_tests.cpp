@@ -139,6 +139,15 @@ struct WorkspaceProbe {
     require(QFileInfo::exists(imported),"Real GUI import did not create session cache");
     Revision entry;entry.source=w.revisions[0].source;entry.cache=std::move(owned);
     second.revisions.push_back(std::move(entry));
+    ReportOptions options;
+    options.details=false;options.graphs=false;options.raw=false;
+    si::Control control;
+    writeReport(dir+"/cleanup-report.xlsx", {}, second.revisions,
+                second.settings, "cleanup", options, {}, {}, &control, cacheDir);
+    require(QFileInfo::exists(dir+"/cleanup-report.xlsx"),
+            "Report write with session-scoped staging failed");
+    require(QDir(cacheDir).entryList({"SParamView-report-*.tmp"}, QDir::Files).isEmpty(),
+            "Finished report left an ephemeral staging file");
     second.dirty=false;
    }
    require(!QDir(cacheDir).exists()&&!QFileInfo::exists(imported),

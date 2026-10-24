@@ -5,8 +5,8 @@ This change does not change the application version or delete user data.
 ## GUI cache ownership
 - Each GUI window/process owns a unique directory inside the Qt application
   `CacheLocation/v3/session-XXXXXX` path.
-- The imported `.sicache` and in-progress `.sicache.tmp` files go inside
-  that unique directory. The original Touchstone file is never modified.
+- The imported `.sicache`, in-progress `.sicache.tmp`, and GUI Excel report
+  staging files go inside that unique directory. The original Touchstone file is never modified.
 - Graceful close waits for workers to complete, releases Revision/Job/cache
   references, then removes the owned directory.
 - A lock-file lease prevents another instance from deleting a live session.

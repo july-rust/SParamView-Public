@@ -114,7 +114,7 @@ void writeReport(const QString &path, const std::vector<si::Result> &,
                  const std::vector<Revision> &, const si::Settings &,
                  const QString &project, const ReportOptions &,
                  const std::vector<si::Job> &, const PlotSnapshot &current,
-                 si::Control *);
+                 si::Control *, const QString &stagingDirectory = {});
 
 class MainWindow : public QMainWindow {
   friend struct NavigationProbe;

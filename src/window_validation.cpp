@@ -22,7 +22,8 @@ bool MainWindow::selftest(const QString &examples, const QString &output) {
   options.raw = true;
   si::Control c;
   writeReport(output + "/SParamView_sample.xlsx", results, lastRevisions,
-              lastSettings, projectName, options, lastJobs, snapshot, &c);
+              lastSettings, projectName, options, lastJobs, snapshot, &c,
+              cacheSession.path());
   compareRevisions();
   while (busy && timer.elapsed() < 120000)
     QApplication::processEvents(QEventLoop::AllEvents, 50);
@@ -142,7 +143,8 @@ bool MainWindow::validateProject(const QString &project,
   options.raw = false;
   si::Control c;
   writeReport(output + "/Analysis.xlsx", results, lastRevisions, lastSettings,
-              projectName, options, lastJobs, plot->snapshot, &c);
+              projectName, options, lastJobs, plot->snapshot, &c,
+              cacheSession.path());
   if (revisions.size() > 1) {
     QJsonObject comparisons;
     for (auto metric :

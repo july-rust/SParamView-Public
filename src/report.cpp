@@ -133,7 +133,10 @@ public:
   QTemporaryFile file;
   QXmlStreamWriter xml;
   int row = 0;
-  Sheet() : xml(&file) {
+  explicit Sheet(const QString &root = {})
+      : file(QDir(root.isEmpty() ? QDir::tempPath() : root)
+                 .filePath("SParamView-report-XXXXXX.tmp")),
+        xml(&file) {
     if (!file.open())
       throw si::Error("Cannot create report staging file");
     xml.writeStartDocument();
@@ -216,7 +219,8 @@ void writeReport(const QString &path, const std::vector<si::Result> &results,
                  const std::vector<Revision> &revisions,
                  const si::Settings &settings, const QString &project,
                  const ReportOptions &options, const std::vector<si::Job> &jobs,
-                 const PlotSnapshot &current, si::Control *control) {
+                 const PlotSnapshot &current, si::Control *control,
+                 const QString &stagingDirectory) {
   if (!path.endsWith(".xlsx", Qt::CaseInsensitive))
     throw si::Error("Report filename must end in .xlsx");
   for (auto &r : revisions)
@@ -233,7 +237,7 @@ void writeReport(const QString &path, const std::vector<si::Result> &results,
             sheet.file, control);
   };
   if (options.summary) {
-    Sheet sheet;
+    Sheet sheet(stagingDirectory);
     sheet.append(
         {"Channel", "Revision", "RL", "IL", "NEXT", "FEXT", "TDR", "Overall"},
         true);
@@ -266,7 +270,7 @@ void writeReport(const QString &path, const std::vector<si::Result> &results,
           rows.push_back(&r);
       if (rows.empty())
         continue;
-      Sheet sheet;
+      Sheet sheet(stagingDirectory);
       sheet.append({"Channel", "Revision", "Metric", "Aggressor", "Worst value",
                     "Worst Frequency Hz / Time s", "Limit at worst margin",
                     "Worst margin", "Margin Frequency Hz / Time s", "Result",
@@ -296,7 +300,7 @@ void writeReport(const QString &path, const std::vector<si::Result> &results,
       addSheet(title, sheet);
     }
   {
-    Sheet config;
+    Sheet config(stagingDirectory);
     config.append({"Item", "Value"}, true);
     config.append({"Project", project});
     config.append({"Program version", si::version});
@@ -363,7 +367,7 @@ void writeReport(const QString &path, const std::vector<si::Result> &results,
   }
   if (options.raw) {
     int part = 1;
-    auto sheet = std::make_unique<Sheet>();
+    auto sheet = std::make_unique<Sheet>(stagingDirectory);
     auto startRaw = [&]() {
       sheet->append({"Channel", "Revision", "Analysis", "Direction", "Aggressor",
                      "Frequency Hz / Time s", "Real", "Imaginary", "Value", "Unit", "Termination"},
@@ -396,7 +400,7 @@ void writeReport(const QString &path, const std::vector<si::Result> &results,
             control->check();
           if (sheet->row >= 1000000) {
             addSheet("Raw_" + QString::number(part++), *sheet);
-            sheet = std::make_unique<Sheet>();
+            sheet = std::make_unique<Sheet>(stagingDirectory);
             startRaw();
           }
           sheet->append({qs(j.victim.name), qs(j.revision),
@@ -416,7 +420,7 @@ void writeReport(const QString &path, const std::vector<si::Result> &results,
     addSheet("Raw_" + QString::number(part), *sheet);
   }
   if (options.graphs) {
-    Sheet graph;
+    Sheet graph(stagingDirectory);
     graph.append(
         {"Graphs",
          "Current view followed by result graphs (up to 8 traces per image)"},
