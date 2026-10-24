@@ -1,10 +1,10 @@
 # SParamView User Guide
 
-**Applies to:** SParamView v1.2.4a public release
+**Applies to:** SParamView v1.2.5 official release
 **Supported platforms:** Windows x64 / Windows ARM64 / macOS Apple Silicon (arm64)
-**Documentation reviewed:** 2026-10-13 (KST); published v1.2.4a executables and checksums remain unchanged.
+**Documentation updated:** 2026-10-24 (KST). Describes the v1.2.5 owned-session cleanup policy and release packages; previously released v1.2.4a assets are unchanged.
 
-[한국어 사용자 설명서](USER_GUIDE_KO.md) | [English README](../README_EN.md) | [v1.2.4a Release Notes](Release_1.2.4a.md)
+[한국어 사용자 설명서](USER_GUIDE_KO.md) | [English README](../README_EN.md) | [v1.2.5 Release Notes](Release_1.2.5.md)
 
 ---
 
@@ -53,6 +53,16 @@ The v1.2.0 source partitioning is an internal code-structure change and requires
 
 **Post-release validation (2026-10-13):** The published v1.2.4a binaries are unchanged. CI/test updates use GCC for the Release core and Clang for ASan/UBSan, native Cocoa for macOS GUI validation, and GitHub CLI for artifact retrieval. The official [main validation](https://github.com/july-rust/SParamView-Public/actions/runs/38383938009) reported no compiler, Qt test-platform, or artifact-download warning messages; all ten native Windows ARM64 fallback mapping checks passed. These are test-infrastructure and documentation updates, not new application features.
 
+### v1.2.5 automatic cleanup on exit
+
+- Each GUI process creates a private cache directory holding imported `.sicache`, in-progress `.sicache.tmp`, and Excel report staging files. On normal exit, it waits for workers to finish, closes cache handles, and removes its own directory.
+- Other active GUI instances are protected by lock leases. A subsequent launch reclaims only abandoned SParamView-owned session directories verified by ownership markers and locks.
+- CLI commands without an explicit cache path clean their command-private cache at exit. An explicitly supplied CLI cache directory remains user-managed.
+- Original Touchstone files, saved `.siproject` projects, exported XLSX/CSV/PNG reports, mapping presets, and application/UI settings are preserved. **Unleased shared caches from earlier releases are not removed** to avoid disrupting older running applications.
+- Reopening a source after exit entails a new import and may increase first-load time.
+
+See [Temporary Cache Cleanup](Temporary_Cache_Cleanup.md) and [v1.2.5 Release Notes](Release_1.2.5.md).
+
 ## 2. Installation and First Launch
 
 ### 2.1 Choose the correct release package
@@ -61,9 +71,9 @@ Download the package that matches your system from GitHub Releases.
 
 | System | Recommended package |
 |---|---|
-| Windows x64 | `SParamView_Windows_x64_v1.2.4a.zip` |
-| Windows ARM64 | `SParamView_Windows_ARM64_v1.2.4a.zip` |
-| macOS Apple Silicon | `SParamView_macOS_AppleSilicon_arm64_v1.2.4a.dmg` or `.zip` |
+| Windows x64 | `SParamView_Windows_x64_v1.2.5.zip` |
+| Windows ARM64 | `SParamView_Windows_ARM64_v1.2.5.zip` |
+| macOS Apple Silicon | `SParamView_macOS_AppleSilicon_arm64_v1.2.5.dmg` or `.zip` |
 
 SHA-256 files are also provided with the release. To verify download integrity, run `Get-FileHash <filename> -Algorithm SHA256` in Windows PowerShell or `shasum -a 256 <filename>` in macOS Terminal, then compare the result with the corresponding `.sha256` file.
 
@@ -539,7 +549,7 @@ Contact: **sparamview@gmail.com**
 
 ## 22. Documentation verification sources
 
-Historical v1.2.1 feature changes are supported by the [v1.2.1 release notes](Release_1.2.1.md) and the source links below. For the current release, also see the [v1.2.4a release notes](Release_1.2.4a.md), [revision history](Revision_History.md), [tagged source](https://github.com/july-rust/SParamView-Public/tree/v1.2.4a), and [2026-10-13 official post-release CI](https://github.com/july-rust/SParamView-Public/actions/runs/38383938009). The `main` branch may contain later CI/documentation fixes not present in the tagged binaries:
+Historical v1.2.1 feature changes are supported by the [v1.2.1 release notes](Release_1.2.1.md) and the source links below. For the current release, see the [v1.2.5 release notes](Release_1.2.5.md), [temporary-cache policy](Temporary_Cache_Cleanup.md), [revision history](Revision_History.md), and [tagged source](https://github.com/july-rust/SParamView-Public/tree/v1.2.5). Previous v1.2.4a validation is retained in the [historical release notes](Release_1.2.4a.md).
 
 - [Initial TDR axes and automatic scaling](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/src/plot.cpp)
 - [Plot interaction and viewport restoration](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/src/navigation.cpp)
@@ -552,4 +562,4 @@ Historical v1.2.1 feature changes are supported by the [v1.2.1 release notes](Re
 
 ### Document Version
 
-This guide was reviewed on **2026-10-13 (KST)** for the currently published **SParamView v1.2.4a** release. The embedded screenshots are **unchanged v1.2.1 validation captures**, with provenance recorded in [images/README.md](images/README.md); they were not newly captured from v1.2.4a. Later CI/documentation-only changes do not alter the v1.2.4a release assets or SHA-256 checksums.
+This guide was updated on **2026-10-24 (KST)** for **SParamView v1.2.5**. The embedded screenshots are **unchanged v1.2.1 validation captures** (see [images/README.md](images/README.md)), not newly captured v1.2.5 screens.

@@ -122,8 +122,7 @@ void MainWindow::loadProject(QString path) {
       loaded->push_back(rev);
     }
     auto settingsLoaded = settingsFromJson(obj["settings"].toObject());
-    QString cacheRoot =
-        QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + "/v3";
+    const QString cacheRoot = cacheSession.path();
     task(
         [loaded, cacheRoot, sources](si::Control *c) {
           for (size_t i = 0; i < loaded->size(); ++i) {

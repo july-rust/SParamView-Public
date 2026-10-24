@@ -1,4 +1,4 @@
-# SParamView v1.2.4a
+# SParamView v1.2.5
 
 SParamView는 Touchstone S-parameter 데이터를 열고 채널 기준으로 분석하는 C++20 / Qt 6 데스크톱 프로그램입니다.
 
@@ -23,7 +23,17 @@ Quick TDR은 제한된 주파수 대역을 이용한 추정값이며 계측기 T
 - [English User Guide](docs/USER_GUIDE_EN.md)
 - [전체 변경 이력](docs/Revision_History.md)
 
-## v1.2.4a 변경사항
+## v1.2.5 주요 변경사항
+
+- GUI 실행별 임시 캐시 폴더를 분리하고 정상 종료 시 변환 캐시 및 Excel 임시파일을 자동 삭제합니다.
+- 비정상 종료로 남은 프로그램 소유 폴더는 다음 실행 때 소유권 및 실행 중 잠금을 검사한 후 안전하게 정리합니다.
+- 기본 CLI 캐시도 명령 종료 시 삭제하며, 명시적으로 지정한 캐시 폴더는 보존합니다.
+- 원본 Touchstone, 프로젝트, 보고서, 매핑 파일, UI 설정을 삭제하지 않습니다.
+- 오래된 버전의 공유 캐시는 실행 중인 이전 버전에 영향을 주지 않도록 자동 삭제 대상에서 제외합니다.
+
+[1.2.5 공식 릴리스 노트](docs/Release_1.2.5.md) 및 [임시 캐시 정리 설계](docs/Temporary_Cache_Cleanup.md)를 참고하십시오.
+
+## 이전 v1.2.4a 변경사항
 
 - 선택 채널·Aggressor·매핑 등 실제 분석 요청이 일치할 때만 결과를 재사용합니다.
 - Single-ended 선택을 매핑 재검토와 프로젝트 복원 후에도 유지합니다.
@@ -33,9 +43,9 @@ Quick TDR은 제한된 주파수 대역을 이용한 추정값이며 계측기 T
 - Excel에 분석 시점의 신호·매핑·원본 근거를 기록하고 검증된 패키지만 공식 공개합니다.
 - v1.2.2의 간결한 설정 UI와 v1.2.3의 신호 감지 개선을 포함합니다.
 
-**2026-10-13 검증 유지보수:** GCC Release와 Clang ASan/UBSan 검증, macOS Cocoa GUI 시험, Windows ARM64 매핑 보존 반복시험(10/10 PASS)을 적용했습니다. [공식 Actions](https://github.com/july-rust/SParamView-Public/actions/runs/38383938009)에서 컴파일러·Qt 테스트 환경·다운로드 관련 경고 0건을 확인했습니다. 분석 엔진 및 [기존 v1.2.4a 배포 파일](https://github.com/july-rust/SParamView-Public/releases/tag/v1.2.4a)은 교체하지 않았으며 SHA-256도 그대로입니다.
+**기존 v1.2.4a의 2026-10-13 검증 유지보수:** GCC Release와 Clang ASan/UBSan 검증, macOS Cocoa GUI 시험, Windows ARM64 매핑 보존 반복시험(10/10 PASS)을 적용했습니다. [공식 Actions](https://github.com/july-rust/SParamView-Public/actions/runs/38383938009)에서 컴파일러·Qt 테스트 환경·다운로드 관련 경고 0건을 확인했습니다. 분석 엔진 및 [기존 v1.2.4a 배포 파일](https://github.com/july-rust/SParamView-Public/releases/tag/v1.2.4a)은 교체하지 않았으며 SHA-256도 그대로입니다.
 
-세부 범위는 [v1.2.4a Release Notes](docs/Release_1.2.4a.md)를 확인하세요. 이전 변경사항: [v1.1.6](docs/Release_1.1.6.md), [v1.1.7](docs/Release_1.1.7.md), [v1.2.0](docs/Release_1.2.0.md).
+과거 변경 범위는 [v1.2.4a Release Notes](docs/Release_1.2.4a.md)를 확인하세요. 이전 변경사항: [v1.1.6](docs/Release_1.1.6.md), [v1.1.7](docs/Release_1.1.7.md), [v1.2.0](docs/Release_1.2.0.md).
 
 ## 지원 릴리스 플랫폼
 

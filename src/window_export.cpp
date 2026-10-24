@@ -39,9 +39,11 @@ void MainWindow::exportXlsx() {
   auto jobs = lastJobs;
   auto snap = plot->snapshot;
   auto title = projectName;
+  const auto stagingDirectory = cacheSession.path();
   task(
-      [path, rs, revs, set, options, jobs, snap, title](si::Control *control) {
-        writeReport(path, rs, revs, set, title, options, jobs, snap, control);
+      [path, rs, revs, set, options, jobs, snap, title, stagingDirectory](si::Control *control) {
+        writeReport(path, rs, revs, set, title, options, jobs, snap, control,
+                    stagingDirectory);
       },
       [this, path] {
         notice->setText("Excel workbook saved: " + QFileInfo(path).fileName());

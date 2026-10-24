@@ -1,6 +1,7 @@
 #pragma once
 #include "si/core.hpp"
 #include "workers.hpp"
+#include "cache_session.hpp"
 #include <QtConcurrent>
 #include <QtWidgets>
 #include <functional>
@@ -113,7 +114,7 @@ void writeReport(const QString &path, const std::vector<si::Result> &,
                  const std::vector<Revision> &, const si::Settings &,
                  const QString &project, const ReportOptions &,
                  const std::vector<si::Job> &, const PlotSnapshot &current,
-                 si::Control *);
+                 si::Control *, const QString &stagingDirectory = {});
 
 class MainWindow : public QMainWindow {
   friend struct NavigationProbe;
@@ -167,6 +168,8 @@ protected:
   void closeEvent(QCloseEvent *) override;
 
 private:
+  // Declared before all cache users so its directory outlives their handles.
+  CacheSession cacheSession;
   std::vector<Revision> revisions;
   std::vector<si::Result> results;
   std::vector<si::Job> lastJobs;

@@ -2,7 +2,7 @@
 
 This document records the development sequence from the original SI Analyzer engineering preview through the current SParamView release. The development record predates the GitHub repository itself: the first retained engineering-preview validation is dated **2026-09-08**, while the current GitHub repository was created on **2026-09-25**.
 
-Historical entries before v1.1.5 refer to private development records, not files shipped in this public repository. They are historical context, not current validation evidence. v1.2.2 and v1.2.3 were development releases. v1.2.4 was initially promoted publicly; it was subsequently superseded and its public release/tag retired after successful publication of **v1.2.4a**, the current official binary release.
+Historical entries before v1.1.5 refer to private development records, not files shipped in this public repository. They are historical context, not current validation evidence. v1.2.2 and v1.2.3 were development releases. v1.2.4 was initially promoted publicly; it was subsequently superseded and its public release/tag retired after successful publication of **v1.2.4a**. The follow-up **v1.2.5** improves temporary-data cleanup without changing numerical analysis algorithms.
 
 ## Development timeline
 
@@ -34,14 +34,16 @@ Historical entries before v1.1.5 refer to private development records, not files
 | **1.2.3** | Differential auto-detection upgrade: exact one-character P↔N recognition anywhere in names, Signal Type Detection/confirmation before Channel Mapping for non-authoritative cases, metadata-priority fail-safe, and signal-type persistence. | `docs/Release_1.2.3.md` |
 
 | **1.2.4** | Exact analysis-job reuse, persistent Single-ended choice, full-hash project restore, complete dirty-state handling, Touchstone 2.1 compatibility, report provenance and immutable three-platform publication. | [Release notes](Release_1.2.4.md) |
-| **1.2.4a (current official binaries)** | C++/Qt compile-warning cleanup, native Windows runtime packaging, Node 24-compatible CI, and preserved v1.2.4 numerical calculations. The 2026-10-13 **post-release CI-only** change removed remaining sanitizer/toolchain and Qt test-platform messages, eliminated the Node artifact-download warning, and strengthened ARM64 mapping tests (10/10). Published tag and package digests remained unchanged. | [Release notes](Release_1.2.4a.md) · [CI](https://github.com/july-rust/SParamView-Public/actions/runs/38383938009) |
+| **1.2.4a (previous official binaries)** | C++/Qt compile-warning cleanup, native Windows runtime packaging, Node 24-compatible CI, and preserved v1.2.4 numerical calculations. The 2026-10-13 **post-release CI-only** change removed remaining sanitizer/toolchain and Qt test-platform messages, eliminated the Node artifact-download warning, and strengthened ARM64 mapping tests (10/10). Published tag and package digests remained unchanged. | [Release notes](Release_1.2.4a.md) · [CI](https://github.com/july-rust/SParamView-Public/actions/runs/38383938009) |
+
+| **1.2.5 (current official release)** | Per-instance GUI session caches, cleanup after worker/cache-handle release, guarded abandoned-session recovery, Excel staging cleanup and automatic CLI default-cache removal. Originals, projects, exports and UI settings are preserved. | [Release notes](Release_1.2.5.md) · [Cache policy](Temporary_Cache_Cleanup.md) |
 
 ## v1.2.4a post-release maintenance (2026-10-13)
 
 - **Tagged release:** [v1.2.4a](https://github.com/july-rust/SParamView-Public/releases/tag/v1.2.4a) remains pinned to commit `139b05fb112aec3aba4637a32eec48d1cc796672`. The original 18 release assets and SHA-256 values were not replaced.
 - **Maintained source:** PR [#7](https://github.com/july-rust/SParamView-Public/pull/7) was merged into `main` as `48d0233be71629a48704fa9d80fd1dbd1d6c9727`, adding CI/test-only corrections while preserving the published application binaries.
 - **Validation:** [Official main Actions](https://github.com/july-rust/SParamView-Public/actions/runs/38383938009) completed all seven jobs successfully. Logs showed no compiler, Qt plugin or artifact-download warnings. All 10 Windows ARM64 fallback mapping checks preserved the eight manually entered columns; source data and numerical algorithms did not change.
-- **Document provenance:** current guides describe v1.2.4a behavior; embedded screenshots originate from v1.2.1 test captures and retain their historical provenance.
+- **Document provenance:** previous v1.2.4a guides documented that release; embedded screenshots originate from v1.2.1 test captures and retain their historical provenance.
 
 ## Stable engineering principles carried forward
 
