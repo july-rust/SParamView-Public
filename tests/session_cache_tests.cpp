@@ -46,12 +46,15 @@ int main(int argc, char **argv) {
 
       // Open a real Touchstone cache and release its file handles.
       {
-        auto cache = si::Cache::open(si::pathFromUtf8(
-            firstPath.isEmpty() ? "" : firstPath.toUtf8().toStdString()),
+        auto cache = si::Cache::open(
+            si::pathFromUtf8(source.toUtf8().toStdString()),
             si::pathFromUtf8(firstPath.toUtf8().toStdString()));
-        (void)cache;
+        expect(QFileInfo::exists(QString::fromUtf8(si::utf8(cache->path()))),
+               "Real imported .sicache exists in the owned directory");
       }
-      // The actual original source must be used, not the cache directory.
+      expect(first.cleanup(), "First instance cleanup after handles closed");
+      expect(!QDir(firstPath).exists() && QDir(secondPath).exists(),
+             "Closing one instance preserves another instance's cache");
     }
     expect(!QDir(firstPath).exists() && !QDir(secondPath).exists(),
            "All normal-exit session files removed");
