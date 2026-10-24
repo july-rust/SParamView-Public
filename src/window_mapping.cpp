@@ -1,3 +1,4 @@
+#include "session_cache.hpp"
 static QString mixedDescriptorType(const si::Metadata &meta) {
   bool d=false,s=false;
   for (const auto &token:meta.mixedOrder) {
@@ -174,7 +175,7 @@ void MainWindow::openPaths(QStringList paths) {
   }
   auto loaded = std::make_shared<std::vector<Revision>>();
   QString cacheRoot =
-      QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + "/v3";
+      sessionCachePath();
   task(
       [paths, loaded, cacheRoot](si::Control *c) {
         for (auto &p : paths) {
