@@ -180,5 +180,8 @@ endif()
 
 find_package(Python3 COMPONENTS Interpreter QUIET)
 if(Python3_Interpreter_FOUND)
+  add_test(NAME cli_session_cache_cleanup
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/check_cli_temp_cleanup.py" "$<TARGET_FILE:si_cli>")
+  set_tests_properties(cli_session_cache_cleanup PROPERTIES TIMEOUT 45)
   add_test(NAME release_publication_safety COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/publish_release_tests.py")
 endif()

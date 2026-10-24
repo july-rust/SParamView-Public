@@ -37,5 +37,6 @@ shared OS temporary root without proof of ownership.
   preservation.
 - Existing `v124_gui_*` cases exercise loading and project restoration
   through the new scoped GUI cache path.
+- `cli_session_cache_cleanup`: success, error path, and caller-managed CLI cache preservation.
 - Standard core, Linux Qt, Windows x64/ARM64 and macOS CI matrix remains
   required before the change is considered release-ready.
