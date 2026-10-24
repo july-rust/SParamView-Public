@@ -49,7 +49,7 @@ int main(int argc, char **argv) {
         auto cache = si::Cache::open(
             si::pathFromUtf8(source.toUtf8().toStdString()),
             si::pathFromUtf8(firstPath.toUtf8().toStdString()));
-        expect(QFileInfo::exists(QString::fromUtf8(si::utf8(cache->path()))),
+        expect(QFileInfo::exists(QString::fromStdString(si::utf8(cache->path()))),
                "Real imported .sicache exists in the owned directory");
       }
       expect(first.cleanup(), "First instance cleanup after handles closed");
