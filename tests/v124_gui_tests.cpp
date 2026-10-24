@@ -129,6 +129,22 @@ struct WorkspaceProbe {
    auto smaller=fp(dir+"/smaller.s2p");si::fs::rename(moved,smaller);rev["source"]="smaller.s2p";rev["absoluteSource"]=qs(si::utf8(smaller));revs[0]=rev;object["revisions"]=revs;
    require(json.open(QIODevice::WriteOnly),"Small-port project update failed");json.write(QJsonDocument(object).toJson());json.close();
    w.loadProject(w.projectPath);settle(w);require(w.revisions[0].cache->meta().ports==2&&!w.revisions[0].confirmed&&w.revisions[0].channels.empty(),"Invalid stored mapping blocked valid source recovery");
+  } else if(test=="cleanup") {
+   QString cacheDir, imported;
+   {
+    MainWindow second;
+    cacheDir=second.cacheSession.path();
+    auto owned=si::Cache::open(fp(w.revisions[0].source),fp(cacheDir));
+    imported=qs(si::utf8(owned->path()));
+    require(QFileInfo::exists(imported),"Real GUI import did not create session cache");
+    Revision entry;entry.source=w.revisions[0].source;entry.cache=std::move(owned);
+    second.revisions.push_back(std::move(entry));
+    second.dirty=false;
+   }
+   require(!QDir(cacheDir).exists()&&!QFileInfo::exists(imported),
+           "GUI destruction left a cache directory or file");
+   require(QFileInfo::exists(w.revisions[0].source),
+           "GUI cache cleanup damaged the original Touchstone");
   } else throw si::Error("Unknown GUI case");
   w.dirty=false;
  }
