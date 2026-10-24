@@ -19,7 +19,7 @@ if ($coreHeader -notmatch 'inline constexpr const char \*version = "([0-9]+\.[0-
   throw 'Unable to determine the release label from core.hpp.'
 }
 $releaseVersion = $Matches[1]
-if ($releaseVersion -ne ($numericVersion + 'a')) {
+if ($releaseVersion -ne $numericVersion -and $releaseVersion -ne ($numericVersion + 'a')) {
   throw "CMake numeric version and the public release label disagree: $numericVersion / $releaseVersion"
 }
 
