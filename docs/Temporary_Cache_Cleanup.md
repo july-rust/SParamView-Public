@@ -9,6 +9,8 @@ This change does not change the application version or delete user data.
   staging files go inside that unique directory. The original Touchstone file is never modified.
 - Graceful close waits for workers to complete, releases Revision/Job/cache
   references, then removes the owned directory.
+- Cleanup also requires an exact SParamView ownership marker; folders that
+  merely match the session naming pattern are not deleted.
 - A lock-file lease prevents another instance from deleting a live session.
   The registry is locked during session creation and abandoned-session sweep,
   and stale detection based only on elapsed time is disabled.

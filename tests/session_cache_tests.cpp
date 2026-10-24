@@ -64,7 +64,13 @@ int main(int argc, char **argv) {
 
     const auto orphan = QDir(root).filePath("session-AbC123");
     expect(QDir().mkpath(orphan), "Abandoned session fixture");
+    writeFile(QDir(orphan).filePath(".sparamview-owned"),
+              "SParamView-owned-cache-session-v1\n");
     writeFile(QDir(orphan).filePath("orphan.sicache"), "old cache");
+    const auto impostor = QDir(root).filePath("session-FaKe88");
+    expect(QDir().mkpath(impostor), "Impostor session fixture");
+    writeFile(QDir(impostor).filePath("saved.siproject"),
+              "Must not remove unmarked folder");
     const auto unrelated = QDir(root).filePath("custom-folder");
     expect(QDir().mkpath(unrelated), "Unrelated folder fixture");
     writeFile(QDir(unrelated).filePath("keep.txt"), "preserve");
@@ -73,6 +79,8 @@ int main(int argc, char **argv) {
       const auto livePath = active.path();
       CacheSession next(root); // Sweeps only stale session directories.
       expect(!QDir(orphan).exists(), "Abandoned cache is collected");
+      expect(QFileInfo::exists(QDir(impostor).filePath("saved.siproject")),
+             "Unmarked session-name collision must be preserved");
       expect(QDir(livePath).exists(), "Live session is preserved");
       expect(QFileInfo::exists(QDir(unrelated).filePath("keep.txt")),
              "Non-session folder is preserved");

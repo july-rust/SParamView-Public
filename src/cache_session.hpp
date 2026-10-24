@@ -2,6 +2,8 @@
 
 #include <QDebug>
 #include <QDir>
+#include <QFile>
+#include <QFileInfo>
 #include <QLockFile>
 #include <QRegularExpression>
 #include <QStandardPaths>
@@ -37,6 +39,13 @@ public:
         QDir(root_).filePath("session-XXXXXX"));
     if (!directory_->isValid())
       throw std::runtime_error("Cannot create private cache session");
+    // A path name is not proof of ownership. Reaping requires this exact
+    // marker, which is created only inside our freshly allocated directory.
+    QFile marker(QDir(directory_->path()).filePath(".sparamview-owned"));
+    if (!marker.open(QIODevice::WriteOnly | QIODevice::NewOnly) ||
+        marker.write(kOwnedMarker) != qsizetype(qstrlen(kOwnedMarker)))
+      throw std::runtime_error("Cannot mark private cache ownership");
+    marker.close();
     lease_ = std::make_unique<QLockFile>(
         QDir(directory_->path()).filePath(".owner.lock"));
     // Disabling time-based expiry prevents a long-running analysis from
@@ -70,6 +79,8 @@ public:
   ~CacheSession() { cleanup(); }
 
 private:
+  static constexpr const char *kOwnedMarker = "SParamView-owned-cache-session-v1\n";
+
   static void reapAbandonedSessions(const QString &root) {
     QDir parent(root);
     const QRegularExpression ownedName("^session-[A-Za-z0-9]{6}$");
@@ -79,6 +90,14 @@ private:
       if (!ownedName.match(entry.fileName()).hasMatch())
         continue;
       const auto folder = entry.absoluteFilePath();
+      const auto markerPath = QDir(folder).filePath(".sparamview-owned");
+      const QFileInfo markerInfo(markerPath);
+      if (!markerInfo.isFile() || markerInfo.isSymLink())
+        continue; // Never delete an unmarked or impersonated folder.
+      QFile marker(markerPath);
+      if (!marker.open(QIODevice::ReadOnly) ||
+          marker.readAll() != QByteArray(kOwnedMarker))
+        continue;
       QLockFile owner(QDir(folder).filePath(".owner.lock"));
       owner.setStaleLockTime(0);
       if (!owner.tryLock(0))
