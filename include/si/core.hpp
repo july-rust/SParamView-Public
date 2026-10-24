@@ -16,7 +16,7 @@
 namespace si {
 using Complex = std::complex<double>;
 namespace fs = std::filesystem;
-inline constexpr const char *version = "1.2.4a";
+inline constexpr const char *version = "1.2.5";
 inline constexpr double NaN = std::numeric_limits<double>::quiet_NaN();
 struct Error : std::runtime_error {
   using std::runtime_error::runtime_error;
