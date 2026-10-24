@@ -13,12 +13,12 @@ BEGIN
   BEGIN
    VALUE "CompanyName", "july\0"
    VALUE "FileDescription", "SParamView\0"
-   VALUE "FileVersion", "1.2.4a\0"
+   VALUE "FileVersion", "1.2.5\0"
    VALUE "InternalName", "SParamView\0"
    VALUE "LegalCopyright", "Copyright © 2026 july\0"
    VALUE "OriginalFilename", "SParamView.exe\0"
    VALUE "ProductName", "SParamView\0"
-   VALUE "ProductVersion", "1.2.4a\0"
+   VALUE "ProductVersion", "1.2.5\0"
   END
  END
  BLOCK "VarFileInfo"
