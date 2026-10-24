@@ -131,6 +131,10 @@ MainWindow::~MainWindow() {
   if (control)
     control->cancelled = true;
   taskPool.waitForDone();
+  // Finished QFutureWatchers may still have deferred deletion queued. Their
+  // completion functors can retain Revisions with open Windows file handles.
+  for (auto *watcher : findChildren<QFutureWatcher<void> *>())
+    delete watcher;
   // CacheFile objects are owned by revisions and jobs; release every handle
   // before deleting Windows-mapped and POSIX-mapped backing files.
   lastJobs.clear();

@@ -134,11 +134,13 @@ struct WorkspaceProbe {
    {
     MainWindow second;
     cacheDir=second.cacheSession.path();
-    auto owned=si::Cache::open(fp(w.revisions[0].source),fp(cacheDir));
-    imported=qs(si::utf8(owned->path()));
+    w.projectPath=dir+"/cleanup-state.siproject";w.saveProject();
+    require(QFileInfo::exists(w.projectPath),"Cleanup project fixture not saved");
+    second.loadProject(w.projectPath);settle(second);
+    require(second.revisions.size()==1&&second.revisions[0].cache,
+            "Background GUI project import failed");
+    imported=qs(si::utf8(second.revisions[0].cache->path()));
     require(QFileInfo::exists(imported),"Real GUI import did not create session cache");
-    Revision entry;entry.source=w.revisions[0].source;entry.cache=std::move(owned);
-    second.revisions.push_back(std::move(entry));
     ReportOptions options;
     options.details=false;options.graphs=false;options.raw=false;
     si::Control control;
