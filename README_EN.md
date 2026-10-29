@@ -55,3 +55,8 @@ Third-party notices and license texts are stored under `third_party/`.
 
 ## Contact
 sparamview@gmail.com
+
+
+### v1.3.0 Touchstone support and Windows bundle
+
+The parser accepts Touchstone 1.0/1.1 S-parameter files (implicit version) and 2.0/2.1 S-parameter files (explicit `[Version]`). Non-S parameter kinds Y/Z/H/G are rejected explicitly instead of interpreted as S matrices. Vendor `! Port1_U1_2::NET_P` comments are displayed as physical labels and checked with `!.DiffChannels` hints. On Windows, `SParamView.exe` remains the only root EXE; the CLI and regression programs are under `tools/` and `tests/`, respectively.
