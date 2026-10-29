@@ -8,6 +8,7 @@
 #include <QRegularExpression>
 #include <QStandardPaths>
 #include <QTemporaryDir>
+#include <QThread>
 #include <memory>
 #include <stdexcept>
 
@@ -24,8 +25,21 @@ public:
       root = QDir(base).filePath("v3");
     }
     root_ = QDir::cleanPath(root);
-    if (!QDir().mkpath(root_))
-      throw std::runtime_error("Cannot create application cache directory");
+    // Multiple application processes can create the same cache root
+    // simultaneously. QDir::mkpath() may report failure when another
+    // process creates an intermediate directory at the same instant.
+    // Only fail if the root is still not a usable directory.
+    bool ready = false;
+    for (int attempt = 0; attempt < 5 && !ready; ++attempt) {
+      ready = QDir(root_).exists() || QDir().mkpath(root_) ||
+              QFileInfo(root_).isDir();
+      if (!ready && attempt < 4)
+        QThread::msleep(10);
+    }
+    if (!ready || !QFileInfo(root_).isDir())
+      throw std::runtime_error(
+          ("Cannot create application cache directory: " +
+           root_.toStdString()));
 
     // Coordinate construction/reaping across instances. No process ever
     // removes an active instance's directory.
