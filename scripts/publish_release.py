@@ -163,6 +163,13 @@ def main():
     for arch in ('x64', 'ARM64'):
         folder = Path('package/windows-' + arch.lower())
         check_provenance(json.loads((folder/'build-provenance.json').read_text(encoding='utf-8-sig')), version, commit)
+        # Fail closed if an old flat layout leaks test/CLI binaries to the root.
+        top_level_exes = sorted(p.name for p in folder.glob('*.exe'))
+        if top_level_exes != ['SParamView.exe']:
+            raise RuntimeError(f'Unexpected root executables in {arch}: {top_level_exes}')
+        for relative in ('tools/si_cli.exe', 'tests/si_v130_touchstone_tests.exe'):
+            if not (folder / relative).is_file():
+                raise RuntimeError(f'Missing relocated Windows executable ({arch}): {relative}')
         target = output/f'SParamView_Windows_{arch}_v{version}.zip'
         with zipfile.ZipFile(target, 'w', zipfile.ZIP_DEFLATED, compresslevel=6) as archive:
             for path in sorted(folder.rglob('*')):
