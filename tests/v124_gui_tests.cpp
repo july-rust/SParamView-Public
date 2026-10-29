@@ -129,6 +129,71 @@ struct WorkspaceProbe {
    auto smaller=fp(dir+"/smaller.s2p");si::fs::rename(moved,smaller);rev["source"]="smaller.s2p";rev["absoluteSource"]=qs(si::utf8(smaller));revs[0]=rev;object["revisions"]=revs;
    require(json.open(QIODevice::WriteOnly),"Small-port project update failed");json.write(QJsonDocument(object).toJson());json.close();
    w.loadProject(w.projectPath);settle(w);require(w.revisions[0].cache->meta().ports==2&&!w.revisions[0].confirmed&&w.revisions[0].channels.empty(),"Invalid stored mapping blocked valid source recovery");
+  } else if(test=="workspace_switch") {
+   const QString source=w.revisions[0].source;
+   w.updateActiveTouchstoneTitle();
+   require(w.windowTitle().contains(QFileInfo(source).fileName()),"Initial source title missing");
+   const QString projectA=dir+"/project-A.siproject", projectB=dir+"/project-B.siproject";
+   const QString other=dir+"/alternate-source.s4p";
+   require(QFile::copy(source,other),"Cannot create second source");
+   w.projectPath=projectA;w.saveProject();
+   QFile a(projectA);require(a.open(QIODevice::ReadOnly),"Read project A");
+   QJsonObject obj=QJsonDocument::fromJson(a.readAll()).object();a.close();
+   auto array=obj["revisions"].toArray(), rev=array[0].toObject();
+   require(!rev.contains("cache"),"Serialized obsolete ephemeral cache field");
+   rev["source"]=QFileInfo(other).fileName();
+   rev["absoluteSource"]=other;array[0]=rev;obj["revisions"]=array;obj["name"]="Project B";
+   QFile b(projectB);require(b.open(QIODevice::WriteOnly),"Write project B");
+   b.write(QJsonDocument(obj).toJson());b.close();
+   w.plot->snapshot.viewStart=1e9;w.plot->snapshot.viewStop=2e9;
+   w.plot->snapshot.viewBottom=-40;w.plot->snapshot.viewTop=-5;
+   w.compareTable->setColumnCount(1);w.compareTable->setRowCount(1);
+   w.compareTable->setItem(0,0,new QTableWidgetItem("STALE"));
+   w.loadProject(projectB);settle(w);
+   require(w.projectPath==projectB&&w.revisions.size()==1&&w.revisions[0].source==other,
+           "Project B did not replace A");
+   require(w.compareTable->rowCount()==0&&w.compareTable->columnCount()==0,
+           "Stale compare table was not cleared");
+   require(std::isnan(w.plot->snapshot.viewStart)&&std::isnan(w.plot->snapshot.viewBottom),
+           "Previous workspace axes survived replacement");
+   require(w.results.empty()&&w.lastJobs.empty()&&w.lastRevisions.empty(),
+           "Old analysis survived project replacement");
+   require(w.windowTitle().contains("alternate-source.s4p"),"Title not switched to B");
+   const QString cacheB=qs(si::utf8(w.revisions[0].cache->path()));
+   const QString workspaceB=w.workspaceCache->path();
+   require(cacheB.startsWith(workspaceB)&&QFileInfo::exists(cacheB),
+           "Missing B cache in private workspace");
+   w.loadProject(projectA);settle(w);
+   require(w.projectPath==projectA&&w.revisions.size()==1&&w.revisions[0].source==source,
+           "Failed B -> A project restore");
+   require(!QFileInfo::exists(cacheB)&&!QDir(workspaceB).exists(),
+           "Previous project cache survived replacement");
+   require(w.windowTitle().contains(QFileInfo(source).fileName()),"Title not restored to A");
+   const QString workspaceA=w.workspaceCache->path();
+   const QString filename=QString(90,'X')+".s4p", longSource=dir+"/"+filename;
+   require(QFile::copy(source,longSource),"Long filename source creation failed");
+   QTimer dismiss;
+   QObject::connect(&dismiss,&QTimer::timeout,&w,[]{
+     if(auto *dialog=qobject_cast<QDialog*>(QApplication::activeModalWidget()))
+       dialog->reject();
+   });
+   dismiss.start(10);w.openPaths({longSource});settle(w);dismiss.stop();
+   require(w.revisions.size()==2&&w.workspaceCache->path()==workspaceA,
+           "Add Revision should preserve workspace and earlier cache");
+   require(w.windowTitle().contains(filename)&&w.revisionBox->toolTip()==longSource,
+           "Long file title or full-path tooltip missing");
+   w.revisionBox->setCurrentIndex(0);
+   require(w.windowTitle().contains(QFileInfo(source).fileName()),
+           "Revision selection did not update title");
+   const QString bad=dir+"/bad.siproject";
+   QFile invalid(bad);require(invalid.open(QIODevice::WriteOnly),"Bad project fixture");
+   invalid.write("invalid");invalid.close();
+   const QString oldPath=w.projectPath,oldRoot=w.workspaceCache->path(),oldTitle=w.windowTitle();
+   w.dirty=false;
+   dismiss.start(10);w.loadProject(bad);dismiss.stop();
+   require(w.projectPath==oldPath&&w.workspaceCache->path()==oldRoot &&
+           w.revisions.size()==2&&w.windowTitle()==oldTitle,
+           "Invalid project modified active workspace");
   } else if(test=="cleanup") {
    QString cacheDir, imported;
    {
