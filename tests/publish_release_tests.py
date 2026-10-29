@@ -254,6 +254,34 @@ class ReleaseSafety(unittest.TestCase):
                 release, {'object': {'type': 'commit', 'sha': 'c'*40}}, 'b'*40))
             api.assert_not_called()
 
+    def test_v131_ci_only_main_cannot_mutate_release(self):
+        old = '54f0fd40173dd60f452096832adcfb736d21b4f1'
+        new = 'b'*40
+        env = dict(SPARAMVIEW_VERSION='1.3.1', GITHUB_SHA=new,
+                   GITHUB_REPOSITORY='july-rust/SParamView-Public',
+                   GITHUB_REF='refs/heads/main', GITHUB_EVENT_NAME='push',
+                   GITHUB_RUN_ID='42')
+        release = dict(id=427525263, tag_name='v1.3.1', draft=False,
+                       prerelease=False, target_commitish=old)
+        ref = {'object': {'type': 'commit', 'sha': old}}
+        changes = {'status': 'ahead', 'files': [
+            {'status': 'modified', 'filename': 'tests/publish_release_tests.py'}]}
+        jobs = {'jobs': [dict(name=name, conclusion='success',
+                              html_url='https://example.invalid')
+                         for name in ['Version and release consistency',
+                                      'Core quality gates', 'Windows x64',
+                                      'Windows ARM64',
+                                      'Native Windows ARM64 packaged-binary gate',
+                                      'macOS Apple Silicon arm64']]}
+        with patch.dict(os.environ, env), patch.object(
+                publisher.subprocess, 'check_output', return_value=new), patch.object(
+                publisher, 'api', side_effect=[release, ref, changes, jobs]) as api, patch.object(
+                publisher, 'gh') as gh:
+            publisher.main()
+            self.assertEqual(api.call_count, 4)
+            self.assertTrue(all(len(call.args) == 1 for call in api.call_args_list))
+            gh.assert_not_called()
+
     def test_documentation_current_release_links_and_artifacts(self):
         """The release version cannot advance without synchronized user docs.
 
