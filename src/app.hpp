@@ -170,6 +170,9 @@ protected:
 private:
   // Declared before all cache users so its directory outlives their handles.
   CacheSession cacheSession;
+  // A private workspace subtree rotates on successful full-project replacement.
+  // Appending a Touchstone revision keeps the existing workspace subtree.
+  std::shared_ptr<QTemporaryDir> workspaceCache;
   std::vector<Revision> revisions;
   std::vector<si::Result> results;
   std::vector<si::Job> lastJobs;
@@ -214,6 +217,7 @@ private:
   QRect fullscreenNormalGeometry;
   QByteArray normalSplitState, normalHorizontalState;
   void setWorkspaceMode(int);
+  void updateActiveTouchstoneTitle();
   void setResultsTextSize(int);
   void setDirectionMode(int);
   void restoreWorkspaceLayout();

@@ -173,7 +173,7 @@ void MainWindow::openPaths(QStringList paths) {
     return;
   }
   auto loaded = std::make_shared<std::vector<Revision>>();
-  const QString cacheRoot = cacheSession.path();
+  const QString cacheRoot = workspaceCache->path();
   task(
       [paths, loaded, cacheRoot](si::Control *c) {
         for (auto &p : paths) {
@@ -194,8 +194,11 @@ void MainWindow::openPaths(QStringList paths) {
             r.name = base + " (" + QString::number(n++) + ")";
           revisions.push_back(r);
           revisionBox->addItem(r.name);
+          revisionBox->setItemData(revisionBox->count() - 1, r.source,
+                                   Qt::ToolTipRole);
         }
         revisionBox->setCurrentIndex(int(revisions.size()) - 1);
+        updateActiveTouchstoneTitle();
         if (projectName == "Untitled")
           projectName = revisions.front().name;
         dirty = true;

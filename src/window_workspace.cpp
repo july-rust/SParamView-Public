@@ -1,3 +1,21 @@
+void MainWindow::updateActiveTouchstoneTitle() {
+  QString title = "SParamView · " + qs(si::version);
+  if (QString::fromLatin1(architectureName()) == "ARM64")
+    title += " · ARM64";
+  const int current = revisionBox ? revisionBox->currentIndex() : -1;
+  if (current >= 0 && size_t(current) < revisions.size()) {
+    // Use the source filename (including extension), not the shortened
+    // revision label, so even duplicate/relabelled inputs are identifiable.
+    const QString source = revisions[size_t(current)].source;
+    title += " — " + QFileInfo(source).fileName();
+    revisionBox->setToolTip(source);
+    setToolTip(source);
+  } else {
+    if (revisionBox) revisionBox->setToolTip({});
+    setToolTip({});
+  }
+  setWindowTitle(title);
+}
 void MainWindow::setResultsTextSize(int pixels) {
   pixels = std::clamp(pixels, 12, 20);
   for (auto grid : {table, compareTable}) {
@@ -140,6 +158,7 @@ MainWindow::~MainWindow() {
   lastJobs.clear();
   lastRevisions.clear();
   revisions.clear();
+  workspaceCache.reset();
   if (!cacheSession.cleanup())
     qWarning() << "SParamView: private cache will be retried on next launch";
 }
