@@ -568,7 +568,7 @@ SParamView 소스는 MIT License로 배포됩니다. Third-party component와 fo
 
 ## 22. 문서 검증 근거
 
-v1.2.1에서 도입된 과거 기능은 [v1.2.1 릴리스 노트](Release_1.2.1.md)와 다음 소스 자료를 참고했습니다. 현재 버전은 [v1.3.1 릴리스 노트](Release_1.3.1.md), [임시 캐시 정리](Temporary_Cache_Cleanup.md), [변경 이력](Revision_History.md) 및 [v1.3.1 소스](https://github.com/july-rust/SParamView-Public/tree/v1.3.0)를 참고하십시오. 이전 v1.2.4a 검증 기록은 [이전 릴리스 노트](Release_1.2.4a.md)에 보존되어 있습니다.
+v1.2.1에서 도입된 과거 기능은 [v1.2.1 릴리스 노트](Release_1.2.1.md)와 다음 소스 자료를 참고했습니다. 현재 버전은 [v1.3.1 릴리스 노트](Release_1.3.1.md), [임시 캐시 정리](Temporary_Cache_Cleanup.md), [변경 이력](Revision_History.md) 및 [v1.3.1 소스](https://github.com/july-rust/SParamView-Public/tree/v1.3.1)를 참고하십시오. 이전 v1.2.4a 검증 기록은 [이전 릴리스 노트](Release_1.2.4a.md)에 보존되어 있습니다.
 
 - [TDR 초기 축 범위 및 자동 스케일](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/src/plot.cpp)
 - [그래프 조작 및 초기 화면 복귀](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/src/navigation.cpp)
