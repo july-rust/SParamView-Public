@@ -139,7 +139,8 @@ struct WorkspaceProbe {
    w.projectPath=projectA;w.saveProject();
    QFile a(projectA);require(a.open(QIODevice::ReadOnly),"Read project A");
    QJsonObject obj=QJsonDocument::fromJson(a.readAll()).object();a.close();
-   auto array=obj["revisions"].toArray(), rev=array[0].toObject();
+   auto array=obj["revisions"].toArray();
+   auto rev=array[0].toObject();
    require(!rev.contains("cache"),"Serialized obsolete ephemeral cache field");
    rev["source"]=QFileInfo(other).fileName();
    rev["absoluteSource"]=other;array[0]=rev;obj["revisions"]=array;obj["name"]="Project B";
