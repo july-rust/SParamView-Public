@@ -1,7 +1,7 @@
-SParamView v1.3.0
+SParamView v1.3.1
 =================
 
-SParamView v1.3.0 is a reference tool for calculating and visualizing Touchstone S-parameter data. Supported S-parameter file versions: Touchstone 1.0/1.1/2.0/2.1. Y/Z/H/G are not automatically converted to S parameters.
+SParamView v1.3.1 is a reference tool for calculating and visualizing Touchstone S-parameter data. Supported S-parameter file versions: Touchstone 1.0/1.1/2.0/2.1. Y/Z/H/G are not automatically converted to S parameters.
 
 IMPORTANT NOTICE
 ----------------
@@ -20,7 +20,7 @@ Windows ZIP layout:
 - tools/si_cli.exe contains the optional command-line analyzer.
 - tests/ contains auxiliary validation EXEs.
 
-Official release: https://github.com/july-rust/SParamView-Public/releases/tag/v1.3.0
+Official release: https://github.com/july-rust/SParamView-Public/releases/tag/v1.3.1
 
 Supported release targets:
 - Windows x64
@@ -30,7 +30,7 @@ Supported release targets:
 Documentation:
 - README_EN.md
 - README_KO.md
-- docs/Release_1.3.0.md
+- docs/Release_1.3.1.md
 
 License: MIT
 Contact: sparamview@gmail.com

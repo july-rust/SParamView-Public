@@ -63,11 +63,29 @@ public:
   bool cleanup() noexcept {
     if (!directory_)
       return true;
+
+    // Serialize lease release + directory removal with the startup reaper.
+    // Without this lock a second process can mistake a session being removed
+    // for an abandoned one and race its owner to delete the same files.
+    QLockFile registry(QDir(root_).filePath(".session-registry.lock"));
+    registry.setStaleLockTime(0);
+    if (!registry.tryLock(5000)) {
+      // Keep the live lease until destruction; never attempt an unlocked
+      // removal. A later launch can safely reclaim the abandoned directory.
+      directory_->setAutoRemove(false);
+      qWarning() << "SParamView: cache registry busy during shutdown:"
+                 << directory_->path();
+      return false;
+    }
     if (lease_) {
       lease_->unlock();
       lease_.reset();
     }
     if (!directory_->remove()) {
+      // A still-open Windows cache handle can prevent removal. Do not race
+      // the destructor's implicit QTemporaryDir deletion against other
+      // processes; the next launch will retry with ownership checks.
+      directory_->setAutoRemove(false);
       qWarning() << "SParamView: cache-session removal failed:"
                  << directory_->path();
       return false;
