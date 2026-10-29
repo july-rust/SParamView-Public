@@ -246,6 +246,10 @@ protected:
 };
 
 MainWindow::MainWindow() {
+  workspaceCache = std::make_shared<QTemporaryDir>(
+      QDir(cacheSession.path()).filePath("workspace-XXXXXX"));
+  if (!workspaceCache->isValid())
+    throw std::runtime_error("Cannot create private workspace cache");
   settings.tdrStopSeconds=3e-9;
   auto title = "SParamView · " + qs(si::version);
   const auto architecture = QString::fromLatin1(architectureName());
@@ -694,6 +698,7 @@ MainWindow::MainWindow() {
     statusBar()->showMessage("Cancelling...");
   });
   connect(revisionBox, &QComboBox::currentIndexChanged, this, [this] {
+    updateActiveTouchstoneTitle();
     rebuildChannels();
     if (!busy) { refreshResults(); refreshPlot(); }
   });
@@ -767,6 +772,7 @@ MainWindow::MainWindow() {
   connect(search,&QLineEdit::textChanged,this,[this]{markDirty();});
   connect(channels,&QListWidget::itemChanged,this,[this]{markDirty();});
   restoreWorkspaceLayout();
+  updateActiveTouchstoneTitle();
 }
 void MainWindow::markDirty() {
   if(!restoringProject && !revisions.empty()) dirty=true;

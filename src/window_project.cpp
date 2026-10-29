@@ -32,7 +32,6 @@ void MainWindow::saveProject(bool as) {
                                  {"signalTypeReviewed", r.signalTypeReviewed},
                                  {"inferNamedDifferential", r.inferNamedDifferential},
                                  {"confirmed", r.confirmed},
-                                 {"cache", qs(si::utf8(r.cache->path()))},
                                  {"sourceSha256", qs(r.cache->meta().sha256)}});
     }
     QJsonArray selected;
@@ -69,7 +68,6 @@ void MainWindow::saveProject(bool as) {
 void MainWindow::loadProject(QString path) {
   if (busy)
     return;
-  if (!confirmProjectTransition()) return;
   try {
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly))
@@ -122,9 +120,16 @@ void MainWindow::loadProject(QString path) {
       loaded->push_back(rev);
     }
     auto settingsLoaded = settingsFromJson(obj["settings"].toObject());
-    const QString cacheRoot = cacheSession.path();
+    // Invalid/missing sources and a cancelled relocation leave the old
+    // workspace and its unsaved state untouched.
+    if (!confirmProjectTransition()) return;
+    auto staged = std::make_shared<QTemporaryDir>(
+        QDir(cacheSession.path()).filePath("workspace-XXXXXX"));
+    if (!staged->isValid())
+      throw si::Error("Cannot create staged project cache");
+    const QString cacheRoot = staged->path();
     task(
-        [loaded, cacheRoot, sources](si::Control *c) {
+        [staged, loaded, cacheRoot, sources](si::Control *c) {
           for (size_t i = 0; i < loaded->size(); ++i) {
             auto &r = (*loaded)[i];
             r.cache = si::Cache::open(fp(r.source), fp(cacheRoot), c, true);
@@ -147,22 +152,47 @@ void MainWindow::loadProject(QString path) {
                                    "Saved SHA-256 matches fully verified current source";
           }
         },
-        [this, loaded, settingsLoaded, path, obj] {
+        [this, staged, loaded, settingsLoaded, path, obj] {
           QScopedValueRollback<bool> restoring(restoringProject,true);
+          // The viewport worker can still hold Jobs into the previous cache.
+          // Wait for cancellation before dropping those handles on Windows.
+          if (viewControl) viewControl->cancelled = true;
+          viewPool.waitForDone();
+          viewFuture = QFuture<void>{};
+          pendingView.reset();
+          plot->snapshot.curves.clear();
+          results.clear();
+          lastJobs.clear();
+          lastRevisions.clear();
+          revisions.clear();
+          auto previousWorkspace = std::move(workspaceCache);
+          workspaceCache = staged;
           revisions = std::move(*loaded);
           settings = settingsLoaded;
+          lastSettings = settingsLoaded;
+          compareTable->clear();
+          compareTable->setRowCount(0);
+          compareTable->setColumnCount(0);
+          plot->resetView();
+          // Only remove an owned workspace directory; never delete an
+          // active parallel process's session or a user-managed source.
+          if (previousWorkspace && !previousWorkspace->remove())
+            qWarning() << "SParamView: retired workspace cache cleanup deferred";
+
           projectName = obj["name"].toString("Untitled");
           projectPath = path;
-          results.clear();
-          lastJobs.clear();lastRevisions.clear();
           QSignalBlocker b(revisionBox);
           revisionBox->clear();
-          for (auto &r : revisions)
+          for (auto &r : revisions) {
             revisionBox->addItem(r.name);
+            revisionBox->setItemData(revisionBox->count() - 1, r.source,
+                                     Qt::ToolTipRole);
+          }
           auto ui = obj["ui"].toObject();
           revisionBox->setCurrentIndex(
               std::clamp(ui["revision"].toInt(), 0,
                          std::max(0, int(revisions.size()) - 1)));
+          updateActiveTouchstoneTitle();
           rebuildChannels();
           applySettings();
           setDirectionMode(ui.contains("directionMode") ? std::clamp(ui["directionMode"].toInt(),0,2) : (settings.reverse?1:0));
