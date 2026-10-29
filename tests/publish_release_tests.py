@@ -231,15 +231,16 @@ class ReleaseSafety(unittest.TestCase):
     def test_documentation_current_release_links_and_artifacts(self):
         root = Path(__file__).resolve().parents[1]
         headings = {
-            'README.md': 'Current official release: **[v1.3.0]',
-            'README_EN.md': '# SParamView v1.3.0',
-            'README_KO.md': '# SParamView v1.3.0',
+            'README.md': 'Current official release: **[v1.3.1]',
+            'README_EN.md': '# SParamView v1.3.1',
+            'README_KO.md': '# SParamView v1.3.1',
             'README_FIRST.txt': 'SParamView v1.3.1',
-            'docs/USER_GUIDE_EN.md': '**Applies to:** SParamView **v1.3.0',
-            'docs/USER_GUIDE_KO.md': '**적용 기준:** SParamView **v1.3.0',
-            'docs/Revision_History.md': 'Current official release: [v1.3.0]',
+            'docs/USER_GUIDE_EN.md': '**Applies to:** SParamView **v1.3.1',
+            'docs/USER_GUIDE_KO.md': '**적용 기준:** SParamView **v1.3.1',
+            'docs/Revision_History.md': 'Current official release: [v1.3.1]',
             'docs/Release_1.3.0.md': 'Official stable release',
-            'docs/Temporary_Cache_Cleanup.md': 'v1.3.0',
+            'docs/Release_1.3.1.md': 'Multi-process cache safety',
+            'docs/Temporary_Cache_Cleanup.md': 'v1.3.1',
         }
         for path, marker in headings.items():
             self.assertIn(marker,(root/path).read_text(encoding='utf-8'),path)
