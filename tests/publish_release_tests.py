@@ -229,30 +229,56 @@ class ReleaseSafety(unittest.TestCase):
             gh.assert_not_called()
 
     def test_documentation_current_release_links_and_artifacts(self):
+        """The release version cannot advance without synchronized user docs.
+
+        The expected version is read from the same public C++ header used by
+        the application, instead of being hardcoded into this regression test.
+        """
+        import re
+
         root = Path(__file__).resolve().parents[1]
+        core = (root/'include/si/core.hpp').read_text(encoding='utf-8')
+        version_match = re.search(
+            r'inline constexpr const char \\*version = "([0-9]+\\.[0-9]+\\.[0-9]+[a-z]?)"',
+            core)
+        self.assertIsNotNone(version_match, 'Cannot read application version')
+        version = version_match.group(1)
+
         headings = {
-            'README.md': 'Current official release: **[v1.3.1]',
-            'README_EN.md': '# SParamView v1.3.1',
-            'README_KO.md': '# SParamView v1.3.1',
-            'README_FIRST.txt': 'SParamView v1.3.1',
-            'docs/USER_GUIDE_EN.md': '**Applies to:** SParamView **v1.3.1',
-            'docs/USER_GUIDE_KO.md': '**적용 기준:** SParamView **v1.3.1',
-            'docs/Revision_History.md': 'Current official release: [v1.3.1]',
-            'docs/Release_1.3.0.md': 'Official stable release',
-            'docs/Release_1.3.1.md': 'Multi-process cache safety',
-            'docs/Temporary_Cache_Cleanup.md': 'v1.3.1',
+            'README.md': f'Current official release: **[v{version}]',
+            'README_EN.md': f'# SParamView v{version}',
+            'README_KO.md': f'# SParamView v{version}',
+            'README_FIRST.txt': f'SParamView v{version}',
+            'docs/USER_GUIDE_EN.md': f'**Applies to:** SParamView **v{version}',
+            'docs/USER_GUIDE_KO.md': f'**적용 기준:** SParamView **v{version}',
+            'docs/Revision_History.md': f'Current official release: [v{version}]',
+            f'docs/Release_{version}.md': f'# SParamView v{version}',
+            'docs/Temporary_Cache_Cleanup.md': f'# SParamView v{version}',
+            'docs/images/README.md': f'current v{version}',
         }
         for path, marker in headings.items():
-            self.assertIn(marker,(root/path).read_text(encoding='utf-8'),path)
-        import re
-        for path in ('README.md','README_EN.md','README_KO.md',
-                     'docs/USER_GUIDE_EN.md','docs/USER_GUIDE_KO.md',
+            content = (root/path).read_text(encoding='utf-8')
+            self.assertIn(marker, content, path)
+
+        for path in ('README.md', 'README_EN.md', 'README_KO.md',
+                     'README_FIRST.txt', 'docs/USER_GUIDE_EN.md',
+                     'docs/USER_GUIDE_KO.md', 'docs/Revision_History.md'):
+            text = (root/path).read_text(encoding='utf-8')
+            self.assertIn(f'v{version}', text, path)
+        for path in ('README.md', 'README_EN.md', 'README_KO.md',
+                     'README_FIRST.txt'):
+            text = (root/path).read_text(encoding='utf-8')
+            self.assertIn(f'releases/tag/v{version}', text, path)
+
+        for path in ('README.md', 'README_EN.md', 'README_KO.md',
+                     'docs/USER_GUIDE_EN.md', 'docs/USER_GUIDE_KO.md',
                      'docs/Revision_History.md'):
-            body=(root/path).read_text(encoding='utf-8')
-            for link in re.findall(r'(?<!!)\[[^\]]+\]\(([^)]+)\)',body):
-                if (link.startswith(('http://','https://','#','mailto:'))):
+            body = (root/path).read_text(encoding='utf-8')
+            for link in re.findall(r'(?<!!)\\[[^\\]]+\\]\\(([^)]+)\\)', body):
+                if link.startswith(('http://', 'https://', '#', 'mailto:')):
                     continue
-                target=(root/path).parent / link.split('#',1)[0]
-                self.assertTrue(target.is_file(),f'Broken Markdown link: {path} -> {link}')
+                target = (root/path).parent / link.split('#', 1)[0]
+                self.assertTrue(target.is_file(),
+                                f'Broken Markdown link: {path} -> {link}')
 
 if __name__=='__main__':unittest.main()
