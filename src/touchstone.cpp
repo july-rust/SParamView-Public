@@ -419,7 +419,7 @@ static Header importFile(const fs::path &source, const fs::path &temporary,
           continue;
         }
         if (differentialSection && !comment.empty()) {
-          if (m.differentialHints.size() >= m.ports)
+          if (m.ports && m.differentialHints.size() >= m.ports)
             throw Error("Too many differential channel hints");
           m.differentialHints.push_back(comment);
         }
@@ -712,6 +712,8 @@ static Header importFile(const fs::path &source, const fs::path &temporary,
       throw Error("Two-port order in non-two-port file");
     flush();
     h.f = m.points;
+    if (m.differentialHints.size() > m.ports)
+      throw Error("Too many differential channel hints");
     m.labels.resize(m.ports);
     for (auto &[p, s] : labels)
       if (p >= 0 && uint64_t(p) < m.ports)
