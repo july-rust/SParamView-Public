@@ -120,6 +120,40 @@ def validated_ci_only_v124a(endpoint, repo, version, existing, ref, commit):
             and len(changes) == len({item['filename'] for item in changes}))
 
 
+
+def validated_docs_only_v130(endpoint, repo, version, existing, ref, commit):
+    """Allow strictly repository-only documentation maintenance for a tagged v1.3.0.
+
+    This preserves the published tag, build commit, executable assets and SHA-256
+    evidence. Documentation in main may be clarified without silently
+    replacing already-released files.
+    """
+    released_commit = 'dd4354367c49dc25912ed83bbeb41b284e29f616'
+    if (repo != 'july-rust/SParamView-Public' or version != '1.3.0'
+            or not existing or existing.get('id') != 427408966
+            or existing.get('draft') or existing.get('prerelease')
+            or existing.get('tag_name') != 'v1.3.0'
+            or existing.get('target_commitish') != released_commit
+            or not ref or ref.get('object', {}).get('type') != 'commit'
+            or ref.get('object', {}).get('sha') != released_commit):
+        return False
+    comparison = api(f'{endpoint}/compare/{released_commit}...{commit}')
+    allowed = {
+        'README.md', 'README_EN.md', 'README_KO.md', 'README_FIRST.txt',
+        'docs/USER_GUIDE_EN.md', 'docs/USER_GUIDE_KO.md',
+        'docs/Revision_History.md', 'docs/Release_1.3.0.md',
+        'docs/Temporary_Cache_Cleanup.md', 'docs/images/README.md',
+        # This one-time publication-guard implementation and its tests may
+        # differ from the already-published immutable source tag.
+        'scripts/publish_release.py', 'tests/publish_release_tests.py',
+    }
+    files = comparison.get('files', [])
+    return (comparison.get('status') == 'ahead' and bool(files)
+            and all(item.get('status') == 'modified'
+                    and item.get('filename') in allowed for item in files)
+            and len(files) == len({item['filename'] for item in files}))
+
+
 def main():
     version, commit, repo = (os.environ[k] for k in
                              ('SPARAMVIEW_VERSION', 'GITHUB_SHA', 'GITHUB_REPOSITORY'))
@@ -136,8 +170,11 @@ def main():
         raise RuntimeError('Existing release tag points to another object; refusing replacement')
     ci_only_maintenance = False
     if existing and not existing['draft']:
-        ci_only_maintenance = validated_ci_only_v124a(endpoint, repo, version,
-                                                      existing, ref, commit)
+        ci_only_maintenance = (
+            validated_ci_only_v124a(endpoint, repo, version, existing, ref, commit)
+            or validated_docs_only_v130(endpoint, repo, version,
+                                        existing, ref, commit)
+        )
         if not ci_only_maintenance:
             raise RuntimeError('This official release already exists; use a new version. No asset was changed.')
     if existing and not ref:
@@ -154,8 +191,8 @@ def main():
         gates[name] = dict(conclusion='success', url=matching[0]['html_url'])
 
     if ci_only_maintenance:
-        print('Validated CI/test-only maintenance of SParamView v1.2.4a. '
-              'Published tag, release ID, source commit and SHA-256 assets remain unchanged.')
+        print('Validated repository-only maintenance of a published SParamView release. '
+              'Existing tag, release ID, source commit and SHA-256 assets remain unchanged.')
         return
 
     output = Path('release-assets')

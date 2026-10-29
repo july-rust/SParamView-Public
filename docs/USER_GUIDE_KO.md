@@ -1,10 +1,10 @@
 # SParamView 사용자 설명서
 
-**적용 기준:** SParamView v1.2.5 공식 릴리스
+**적용 기준:** SParamView **v1.3.0 공식 릴리스**
 **지원 플랫폼:** Windows x64 / Windows ARM64 / macOS Apple Silicon (arm64)
-**문서 갱신:** 2026-10-24(KST). v1.2.5 임시 캐시 삭제 정책과 신규 공식 배포 구성을 반영했습니다. 이전 v1.2.4a 패키지는 수정하지 않았습니다.
+**문서 갱신:** **2026-10-29(KST)**. v1.3.0 Touchstone 입력·포트 매핑·Windows 배포 구조와 v1.2.5에서 도입한 임시 캐시 삭제 정책을 반영합니다. 과거 릴리스 자산은 변경하지 않았습니다.
 
-[English User Guide](USER_GUIDE_EN.md) | [한국어 README](../README_KO.md) | [v1.2.5 Release Notes](Release_1.2.5.md)
+[English User Guide](USER_GUIDE_EN.md) | [한국어 README](../README_KO.md) | [v1.3.0 Release Notes](Release_1.3.0.md)
 
 ---
 
@@ -63,6 +63,16 @@ v1.2.0의 기능별 소스 분할은 내부 코드 구조 변경입니다. 사�
 
 상세 내용: [임시 캐시 정리 설명](Temporary_Cache_Cleanup.md) 및 [v1.2.5 변경사항](Release_1.2.5.md).
 
+### v1.3.0 Touchstone 입력 및 Windows 배포 변경
+
+- **지원 버전:** Touchstone 1.0·1.1(`[Version]` 생략) 및 2.0·2.1(명시적인 `[Version]`과 필수 2.x 키워드) **S-파라미터** 파일을 처리합니다. Y/Z/H/G 네트워크 파라미터를 S-파라미터로 임의 변환하지 않으며 미지원 형식으로 안내합니다. `1.9`는 공식 Touchstone 버전이 아닙니다.
+- **수치 데이터 형식:** Hz/kHz/MHz/GHz, RI/MA/DB, Full/Lower/Upper 행렬, 포트 기준 임피던스, 2포트 순서 및 Mixed-Mode 순서 중 구현된 S-파라미터 범위를 지원합니다. P/N 및 Near/Far의 물리적 연결은 원본과 비교해 확인해야 합니다.
+- **포트 이름:** `! Port 1 = J1-A1 NET_P` 및 제조사 확장 `! Port1_J1_A1::NET_P` 주석을 읽습니다. `!.DiffChannels`는 공식 Touchstone 키워드가 아닌 제조사 주석으로, `[Mixed-Mode Order]`와 구별합니다. 포트 인덱스·NET·컴포넌트/핀·극성이 불일치하면 자동 확정하지 않고 수동 확인을 요구합니다.
+- **캐시:** v1.3.0에서 캐시 메타데이터 형식을 변경하여 이전 버전의 빈 포트 이름이 재사용되지 않도록 했습니다. 종료 시 임시 캐시를 안전하게 정리하는 v1.2.5 정책은 유지합니다.
+- **Windows 압축 배포본:** 최상위 EXE는 `SParamView.exe` 하나이며 Qt와 필수 MSVC DLL은 실행파일 옆에 둡니다. CLI는 `tools/si_cli.exe`, 테스트 실행파일은 `tests/si_*.exe`로 분리하고 `Run_Windows_Verification.cmd`는 새 위치를 사용합니다.
+
+규격 출처: [IBIS Touchstone v2.1 공식 문서](https://ibis.org/touchstone_ver2.1/touchstone_ver2_1.pdf). [v1.3.0 CI 검증](https://github.com/july-rust/SParamView-Public/actions/runs/40807027224).
+
 ## 2. 설치 및 처음 실행
 
 ### 2.1 릴리스 파일 선택
@@ -71,15 +81,15 @@ GitHub Releases에서 사용 중인 시스템에 맞는 패키지를 선택합�
 
 | 시스템 | 권장 패키지 |
 |---|---|
-| Windows x64 | `SParamView_Windows_x64_v1.2.5.zip` |
-| Windows ARM64 | `SParamView_Windows_ARM64_v1.2.5.zip` |
-| macOS Apple Silicon | `SParamView_macOS_AppleSilicon_arm64_v1.2.5.dmg` 또는 `.zip` |
+| Windows x64 | `SParamView_Windows_x64_v1.3.0.zip` |
+| Windows ARM64 | `SParamView_Windows_ARM64_v1.3.0.zip` |
+| macOS Apple Silicon | `SParamView_macOS_AppleSilicon_arm64_v1.3.0.dmg` 또는 `.zip` |
 
 릴리스에는 SHA-256 확인용 파일도 함께 제공됩니다. 다운로드 무결성을 확인하려면 Windows PowerShell에서 `Get-FileHash <파일명> -Algorithm SHA256`, macOS Terminal에서 `shasum -a 256 <파일명>`을 실행한 뒤 릴리스의 `.sha256` 값과 비교할 수 있습니다.
 
 ### 2.2 Windows
 
-ZIP 파일을 압축 해제한 뒤 SParamView 실행 파일을 실행합니다. 운영체제의 평판 또는 보안 경고가 표시될 수 있으므로, 다운로드 위치와 파일의 SHA-256을 확인한 뒤 조직의 보안 정책에 따라 실행 여부를 결정하십시오.
+ZIP 파일의 압축을 해제한 뒤 최상위 `SParamView.exe`를 실행합니다. CLI와 테스트 EXE는 각각 `tools/` 및 `tests/`에 있습니다. 운영체제의 평판 또는 보안 경고가 표시될 수 있으므로, 다운로드 위치와 파일의 SHA-256을 확인한 뒤 조직의 보안 정책에 따라 실행 여부를 결정하십시오.
 
 ### 2.3 macOS Apple Silicon
 
@@ -108,13 +118,13 @@ ZIP 파일을 압축 해제한 뒤 SParamView 실행 파일을 실행합니다. 
 ## 4. 메인 화면 구성
 
 > **자동 검증 화면** — 아래 이미지는 SParamView v1.2.1 네이티브 Windows ARM64 검증에서 synthetic sample project를 사용해 프로그램이 자동 생성한 화면입니다. OS, DPI 및 창 크기에 따라 실제 배치는 조금 달라질 수 있습니다.
-> 이 화면은 **v1.2.1 검증에서 촬영된 기존 자료**이며 v1.2.4a에서 새로 생성하지 않았습니다. TDR 표시 및 판정 동작은 10절을 확인하십시오. [이미지 출처](images/README.md).
+> 이 화면은 **v1.2.1 검증 당시 자료**로, v1.3.0에서 새로 생성한 화면이 아닙니다. TDR 표시 및 판정 동작은 10절을 확인하십시오. [이미지 출처](images/README.md).
 
 ![SParamView v1.2.1 메인 화면](images/01_Main_Window.png)
 
 ### 4.1 상단 바로가기
 
-과거 v1.2.1 화면의 상단 버튼은 아래와 같습니다. 실제 v1.2.4a 실행 환경에서는 배치가 달라질 수 있습니다.
+과거 v1.2.1 화면의 상단 버튼은 아래와 같습니다. 실제 v1.3.0 프로그램에서는 버튼 배치가 달라질 수 있습니다.
 
 - **+ Open Touchstone**: Touchstone 파일 열기
 - **Open Project**: `.siproject` 프로젝트 열기
@@ -551,7 +561,7 @@ SParamView 소스는 MIT License로 배포됩니다. Third-party component와 fo
 
 ## 22. 문서 검증 근거
 
-v1.2.1에서 도입된 과거 기능은 [v1.2.1 릴리스 노트](Release_1.2.1.md)와 다음 소스 자료를 참고했습니다. 현재 버전은 [v1.2.5 릴리스 노트](Release_1.2.5.md), [임시 캐시 정리](Temporary_Cache_Cleanup.md), [변경 이력](Revision_History.md) 및 [v1.2.5 소스](https://github.com/july-rust/SParamView-Public/tree/v1.2.5)를 참고하십시오. 이전 v1.2.4a 검증 기록은 [이전 릴리스 노트](Release_1.2.4a.md)에 보존되어 있습니다.
+v1.2.1에서 도입된 과거 기능은 [v1.2.1 릴리스 노트](Release_1.2.1.md)와 다음 소스 자료를 참고했습니다. 현재 버전은 [v1.3.0 릴리스 노트](Release_1.3.0.md), [임시 캐시 정리](Temporary_Cache_Cleanup.md), [변경 이력](Revision_History.md) 및 [v1.3.0 소스](https://github.com/july-rust/SParamView-Public/tree/v1.3.0)를 참고하십시오. 이전 v1.2.4a 검증 기록은 [이전 릴리스 노트](Release_1.2.4a.md)에 보존되어 있습니다.
 
 - [TDR 초기 축 범위 및 자동 스케일](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/src/plot.cpp)
 - [그래프 조작 및 초기 화면 복귀](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/src/navigation.cpp)
@@ -564,4 +574,4 @@ v1.2.1에서 도입된 과거 기능은 [v1.2.1 릴리스 노트](Release_1.2.1.
 
 ### 문서 버전
 
-이 설명서는 **SParamView v1.2.5** 기능을 기준으로 **2026-10-24(KST)** 갱신했습니다. 수록 이미지는 [출처가 확인된 v1.2.1 검증 화면](images/README.md)이며 v1.2.5에서 새로 촬영하거나 교체한 이미지가 아닙니다.
+이 설명서는 **SParamView v1.3.0 정식 릴리스**를 기준으로 **2026-10-29(KST)** 갱신했습니다. 수록 이미지는 [출처가 확인된 v1.2.1 검증 화면](images/README.md)으로 v1.3.0에서 촬영하지 않았습니다. 이미 게시된 v1.3.0 태그와 릴리스 첨부 문서는 변경하지 않습니다.

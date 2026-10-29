@@ -1,16 +1,10 @@
-## v1.3.0 (2026-10-29; release candidate)
-
-- Touchstone 1.0/1.1/2.0/2.1 S-parameter input parser compatibility work; 1.9 is not an approved format revision.
-- Vendor-scoped physical port labels \`! PortN_COMPONENT_PIN::NET\` recognized and validated against \`!.DiffChannels\` physical endpoints.
-- Binary cache schema v7 prevents stale missing-label metadata reuse.
-- Windows only \`SParamView.exe\` at bundle root; \`tools/si_cli.exe\` and \`tests/si_*.exe\` are relocated.
-- Publication requires full three-platform CI and Windows ARM64 native gate completion; do not treat source changes as a published release.
-
 # SParamView Revision History
+
+**Current official release: [v1.3.0](https://github.com/july-rust/SParamView-Public/releases/tag/v1.3.0)** — published **2026-10-29 11:43 KST**. [Successful release CI](https://github.com/july-rust/SParamView-Public/actions/runs/40807027224) verifies core, Windows x64, Windows ARM64 (including native binary execution), and macOS Apple Silicon.
 
 This document records the development sequence from the original SI Analyzer engineering preview through the current SParamView release. The development record predates the GitHub repository itself: the first retained engineering-preview validation is dated **2026-09-08**, while the current GitHub repository was created on **2026-09-25**.
 
-Historical entries before v1.1.5 refer to private development records, not files shipped in this public repository. They are historical context, not current validation evidence. v1.2.2 and v1.2.3 were development releases. v1.2.4 was initially promoted publicly; it was subsequently superseded and its public release/tag retired after successful publication of **v1.2.4a**. The follow-up **v1.2.5** improves temporary-data cleanup without changing numerical analysis algorithms.
+Historical entries before v1.1.5 refer to private development records, not files shipped in this public repository. They are historical context, not current validation evidence. v1.2.2 and v1.2.3 were development releases. v1.2.4 was initially promoted publicly; it was subsequently superseded and its public release/tag retired after successful publication of **v1.2.4a**. The follow-up **v1.2.5** improves temporary-data cleanup without changing numerical analysis algorithms. **v1.3.0** extends Touchstone S-parameter input compatibility and relocates Windows auxiliary executables; the existing tagged release assets remain immutable.
 
 ## Development timeline
 
@@ -40,11 +34,10 @@ Historical entries before v1.1.5 refer to private development records, not files
 | **1.2.1** | Correctness fixes for deterministic result sorting with missing Margin and Quick TDR suitability restricted to the selected time range. | `docs/Release_1.2.1.md` |
 | **1.2.2** | Compact RL/IL/NEXT/FEXT/TDR option grouping without reducing graph area, TDR **Option** label, and correct pre-launch macOS application icon packaging. | `docs/Release_1.2.2.md` |
 | **1.2.3** | Differential auto-detection upgrade: exact one-character P↔N recognition anywhere in names, Signal Type Detection/confirmation before Channel Mapping for non-authoritative cases, metadata-priority fail-safe, and signal-type persistence. | `docs/Release_1.2.3.md` |
-
 | **1.2.4** | Exact analysis-job reuse, persistent Single-ended choice, full-hash project restore, complete dirty-state handling, Touchstone 2.1 compatibility, report provenance and immutable three-platform publication. | [Release notes](Release_1.2.4.md) |
-| **1.2.4a (previous official binaries)** | C++/Qt compile-warning cleanup, native Windows runtime packaging, Node 24-compatible CI, and preserved v1.2.4 numerical calculations. The 2026-10-13 **post-release CI-only** change removed remaining sanitizer/toolchain and Qt test-platform messages, eliminated the Node artifact-download warning, and strengthened ARM64 mapping tests (10/10). Published tag and package digests remained unchanged. | [Release notes](Release_1.2.4a.md) · [CI](https://github.com/july-rust/SParamView-Public/actions/runs/38383938009) |
-
-| **1.2.5 (current official release)** | Per-instance GUI session caches, cleanup after worker/cache-handle release, guarded abandoned-session recovery, Excel staging cleanup and automatic CLI default-cache removal. Originals, projects, exports and UI settings are preserved. | [Release notes](Release_1.2.5.md) · [Cache policy](Temporary_Cache_Cleanup.md) |
+| **1.2.4a (historical release)** | C++/Qt compile-warning cleanup, native Windows runtime packaging, Node 24-compatible CI, and preserved v1.2.4 numerical calculations. The 2026-10-13 **post-release CI-only** change removed remaining sanitizer/toolchain and Qt test-platform messages, eliminated the Node artifact-download warning, and strengthened ARM64 mapping tests (10/10). Published tag and package digests remained unchanged. | [Release notes](Release_1.2.4a.md) · [CI](https://github.com/july-rust/SParamView-Public/actions/runs/38383938009) |
+| **1.2.5 (previous official release)** | Per-instance GUI session caches, cleanup after worker/cache-handle release, guarded abandoned-session recovery, Excel staging cleanup and automatic CLI default-cache removal. Originals, projects, exports and UI settings are preserved. | [Release notes](Release_1.2.5.md) · [Cache policy](Temporary_Cache_Cleanup.md) |
+| **1.3.0 (current official release)** | Touchstone 1.0/1.1/2.0/2.1 S-parameter import validation, scoped vendor port-label comments, strict `.DiffChannels` physical mapping, and schema-v7 cache invalidation. Windows keeps `SParamView.exe` as its only root EXE and moves CLI/tests to subdirectories. | [Release notes](Release_1.3.0.md) · [Release](https://github.com/july-rust/SParamView-Public/releases/tag/v1.3.0) · [CI](https://github.com/july-rust/SParamView-Public/actions/runs/40807027224) |
 
 ## v1.2.4a post-release maintenance (2026-10-13)
 

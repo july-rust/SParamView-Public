@@ -170,4 +170,88 @@ class ReleaseSafety(unittest.TestCase):
                 self.assertEqual(len(call.args),1)
             gh.assert_not_called()
 
+
+    def test_v130_docs_only_keeps_existing_release_immutable(self):
+        endpoint = 'repos/july-rust/SParamView-Public'
+        old = 'dd4354367c49dc25912ed83bbeb41b284e29f616'
+        release = dict(id=427408966, tag_name='v1.3.0', draft=False,
+                       prerelease=False, target_commitish=old)
+        ref = {'object': {'type': 'commit', 'sha': old}}
+        changed = {'status': 'ahead', 'files': [
+            {'status': 'modified', 'filename': 'README.md'},
+            {'status': 'modified', 'filename': 'README_FIRST.txt'},
+            {'status': 'modified', 'filename': 'docs/USER_GUIDE_KO.md'},
+            {'status': 'modified', 'filename': 'docs/Release_1.3.0.md'},
+            {'status': 'modified', 'filename': 'scripts/publish_release.py'},
+            {'status': 'modified', 'filename': 'tests/publish_release_tests.py'}]}
+        with patch.object(publisher, 'api', return_value=changed):
+            self.assertTrue(publisher.validated_docs_only_v130(
+                endpoint, 'july-rust/SParamView-Public', '1.3.0',
+                release, ref, 'b'*40))
+        changed['files'].append({'status': 'modified', 'filename': 'src/touchstone.cpp'})
+        with patch.object(publisher, 'api', return_value=changed):
+            self.assertFalse(publisher.validated_docs_only_v130(
+                endpoint, 'july-rust/SParamView-Public', '1.3.0',
+                release, ref, 'b'*40))
+        changed['files'].pop()
+        with patch.object(publisher, 'api', return_value=changed) as api:
+            self.assertFalse(publisher.validated_docs_only_v130(
+                endpoint, 'july-rust/SParamView-Public', '1.3.0',
+                release, {'object': {'type': 'commit', 'sha': 'c'*40}}, 'b'*40))
+            api.assert_not_called()
+
+    def test_v130_docs_only_main_does_not_republish_assets(self):
+        old = 'dd4354367c49dc25912ed83bbeb41b284e29f616'
+        new = 'b'*40
+        env = dict(SPARAMVIEW_VERSION='1.3.0', GITHUB_SHA=new,
+                   GITHUB_REPOSITORY='july-rust/SParamView-Public',
+                   GITHUB_REF='refs/heads/main', GITHUB_EVENT_NAME='push',
+                   GITHUB_RUN_ID='42')
+        release = dict(id=427408966,tag_name='v1.3.0', draft=False,
+                       prerelease=False,target_commitish=old)
+        ref = {'object': {'type': 'commit', 'sha': old}}
+        comparison = {'status': 'ahead', 'files': [
+            {'status': 'modified', 'filename': 'docs/Release_1.3.0.md'}]}
+        jobs = {'jobs': [dict(name=name, conclusion='success',
+                             html_url='https://example.invalid')
+                         for name in ['Version and release consistency',
+                                      'Core quality gates','Windows x64',
+                                      'Windows ARM64',
+                                      'Native Windows ARM64 packaged-binary gate',
+                                      'macOS Apple Silicon arm64']]}
+        with patch.dict(os.environ,env), \
+             patch.object(publisher.subprocess,'check_output',return_value=new), \
+             patch.object(publisher,'api',side_effect=[release,ref,comparison,jobs]) as api, \
+             patch.object(publisher,'gh') as gh:
+            publisher.main()
+            self.assertEqual(api.call_count,4)
+            self.assertTrue(all(len(call.args)==1 for call in api.call_args_list))
+            gh.assert_not_called()
+
+    def test_documentation_current_release_links_and_artifacts(self):
+        root = Path(__file__).resolve().parents[1]
+        headings = {
+            'README.md': 'Current official release: **[v1.3.0]',
+            'README_EN.md': '# SParamView v1.3.0',
+            'README_KO.md': '# SParamView v1.3.0',
+            'README_FIRST.txt': 'SParamView v1.3.0',
+            'docs/USER_GUIDE_EN.md': '**Applies to:** SParamView **v1.3.0',
+            'docs/USER_GUIDE_KO.md': '**적용 기준:** SParamView **v1.3.0',
+            'docs/Revision_History.md': 'Current official release: [v1.3.0]',
+            'docs/Release_1.3.0.md': 'Official stable release',
+            'docs/Temporary_Cache_Cleanup.md': 'v1.3.0',
+        }
+        for path, marker in headings.items():
+            self.assertIn(marker,(root/path).read_text(encoding='utf-8'),path)
+        import re
+        for path in ('README.md','README_EN.md','README_KO.md',
+                     'docs/USER_GUIDE_EN.md','docs/USER_GUIDE_KO.md',
+                     'docs/Revision_History.md'):
+            body=(root/path).read_text(encoding='utf-8')
+            for link in re.findall(r'(?<!!)\[[^\]]+\]\(([^)]+)\)',body):
+                if (link.startswith(('http://','https://','#','mailto:'))):
+                    continue
+                target=(root/path).parent / link.split('#',1)[0]
+                self.assertTrue(target.is_file(),f'Broken Markdown link: {path} -> {link}')
+
 if __name__=='__main__':unittest.main()
