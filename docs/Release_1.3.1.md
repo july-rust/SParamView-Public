@@ -1,6 +1,6 @@
 # SParamView v1.3.1 — Multi-process cache safety
 
-Status: Release candidate. v1.3.0 remains the official release until v1.3.1 CI passes and the new release is published.
+**Release policy:** Official v1.3.1 packages are published only after the required GitHub Actions checks pass on the main branch. This release has its own new tag and assets; the existing v1.3.0 tag, binaries and attached documentation are preserved.
 
 ## Changes
 - Serialize normal session deletion with the shared lock used by abandoned-session cleanup, preventing concurrent startup and shutdown from removing the same cache directory.
@@ -11,5 +11,5 @@ Status: Release candidate. v1.3.0 remains the official release until v1.3.1 CI p
 ## Scope
 This change improves isolation among separate running processes. File transitions *within* a single window still append Touchstone revisions and retain process-scoped caches; their broader UI cleanup is tracked separately in issue #15.
 
-## Required verification
+## Required verification (release gate)
 session_cache_lifecycle, multi_process_cache_isolation, v124_gui_cleanup, cli_session_cache_cleanup, and all official Windows x64/ARM64, native ARM64, macOS Apple Silicon and core CI gates. Previously published v1.3.0 binaries must remain unchanged.
