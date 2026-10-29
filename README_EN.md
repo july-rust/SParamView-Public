@@ -36,7 +36,7 @@ Quick TDR is a band-limited estimate affected by frequency span, spacing, extrap
 - Windows: keep only `SParamView.exe` in the package root, with required Qt/runtime DLLs alongside it. Move CLI to `tools/si_cli.exe` and test executables to `tests/`.
 - Y/Z/H/G Touchstone network matrices are **not** accepted as S-parameter input. Touchstone `1.9` is not a defined official version.
 
-## Previous release — v1.2.5
+## Earlier release — v1.2.5
 - Automatically remove each GUI instance's Touchstone conversion cache and Excel report staging files after graceful exit.
 - Reclaim abandoned GUI cache sessions on subsequent launches, with ownership checks and multi-instance leases.
 - Remove default CLI command caches, preserving explicitly selected cache directories.
