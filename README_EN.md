@@ -1,4 +1,4 @@
-# SParamView v1.3.1
+# SParamView v1.3.2
 
 SParamView is a desktop application for Touchstone-based S-parameter analysis and visualization.
 
@@ -25,11 +25,12 @@ Quick TDR is a band-limited estimate affected by frequency span, spacing, extrap
 - [English User Guide](docs/USER_GUIDE_EN.md)
 - [한국어 사용자 설명서](docs/USER_GUIDE_KO.md)
 
-## Current release — v1.3.1
+## Current release — v1.3.2
 
-**[Official release and downloads](https://github.com/july-rust/SParamView-Public/releases/tag/v1.3.1)** · [v1.3.1 release notes](docs/Release_1.3.1.md) · [release CI](https://github.com/july-rust/SParamView-Public/actions)
+**[Official release and downloads](https://github.com/july-rust/SParamView-Public/releases/tag/v1.3.2)** · [v1.3.2 release notes](docs/Release_1.3.2.md) · [release CI](https://github.com/july-rust/SParamView-Public/actions)
 
-- **v1.3.1:** Multiple running SParamView processes keep private cache files; shutdown cleanup is serialized with abandoned-session recovery. Separate instances never delete each other's active cache. Opening other Touchstone files *inside the same window* still appends revisions (see Issue #15).
+- **v1.3.2:** Open Project stages a new workspace cache, then clears the old cache, comparison table and plot/zoom state only after a successful switch. Open Touchstone still appends revisions. The window title shows the full active source filename (including extension), with the original path in the Revision tooltip; existing projects remain compatible.
+- **v1.3.1 (previous):** Concurrent SParamView processes use independent leased caches; shutdown removal is serialized with abandoned-session recovery.
 - **v1.3.0:** Import Touchstone **1.0/1.1** (implicit version) and **2.0/2.1** (explicit `[Version]`) **S-parameter** files, with RI/MA/DB, standard frequency units, and supported matrix layouts.
 - Recognize `! PortN_COMPONENT_PIN::NET` vendor comments as physical port labels; validate `!.DiffChannels` endpoint/NET/P-N mapping against physical ports instead of guessing polarity.
 - Re-import with new cache schema so previously missing physical labels are not reused.
@@ -53,7 +54,7 @@ Quick TDR is a band-limited estimate affected by frequency span, spacing, extrap
 
 The previous [v1.2.4a published artifacts](https://github.com/july-rust/SParamView-Public/releases/tag/v1.2.4a) remain unchanged. On 2026-10-13, a separate documentation and CI maintenance pass verified zero warning messages across the six required validation gates, native Windows ARM64 mapping fallback 10/10 passes, and native Cocoa macOS GUI tests. These changes do not replace the tagged binaries. See [Revision History](docs/Revision_History.md) and [CI evidence](https://github.com/july-rust/SParamView-Public/actions/runs/38383938009).
 
-See [Release_1.3.1.md](docs/Release_1.3.1.md) for the current release, and [Release_1.3.0.md](docs/Release_1.3.0.md) for its Touchstone predecessor and [Release_1.2.5.md](docs/Release_1.2.5.md) / [Release_1.2.4a.md](docs/Release_1.2.4a.md) for historical details. Earlier changes: [v1.1.6](docs/Release_1.1.6.md), [v1.1.7](docs/Release_1.1.7.md), [v1.2.0](docs/Release_1.2.0.md).
+See [Release_1.3.2.md](docs/Release_1.3.2.md) for the current release, and [Release_1.3.0.md](docs/Release_1.3.0.md) for its Touchstone predecessor and [Release_1.2.5.md](docs/Release_1.2.5.md) / [Release_1.2.4a.md](docs/Release_1.2.4a.md) for historical details. Earlier changes: [v1.1.6](docs/Release_1.1.6.md), [v1.1.7](docs/Release_1.1.7.md), [v1.2.0](docs/Release_1.2.0.md).
 
 ## Build
 SParamView uses C++20, CMake, and Qt 6.8.3 (Core, Gui, Widgets, Concurrent).

@@ -1,4 +1,4 @@
-# SParamView v1.3.1
+# SParamView v1.3.2
 
 SParamView는 Touchstone S-parameter 데이터를 열고 채널 기준으로 분석하는 C++20 / Qt 6 데스크톱 프로그램입니다.
 
@@ -23,11 +23,12 @@ Quick TDR은 제한된 주파수 대역을 이용한 추정값이며 계측기 T
 - [English User Guide](docs/USER_GUIDE_EN.md)
 - [전체 변경 이력](docs/Revision_History.md)
 
-## 공식 최신 릴리스 — v1.3.1
+## 공식 최신 릴리스 — v1.3.2
 
-[**v1.3.1 다운로드**](https://github.com/july-rust/SParamView-Public/releases/tag/v1.3.1) · [릴리스 노트](docs/Release_1.3.1.md) · [공식 CI](https://github.com/july-rust/SParamView-Public/actions)
+[**v1.3.2 다운로드**](https://github.com/july-rust/SParamView-Public/releases/tag/v1.3.2) · [릴리스 노트](docs/Release_1.3.2.md) · [공식 CI](https://github.com/july-rust/SParamView-Public/actions)
 
-- **v1.3.1:** SParamView를 여러 개 동시에 실행해도 각 프로세스가 독립 캐시를 사용합니다. 정상 종료 시 캐시 삭제와 다른 프로세스의 잔여 캐시 검사를 직렬화합니다. 새 Touchstone을 한 창에서 여는 동작은 여전히 Revision 추가입니다(별도 Issue #15).
+- **v1.3.2:** 프로젝트를 교체하면 이전 프로젝트 캐시·비교 테이블·그래프 확대 상태를 정리합니다. 일반 Touchstone 열기는 기존처럼 Revision을 추가합니다. 타이틀바에 현재 선택한 원본 Touchstone 파일명과 확장자를 표시하고 Revision 툴팁에 전체 원본 경로를 표시합니다. 기존 프로젝트 형식은 유지합니다.
+- **v1.3.1 (이전 버전):** 여러 프로그램이 실행되어도 독립 캐시를 유지하며 종료 시 안전한 삭제를 수행합니다.
 - **v1.3.0:** Touchstone **1.0/1.1**(암시적 버전) 및 **2.0/2.1**(`[Version]` 선언) **S-파라미터** 입력을 지원합니다. `1.9`는 공식 Touchstone 버전이 아닙니다.
 - 제조사 확장 `! PortN_COMPONENT_PIN::NET`에서 물리 포트 이름을 인식하며, `!.DiffChannels` 포트 인덱스·NET·물리 핀·P/N 극성을 대조합니다.
 - 이전 파서에서 잘못 생성된 포트 이름 캐시의 재사용을 막습니다.
