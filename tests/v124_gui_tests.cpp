@@ -130,6 +130,14 @@ struct WorkspaceProbe {
    require(json.open(QIODevice::WriteOnly),"Small-port project update failed");json.write(QJsonDocument(object).toJson());json.close();
    w.loadProject(w.projectPath);settle(w);require(w.revisions[0].cache->meta().ports==2&&!w.revisions[0].confirmed&&w.revisions[0].channels.empty(),"Invalid stored mapping blocked valid source recovery");
   } else if(test=="workspace_switch") {
+   // Native ARM64 receives Windows-style paths from PowerShell, while Qt
+   // returns forward-slash normalized absolute paths on project restore.
+   // Compare file identity, not path-string separator spelling.
+   auto sameFile = [](const QString &a,const QString &b) {
+     const QString actual=QFileInfo(a).canonicalFilePath();
+     const QString expected=QFileInfo(b).canonicalFilePath();
+     return !actual.isEmpty() && !expected.isEmpty() && actual==expected;
+   };
    const QString source=w.revisions[0].source;
    w.updateActiveTouchstoneTitle();
    require(w.windowTitle().contains(QFileInfo(source).fileName()),"Initial source title missing");
@@ -154,7 +162,7 @@ struct WorkspaceProbe {
    w.compareTable->setColumnCount(1);w.compareTable->setRowCount(1);
    w.compareTable->setItem(0,0,new QTableWidgetItem("STALE"));
    w.loadProject(projectB);settle(w);
-   require(w.projectPath==projectB&&w.revisions.size()==1&&w.revisions[0].source==other,
+   require(w.projectPath==projectB&&w.revisions.size()==1&&sameFile(w.revisions[0].source,other),
            "Project B did not replace A");
    require(w.compareTable->rowCount()==0&&w.compareTable->columnCount()==0,
            "Stale compare table was not cleared");
@@ -165,10 +173,10 @@ struct WorkspaceProbe {
    require(w.windowTitle().contains("alternate-source.s4p"),"Title not switched to B");
    const QString cacheB=qs(si::utf8(w.revisions[0].cache->path()));
    const QString workspaceB=w.workspaceCache->path();
-   require(cacheB.startsWith(workspaceB)&&QFileInfo::exists(cacheB),
+   require(QDir::cleanPath(cacheB).startsWith(QDir::cleanPath(workspaceB)+"/")&&QFileInfo::exists(cacheB),
            "Missing B cache in private workspace");
    w.loadProject(projectA);settle(w);
-   require(w.projectPath==projectA&&w.revisions.size()==1&&w.revisions[0].source==source,
+   require(w.projectPath==projectA&&w.revisions.size()==1&&sameFile(w.revisions[0].source,source),
            "Failed B -> A project restore");
    require(!QFileInfo::exists(cacheB)&&!QDir(workspaceB).exists(),
            "Previous project cache survived replacement");
@@ -185,7 +193,7 @@ struct WorkspaceProbe {
    dismiss.start(10);w.openPaths({longSource});settle(w);dismiss.stop();
    require(w.revisions.size()==2&&w.workspaceCache->path()==workspaceA,
            "Add Revision should preserve workspace and earlier cache");
-   require(w.windowTitle().contains(filename)&&w.revisionBox->toolTip()==longSource,
+   require(w.windowTitle().contains(filename)&&sameFile(w.revisionBox->toolTip(),longSource),
            "Long file title or full-path tooltip missing");
    w.revisionBox->setCurrentIndex(0);
    require(w.windowTitle().contains(QFileInfo(source).fileName()),
