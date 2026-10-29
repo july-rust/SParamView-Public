@@ -239,7 +239,7 @@ class ReleaseSafety(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         core = (root/'include/si/core.hpp').read_text(encoding='utf-8')
         version_match = re.search(
-            r'inline constexpr const char \\*version = "([0-9]+\\.[0-9]+\\.[0-9]+[a-z]?)"',
+            r'inline constexpr const char \*version = "([0-9]+\.[0-9]+\.[0-9]+[a-z]?)"',
             core)
         self.assertIsNotNone(version_match, 'Cannot read application version')
         version = version_match.group(1)
@@ -274,7 +274,7 @@ class ReleaseSafety(unittest.TestCase):
                      'docs/USER_GUIDE_EN.md', 'docs/USER_GUIDE_KO.md',
                      'docs/Revision_History.md'):
             body = (root/path).read_text(encoding='utf-8')
-            for link in re.findall(r'(?<!!)\\[[^\\]]+\\]\\(([^)]+)\\)', body):
+            for link in re.findall(r'(?<!!)\[[^\]]+\]\(([^)]+)\)', body):
                 if link.startswith(('http://', 'https://', '#', 'mailto:')):
                     continue
                 target = (root/path).parent / link.split('#', 1)[0]
