@@ -1,10 +1,10 @@
 # SParamView 사용자 설명서
 
-**적용 기준:** SParamView **v1.3.1 공식 릴리스**
+**적용 기준:** SParamView **v1.3.2 공식 릴리스**
 **지원 플랫폼:** Windows x64 / Windows ARM64 / macOS Apple Silicon (arm64)
-**문서 갱신:** **2026-10-29(KST)**. v1.3.1 다중 프로세스 캐시 안전성, v1.3.0 Touchstone 입력·포트 매핑·Windows 배포 구조, v1.2.5 임시 캐시 정책을 반영합니다. 과거 릴리스 자산은 변경하지 않았습니다.
+**문서 갱신:** **2026-10-29(KST)**. v1.3.2 프로젝트 캐시 격리 및 타이틀바 파일명, v1.3.1 다중 프로세스 캐시 안전성, v1.3.0 Touchstone 입력·포트 매핑·Windows 배포 구조, v1.2.5 임시 캐시 정책을 반영합니다. 과거 릴리스 자산은 변경하지 않았습니다.
 
-[English User Guide](USER_GUIDE_EN.md) | [한국어 README](../README_KO.md) | [v1.3.1 Release Notes](Release_1.3.1.md)
+[English User Guide](USER_GUIDE_EN.md) | [한국어 README](../README_KO.md) | [v1.3.2 Release Notes](Release_1.3.2.md)
 
 ---
 
@@ -63,11 +63,20 @@ v1.2.0의 기능별 소스 분할은 내부 코드 구조 변경입니다. 사�
 
 상세 내용: [임시 캐시 정리 설명](Temporary_Cache_Cleanup.md) 및 [v1.2.5 변경사항](Release_1.2.5.md).
 
+### v1.3.2 프로젝트 교체 및 Touchstone 파일명 표시
+
+- **Open Project**에서는 새 프로젝트 원본을 찾아 SHA-256 검증과 새 캐시 디렉터리 입력을 완료한 후 기존 작업공간을 교체합니다. 오류·취소·파일 누락 시 기존 프로젝트를 유지하며 미저장 작업에 대한 Save/Discard/Cancel 보호도 유지합니다.
+- 프로젝트 교체 성공 시 오래된 분석 결과, 비교 테이블, 그래프 확대/축/이력, 선택 채널과 이전 프로젝트 캐시를 정리합니다. 해당 캐시를 참조하는 작업이 종료되도록 처리한 후 기존 핸들을 해제하며 다른 실행 프로그램 캐시는 삭제하지 않습니다.
+- **+ Open Touchstone**으로 파일을 추가하는 동작은 기존처럼 **Revision 추가**입니다. 여러 Touchstone을 비교하는 기능을 유지합니다.
+- 타이틀바에는 현재 선택한 Touchstone의 **원본 파일명과 확장자**가 표시되며 Revision 선택을 바꾸면 함께 갱신됩니다. 선택 창의 툴팁에는 **전체 원본 경로**를 표시합니다. 운영체제가 허용하는 타이틀바 폭이 좁으면 육안으로 보이는 부분은 잘릴 수 있습니다.
+- `.siproject` 저장 시 오래된 임시 `cache` 절대 경로를 기록하지 않습니다. 이 필드가 남아 있는 기존 schema-1 프로젝트도 계속 불러올 수 있습니다.
+- 상세 내용은 [v1.3.2 릴리스 노트](Release_1.3.2.md), [이슈 #15](https://github.com/july-rust/SParamView-Public/issues/15), [임시 캐시 정리 정책](Temporary_Cache_Cleanup.md)을 참고하십시오.
+
 ### v1.3.1 다중 실행 캐시 안정화
 
 - SParamView를 두 개 이상 실행하고 **같은 Touchstone 파일을 동시에 열더라도**, 각 실행 인스턴스는 서로 다른 `session-XXXXXX` 디렉터리에 캐시를 작성합니다.
 - 정상 종료 시 삭제와 다른 실행 프로그램의 잔여 캐시 검사를 같은 레지스트리 잠금으로 보호합니다. 잠금 또는 열린 파일 때문에 삭제가 불가능할 경우 다른 프로그램의 캐시를 강제로 삭제하지 않고 다음 실행에서 안전하게 재시도합니다.
-- **한 창 내부에서** 새로운 Touchstone을 여는 동작은 기존과 같이 Revision을 추가합니다. 서로 다른 프로젝트로 전환할 때 이전 캐시·그래프를 초기화하는 기능은 [Issue #15](https://github.com/july-rust/SParamView-Public/issues/15)에서 별도 관리합니다.
+- **한 창 내부에서** 새로운 Touchstone을 여는 동작은 기존과 같이 Revision을 추가합니다. 서로 다른 프로젝트를 열 때 이전 캐시·그래프를 초기화하는 기능은 v1.3.2에서 추가했습니다.
 - 세부 정책은 [캐시 정리 문서](Temporary_Cache_Cleanup.md)와 [v1.3.1 릴리스 노트](Release_1.3.1.md)를 확인하십시오.
 
 ### v1.3.0 Touchstone 입력 및 Windows 배포 변경
@@ -88,9 +97,9 @@ GitHub Releases에서 사용 중인 시스템에 맞는 패키지를 선택합�
 
 | 시스템 | 권장 패키지 |
 |---|---|
-| Windows x64 | `SParamView_Windows_x64_v1.3.1.zip` |
-| Windows ARM64 | `SParamView_Windows_ARM64_v1.3.1.zip` |
-| macOS Apple Silicon | `SParamView_macOS_AppleSilicon_arm64_v1.3.1.dmg` 또는 `.zip` |
+| Windows x64 | `SParamView_Windows_x64_v1.3.2.zip` |
+| Windows ARM64 | `SParamView_Windows_ARM64_v1.3.2.zip` |
+| macOS Apple Silicon | `SParamView_macOS_AppleSilicon_arm64_v1.3.2.dmg` 또는 `.zip` |
 
 릴리스에는 SHA-256 확인용 파일도 함께 제공됩니다. 다운로드 무결성을 확인하려면 Windows PowerShell에서 `Get-FileHash <파일명> -Algorithm SHA256`, macOS Terminal에서 `shasum -a 256 <파일명>`을 실행한 뒤 릴리스의 `.sha256` 값과 비교할 수 있습니다.
 
@@ -568,7 +577,7 @@ SParamView 소스는 MIT License로 배포됩니다. Third-party component와 fo
 
 ## 22. 문서 검증 근거
 
-v1.2.1에서 도입된 과거 기능은 [v1.2.1 릴리스 노트](Release_1.2.1.md)와 다음 소스 자료를 참고했습니다. 현재 버전은 [v1.3.1 릴리스 노트](Release_1.3.1.md), [임시 캐시 정리](Temporary_Cache_Cleanup.md), [변경 이력](Revision_History.md) 및 [v1.3.1 소스](https://github.com/july-rust/SParamView-Public/tree/v1.3.1)를 참고하십시오. 이전 v1.2.4a 검증 기록은 [이전 릴리스 노트](Release_1.2.4a.md)에 보존되어 있습니다.
+v1.2.1에서 도입된 과거 기능은 [v1.2.1 릴리스 노트](Release_1.2.1.md)와 다음 소스 자료를 참고했습니다. 현재 버전은 [v1.3.2 릴리스 노트](Release_1.3.2.md), [임시 캐시 정리](Temporary_Cache_Cleanup.md), [변경 이력](Revision_History.md) 및 [v1.3.2 소스](https://github.com/july-rust/SParamView-Public/tree/v1.3.2)를 참고하십시오. 이전 v1.2.4a 검증 기록은 [이전 릴리스 노트](Release_1.2.4a.md)에 보존되어 있습니다.
 
 - [TDR 초기 축 범위 및 자동 스케일](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/src/plot.cpp)
 - [그래프 조작 및 초기 화면 복귀](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/src/navigation.cpp)
@@ -581,4 +590,4 @@ v1.2.1에서 도입된 과거 기능은 [v1.2.1 릴리스 노트](Release_1.2.1.
 
 ### 문서 버전
 
-이 설명서는 **SParamView v1.3.1 정식 릴리스**를 기준으로 **2026-10-29(KST)** 갱신했습니다. 수록 이미지는 [출처가 확인된 v1.2.1 검증 화면](images/README.md)으로 v1.3.1에서 촬영하지 않았습니다. 이미 게시된 v1.3.0 태그와 릴리스 첨부 문서는 변경하지 않습니다.
+이 설명서는 **SParamView v1.3.2 정식 릴리스**를 기준으로 **2026-10-29(KST)** 갱신했습니다. 수록 이미지는 [출처가 확인된 v1.2.1 검증 화면](images/README.md)으로 v1.3.2에서 촬영하지 않았습니다. 이미 게시된 v1.3.0 태그와 릴리스 첨부 문서는 변경하지 않습니다.

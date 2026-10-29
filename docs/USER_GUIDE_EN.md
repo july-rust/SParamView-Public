@@ -1,10 +1,10 @@
 # SParamView User Guide
 
-**Applies to:** SParamView **v1.3.1 official release**
+**Applies to:** SParamView **v1.3.2 official release**
 **Supported platforms:** Windows x64 / Windows ARM64 / macOS Apple Silicon (arm64)
-**Documentation updated:** **2026-10-29 (KST)**. Covers v1.3.1 multi-process cache safety, v1.3.0 Touchstone/port-label compatibility, Windows package layout, and the v1.2.5 cache policy. Historical release assets are unchanged.
+**Documentation updated:** **2026-10-29 (KST)**. Covers v1.3.2 project switching and title bar, v1.3.1 multi-process cache safety, v1.3.0 Touchstone/port-label compatibility, Windows package layout, and the v1.2.5 cache policy. Historical release assets are unchanged.
 
-[한국어 사용자 설명서](USER_GUIDE_KO.md) | [English README](../README_EN.md) | [v1.3.1 Release Notes](Release_1.3.1.md)
+[한국어 사용자 설명서](USER_GUIDE_KO.md) | [English README](../README_EN.md) | [v1.3.2 Release Notes](Release_1.3.2.md)
 
 ---
 
@@ -63,11 +63,20 @@ The v1.2.0 source partitioning is an internal code-structure change and requires
 
 See [Temporary Cache Cleanup](Temporary_Cache_Cleanup.md) and [v1.2.5 Release Notes](Release_1.2.5.md).
 
+### v1.3.2 project cache switching and active Touchstone filename
+
+- **Open Project** validates source paths and SHA-256, stages a new project cache, then replaces the workspace only on successful import. An invalid project, cancelled source relocation or failed import leaves the existing workspace intact. Save/Discard/Cancel protection for unsaved changes remains in place.
+- A successful project replacement clears earlier computed analysis jobs, comparison rows, non-TDR and TDR plot axes/zoom/navigation history, selected channel UI and retired project cache files after closing dependent worker handles. Other simultaneous SParamView processes are not affected.
+- **+ Open Touchstone** (one file or multiple files) still **appends revisions** to the current workspace for comparisons; it does not replace the current project.
+- The window title includes the **currently selected source Touchstone filename, including its extension**. Changing the Revision selector changes the title. Hovering over Revision reveals the complete source path. Extremely long titles may still be visually clipped by operating-system window decorations.
+- New schema-1 `.siproject` files omit the obsolete ephemeral `cache` path; existing schema-1 projects with the field are still accepted. The full source SHA-256 verification is preserved.
+- See [v1.3.2 release notes](Release_1.3.2.md), [Issue #15](https://github.com/july-rust/SParamView-Public/issues/15) and the [cache policy](Temporary_Cache_Cleanup.md).
+
 ### v1.3.1 concurrent-instance cache safety
 
 - Each running SParamView application process owns its own `session-XXXXXX` cache directory, even when two windows import the *same* Touchstone file. Ending one process removes only its private cache and does not remove active caches belonging to other processes.
 - Registry locking now covers both session startup/recovery and normal shutdown removal. If a cache directory is temporarily locked, deletion is deferred for a later verified startup instead of risking deletion of another active process's files.
-- This does **not** automatically clear previous Touchstone revisions when you add a file within the **same** window. Cross-project switching cleanup is a separate improvement tracked in [Issue #15](https://github.com/july-rust/SParamView-Public/issues/15).
+- This does **not** automatically clear previous Touchstone revisions when you add a file within the **same** window. Full-project switching cleanup was added in v1.3.2 as described above.
 - See the [v1.3.1 release notes](Release_1.3.1.md) and the [cache lifecycle policy](Temporary_Cache_Cleanup.md).
 
 ### v1.3.0 Touchstone imports and package changes
@@ -88,9 +97,9 @@ Download the package that matches your system from GitHub Releases.
 
 | System | Recommended package |
 |---|---|
-| Windows x64 | `SParamView_Windows_x64_v1.3.1.zip` |
-| Windows ARM64 | `SParamView_Windows_ARM64_v1.3.1.zip` |
-| macOS Apple Silicon | `SParamView_macOS_AppleSilicon_arm64_v1.3.1.dmg` or `.zip` |
+| Windows x64 | `SParamView_Windows_x64_v1.3.2.zip` |
+| Windows ARM64 | `SParamView_Windows_ARM64_v1.3.2.zip` |
+| macOS Apple Silicon | `SParamView_macOS_AppleSilicon_arm64_v1.3.2.dmg` or `.zip` |
 
 SHA-256 files are also provided with the release. To verify download integrity, run `Get-FileHash <filename> -Algorithm SHA256` in Windows PowerShell or `shasum -a 256 <filename>` in macOS Terminal, then compare the result with the corresponding `.sha256` file.
 
@@ -566,7 +575,7 @@ Contact: **sparamview@gmail.com**
 
 ## 22. Documentation verification sources
 
-Historical v1.2.1 feature changes are supported by the [v1.2.1 release notes](Release_1.2.1.md) and the source links below. For the current release, see the [v1.3.1 release notes](Release_1.3.1.md), [temporary-cache policy](Temporary_Cache_Cleanup.md), [revision history](Revision_History.md), and [tagged source](https://github.com/july-rust/SParamView-Public/tree/v1.3.1). Previous v1.2.4a validation is retained in the [historical release notes](Release_1.2.4a.md).
+Historical v1.2.1 feature changes are supported by the [v1.2.1 release notes](Release_1.2.1.md) and the source links below. For the current release, see the [v1.3.2 release notes](Release_1.3.2.md), [temporary-cache policy](Temporary_Cache_Cleanup.md), [revision history](Revision_History.md), and [tagged source](https://github.com/july-rust/SParamView-Public/tree/v1.3.2). Previous v1.2.4a validation is retained in the [historical release notes](Release_1.2.4a.md).
 
 - [Initial TDR axes and automatic scaling](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/src/plot.cpp)
 - [Plot interaction and viewport restoration](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/src/navigation.cpp)
@@ -579,4 +588,4 @@ Historical v1.2.1 feature changes are supported by the [v1.2.1 release notes](Re
 
 ### Document Version
 
-This guide was updated on **2026-10-29 (KST)** for the **SParamView v1.3.1 official release**. The embedded screenshots remain **historical v1.2.1 validation captures** (see [images/README.md](images/README.md)); no v1.3.1 screenshots are claimed. The published v1.3.0 tag and attached guide assets remain immutable.
+This guide was updated on **2026-10-29 (KST)** for the **SParamView v1.3.2 official release**. The embedded screenshots remain **historical v1.2.1 validation captures** (see [images/README.md](images/README.md)); no v1.3.2 screenshots are claimed. The published v1.3.0 tag and attached guide assets remain immutable.
