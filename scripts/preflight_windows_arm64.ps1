@@ -49,7 +49,7 @@ $targetMachine = Get-PEMachine $qtCore
 if ($targetMachine -ne 0xAA64) { throw ("Target Qt is not ARM64. Qt6Core.dll machine=0x{0:X4}; expected 0xAA64" -f $targetMachine) }
 $checks['target_qt_machine'] = ('0x{0:X4}' -f $targetMachine)
 $checks['target_qt_version'] = Get-QtVersion $QtRoot
-if ($checks['target_qt_version'] -ne '6.8.3') { throw "SParamView 1.1.2 ARM64 release is pinned to Qt 6.8.3 so runtime, notices, and included corresponding source stay aligned. Found: $($checks['target_qt_version'])" }
+if ($checks['target_qt_version'] -ne '6.8.3') { throw "SParamView ARM64 release is pinned to Qt 6.8.3 so runtime, notices, and included corresponding source stay aligned. Found: $($checks['target_qt_version'])" }
 
 if ($HostQtRoot) {
   if (-not (Test-Path $HostQtRoot)) { throw "Host Qt path does not exist: $HostQtRoot" }
@@ -82,7 +82,10 @@ $rcText = Get-Content (Join-Path $projectRoot 'assets\SParamView.rc') -Raw
 $cmakeVersion = [regex]::Match($cmakeText, 'project\(SParamView VERSION ([0-9.]+)').Groups[1].Value
 $coreVersion = [regex]::Match($coreText, 'version\s*=\s*"([0-9]+\.[0-9]+\.[0-9]+[a-z]?)"').Groups[1].Value
 $rcVersion = [regex]::Match($rcText, 'VALUE "ProductVersion", "([0-9]+\.[0-9]+\.[0-9]+[a-z]?)').Groups[1].Value
-if (-not $cmakeVersion -or $cmakeVersion -ne '1.3.1' -or
+# Release version is validated by matching actual source/CMake/resource metadata.
+# Do not pin a historical version here; the release workflow independently
+# checks the expected current version and presence of matching release notes.
+if (-not $cmakeVersion -or
     ($coreVersion -ne $cmakeVersion -and $coreVersion -ne ($cmakeVersion + 'a')) -or
     $coreVersion -ne $rcVersion) {
   throw "Application version mismatch: CMake=$cmakeVersion core=$coreVersion resource=$rcVersion"
