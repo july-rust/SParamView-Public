@@ -228,6 +228,32 @@ class ReleaseSafety(unittest.TestCase):
             self.assertTrue(all(len(call.args)==1 for call in api.call_args_list))
             gh.assert_not_called()
 
+    def test_v131_ci_only_maintenance_is_pinned_and_immutable(self):
+        endpoint = 'repos/july-rust/SParamView-Public'
+        tagged = '54f0fd40173dd60f452096832adcfb736d21b4f1'
+        release = dict(id=427525263, tag_name='v1.3.1', draft=False,
+                       prerelease=False, target_commitish=tagged)
+        ref = {'object': {'type': 'commit', 'sha': tagged}}
+        changes = {'status': 'ahead', 'files': [
+            {'status': 'modified', 'filename': '.github/workflows/release-3platform.yml'},
+            {'status': 'modified', 'filename': 'scripts/publish_release.py'},
+            {'status': 'modified', 'filename': 'tests/publish_release_tests.py'}]}
+        with patch.object(publisher, 'api', return_value=changes):
+            self.assertTrue(publisher.validated_ci_only_v131(
+                endpoint, 'july-rust/SParamView-Public', '1.3.1',
+                release, ref, 'b'*40))
+        changes['files'].append({'status': 'modified', 'filename': 'src/cache_session.hpp'})
+        with patch.object(publisher, 'api', return_value=changes):
+            self.assertFalse(publisher.validated_ci_only_v131(
+                endpoint, 'july-rust/SParamView-Public', '1.3.1',
+                release, ref, 'b'*40))
+        changes['files'].pop()
+        with patch.object(publisher, 'api') as api:
+            self.assertFalse(publisher.validated_ci_only_v131(
+                endpoint, 'july-rust/SParamView-Public', '1.3.1',
+                release, {'object': {'type': 'commit', 'sha': 'c'*40}}, 'b'*40))
+            api.assert_not_called()
+
     def test_documentation_current_release_links_and_artifacts(self):
         """The release version cannot advance without synchronized user docs.
 
