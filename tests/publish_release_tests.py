@@ -228,31 +228,111 @@ class ReleaseSafety(unittest.TestCase):
             self.assertTrue(all(len(call.args)==1 for call in api.call_args_list))
             gh.assert_not_called()
 
+    def test_v131_ci_only_maintenance_is_pinned_and_immutable(self):
+        endpoint = 'repos/july-rust/SParamView-Public'
+        tagged = '54f0fd40173dd60f452096832adcfb736d21b4f1'
+        release = dict(id=427525263, tag_name='v1.3.1', draft=False,
+                       prerelease=False, target_commitish=tagged)
+        ref = {'object': {'type': 'commit', 'sha': tagged}}
+        changes = {'status': 'ahead', 'files': [
+            {'status': 'modified', 'filename': '.github/workflows/release-3platform.yml'},
+            {'status': 'modified', 'filename': 'scripts/publish_release.py'},
+            {'status': 'modified', 'filename': 'tests/publish_release_tests.py'}]}
+        with patch.object(publisher, 'api', return_value=changes):
+            self.assertTrue(publisher.validated_ci_only_v131(
+                endpoint, 'july-rust/SParamView-Public', '1.3.1',
+                release, ref, 'b'*40))
+        changes['files'].append({'status': 'modified', 'filename': 'src/cache_session.hpp'})
+        with patch.object(publisher, 'api', return_value=changes):
+            self.assertFalse(publisher.validated_ci_only_v131(
+                endpoint, 'july-rust/SParamView-Public', '1.3.1',
+                release, ref, 'b'*40))
+        changes['files'].pop()
+        with patch.object(publisher, 'api') as api:
+            self.assertFalse(publisher.validated_ci_only_v131(
+                endpoint, 'july-rust/SParamView-Public', '1.3.1',
+                release, {'object': {'type': 'commit', 'sha': 'c'*40}}, 'b'*40))
+            api.assert_not_called()
+
+    def test_v131_ci_only_main_cannot_mutate_release(self):
+        old = '54f0fd40173dd60f452096832adcfb736d21b4f1'
+        new = 'b'*40
+        env = dict(SPARAMVIEW_VERSION='1.3.1', GITHUB_SHA=new,
+                   GITHUB_REPOSITORY='july-rust/SParamView-Public',
+                   GITHUB_REF='refs/heads/main', GITHUB_EVENT_NAME='push',
+                   GITHUB_RUN_ID='42')
+        release = dict(id=427525263, tag_name='v1.3.1', draft=False,
+                       prerelease=False, target_commitish=old)
+        ref = {'object': {'type': 'commit', 'sha': old}}
+        changes = {'status': 'ahead', 'files': [
+            {'status': 'modified', 'filename': 'tests/publish_release_tests.py'}]}
+        jobs = {'jobs': [dict(name=name, conclusion='success',
+                              html_url='https://example.invalid')
+                         for name in ['Version and release consistency',
+                                      'Core quality gates', 'Windows x64',
+                                      'Windows ARM64',
+                                      'Native Windows ARM64 packaged-binary gate',
+                                      'macOS Apple Silicon arm64']]}
+        with patch.dict(os.environ, env), patch.object(
+                publisher.subprocess, 'check_output', return_value=new), patch.object(
+                publisher, 'api', side_effect=[release, ref, changes, jobs]) as api, patch.object(
+                publisher, 'gh') as gh:
+            publisher.main()
+            self.assertEqual(api.call_count, 4)
+            self.assertTrue(all(len(call.args) == 1 for call in api.call_args_list))
+            gh.assert_not_called()
+
     def test_documentation_current_release_links_and_artifacts(self):
+        """The release version cannot advance without synchronized user docs.
+
+        The expected version is read from the same public C++ header used by
+        the application, instead of being hardcoded into this regression test.
+        """
+        import re
+
         root = Path(__file__).resolve().parents[1]
+        core = (root/'include/si/core.hpp').read_text(encoding='utf-8')
+        version_match = re.search(
+            r'inline constexpr const char \*version = "([0-9]+\.[0-9]+\.[0-9]+[a-z]?)"',
+            core)
+        self.assertIsNotNone(version_match, 'Cannot read application version')
+        version = version_match.group(1)
+
         headings = {
-            'README.md': 'Current official release: **[v1.3.1]',
-            'README_EN.md': '# SParamView v1.3.1',
-            'README_KO.md': '# SParamView v1.3.1',
-            'README_FIRST.txt': 'SParamView v1.3.1',
-            'docs/USER_GUIDE_EN.md': '**Applies to:** SParamView **v1.3.1',
-            'docs/USER_GUIDE_KO.md': '**적용 기준:** SParamView **v1.3.1',
-            'docs/Revision_History.md': 'Current official release: [v1.3.1]',
-            'docs/Release_1.3.0.md': 'Official stable release',
-            'docs/Release_1.3.1.md': 'Multi-process cache safety',
-            'docs/Temporary_Cache_Cleanup.md': 'v1.3.1',
+            'README.md': f'Current official release: **[v{version}]',
+            'README_EN.md': f'# SParamView v{version}',
+            'README_KO.md': f'# SParamView v{version}',
+            'README_FIRST.txt': f'SParamView v{version}',
+            'docs/USER_GUIDE_EN.md': f'**Applies to:** SParamView **v{version}',
+            'docs/USER_GUIDE_KO.md': f'**적용 기준:** SParamView **v{version}',
+            'docs/Revision_History.md': f'Current official release: [v{version}]',
+            f'docs/Release_{version}.md': f'# SParamView v{version}',
+            'docs/Temporary_Cache_Cleanup.md': f'# SParamView v{version}',
+            'docs/images/README.md': f'current v{version}',
         }
         for path, marker in headings.items():
-            self.assertIn(marker,(root/path).read_text(encoding='utf-8'),path)
-        import re
-        for path in ('README.md','README_EN.md','README_KO.md',
-                     'docs/USER_GUIDE_EN.md','docs/USER_GUIDE_KO.md',
+            content = (root/path).read_text(encoding='utf-8')
+            self.assertIn(marker, content, path)
+
+        for path in ('README.md', 'README_EN.md', 'README_KO.md',
+                     'README_FIRST.txt', 'docs/USER_GUIDE_EN.md',
+                     'docs/USER_GUIDE_KO.md', 'docs/Revision_History.md'):
+            text = (root/path).read_text(encoding='utf-8')
+            self.assertIn(f'v{version}', text, path)
+        for path in ('README.md', 'README_EN.md', 'README_KO.md',
+                     'README_FIRST.txt'):
+            text = (root/path).read_text(encoding='utf-8')
+            self.assertIn(f'releases/tag/v{version}', text, path)
+
+        for path in ('README.md', 'README_EN.md', 'README_KO.md',
+                     'docs/USER_GUIDE_EN.md', 'docs/USER_GUIDE_KO.md',
                      'docs/Revision_History.md'):
-            body=(root/path).read_text(encoding='utf-8')
-            for link in re.findall(r'(?<!!)\[[^\]]+\]\(([^)]+)\)',body):
-                if (link.startswith(('http://','https://','#','mailto:'))):
+            body = (root/path).read_text(encoding='utf-8')
+            for link in re.findall(r'(?<!!)\[[^\]]+\]\(([^)]+)\)', body):
+                if link.startswith(('http://', 'https://', '#', 'mailto:')):
                     continue
-                target=(root/path).parent / link.split('#',1)[0]
-                self.assertTrue(target.is_file(),f'Broken Markdown link: {path} -> {link}')
+                target = (root/path).parent / link.split('#', 1)[0]
+                self.assertTrue(target.is_file(),
+                                f'Broken Markdown link: {path} -> {link}')
 
 if __name__=='__main__':unittest.main()

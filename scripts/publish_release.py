@@ -154,6 +154,36 @@ def validated_docs_only_v130(endpoint, repo, version, existing, ref, commit):
             and len(files) == len({item['filename'] for item in files}))
 
 
+
+def validated_ci_only_v131(endpoint, repo, version, existing, ref, commit):
+    """Validate repository-only release documentation gate maintenance.
+
+    A tagged v1.3.1 release is immutable. Only the specific CI check, its
+    regression test, and this publication guard may change on main without
+    introducing a new application version. No executable or release asset
+    may be replaced.
+    """
+    released_commit = '54f0fd40173dd60f452096832adcfb736d21b4f1'
+    if (repo != 'july-rust/SParamView-Public' or version != '1.3.1'
+            or not existing or existing.get('id') != 427525263
+            or existing.get('draft') or existing.get('prerelease')
+            or existing.get('tag_name') != 'v1.3.1'
+            or existing.get('target_commitish') != released_commit
+            or not ref or ref.get('object', {}).get('type') != 'commit'
+            or ref.get('object', {}).get('sha') != released_commit):
+        return False
+    comparison = api(f'{endpoint}/compare/{released_commit}...{commit}')
+    allowed = {
+        '.github/workflows/release-3platform.yml',
+        'scripts/publish_release.py',
+        'tests/publish_release_tests.py',
+    }
+    files = comparison.get('files', [])
+    return (comparison.get('status') == 'ahead' and bool(files)
+            and all(item.get('status') == 'modified'
+                    and item.get('filename') in allowed for item in files)
+            and len(files) == len({item['filename'] for item in files}))
+
 def main():
     version, commit, repo = (os.environ[k] for k in
                              ('SPARAMVIEW_VERSION', 'GITHUB_SHA', 'GITHUB_REPOSITORY'))
@@ -174,6 +204,8 @@ def main():
             validated_ci_only_v124a(endpoint, repo, version, existing, ref, commit)
             or validated_docs_only_v130(endpoint, repo, version,
                                         existing, ref, commit)
+            or validated_ci_only_v131(endpoint, repo, version,
+                                      existing, ref, commit)
         )
         if not ci_only_maintenance:
             raise RuntimeError('This official release already exists; use a new version. No asset was changed.')
