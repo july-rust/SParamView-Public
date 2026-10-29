@@ -82,7 +82,7 @@ $rcText = Get-Content (Join-Path $projectRoot 'assets\SParamView.rc') -Raw
 $cmakeVersion = [regex]::Match($cmakeText, 'project\(SParamView VERSION ([0-9.]+)').Groups[1].Value
 $coreVersion = [regex]::Match($coreText, 'version\s*=\s*"([0-9]+\.[0-9]+\.[0-9]+[a-z]?)"').Groups[1].Value
 $rcVersion = [regex]::Match($rcText, 'VALUE "ProductVersion", "([0-9]+\.[0-9]+\.[0-9]+[a-z]?)').Groups[1].Value
-if (-not $cmakeVersion -or $cmakeVersion -ne '1.3.0' -or
+if (-not $cmakeVersion -or $cmakeVersion -ne '1.3.1' -or
     ($coreVersion -ne $cmakeVersion -and $coreVersion -ne ($cmakeVersion + 'a')) -or
     $coreVersion -ne $rcVersion) {
   throw "Application version mismatch: CMake=$cmakeVersion core=$coreVersion resource=$rcVersion"
