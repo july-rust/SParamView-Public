@@ -35,7 +35,8 @@ static int child(const QStringList &args) {
         si::pathFromUtf8(session.path().toUtf8().toStdString())));
   }
 
-  QByteArray ready = "READY\t" + session.path().toUtf8();
+  QByteArray ready("READY\t");
+  ready += session.path().toUtf8();
   for (const auto &cache : caches)
     ready += "\t" + QByteArray::fromStdString(si::utf8(cache->path()));
   ready += '\n';
