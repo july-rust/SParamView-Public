@@ -140,7 +140,7 @@ The status guidance at the bottom of the main window follows the same basic sequ
 
 ### 4.1 Header shortcuts
 
-The historical v1.2.1 screenshot shows these header shortcuts; the v1.3.1 application UI is the source of truth if placement differs:
+The historical v1.2.1 screenshot shows these header shortcuts; the v1.3.2 application UI is the source of truth if placement differs:
 
 - **+ Open Touchstone**: open one or more Touchstone files
 - **Open Project**: open an SParamView `.siproject`
