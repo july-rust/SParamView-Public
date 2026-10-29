@@ -566,7 +566,7 @@ Contact: **sparamview@gmail.com**
 
 ## 22. Documentation verification sources
 
-Historical v1.2.1 feature changes are supported by the [v1.2.1 release notes](Release_1.2.1.md) and the source links below. For the current release, see the [v1.3.1 release notes](Release_1.3.1.md), [temporary-cache policy](Temporary_Cache_Cleanup.md), [revision history](Revision_History.md), and [tagged source](https://github.com/july-rust/SParamView-Public/tree/v1.3.0). Previous v1.2.4a validation is retained in the [historical release notes](Release_1.2.4a.md).
+Historical v1.2.1 feature changes are supported by the [v1.2.1 release notes](Release_1.2.1.md) and the source links below. For the current release, see the [v1.3.1 release notes](Release_1.3.1.md), [temporary-cache policy](Temporary_Cache_Cleanup.md), [revision history](Revision_History.md), and [tagged source](https://github.com/july-rust/SParamView-Public/tree/v1.3.1). Previous v1.2.4a validation is retained in the [historical release notes](Release_1.2.4a.md).
 
 - [Initial TDR axes and automatic scaling](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/src/plot.cpp)
 - [Plot interaction and viewport restoration](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/src/navigation.cpp)
