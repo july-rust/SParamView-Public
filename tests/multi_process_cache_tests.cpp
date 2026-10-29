@@ -72,7 +72,10 @@ static ChildPaths ready(QProcess &process) {
     expect(process.waitForReadyRead(20000), "Child did not report cache readiness");
     output += process.readAllStandardOutput();
   }
-  const auto items = output.left(output.indexOf('\n')).split('\t');
+  QByteArray line = output.left(output.indexOf('\n'));
+  if (line.endsWith('\r'))
+    line.chop(1); // Windows CRT translates child stdout LF to CRLF.
+  const auto items = line.split('\t');
   expect(items.size() == 4 && items[0] == "READY", "Invalid child readiness report");
   ChildPaths paths{QString::fromUtf8(items[1]), QString::fromUtf8(items[2]),
                    QString::fromUtf8(items[3])};
