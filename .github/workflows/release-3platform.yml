@@ -291,7 +291,7 @@ jobs:
             & $exe @TestArgs 2>&1 | Tee-Object -FilePath $log -Append
             if ($LASTEXITCODE -ne 0) { throw "$Name failed with exit code $LASTEXITCODE" }
           }
-          foreach ($name in @('si_tests','si_v116_regression_tests','si_v121_regression_tests','si_algorithm_regression_tests','si_mapping_tests','si_mapping_policy_tests','si_polarity_tests','si_termination_tests','si_performance_tests','si_qt_tests','si_session_cache_tests','si_header_ui_tests','si_v130_touchstone_tests')) {
+          foreach ($name in @('si_tests','si_v116_regression_tests','si_v121_regression_tests','si_algorithm_regression_tests','si_mapping_tests','si_mapping_policy_tests','si_polarity_tests','si_termination_tests','si_performance_tests','si_qt_tests','si_session_cache_tests','si_multi_process_cache_tests','si_header_ui_tests','si_v130_touchstone_tests')) {
             Invoke-Test -Name $name
           }
           foreach ($case in @('named','options','triangle','hash','numbers')) {
