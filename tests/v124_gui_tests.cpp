@@ -135,6 +135,9 @@ struct WorkspaceProbe {
    require(w.windowTitle().contains(QFileInfo(source).fileName()),"Initial source title missing");
    const QString projectA=dir+"/project-A.siproject", projectB=dir+"/project-B.siproject";
    const QString other=dir+"/alternate-source.s4p";
+   // The Windows build runs CTest twice in the same validation directory.
+   // Only remove our own generated fixture, never an imported user source.
+   QFile::remove(other);
    require(QFile::copy(source,other),"Cannot create second source");
    w.projectPath=projectA;w.saveProject();
    QFile a(projectA);require(a.open(QIODevice::ReadOnly),"Read project A");
@@ -172,6 +175,7 @@ struct WorkspaceProbe {
    require(w.windowTitle().contains(QFileInfo(source).fileName()),"Title not restored to A");
    const QString workspaceA=w.workspaceCache->path();
    const QString filename=QString(90,'X')+".s4p", longSource=dir+"/"+filename;
+   QFile::remove(longSource);
    require(QFile::copy(source,longSource),"Long filename source creation failed");
    QTimer dismiss;
    QObject::connect(&dismiss,&QTimer::timeout,&w,[]{
