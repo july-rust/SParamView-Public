@@ -1,10 +1,10 @@
 # SParamView User Guide
 
-**Applies to:** SParamView v1.2.5 official release
+**Applies to:** SParamView **v1.3.0 official release**
 **Supported platforms:** Windows x64 / Windows ARM64 / macOS Apple Silicon (arm64)
-**Documentation updated:** 2026-10-24 (KST). Describes the v1.2.5 owned-session cleanup policy and release packages; previously released v1.2.4a assets are unchanged.
+**Documentation updated:** **2026-10-29 (KST)**. Covers v1.3.0 Touchstone input compatibility, physical-port mapping, Windows package layout, and the retained v1.2.5 cache cleanup policy. Historical release assets are unchanged.
 
-[한국어 사용자 설명서](USER_GUIDE_KO.md) | [English README](../README_EN.md) | [v1.2.5 Release Notes](Release_1.2.5.md)
+[한국어 사용자 설명서](USER_GUIDE_KO.md) | [English README](../README_EN.md) | [v1.3.0 Release Notes](Release_1.3.0.md)
 
 ---
 
@@ -63,6 +63,16 @@ The v1.2.0 source partitioning is an internal code-structure change and requires
 
 See [Temporary Cache Cleanup](Temporary_Cache_Cleanup.md) and [v1.2.5 Release Notes](Release_1.2.5.md).
 
+### v1.3.0 Touchstone imports and package changes
+
+- **Input versions:** Touchstone 1.0 and 1.1 (without an explicit `[Version]` line), and Touchstone 2.0/2.1 (with the required explicit `[Version]` and 2.x keywords). The viewer processes **S-parameter** files; Y/Z/H/G network parameter types are not automatically converted or interpreted as S-data. `[Version] 1.9` is not an official format identifier.
+- **Standard representations:** Hz/kHz/MHz/GHz, RI/MA/DB, supported Full/Lower/Upper matrices, physical-port references, two-port ordering, and declared mixed-mode data. Correct P/N and Near/Far mapping still require verified physical evidence.
+- **Port-name comments:** `! Port 1 = J1-A1 NET_P` and vendor `! Port1_J1_A1::NET_P` are both recognized. A `!.DiffChannels` comment block is a vendor extension, **not** the standardized Touchstone `[Mixed-Mode Order]` keyword. Invalid, incomplete or conflicting endpoint/NET/polarity evidence is not silently trusted; confirm mapping manually.
+- **Cache lifecycle:** binary cache metadata schema changed in v1.3.0 to avoid reusing older missing port labels. The v1.2.5 owned-session temporary-file cleanup policy continues unchanged.
+- **Windows installed ZIP:** the root contains only `SParamView.exe` as an EXE, together with necessary Qt and MSVC runtime DLLs. The CLI lives at `tools/si_cli.exe`, test programs at `tests/si_*.exe`, and the packaged `Run_Windows_Verification.cmd` uses those locations.
+
+Official specification: [IBIS Touchstone v2.1](https://ibis.org/touchstone_ver2.1/touchstone_ver2_1.pdf). Release verification: [GitHub Actions v1.3.0](https://github.com/july-rust/SParamView-Public/actions/runs/40807027224).
+
 ## 2. Installation and First Launch
 
 ### 2.1 Choose the correct release package
@@ -71,15 +81,15 @@ Download the package that matches your system from GitHub Releases.
 
 | System | Recommended package |
 |---|---|
-| Windows x64 | `SParamView_Windows_x64_v1.2.5.zip` |
-| Windows ARM64 | `SParamView_Windows_ARM64_v1.2.5.zip` |
-| macOS Apple Silicon | `SParamView_macOS_AppleSilicon_arm64_v1.2.5.dmg` or `.zip` |
+| Windows x64 | `SParamView_Windows_x64_v1.3.0.zip` |
+| Windows ARM64 | `SParamView_Windows_ARM64_v1.3.0.zip` |
+| macOS Apple Silicon | `SParamView_macOS_AppleSilicon_arm64_v1.3.0.dmg` or `.zip` |
 
 SHA-256 files are also provided with the release. To verify download integrity, run `Get-FileHash <filename> -Algorithm SHA256` in Windows PowerShell or `shasum -a 256 <filename>` in macOS Terminal, then compare the result with the corresponding `.sha256` file.
 
 ### 2.2 Windows
 
-Extract the ZIP package and launch SParamView. Windows reputation or security warnings may appear. Confirm that the file came from the official GitHub release, verify the SHA-256 value, and follow your organization’s security policy before running it.
+Extract the ZIP package and run the root-level `SParamView.exe`; auxiliary command-line and test executables are in `tools/` and `tests/`. Windows reputation or security warnings may appear. Confirm that the file came from the official GitHub release, verify the SHA-256 value, and follow your organization’s security policy before running it.
 
 ### 2.3 macOS Apple Silicon
 
@@ -108,13 +118,13 @@ The status guidance at the bottom of the main window follows the same basic sequ
 ## 4. Main Window
 
 > **Automated validation screenshot** — The image below was generated automatically by SParamView v1.2.1 during native Windows ARM64 validation using the synthetic sample project. Layout can vary slightly with OS, DPI, and window size.
-> These screenshots were generated during public v1.2.1 release validation. See section 10 for TDR display and evaluation behavior. [Image provenance](images/README.md).
+> These screenshots were generated during public v1.2.1 release validation and are **not v1.3.0 screenshots**. See section 10 for TDR display and evaluation behavior. [Image provenance](images/README.md).
 
 ![SParamView v1.2.1 main window](images/01_Main_Window.png)
 
 ### 4.1 Header shortcuts
 
-The historical v1.2.1 screenshot shows these header shortcuts; use the current application UI as the source of truth if placement differs:
+The historical v1.2.1 screenshot shows these header shortcuts; the v1.3.0 application UI is the source of truth if placement differs:
 
 - **+ Open Touchstone**: open one or more Touchstone files
 - **Open Project**: open an SParamView `.siproject`
@@ -549,7 +559,7 @@ Contact: **sparamview@gmail.com**
 
 ## 22. Documentation verification sources
 
-Historical v1.2.1 feature changes are supported by the [v1.2.1 release notes](Release_1.2.1.md) and the source links below. For the current release, see the [v1.2.5 release notes](Release_1.2.5.md), [temporary-cache policy](Temporary_Cache_Cleanup.md), [revision history](Revision_History.md), and [tagged source](https://github.com/july-rust/SParamView-Public/tree/v1.2.5). Previous v1.2.4a validation is retained in the [historical release notes](Release_1.2.4a.md).
+Historical v1.2.1 feature changes are supported by the [v1.2.1 release notes](Release_1.2.1.md) and the source links below. For the current release, see the [v1.3.0 release notes](Release_1.3.0.md), [temporary-cache policy](Temporary_Cache_Cleanup.md), [revision history](Revision_History.md), and [tagged source](https://github.com/july-rust/SParamView-Public/tree/v1.3.0). Previous v1.2.4a validation is retained in the [historical release notes](Release_1.2.4a.md).
 
 - [Initial TDR axes and automatic scaling](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/src/plot.cpp)
 - [Plot interaction and viewport restoration](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/src/navigation.cpp)
@@ -562,4 +572,4 @@ Historical v1.2.1 feature changes are supported by the [v1.2.1 release notes](Re
 
 ### Document Version
 
-This guide was updated on **2026-10-24 (KST)** for **SParamView v1.2.5**. The embedded screenshots are **unchanged v1.2.1 validation captures** (see [images/README.md](images/README.md)), not newly captured v1.2.5 screens.
+This guide was updated on **2026-10-29 (KST)** for the **SParamView v1.3.0 official release**. The embedded screenshots remain **historical v1.2.1 validation captures** (see [images/README.md](images/README.md)); no v1.3.0 screenshots are claimed. The published v1.3.0 tag and attached guide assets remain immutable.
