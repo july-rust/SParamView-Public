@@ -92,3 +92,8 @@ ctest --test-dir build --output-on-failure
 ## 라이선스
 
 SParamView 프로그램 소스는 MIT License를 사용합니다. Third-party component, runtime notice, font는 각각의 라이선스를 유지합니다. `LICENSE`, `COPYRIGHT.txt`, `third_party/`를 확인하세요.
+
+
+### v1.3.0 Touchstone 및 Windows 배포 구조
+
+Touchstone 1.0/1.1 (버전 키워드 없이 선언) 및 2.0/2.1 (`[Version]` 선언)의 S-파라미터 파일을 지원합니다. Y/Z/H/G 행렬은 잘못된 S-파라미터로 해석하지 않고 별도 변환 필요 오류를 표시합니다. 제조사 확장 주석 `! Port1_U1_2::NET_P`를 물리 포트 이름으로 표시하고 `!.DiffChannels`의 인덱스·NET·극성과 교차 검증합니다. Windows에서는 최상위 EXE는 `SParamView.exe` 하나이고, CLI는 `tools/`, 테스트 EXE는 `tests/`로 분리합니다.
