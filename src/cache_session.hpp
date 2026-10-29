@@ -24,7 +24,10 @@ public:
       root = QDir(base).filePath("v3");
     }
     root_ = QDir::cleanPath(root);
-    if (!QDir().mkpath(root_))
+    // Concurrent processes can both observe a missing shared parent. On
+    // Windows, mkpath may report failure if another process creates it first.
+    // Re-check the final directory before treating this as a genuine error.
+    if (!QDir().mkpath(root_) && !QFileInfo(root_).isDir())
       throw std::runtime_error("Cannot create application cache directory");
 
     // Coordinate construction/reaping across instances. No process ever
