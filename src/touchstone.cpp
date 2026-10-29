@@ -278,8 +278,8 @@ static Header importFile(const fs::path &source, const fs::path &temporary,
                          Metadata &m, Control *control) {
   Scanner scan(source, control);
   Header h{};
-  std::memcpy(h.magic, "SICACH6", 7);
-  h.version = 6;
+  std::memcpy(h.magic, "SICACH7", 7);
+  h.version = 7;
   h.size = m.sourceSize;
   h.mtime = m.modified;
   h.fingerprint = m.fingerprint;
@@ -293,7 +293,7 @@ static Header importFile(const fs::path &source, const fs::path &temporary,
     m.ports = positiveInteger(ext[1]);
   double scale = 1e9;
   std::vector<double> optionRef{50};
-  std::map<int, std::string> labels;
+  std::map<uint64_t, std::string> labels;
   std::vector<double> f;
   std::vector<Complex> tile;
   bool option = false, network = false, initialized = false, ended = false,
@@ -328,6 +328,10 @@ static Header importFile(const fs::path &source, const fs::path &temporary,
   };
   std::regex labelRx(R"(^\s*Port\s*\[?\s*(\d+)\s*\]?\s*[=:]\s*(.+)$)",
                      std::regex::icase);
+  // Vendor comment convention: ! Port1_U1_A1::NET_P
+  // Keep the physical endpoint plus net; never treat this as a [keyword].
+  std::regex scopedLabelRx(R"(^\s*Port\s*(\d+)_([^:\s]+)::(\S.*)$)",
+                           std::regex::icase);
   auto flush = [&]() {
     if (frame == 0)
       return;
@@ -356,7 +360,8 @@ static Header importFile(const fs::path &source, const fs::path &temporary,
     if (m.ports*m.ports > (512ULL*1024*1024)/sizeof(Complex) || matrixPairs > m.sourceSize/3)
       throw Error("Port matrix exceeds the 512 MiB frame budget or cannot fit in this source file");
     if (m.version[0] == '2') {
-      if (!network || !expected || !seen.count("number of ports"))
+      if (!network || !expected || !seen.count("number of ports") ||
+          !seen.count("number of frequencies"))
         throw Error("Missing required Touchstone 2.x keyword");
       if (m.ports == 2 && !seen.count("two-port data order"))
         throw Error("2.x two-port file requires [Two-Port Data Order]");
@@ -400,7 +405,10 @@ static Header importFile(const fs::path &source, const fs::path &temporary,
         std::smatch match;
         const auto comment = trim(t.text);
         if (std::regex_match(comment, match, labelRx))
-          labels[std::stoi(match[1]) - 1] = trim(match[2]);
+          labels[positiveInteger(match[1].str()) - 1] = trim(match[2]);
+        else if (std::regex_match(comment, match, scopedLabelRx))
+          labels[positiveInteger(match[1].str()) - 1] =
+              trim(match[2].str()) + "::" + trim(match[3].str());
         const auto folded = lower(comment);
         if (folded == ".diffchannels") {
           differentialSection = true;
@@ -411,7 +419,7 @@ static Header importFile(const fs::path &source, const fs::path &temporary,
           continue;
         }
         if (differentialSection && !comment.empty()) {
-          if (m.differentialHints.size() >= m.ports)
+          if (m.ports && m.differentialHints.size() >= m.ports)
             throw Error("Too many differential channel hints");
           m.differentialHints.push_back(comment);
         }
@@ -537,10 +545,18 @@ static Header importFile(const fs::path &source, const fs::path &temporary,
         if (initialized)
           throw Error("Header keyword after network data: " + key);
         if (key == "version") {
-          if (value != "1.0" && value != "1.1" && value != "2.0" &&
-              value != "2.1")
-            throw Error("Unsupported Touchstone version: " + value);
+          // IBIS v2.1: [Version] is required for 2.x and prohibited for 1.x.
+          if (option || seen.size() != 1)
+            throw Error("[Version] must be the first non-comment line");
+          if (value != "2.0" && value != "2.1")
+            throw Error("Invalid [Version]: use 2.0 or 2.1; Touchstone 1.x is implicit");
           m.version = value;
+        } else if (m.version[0] != '2') {
+          throw Error("Bracketed keywords require [Version] 2.0/2.1");
+        } else if (!option) {
+          throw Error("Missing # option line after [Version]");
+        } else if (!seen.count("number of ports") && key != "number of ports") {
+          throw Error("[Number of Ports] must follow the # option line");
         } else if (key == "number of ports") {
           auto n = positiveInteger(value);
           if (m.ports && m.ports != n)
@@ -696,6 +712,8 @@ static Header importFile(const fs::path &source, const fs::path &temporary,
       throw Error("Two-port order in non-two-port file");
     flush();
     h.f = m.points;
+    if (m.differentialHints.size() > m.ports)
+      throw Error("Too many differential channel hints");
     m.labels.resize(m.ports);
     for (auto &[p, s] : labels)
       if (p >= 0 && uint64_t(p) < m.ports)

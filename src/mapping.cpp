@@ -86,6 +86,21 @@ static std::string pnBaseName(std::string name, size_t difference) {
     name.erase(difference, 1);
   return trim(name);
 }
+// Source-specific endpoint NET extraction; unqualified labels must not be
+// guessed into physical channel mappings.
+static std::string terminalNetFromLabel(const std::string &label) {
+  const auto scope = label.rfind("::");
+  if (scope != std::string::npos)
+    return trim(label.substr(scope + 2));
+  const auto space = label.find_last_of(" \t");
+  if (space != std::string::npos)
+    return trim(label.substr(space + 1));
+  if (label.starts_with("DIE.") || label.starts_with("BGA.")) {
+    auto dot = label.find('.', label.find('.') + 1);
+    if (dot != std::string::npos) return trim(label.substr(dot + 1));
+  }
+  return {};
+}
 std::vector<Channel> suggestMapping(const Metadata &m,
                                     std::string *diagnostic,
                                     bool inferNamedDifferential) {
@@ -118,18 +133,26 @@ std::vector<Channel> suggestMapping(const Metadata &m,
           const auto &net = fields[1 + i % 2];
           if (size_t(ports[i]) >= m.labels.size())
             throw Error("PowerSI hint port has no physical label");
-          auto actualNet = lower(trim(m.labels[size_t(ports[i])]));
-          const auto separator = actualNet.find_last_of(" \t");
-          if (separator != std::string::npos)
-            actualNet = lower(trim(actualNet.substr(separator + 1)));
-          if (actualNet != lower(trim(net)))
-            throw Error("PowerSI hint does not match port label");
+          const auto &physicalLabel = m.labels[size_t(ports[i])];
+          auto actualNet = terminalNetFromLabel(physicalLabel);
+          if (actualNet.empty()) actualNet = trim(physicalLabel);
+          if (lower(actualNet) != lower(trim(net)))
+            throw Error("Differential hint does not match physical port net");
           std::smatch endpoint;
           if (std::regex_search(fields[3 + i], endpoint,
                                 std::regex(R"(^\s*Port\s*(\d+)_)",
                                            std::regex::icase)) &&
               positiveInteger(endpoint[1].str()) != uint64_t(ports[i] + 1))
-            throw Error("PowerSI hint endpoint does not match port index");
+            throw Error("Differential hint endpoint does not match port index");
+          // Scoped vendor labels also declare the physical component/pin.
+          // Matching only the net must not silently confirm the wrong pin.
+          if (endpoint[0].matched &&
+              physicalLabel.find("::") != std::string::npos) {
+            const auto hintedLabel =
+                trim(fields[3 + i].substr(endpoint[0].length()));
+            if (lower(hintedLabel) != lower(trim(physicalLabel)))
+              throw Error("Differential hint physical endpoint mismatch");
+          }
         }
         Channel c;
         c.name = base;
@@ -147,9 +170,8 @@ std::vector<Channel> suggestMapping(const Metadata &m,
       std::map<std::string, std::vector<int>> remaining;
       for (size_t i = 0; i < m.labels.size(); ++i) {
         if (used.count(int(i))) continue;
-        auto at = m.labels[i].find_last_of(" \t");
-        if (at != std::string::npos)
-          remaining[trim(m.labels[i].substr(at + 1))].push_back(int(i));
+        const auto net = terminalNetFromLabel(m.labels[i]);
+        if (!net.empty()) remaining[net].push_back(int(i));
       }
       bool mixed = false;
       for (const auto &[net, ports] : remaining) {
@@ -175,15 +197,7 @@ std::vector<Channel> suggestMapping(const Metadata &m,
   std::map<std::string, std::vector<int>> terminals;
   for (size_t i = 0; i < m.labels.size(); ++i) {
     const auto &label = m.labels[i];
-    std::string net;
-    auto space = label.find_last_of(" \t");
-    if (space != std::string::npos)
-      net = trim(label.substr(space + 1));
-    else if (label.starts_with("DIE.") || label.starts_with("BGA.")) {
-      auto dot = label.find('.', label.find('.') + 1);
-      if (dot != std::string::npos)
-        net = label.substr(dot + 1);
-    }
+    const auto net = terminalNetFromLabel(label);
     if (!net.empty())
       terminals[net].push_back(int(i));
   }

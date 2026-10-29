@@ -99,7 +99,7 @@ std::shared_ptr<Cache> Cache::open(const fs::path &src, const fs::path &dir,
       std::ifstream in(target, std::ios::binary);
       in.read(reinterpret_cast<char *>(&h), sizeof(h));
       auto size = fs::file_size(target);
-      if (!in || std::memcmp(h.magic, "SICACH6", 7) || h.version != 6 || !h.n ||
+      if (!in || std::memcmp(h.magic, "SICACH7", 7) || h.version != 7 || !h.n ||
           !h.f || !h.tile || h.n > uint64_t(std::numeric_limits<int>::max()) ||
           h.n > std::sqrt(double(std::numeric_limits<uint64_t>::max() / 16)) ||
           h.n*h.n > (512ULL*1024*1024)/sizeof(Complex) ||

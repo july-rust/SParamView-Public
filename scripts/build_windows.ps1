@@ -173,6 +173,16 @@ Copy-Item (Join-Path $projectRoot 'LICENSE') $deployRoot -Force
 Copy-Item (Join-Path $projectRoot 'COPYRIGHT.txt') $deployRoot -Force
 Copy-Item (Join-Path $projectRoot 'third_party') $deployRoot -Recurse -Force
 
+# Only the GUI launcher belongs at the top level. Qt/MSVC DLLs stay here.
+$topLevelExe = @(Get-ChildItem -LiteralPath $deployRoot -File -Filter '*.exe')
+if ($topLevelExe.Count -ne 1 -or $topLevelExe[0].Name -ne 'SParamView.exe') {
+  throw 'Only SParamView.exe may be installed at the package root'
+}
+if (-not (Test-Path (Join-Path $deployRoot 'tools\si_cli.exe')) -or
+    -not (Test-Path (Join-Path $deployRoot 'tests\si_v130_touchstone_tests.exe'))) {
+  throw 'Relocated CLI or tests missing from Windows package'
+}
+
 # Every bundled EXE/DLL must match the release architecture. This catches an
 # accidental x64 Qt DLL in an ARM64 bundle before native testing.
 Invoke-Checked $python.Source @((Join-Path $PSScriptRoot 'verify_pe_machine.py'),$deployRoot,$Architecture,(Join-Path $validationRoot 'bundle_architecture.json'))
@@ -297,6 +307,16 @@ Copy-Item (Join-Path $projectRoot 'LICENSE') $deployRoot -Force
 Copy-Item (Join-Path $projectRoot 'COPYRIGHT.txt') $deployRoot -Force
 Copy-Item (Join-Path $projectRoot 'third_party') $deployRoot -Recurse -Force
 
+# Only the GUI launcher belongs at the top level. Qt/MSVC DLLs stay here.
+$topLevelExe = @(Get-ChildItem -LiteralPath $deployRoot -File -Filter '*.exe')
+if ($topLevelExe.Count -ne 1 -or $topLevelExe[0].Name -ne 'SParamView.exe') {
+  throw 'Only SParamView.exe may be installed at the package root'
+}
+if (-not (Test-Path (Join-Path $deployRoot 'tools\si_cli.exe')) -or
+    -not (Test-Path (Join-Path $deployRoot 'tests\si_v130_touchstone_tests.exe'))) {
+  throw 'Relocated CLI or tests missing from Windows package'
+}
+
 # Every bundled EXE/DLL must match the release architecture. This catches an
 # accidental x64 Qt DLL in an ARM64 bundle before native testing.
 Invoke-Checked $python.Source @((Join-Path $PSScriptRoot 'verify_pe_machine.py'),$deployRoot,$Architecture,(Join-Path $validationRoot 'bundle_architecture.json'))
@@ -421,6 +441,16 @@ Copy-Item (Join-Path $projectRoot 'LICENSE') $deployRoot -Force
 Copy-Item (Join-Path $projectRoot 'COPYRIGHT.txt') $deployRoot -Force
 Copy-Item (Join-Path $projectRoot 'third_party') $deployRoot -Recurse -Force
 
+# Only the GUI launcher belongs at the top level. Qt/MSVC DLLs stay here.
+$topLevelExe = @(Get-ChildItem -LiteralPath $deployRoot -File -Filter '*.exe')
+if ($topLevelExe.Count -ne 1 -or $topLevelExe[0].Name -ne 'SParamView.exe') {
+  throw 'Only SParamView.exe may be installed at the package root'
+}
+if (-not (Test-Path (Join-Path $deployRoot 'tools\si_cli.exe')) -or
+    -not (Test-Path (Join-Path $deployRoot 'tests\si_v130_touchstone_tests.exe'))) {
+  throw 'Relocated CLI or tests missing from Windows package'
+}
+
 # Every bundled EXE/DLL must match the release architecture. This catches an
 # accidental x64 Qt DLL in an ARM64 bundle before native testing.
 Invoke-Checked $python.Source @((Join-Path $PSScriptRoot 'verify_pe_machine.py'),$deployRoot,$Architecture,(Join-Path $validationRoot 'bundle_architecture.json'))
@@ -544,6 +574,16 @@ Copy-Item (Join-Path $projectRoot 'Run_Windows_Verification.cmd') $deployRoot -F
 Copy-Item (Join-Path $projectRoot 'LICENSE') $deployRoot -Force
 Copy-Item (Join-Path $projectRoot 'COPYRIGHT.txt') $deployRoot -Force
 Copy-Item (Join-Path $projectRoot 'third_party') $deployRoot -Recurse -Force
+
+# Only the GUI launcher belongs at the top level. Qt/MSVC DLLs stay here.
+$topLevelExe = @(Get-ChildItem -LiteralPath $deployRoot -File -Filter '*.exe')
+if ($topLevelExe.Count -ne 1 -or $topLevelExe[0].Name -ne 'SParamView.exe') {
+  throw 'Only SParamView.exe may be installed at the package root'
+}
+if (-not (Test-Path (Join-Path $deployRoot 'tools\si_cli.exe')) -or
+    -not (Test-Path (Join-Path $deployRoot 'tests\si_v130_touchstone_tests.exe'))) {
+  throw 'Relocated CLI or tests missing from Windows package'
+}
 
 # Every bundled EXE/DLL must match the release architecture. This catches an
 # accidental x64 Qt DLL in an ARM64 bundle before native testing.

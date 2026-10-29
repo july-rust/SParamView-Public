@@ -1,3 +1,11 @@
+## v1.3.0 (2026-10-29; release candidate)
+
+- Touchstone 1.0/1.1/2.0/2.1 S-parameter input parser compatibility work; 1.9 is not an approved format revision.
+- Vendor-scoped physical port labels \`! PortN_COMPONENT_PIN::NET\` recognized and validated against \`!.DiffChannels\` physical endpoints.
+- Binary cache schema v7 prevents stale missing-label metadata reuse.
+- Windows only \`SParamView.exe\` at bundle root; \`tools/si_cli.exe\` and \`tests/si_*.exe\` are relocated.
+- Publication requires full three-platform CI and Windows ARM64 native gate completion; do not treat source changes as a published release.
+
 # SParamView Revision History
 
 This document records the development sequence from the original SI Analyzer engineering preview through the current SParamView release. The development record predates the GitHub repository itself: the first retained engineering-preview validation is dated **2026-09-08**, while the current GitHub repository was created on **2026-09-25**.
