@@ -69,7 +69,18 @@ static ChildPaths ready(QProcess &process) {
   expect(process.waitForStarted(15000), "Child did not start");
   QByteArray output = process.readAllStandardOutput();
   while (!output.contains('\n')) {
-    expect(process.waitForReadyRead(20000), "Child did not report cache readiness");
+    if (!process.waitForReadyRead(20000)) {
+      output += process.readAllStandardOutput();
+      if (output.contains('\n'))
+        break;
+      const QByteArray childError = process.readAllStandardError();
+      throw std::runtime_error(
+          std::string("Child did not report cache readiness: state=") +
+          std::to_string(int(process.state())) + " exit=" +
+          std::to_string(process.exitCode()) + " processError=" +
+          process.errorString().toStdString() + " stderr=" +
+          childError.toStdString() + " stdout=" + output.toStdString());
+    }
     output += process.readAllStandardOutput();
   }
   QByteArray line = output.left(output.indexOf('\n'));
