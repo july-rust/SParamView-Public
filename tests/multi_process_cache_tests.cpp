@@ -114,7 +114,6 @@ int main(int argc, char **argv) {
 
     QTemporaryDir sandbox;
     expect(sandbox.isValid(), "Cannot create multi-process test sandbox");
-    const auto root = QDir(sandbox.path()).filePath("cache/v3");
     const auto sourceA = QDir(sandbox.path()).filePath("a.s2p");
     const auto sourceB = QDir(sandbox.path()).filePath("b.s2p");
     const auto savedProject = QDir(sandbox.path()).filePath("saved.siproject");
@@ -124,8 +123,13 @@ int main(int argc, char **argv) {
     writeSource(sourceB, touchstone);
     writeSource(savedProject, "preserve project");
 
-    QProcess first, second, third;
-    // Start concurrently: both processes register ownership in the same root.
+    // Eight independent cold-root races: detect intermittent Windows
+    // CreateDirectory/QLockFile startup collisions, not just warm-cache reuse.
+    for (int round = 0; round < 8; ++round) {
+      const auto root = QDir(sandbox.path()).filePath(
+          QString("cache/round-%1/v3").arg(round));
+      QProcess first, second, third;
+      // Start concurrently: both processes register ownership in a cold root.
     start(first, root, sourceA, sourceB);
     start(second, root, sourceA, sourceB);
     const auto a = ready(first), b = ready(second);
@@ -157,8 +161,9 @@ int main(int argc, char **argv) {
     expect(QFileInfo::exists(sourceA) && QFileInfo::exists(sourceB) &&
                QFileInfo::exists(savedProject),
            "Cache cleanup removed an original source or saved project");
+    }
 
-    std::cout << "Multi-process cache isolation and recovery: PASS\n";
+    std::cout << "Multi-process cache isolation and recovery (8 cold-root races): PASS\n";
     return 0;
   } catch (const std::exception &e) {
     std::cerr << "Multi-process cache test: " << e.what() << '\n';
