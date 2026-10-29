@@ -76,6 +76,9 @@ jobs:
           print(f'version={core_v}')
           PY
 
+      - name: Verify release documentation and internal links
+        run: python3 tests/publish_release_tests.py ReleaseSafety.test_documentation_current_release_links_and_artifacts
+
       - name: Summary
         run: echo "SParamView v${{ steps.version.outputs.version }}" >> "$GITHUB_STEP_SUMMARY"
 
