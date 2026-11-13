@@ -333,7 +333,7 @@ jobs:
   macos-arm64:
     name: macOS Apple Silicon arm64
     needs: [prepare, quality]
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 70
     env:
       QT_ROOT: ${{ github.workspace }}/Qt/6.8.3/macos
