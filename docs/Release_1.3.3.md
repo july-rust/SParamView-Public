@@ -20,6 +20,11 @@
 - Previously tolerated malformed numeric port tokens may now be rejected or require manual confirmation. This is intentional input validation, not a change in electrical calculations.
 - Existing RL/IL/NEXT/FEXT/TDR computation, saved `.siproject` format, temporary cache ownership/cleanup, multi-instance isolation and Windows package layout are not intentionally modified.
 
+## GitHub Actions compatibility
+
+- GitHub retired macOS 14 hosted runners on 2026-11-02; the native Apple Silicon build now uses the supported `macos-15` runner with an explicit arm64 runtime check.
+- The existing macOS GUI splitter regression now distinguishes real divider failure from a screen-constrained test window whose two panes are already at their minimum heights. This does not skip the GUI integration test.
+
 ## Regression coverage
 
 - Added `v133_parser_hardening` to CTest and packaged validation binaries.
