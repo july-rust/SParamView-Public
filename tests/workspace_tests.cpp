@@ -209,8 +209,33 @@ struct WorkspaceProbe {
   check(values(w)==original&&w.lastJobs.size()==jobs&&settingsJson(w.lastSettings)==settings,"Layout altered analysis or limits");
   check(w.table->selectionModel()->selectedRows()==selection,"Repeated switching lost selection");
   auto before=w.analysisSplit->sizes();
-  w.analysisSplit->setSizes({before[0]+60,std::max(100,before[1]-60)});settle(w);
-  check(w.analysisSplit->sizes()!=before,"Vertical splitter not adjustable");
+  w.analysisSplit->setSizes({before[0]+60,std::max(1,before[1]-60)});settle(w);
+  bool splitterMoved = w.analysisSplit->sizes()!=before;
+  if(!splitterMoved) {
+    // A splitter already at its top/bottom limit can only move the other way.
+    w.analysisSplit->setSizes({std::max(1,before[0]-60),before[1]+60});
+    settle(w);
+    splitterMoved = w.analysisSplit->sizes()!=before;
+  }
+  if(!splitterMoved) {
+    // Cocoa may clamp a requested 900 px test window to the much smaller
+    // runner's available screen height. When both panes are at their legal
+    // minimum heights the divider cannot move; that is not a splitter defect.
+    const auto minHeight=[](QWidget *widget) {
+      return std::max(widget->minimumHeight(),
+                      widget->minimumSizeHint().height());
+    };
+    const int minTop=minHeight(w.analysisSplit->widget(0));
+    const int minBottom=minHeight(w.analysisSplit->widget(1));
+    std::cerr<<"SPLITTER CLAMP DIAGNOSTIC: window="<<w.height()
+             <<", requested="<<size.height()<<", panes="<<before[0]
+             <<","<<before[1]<<", minima="<<minTop<<","<<minBottom
+             <<"\n";
+    check(w.height()<size.height() &&
+          before[0]+before[1]<=minTop+minBottom+3,
+          "Vertical splitter not adjustable despite available space");
+    result["splitter_screen_constrained"]=true;
+  } else result["splitter_screen_constrained"]=false;
   w.settingsAction->setChecked(true);settle(w);
   check(w.quickButton->mapTo(w.channelPanel,QPoint(0,0)).y()>=0 && w.quickButton->mapTo(w.channelPanel,QPoint(0,w.quickButton->height())).y()<=w.channelPanel->height(),"Quick Analysis button exceeds channel viewport");
   check(w.settingsPanel->isVisible()&&w.height()<=size.height(),"Expanded settings exceed viewport");

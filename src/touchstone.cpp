@@ -231,21 +231,93 @@ struct Basis {
   char kind;
   int p, q;
 };
+// The descriptor grammar is ASCII S<N>, D<N>,<N>, C<N>,<N>.
+static std::optional<std::pair<uint64_t, std::string>>
+parsePortComment(std::string_view comment) {
+  size_t i = 0;
+  auto skipSpace = [&] {
+    while (i < comment.size() &&
+           std::isspace(static_cast<unsigned char>(comment[i])))
+      ++i;
+  };
+  skipSpace();
+  if (comment.size() - i < 4 ||
+      lower(std::string(comment.substr(i, 4))) != "port")
+    return std::nullopt;
+  i += 4;
+  skipSpace();
+  bool bracket = i < comment.size() && comment[i] == '[';
+  if (bracket) {
+    ++i;
+    skipSpace();
+  }
+  const size_t numberStart = i;
+  while (i < comment.size() && comment[i] >= '0' && comment[i] <= '9')
+    ++i;
+  if (i == numberStart)
+    return std::nullopt;
+  const auto numberText = comment.substr(numberStart, i - numberStart);
+  // Manufacturer form: Port1_COMPONENT_PIN::NET
+  if (!bracket && i < comment.size() && comment[i] == '_') {
+    const auto componentStart = ++i;
+    while (i < comment.size() && comment[i] != ':' &&
+           !std::isspace(static_cast<unsigned char>(comment[i])))
+      ++i;
+    if (i == componentStart || i + 2 >= comment.size() ||
+        comment[i] != ':' || comment[i + 1] != ':' ||
+        std::isspace(static_cast<unsigned char>(comment[i + 2])))
+      return std::nullopt;
+    const auto number = positiveInteger(std::string(numberText));
+    return std::pair{number, trim(std::string(comment.substr(componentStart, i - componentStart))) +
+                                 "::" + trim(std::string(comment.substr(i + 2)))};
+  }
+  skipSpace();
+  if (i < comment.size() && comment[i] == ']') {
+    ++i;
+    skipSpace();
+  }
+  if (i == comment.size() || (comment[i] != '=' && comment[i] != ':'))
+    return std::nullopt;
+  ++i;
+  skipSpace();
+  if (i == comment.size())
+    return std::nullopt;
+  const auto number = positiveInteger(std::string(numberText));
+  return std::pair{number, trim(std::string(comment.substr(i)))};
+}
+
 static std::vector<Basis> parseBasis(const Metadata &m) {
   std::vector<Basis> out;
   std::vector<int> used(m.ports);
   std::map<std::pair<int, int>, int> pairs;
-  std::regex rx("([sdc])([0-9]+)(?:,([0-9]+))?", std::regex::icase);
-  for (auto token : m.mixedOrder) {
-    std::smatch a;
-    if (!std::regex_match(token, a, rx))
+  for (const auto &token : m.mixedOrder) {
+    if (token.size() < 2)
       throw Error("Invalid Mixed-Mode Order: " + token);
-    char k = lower(a[1])[0];
-    int p = std::stoi(a[2]) - 1, q = a[3].matched ? std::stoi(a[3]) - 1 : -1;
-    if (p < 0 || uint64_t(p) >= m.ports ||
-        (k != 's' && (q < 0 || uint64_t(q) >= m.ports || p == q)) ||
-        (k == 's' && q != -1))
-      throw Error("Mixed-mode port out of range");
+    const char k = static_cast<char>(
+        std::tolower(static_cast<unsigned char>(token[0])));
+    if (k != 's' && k != 'd' && k != 'c')
+      throw Error("Invalid Mixed-Mode Order: " + token);
+    size_t i = 1;
+    auto readPort = [&]() {
+      const size_t start = i;
+      while (i < token.size() && token[i] >= '0' && token[i] <= '9')
+        ++i;
+      if (i == start)
+        throw Error("Invalid Mixed-Mode Order: " + token);
+      const uint64_t value = positiveInteger(token.substr(start, i - start));
+      if (value > m.ports || value > uint64_t(std::numeric_limits<int>::max()))
+        throw Error("Mixed-mode port out of range");
+      return static_cast<int>(value - 1);
+    };
+    const int p = readPort();
+    int q = -1;
+    if (k != 's') {
+      if (i == token.size() || token[i++] != ',')
+        throw Error("Invalid Mixed-Mode Order: " + token);
+      q = readPort();
+    }
+    if (i != token.size() || (k != 's' && p == q))
+      throw Error("Invalid Mixed-Mode Order: " + token);
     if (k == 's') {
       used[p] += 10;
     } else {
@@ -287,10 +359,18 @@ static Header importFile(const fs::path &source, const fs::path &temporary,
   if (!out)
     throw Error("Cannot create cache");
   out.write(reinterpret_cast<char *>(&h), sizeof(h));
-  std::smatch ext;
-  std::string filename = lower(utf8(source.filename()));
-  if (std::regex_search(filename, ext, std::regex("\\.s([0-9]+)p$")))
-    m.ports = positiveInteger(ext[1]);
+  const std::string filename = lower(utf8(source.filename()));
+  if (filename.size() >= 4 && filename.back() == 'p') {
+    const size_t start = filename.rfind(".s");
+    if (start != std::string::npos && start + 3 < filename.size()) {
+      const auto digits = filename.substr(start + 2, filename.size() - start - 3);
+      if (!digits.empty() &&
+          std::all_of(digits.begin(), digits.end(), [](char c) {
+            return c >= '0' && c <= '9';
+          }))
+        m.ports = positiveInteger(digits);
+    }
+  }
   double scale = 1e9;
   std::vector<double> optionRef{50};
   std::map<uint64_t, std::string> labels;
@@ -326,12 +406,8 @@ static Header importFile(const fs::path &source, const fs::path &temporary,
     ++noiseColumns;
     ++noiseTokens;
   };
-  std::regex labelRx(R"(^\s*Port\s*\[?\s*(\d+)\s*\]?\s*[=:]\s*(.+)$)",
-                     std::regex::icase);
-  // Vendor comment convention: ! Port1_U1_A1::NET_P
-  // Keep the physical endpoint plus net; never treat this as a [keyword].
-  std::regex scopedLabelRx(R"(^\s*Port\s*(\d+)_([^:\s]+)::(\S.*)$)",
-                           std::regex::icase);
+  // Vendor port comments and legacy Port N = NAME are parsed linearly.
+  // No regex engine is invoked on arbitrary-length source comments.
   auto flush = [&]() {
     if (frame == 0)
       return;
@@ -402,13 +478,9 @@ static Header importFile(const fs::path &source, const fs::path &temporary,
         continue;
       }
       if (t.kind == Scanner::Comment) {
-        std::smatch match;
         const auto comment = trim(t.text);
-        if (std::regex_match(comment, match, labelRx))
-          labels[positiveInteger(match[1].str()) - 1] = trim(match[2]);
-        else if (std::regex_match(comment, match, scopedLabelRx))
-          labels[positiveInteger(match[1].str()) - 1] =
-              trim(match[2].str()) + "::" + trim(match[3].str());
+        if (const auto port = parsePortComment(comment))
+          labels[port->first - 1] = port->second;
         const auto folded = lower(comment);
         if (folded == ".diffchannels") {
           differentialSection = true;

@@ -68,7 +68,7 @@ jobs:
           cmake_v = match(r'project\(SParamView VERSION ([0-9]+\.[0-9]+\.[0-9]+)', cmake, 'CMake')
           rc_v = match(r'VALUE "ProductVersion", "([0-9]+\.[0-9]+\.[0-9]+[a-z]?)\\0"', rc, 'Windows resource')
           # Suffix releases use CMake's numeric base, with a lettered public label.
-          if core_v != '1.3.2' or cmake_v != '1.3.2' or rc_v != core_v:
+          if core_v != '1.3.3' or cmake_v != '1.3.3' or rc_v != core_v:
               raise SystemExit(f'Version mismatch: core={core_v}, cmake={cmake_v}, rc={rc_v}')
           notes = pathlib.Path(f'docs/Release_{core_v}.md')
           if not notes.is_file():
@@ -333,7 +333,7 @@ jobs:
   macos-arm64:
     name: macOS Apple Silicon arm64
     needs: [prepare, quality]
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 70
     env:
       QT_ROOT: ${{ github.workspace }}/Qt/6.8.3/macos
@@ -456,8 +456,8 @@ jobs:
             <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
             <key>CFBundleName</key><string>SParamView</string>
             <key>CFBundlePackageType</key><string>APPL</string>
-            <key>CFBundleShortVersionString</key><string>1.3.2</string>
-            <key>CFBundleVersion</key><string>1.3.2.0</string>
+            <key>CFBundleShortVersionString</key><string>1.3.3</string>
+            <key>CFBundleVersion</key><string>1.3.3.0</string>
             <key>SParamViewDisplayVersion</key><string>${SPARAMVIEW_VERSION}</string>
             <key>LSMinimumSystemVersion</key><string>${MACOS_DEPLOYMENT_TARGET}</string>
             <key>NSHighResolutionCapable</key><true/>
@@ -500,8 +500,8 @@ jobs:
           import json, os, pathlib, plistlib
           app=pathlib.Path('package/SParamView.app/Contents')
           info=plistlib.loads((app/'Info.plist').read_bytes())
-          assert info['CFBundleShortVersionString']=='1.3.2'
-          assert info['CFBundleVersion']=='1.3.2.0'
+          assert info['CFBundleShortVersionString']=='1.3.3'
+          assert info['CFBundleVersion']=='1.3.3.0'
           assert info['SParamViewDisplayVersion']==os.environ['SPARAMVIEW_VERSION']
           (app/'Resources/build-provenance.json').write_text(json.dumps(dict(version=os.environ['SPARAMVIEW_VERSION'],commit=os.environ['GITHUB_SHA'],platform='macOS arm64',run_id=os.environ['GITHUB_RUN_ID'])))
           PYTHON

@@ -101,6 +101,69 @@ static std::string terminalNetFromLabel(const std::string &label) {
   }
   return {};
 }
+// Parse the optional PowerSI "PortN_" endpoint prefix without regex recursion.
+static std::optional<std::pair<uint64_t, size_t>>
+powerSiEndpointPrefix(const std::string &text) {
+  size_t i = 0;
+  while (i < text.size() && std::isspace(static_cast<unsigned char>(text[i])))
+    ++i;
+  if (text.size() - i < 4 || lower(text.substr(i, 4)) != "port")
+    return std::nullopt;
+  i += 4;
+  while (i < text.size() && std::isspace(static_cast<unsigned char>(text[i])))
+    ++i;
+  const size_t first = i;
+  while (i < text.size() && text[i] >= '0' && text[i] <= '9')
+    ++i;
+  if (i == first || i == text.size() || text[i] != '_')
+    return std::nullopt;
+  return std::pair{positiveInteger(text.substr(first, i - first)), i + 1};
+}
+
+// Suffix-only matching has linear input cost even for very long UTF-8 labels.
+// The boundary is one ASCII separator; opaque UTF-8 base bytes are preserved.
+static std::optional<std::string_view>
+labelWithoutSuffix(std::string_view label, std::string_view suffix) {
+  if (label.size() <= suffix.size() + 1)
+    return std::nullopt;
+  const size_t start = label.size() - suffix.size();
+  if (!pnDelimiter(label[start - 1]))
+    return std::nullopt;
+  for (size_t j = 0; j < suffix.size(); ++j)
+    if (std::tolower(static_cast<unsigned char>(label[start + j])) !=
+        static_cast<unsigned char>(suffix[j]))
+      return std::nullopt;
+  return label.substr(0, start - 1);
+}
+
+static std::optional<std::array<std::string, 3>>
+parseFallbackLabel(const std::string &label) {
+  constexpr std::array<std::string_view, 8> ends{
+      "near", "far", "in", "out", "tx", "rx", "a", "b"};
+  constexpr std::array<std::string_view, 4> signs{"p", "n", "+", "-"};
+  // Retain the legacy precedence: END alone, END+P/N, P/N+END, P/N alone.
+  for (const auto end : ends)
+    if (auto base = labelWithoutSuffix(label, end))
+      return std::array{std::string(*base), std::string(end), std::string{}};
+  for (const auto sign : signs)
+    if (auto first = labelWithoutSuffix(label, sign))
+      for (const auto end : ends)
+        if (auto base = labelWithoutSuffix(*first, end))
+          return std::array{std::string(*base), std::string(end),
+                            std::string(sign)};
+  for (const auto end : ends)
+    if (auto first = labelWithoutSuffix(label, end))
+      for (const auto sign : signs)
+        if (auto base = labelWithoutSuffix(*first, sign))
+          return std::array{std::string(*base), std::string(end),
+                            std::string(sign)};
+  for (const auto sign : signs)
+    if (auto base = labelWithoutSuffix(label, sign))
+      return std::array{std::string(*base), std::string("near"),
+                        std::string(sign)};
+  return std::nullopt;
+}
+
 std::vector<Channel> suggestMapping(const Metadata &m,
                                     std::string *diagnostic,
                                     bool inferNamedDifferential) {
@@ -126,10 +189,17 @@ std::vector<Channel> suggestMapping(const Metadata &m,
         if (base.empty()) throw Error("PowerSI hint has no channel name");
         std::array<int, 4> ports;
         for (size_t i = 0; i < 4; ++i) {
-          const double index = number(fields[7 + i]);
-          if (index < 0 || index >= double(m.ports) || index != std::floor(index))
-            throw Error("PowerSI hint port index out of range");
-          ports[i] = int(index);
+          const auto &sourceIndex = fields[7 + i];
+          uint64_t index = 0;
+          const auto parsed = std::from_chars(
+              sourceIndex.data(), sourceIndex.data() + sourceIndex.size(),
+              index);
+          if (parsed.ec != std::errc{} ||
+              parsed.ptr != sourceIndex.data() + sourceIndex.size() ||
+              index >= m.ports ||
+              index > uint64_t(std::numeric_limits<int>::max()))
+            throw Error("PowerSI hint port index must be a valid zero-based integer");
+          ports[i] = static_cast<int>(index);
           const auto &net = fields[1 + i % 2];
           if (size_t(ports[i]) >= m.labels.size())
             throw Error("PowerSI hint port has no physical label");
@@ -138,18 +208,14 @@ std::vector<Channel> suggestMapping(const Metadata &m,
           if (actualNet.empty()) actualNet = trim(physicalLabel);
           if (lower(actualNet) != lower(trim(net)))
             throw Error("Differential hint does not match physical port net");
-          std::smatch endpoint;
-          if (std::regex_search(fields[3 + i], endpoint,
-                                std::regex(R"(^\s*Port\s*(\d+)_)",
-                                           std::regex::icase)) &&
-              positiveInteger(endpoint[1].str()) != uint64_t(ports[i] + 1))
+          const auto endpoint = powerSiEndpointPrefix(fields[3 + i]);
+          if (endpoint && endpoint->first != uint64_t(ports[i]) + 1)
             throw Error("Differential hint endpoint does not match port index");
           // Scoped vendor labels also declare the physical component/pin.
           // Matching only the net must not silently confirm the wrong pin.
-          if (endpoint[0].matched &&
-              physicalLabel.find("::") != std::string::npos) {
+          if (endpoint && physicalLabel.find("::") != std::string::npos) {
             const auto hintedLabel =
-                trim(fields[3 + i].substr(endpoint[0].length()));
+                trim(fields[3 + i].substr(endpoint->second));
             if (lower(hintedLabel) != lower(trim(physicalLabel)))
               throw Error("Differential hint physical endpoint mismatch");
           }
@@ -290,30 +356,11 @@ std::vector<Channel> suggestMapping(const Metadata &m,
   // identity.
   std::map<std::string, Channel> found;
   std::set<std::string> ambiguous;
-  std::regex rx(
-      R"(^(.+?)[_ .:/-](near|far|in|out|tx|rx|a|b)(?:[_ .:/-]([pn+\-]))?$)",
-      std::regex::icase);
-  std::regex alt(
-      R"(^(.+?)[_ .:/-]([pn+\-])[_ .:/-](near|far|in|out|tx|rx|a|b)$)",
-      std::regex::icase);
-  std::regex pairOnly(R"(^(.+?)[_ .:/-]([pn+\-])$)", std::regex::icase);
   for (size_t i = 0; i < m.labels.size(); ++i) {
-    std::smatch s;
-    std::string label = m.labels[i], base, end, pol;
-    if (std::regex_match(label, s, rx)) {
-      base = s[1];
-      end = lower(s[2]);
-      pol = lower(s[3]);
-    } else if (std::regex_match(label, s, alt)) {
-      base = s[1];
-      pol = lower(s[2]);
-      end = lower(s[3]);
-    } else if (std::regex_match(label, s, pairOnly)) {
-      base = s[1];
-      pol = lower(s[2]);
-      end = "near";
-    } else
+    const auto parsed = parseFallbackLabel(m.labels[i]);
+    if (!parsed)
       continue;
+    auto [base, end, pol] = *parsed;
     if (!inferNamedDifferential && !pol.empty()) {
       base += "_" + pol;
       pol.clear();
