@@ -5,7 +5,7 @@ SParamView is a desktop tool for Touchstone-based S-parameter analysis and visua
 > **Important Notice**
 > SParamView calculates and visualizes the provided Touchstone data as a reference tool. Depending on the input data, frequency range, port/channel mapping, interpolation or approximation, and other analysis conditions, displayed graphs and calculated results may differ from the actual system or measurement results. Do not treat the output as 100% accurate or authoritative. Use it as a reference for engineering review, and independently verify important decisions against the original data and trusted measurement or analysis results.
 
-Current official release: **[v1.3.3](https://github.com/july-rust/SParamView-Public/releases/tag/v1.3.3)**. v1.3.3 hardens Touchstone port parsing and preserves channel mapping compatibility. v1.3.2 isolated project replacement caches, resets previous plot and comparison state, and shows the active Touchstone filename in the title bar. It retains v1.3.1 multi-process safety and preserves the [v1.3.0](https://github.com/july-rust/SParamView-Public/releases/tag/v1.3.0) Touchstone compatibility changes and all historical release assets. Validation covers core, Windows x64/ARM64, native ARM64 and macOS Apple Silicon.
+Current official release: **[v1.3.4](https://github.com/july-rust/SParamView-Public/releases/tag/v1.3.4)**. v1.3.4 integrates versioned Mapping CSV formula-safety and lossless round trips (Stage 2), and guarded GUI startup/fail-closed cache-session initialization (Stage 3). v1.3.3 previously hardened Touchstone port parsing and preserved mapping compatibility. v1.3.2 isolated project replacement caches, resets previous plot and comparison state, and shows the active Touchstone filename in the title bar. It retains v1.3.1 multi-process safety and preserves the [v1.3.0](https://github.com/july-rust/SParamView-Public/releases/tag/v1.3.0) Touchstone compatibility changes and all historical release assets. Validation covers core, Windows x64/ARM64, native ARM64 and macOS Apple Silicon.
 
 Supported release targets:
 - Windows x64
@@ -17,7 +17,7 @@ Documentation:
 - [한국어 README](README_KO.md)
 - [English User Guide](docs/USER_GUIDE_EN.md)
 - [한국어 사용설명서](docs/USER_GUIDE_KO.md)
-- [Release notes](docs/Release_1.3.3.md)
+- [Release notes](docs/Release_1.3.4.md)
 - [Revision history](docs/Revision_History.md)
 - [Planned future feature: separate ILD / ICN / COM / Eye Diagram windows](docs/Channel_Analysis_Development_Plan.md)
 
