@@ -1,6 +1,6 @@
-# SParamView — Stage 3 GUI startup and cache initialization (unreleased candidate)
+# SParamView — Stage 3 GUI startup and cache initialization (integrated in v1.3.4)
 
-**Status:** Stage 3 development branch only. This change is **not included** in the already published v1.3.3 binaries. Do not move or replace the existing v1.3.3 tag, assets, checksums or release metadata. A separately versioned integration release is required.
+**Status:** Stage 3 is integrated in the v1.3.4 source; it is **not included** in previously published v1.3.3 binaries. Do not move or replace the existing v1.3.3 tag, assets, checksums or release metadata. A separately versioned v1.3.4 integration release is required.
 
 ## Verified source paths (not runtime claims)
 
@@ -31,6 +31,6 @@
 - Interactive modal dialog behavior on a physical desktop is not proven by a headless unit test. Record any actual native/manual UI test separately.
 - Filesystem-level permission failures are OS-specific. Occupied-path and injected-failure tests are deterministic coverage, not proof that every OS permission error was reproduced.
 - If the registry lock is unavailable, the application still fails closed rather than borrowing or destroying another process's cache.
-- Do not merge this candidate into `main` at an unchanged published version if the release workflow would conflict with the existing immutable v1.3.3 tag.
+- Stage 3 was Squash Merged as PR #27 into the v1.3.4 integration branch. Do not modify the original v1.3.3 release tag.
 
 See `docs/Temporary_Cache_Cleanup.md` and `.github/workflows/release-3platform.yml`.

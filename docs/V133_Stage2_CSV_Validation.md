@@ -1,6 +1,6 @@
-# SParamView Stage 2 — Mapping CSV formula safety (unreleased candidate)
+# SParamView Stage 2 — Mapping CSV formula safety (integrated in v1.3.4)
 
-**NOT INCLUDED in the already-published v1.3.3 binaries.** This document records a Stage 2 candidate based on v1.3.3. The existing tag, release assets and checksums remain untouched. A subsequent versioned release is necessary before these modifications are described as shipping.
+**NOT INCLUDED in the already-published v1.3.3 binaries.** This document records the Stage 2 implementation based on v1.3.3 and integrated into the v1.3.4 source. The published v1.3.3 tag, assets and checksums remain untouched.
 
 ## Verified code paths
 
@@ -36,4 +36,4 @@
 
 ## Release policy
 
-The published v1.3.3 commit and assets must remain untouched. The existing publication script rejects new code at the same tag. Leave Stage 2 as an unmerged development PR until a subsequent versioned release is authorized.
+The published v1.3.3 commit and assets must remain untouched. The existing publication script rejects new code at the same tag. Stage 2 was Squash Merged as PR #25 into the v1.3.4 integration branch; publication is gated on final protected-main CI.
