@@ -2,6 +2,8 @@
 
 **Current official release: [v1.3.3](https://github.com/july-rust/SParamView-Public/releases/tag/v1.3.3)** — Touchstone numeric-index and port-label parsing hardening; retains the v1.3.2 cache separation and filename display. This preserves v1.3.1 cross-process cache safety. The [v1.3.0 release](https://github.com/july-rust/SParamView-Public/releases/tag/v1.3.0) was published on 2026-10-29 11:43 KST and remains preserved.
 
+**Unreleased candidate work (NOT shipped in v1.3.3):** [Stage 2 Mapping CSV safety](V133_Stage2_CSV_Validation.md) is tracked in PR #25; [Stage 3 GUI startup and cache-construction failure hardening](V133_Stage3_Startup_Validation.md) is tracked on a separate branch. Keep these distinct from officially released functionality.
+
 This document records the development sequence from the original SI Analyzer engineering preview through the current SParamView release. The development record predates the GitHub repository itself: the first retained engineering-preview validation is dated **2026-09-08**, while the current GitHub repository was created on **2026-09-25**.
 
 Historical entries before v1.1.5 refer to private development records, not files shipped in this public repository. They are historical context, not current validation evidence. v1.2.2 and v1.2.3 were development releases. v1.2.4 was initially promoted publicly; it was subsequently superseded and its public release/tag retired after successful publication of **v1.2.4a**. The follow-up **v1.2.5** improves temporary-data cleanup without changing numerical analysis algorithms. **v1.3.0** extends Touchstone S-parameter input compatibility and relocates Windows auxiliary executables; the existing tagged release assets remain immutable.
