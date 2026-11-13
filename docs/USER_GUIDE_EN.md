@@ -1,10 +1,10 @@
 # SParamView User Guide
 
-**Applies to:** SParamView **v1.3.2 official release**
+**Applies to:** SParamView **v1.3.3 official release**
 **Supported platforms:** Windows x64 / Windows ARM64 / macOS Apple Silicon (arm64)
-**Documentation updated:** **2026-10-29 (KST)**. Covers v1.3.2 project switching and title bar, v1.3.1 multi-process cache safety, v1.3.0 Touchstone/port-label compatibility, Windows package layout, and the v1.2.5 cache policy. Historical release assets are unchanged.
+**Documentation updated:** **2026-11-13 (KST)**. v1.3.3 hardens malformed numeric port declarations and uses linear input parsing while preserving valid legacy label conventions. Covers v1.3.2 project switching and title bar, v1.3.1 multi-process cache safety, v1.3.0 Touchstone/port-label compatibility, Windows package layout, and the v1.2.5 cache policy. Historical release assets are unchanged.
 
-[한국어 사용자 설명서](USER_GUIDE_KO.md) | [English README](../README_EN.md) | [v1.3.2 Release Notes](Release_1.3.2.md)
+[한국어 사용자 설명서](USER_GUIDE_KO.md) | [English README](../README_EN.md) | [v1.3.3 Release Notes](Release_1.3.3.md)
 
 ---
 
@@ -62,6 +62,13 @@ The v1.2.0 source partitioning is an internal code-structure change and requires
 - Reopening a source after exit entails a new import and may increase first-load time.
 
 See [Temporary Cache Cleanup](Temporary_Cache_Cleanup.md) and [v1.2.5 Release Notes](Release_1.2.5.md).
+
+### v1.3.3 Touchstone port parsing safety
+
+- PowerSI `.DiffChannels` indices are zero-based unsigned decimal integers; fractional, signed, overflowing or out-of-range entries are not confirmed. The tool reports mapping diagnostics and preserves manual review options.
+- Mixed-Mode `S<n>`, `D<n>,<n>`, and `C<n>,<n>` port descriptors are checked as complete positive integer tokens and must be in the declared physical port range.
+- Legacy `! Port N = NAME`, scoped `! PortN_COMPONENT_PIN::NET`, and near/far/P/N suffix labels use bounded linear parsing to avoid recursive regular-expression behavior on large labels. UTF-8 label bytes are preserved.
+- No cache storage, project schema, numerical RL/IL/NEXT/FEXT/TDR, or multi-process isolation behavior changes are intended. See [v1.3.3 release notes](Release_1.3.3.md).
 
 ### v1.3.2 project cache switching and active Touchstone filename
 
