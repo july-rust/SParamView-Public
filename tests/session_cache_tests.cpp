@@ -34,6 +34,64 @@ int main(int argc, char **argv) {
     writeFile(report, "do not delete export");
     writeFile(settings, "do not delete preferences");
 
+    // A regular file where the cache root is expected must fail closed.
+    const auto blockedRoot = QDir(sandbox.path()).filePath("occupied-cache-root");
+    writeFile(blockedRoot, "user file must survive");
+    bool rootFailed = false;
+    try {
+      CacheSession blocked(blockedRoot);
+    } catch (const std::exception &) {
+      rootFailed = true;
+    }
+    expect(rootFailed, "File-occupied cache root was accepted");
+    QFile preserved(blockedRoot);
+    expect(preserved.open(QIODevice::ReadOnly) &&
+               preserved.readAll() == "user file must survive",
+           "Cache startup changed a user-owned file");
+
+    // Simulate failures at each private-construction phase. A constructor
+    // failure must unwind the owned directory and any acquired owner lock
+    // while the registry is still locked, before another instance can reap.
+    auto sessionCount = [&] {
+      return QDir(root).entryInfoList(
+          QStringList{"session-??????"},
+          QDir::Dirs | QDir::NoDotAndDotDot | QDir::NoSymLinks).size();
+    };
+    for (auto fault : {CacheSession::Fault::AfterPrivateDirectory,
+                       CacheSession::Fault::AfterOwnershipMarker,
+                       CacheSession::Fault::BeforeOwnerLock,
+                       CacheSession::Fault::AfterOwnerLock}) {
+      const auto before = sessionCount();
+      bool failed = false;
+      try {
+        CacheSession interrupted(root, fault);
+      } catch (const std::exception &) {
+        failed = true;
+      }
+      expect(failed, "Injected constructor failure was ignored");
+      expect(sessionCount() == before,
+             "Constructor failure left a partial cache session");
+      CacheSession recovered(root);
+      expect(recovered.cleanup(), "Restart after constructor failure");
+    }
+
+    // Real lock contention must time out rather than silently sharing a root.
+    {
+      QLockFile held(QDir(root).filePath(".session-registry.lock"));
+      held.setStaleLockTime(0);
+      expect(held.tryLock(100), "Cannot prepare registry contention fixture");
+      bool lockedOut = false;
+      try {
+        CacheSession blocked(root);
+      } catch (const std::exception &) {
+        lockedOut = true;
+      }
+      expect(lockedOut, "Concurrent registry lock was ignored");
+      held.unlock();
+      CacheSession recovered(root);
+      expect(recovered.cleanup(), "Registry recovered after lock contention");
+    }
+
     QString firstPath, secondPath;
     {
       CacheSession first(root);
