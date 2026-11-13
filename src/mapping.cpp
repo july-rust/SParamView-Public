@@ -159,7 +159,8 @@ parseFallbackLabel(const std::string &label) {
                             std::string(sign)};
   for (const auto sign : signs)
     if (auto base = labelWithoutSuffix(label, sign))
-      return std::array{std::string(*base), "near", std::string(sign)};
+      return std::array{std::string(*base), std::string("near"),
+                        std::string(sign)};
   return std::nullopt;
 }
 
