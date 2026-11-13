@@ -16,7 +16,16 @@
 // The session directory is removed only after every Cache handle is released.
 class CacheSession final {
 public:
+#ifdef SPARAMVIEW_CACHE_TEST_FAULTS
+  // Fault injection exists ONLY in the separately compiled test executable.
+  enum class Fault {
+    None, AfterPrivateDirectory, AfterOwnershipMarker, BeforeOwnerLock,
+    AfterOwnerLock
+  };
+  explicit CacheSession(QString root = {}, Fault fault = Fault::None) {
+#else
   explicit CacheSession(QString root = {}) {
+#endif
     if (root.isEmpty()) {
       const auto base =
           QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
@@ -49,24 +58,40 @@ public:
       throw std::runtime_error("Cannot lock application cache registry");
     reapAbandonedSessions(root_);
 
-    directory_ = std::make_unique<QTemporaryDir>(
+    // Keep the in-progress resources local until construction succeeds.
+    // C++ destroys these locals (owner lock first, directory second) BEFORE
+    // releasing registry, including when a constructor step throws.
+    // This avoids publishing a half-initialized session or racing the reaper.
+    auto pendingDirectory = std::make_unique<QTemporaryDir>(
         QDir(root_).filePath("session-XXXXXX"));
-    if (!directory_->isValid())
+    if (!pendingDirectory->isValid())
       throw std::runtime_error("Cannot create private cache session");
-    // A path name is not proof of ownership. Reaping requires this exact
-    // marker, which is created only inside our freshly allocated directory.
-    QFile marker(QDir(directory_->path()).filePath(".sparamview-owned"));
+#ifdef SPARAMVIEW_CACHE_TEST_FAULTS
+    if (fault == Fault::AfterPrivateDirectory)
+      throw std::runtime_error("Injected failure after private cache creation");
+#endif
+    QFile marker(QDir(pendingDirectory->path()).filePath(".sparamview-owned"));
     if (!marker.open(QIODevice::WriteOnly | QIODevice::NewOnly) ||
         marker.write(kOwnedMarker) != qsizetype(qstrlen(kOwnedMarker)))
       throw std::runtime_error("Cannot mark private cache ownership");
-    marker.close();
-    lease_ = std::make_unique<QLockFile>(
-        QDir(directory_->path()).filePath(".owner.lock"));
-    // Disabling time-based expiry prevents a long-running analysis from
-    // being mistaken for an abandoned session.
-    lease_->setStaleLockTime(0);
-    if (!lease_->tryLock(5000))
+    marker.close(); // Close before a Windows QTemporaryDir cleanup.
+#ifdef SPARAMVIEW_CACHE_TEST_FAULTS
+    if (fault == Fault::AfterOwnershipMarker)
+      throw std::runtime_error("Injected failure after ownership marker");
+    if (fault == Fault::BeforeOwnerLock)
+      throw std::runtime_error("Injected failure before owner lock");
+#endif
+    auto pendingLease = std::make_unique<QLockFile>(
+        QDir(pendingDirectory->path()).filePath(".owner.lock"));
+    pendingLease->setStaleLockTime(0);
+    if (!pendingLease->tryLock(5000))
       throw std::runtime_error("Cannot lock private cache session");
+#ifdef SPARAMVIEW_CACHE_TEST_FAULTS
+    if (fault == Fault::AfterOwnerLock)
+      throw std::runtime_error("Injected failure after owner lock");
+#endif
+    directory_ = std::move(pendingDirectory);
+    lease_ = std::move(pendingLease);
   }
 
   CacheSession(const CacheSession &) = delete;
