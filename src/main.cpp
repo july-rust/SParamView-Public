@@ -36,11 +36,29 @@ int main(int argc, char **argv) {
                           : window.validateProject(args[2], args[3]);
           } catch (const std::exception &e) {
             std::cerr << e.what() << '\n';
+          } catch (...) {
+            std::cerr << "Unexpected automated validation failure\n";
           }
           app.exit(success ? 0 : 1);
         });
-      } else if (args.size() > 1)
-        QTimer::singleShot(0, [&window, args] { window.openPaths(args.mid(1)); });
+      } else if (args.size() > 1) {
+        // File-open callbacks execute after app.exec() starts: the outer
+        // startup try/catch cannot intercept exceptions crossing Qt events.
+        QTimer::singleShot(0, [&app, &window, args, automated] {
+          try {
+            window.openPaths(args.mid(1));
+          } catch (const std::exception &e) {
+            sparamview::reportStartupFailure(QString::fromUtf8(e.what()),
+                                              automated);
+            app.exit(EXIT_FAILURE);
+          } catch (...) {
+            sparamview::reportStartupFailure(
+                QStringLiteral("Unexpected startup file-open failure"),
+                automated);
+            app.exit(EXIT_FAILURE);
+          }
+        });
+      }
       return app.exec();
     } catch (const std::exception &e) {
       return sparamview::reportStartupFailure(QString::fromUtf8(e.what()),
