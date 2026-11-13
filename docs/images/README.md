@@ -12,4 +12,4 @@ Files:
 - `02_Channel_Mapping.png` <- `open/mapping.png`
 - `03_RL_Analysis_Graph.png` <- `workflow/SParamView_graph.png`
 
-The screenshots are documentation examples. The user guides were updated for **v1.3.2 on 2026-10-29 (KST)**, but these image files **remain the original v1.2.1 captures** and must not be represented as v1.3.2 screenshots. Visual differences can occur across OS, DPI, fonts, and releases.
+The screenshots remain historical; they are **not regenerated for current v1.3.3**. The screenshots are documentation examples. The user guides were updated for **v1.3.2 on 2026-10-29 (KST)**, but these image files **remain the original v1.2.1 captures** and must not be represented as v1.3.2 screenshots. Visual differences can occur across OS, DPI, fonts, and releases.
