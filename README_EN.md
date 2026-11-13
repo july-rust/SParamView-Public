@@ -24,6 +24,7 @@ Quick TDR is a band-limited estimate affected by frequency span, spacing, extrap
 
 - [English User Guide](docs/USER_GUIDE_EN.md)
 - [한국어 사용자 설명서](docs/USER_GUIDE_KO.md)
+- [Future development plan (not yet implemented): independent ILD / ICN / COM / Eye Diagram windows](docs/Channel_Analysis_Development_Plan.md)
 
 ## Current release — v1.3.3
 
