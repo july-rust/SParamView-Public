@@ -397,28 +397,64 @@ std::vector<Channel> suggestMapping(const Metadata &m,
   }
   return out;
 }
-static std::vector<std::string> csvRow(const std::string &line) {
-  std::vector<std::string> out;
-  std::string cell;
-  bool quote = false;
-  for (size_t i = 0; i < line.size(); ++i) {
-    char c = line[i];
-    if (c == '"') {
-      if (quote && i + 1 < line.size() && line[i + 1] == '"') {
-        cell += '"';
-        ++i;
-      } else
-        quote = !quote;
-    } else if (c == ',' && !quote) {
-      out.push_back(trim(cell));
-      cell.clear();
-    } else
-      cell += c;
+// Mapping CSV v2 keeps text opaque on round-trip. A format marker is necessary:
+// an unmarked legacy value beginning with an apostrophe is user data, NOT an
+// escape sequence. CSV quoting alone is not a spreadsheet formula defense.
+enum class CsvFieldState { Start, Plain, Quoted, AfterQuote };
+static std::optional<std::vector<std::string>> readCsvRecord(std::istream &in) {
+  std::vector<std::string> fields;
+  std::string field;
+  CsvFieldState state = CsvFieldState::Start;
+  bool started = false;
+  while (true) {
+    const int next = in.get();
+    if (next == std::char_traits<char>::eof()) {
+      if (!started)
+        return std::nullopt;
+      if (state == CsvFieldState::Quoted)
+        throw Error("Unclosed quoted Mapping CSV field");
+      fields.push_back(std::move(field));
+      return fields;
+    }
+    started = true;
+    const char c = static_cast<char>(next);
+    if (state == CsvFieldState::Quoted) {
+      if (c == '"')
+        state = CsvFieldState::AfterQuote;
+      else
+        field += c; // Preserve embedded CR, LF, commas and UTF-8 bytes.
+      continue;
+    }
+    if (c == '\r' || c == '\n') {
+      if (c == '\r' && in.peek() == '\n')
+        in.get();
+      fields.push_back(std::move(field));
+      return fields;
+    }
+    if (state == CsvFieldState::AfterQuote) {
+      if (c == '"') {
+        field += '"';
+        state = CsvFieldState::Quoted;
+      } else if (c == ',') {
+        fields.push_back(std::move(field));
+        field.clear();
+        state = CsvFieldState::Start;
+      } else {
+        throw Error("Unexpected characters after quoted Mapping CSV field");
+      }
+    } else if (c == ',') {
+      fields.push_back(std::move(field));
+      field.clear();
+      state = CsvFieldState::Start;
+    } else if (c == '"') {
+      if (state != CsvFieldState::Start)
+        throw Error("Unexpected quote in unquoted Mapping CSV field");
+      state = CsvFieldState::Quoted;
+    } else {
+      field += c;
+      state = CsvFieldState::Plain;
+    }
   }
-  if (quote)
-    throw Error("Unclosed CSV quote (multiline fields not supported)");
-  out.push_back(trim(cell));
-  return out;
 }
 static std::string csvQuote(const std::string &s) {
   std::string out = "\"";
@@ -429,32 +465,69 @@ static std::string csvQuote(const std::string &s) {
   }
   return out + '"';
 }
+// A conservative export rule: treat leading controls, ASCII space followed by
+// formula operators, and common fullwidth operator variants as spreadsheet
+// sensitive. Apostrophe-prefixed source strings must also be escaped so the
+// versioned decoder can always distinguish source text from protection.
+static bool csvFormulaLead(const std::string &s) {
+  if (s.empty())
+    return false;
+  if (static_cast<unsigned char>(s.front()) < 0x20 ||
+      s.starts_with("\xef\xbb\xbf"))
+    return true;
+  size_t i = 0;
+  while (i < s.size() && static_cast<unsigned char>(s[i]) <= 0x20)
+    ++i;
+  if (i == s.size())
+    return false;
+  const char c = s[i];
+  return c == '=' || c == '+' || c == '-' || c == '@' ||
+         s.compare(i, 3, "\xef\xbc\x9d") == 0 || // U+FF1D FULLWIDTH EQUALS
+         s.compare(i, 3, "\xef\xbc\x8b") == 0 || // U+FF0B FULLWIDTH PLUS
+         s.compare(i, 3, "\xef\xbc\x8d") == 0 || // U+FF0D FULLWIDTH HYPHEN
+         s.compare(i, 3, "\xef\xbc\xa0") == 0;   // U+FF20 FULLWIDTH AT
+}
+static std::string csvText(const std::string &s) {
+  return csvQuote((csvFormulaLead(s) || s.starts_with("'") ? "'" : "") + s);
+}
 std::vector<Channel> readMappingCsv(const fs::path &p) {
   std::ifstream in(p, std::ios::binary);
   if (!in)
     throw Error("Cannot open mapping CSV");
-  std::string line;
-  std::getline(in, line);
-  if (line.starts_with("\xef\xbb\xbf"))
-    line.erase(0, 3);
-  auto headers = csvRow(line);
+  auto header = readCsvRecord(in);
+  if (!header)
+    throw Error("Empty Mapping CSV");
+  if (!header->empty() && header->front().starts_with("\xef\xbb\xbf"))
+    header->front().erase(0, 3);
   std::map<std::string, size_t> columns;
-  for (size_t i = 0; i < headers.size(); ++i)
-    columns[lower(headers[i])] = i;
+  for (size_t i = 0; i < header->size(); ++i)
+    columns[lower(trim((*header)[i]))] = i;
   for (auto key : {"channel", "nearp", "nearn", "farp", "farn"})
     if (!columns.count(key))
       throw Error("CSV header required: Channel,NearP,NearN,FarP,FarN");
+  const bool versioned = columns.count("sparamviewcsv") != 0;
   std::vector<Channel> out;
-  while (std::getline(in, line)) {
-    if (trim(line).empty())
+  while (auto record = readCsvRecord(in)) {
+    if (record->size() == 1 && trim(record->front()).empty())
       continue;
-    auto row = csvRow(line);
+    auto raw = [&](const std::string &key) {
+      return columns.count(key) && columns[key] < record->size()
+                 ? (*record)[columns[key]] : std::string{};
+    };
+    if (versioned && raw("sparamviewcsv") != "v2-text-escaped")
+      throw Error("Unknown Mapping CSV text encoding");
     auto cell = [&](const std::string &key) {
-      return columns.count(key) && columns[key] < row.size() ? row[columns[key]]
-                                                             : std::string{};
+      std::string value = raw(key);
+      if (!versioned)
+        return trim(value); // Preserve historic import semantics for v1 CSV.
+      // Every leading apostrophe in v2 was deliberately encoded on write.
+      if (!value.empty() && value.front() == '\'')
+        value.erase(0, 1);
+      return value;
     };
     auto port = [&](const std::string &key) {
-      auto v = cell(key);
+      auto v = raw(key);
+      v = trim(v);
       if (v.empty())
         return -1;
       const auto value = positiveInteger(v);
@@ -465,17 +538,17 @@ std::vector<Channel> readMappingCsv(const fs::path &p) {
     Channel c;
     c.name = cell("channel");
     c.id = cell("id");
-    if (c.id.empty())
+    if (c.id.empty() && !versioned)
       c.id = "csv:" + lower(c.name);
     c.nearP = port("nearp");
     c.nearN = port("nearn");
     c.farP = port("farp");
     c.farN = port("farn");
     c.group = cell("group");
-    if (c.group.empty())
+    if (c.group.empty() && !versioned)
       c.group = "Default";
     c.alias = cell("alias");
-    out.push_back(c);
+    out.push_back(std::move(c));
   }
   return out;
 }
@@ -483,13 +556,14 @@ void writeMappingCsv(const fs::path &p, const std::vector<Channel> &cs) {
   std::ofstream out(p, std::ios::binary);
   if (!out)
     throw Error("Cannot create mapping CSV");
-  out << "\xef\xbb\xbf" << "Channel,NearP,NearN,FarP,FarN,Group,Alias,ID\r\n";
-  for (auto &c : cs) {
-    out << csvQuote(c.name);
+  out << "\xef\xbb\xbf"
+      << "Channel,NearP,NearN,FarP,FarN,Group,Alias,ID,SParamViewCSV\r\n";
+  for (const auto &c : cs) {
+    out << csvText(c.name);
     for (auto i : {c.nearP, c.nearN, c.farP, c.farN})
       out << ',' << (i < 0 ? "" : std::to_string(i + 1));
-    out << ',' << csvQuote(c.group) << ',' << csvQuote(c.alias) << ','
-        << csvQuote(c.id) << "\r\n";
+    out << ',' << csvText(c.group) << ',' << csvText(c.alias) << ','
+        << csvText(c.id) << ",v2-text-escaped\r\n";
   }
   if (!out)
     throw Error("CSV write failed");
