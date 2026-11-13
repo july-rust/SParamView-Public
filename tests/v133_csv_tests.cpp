@@ -45,7 +45,12 @@ int main(int argc, char **argv) {
     for (size_t i = 0; i < values.size(); ++i) {
       const fs::path a = dir / ("roundtrip-" + std::to_string(i) + ".csv");
       const fs::path b = dir / ("repeat-" + std::to_string(i) + ".csv");
-      const auto original = fixture(values[i]);
+      auto original = fixture(values[i]);
+      if (values[i].empty()) {
+        // Empty metadata is valid; channel names/IDs themselves may not be empty.
+        original.name = "Empty metadata";
+        original.id = "empty:metadata";
+      }
       writeMappingCsv(a, {original});
       auto decoded = readMappingCsv(a);
       require(decoded.size() == 1, "CSV row count changed");
@@ -55,6 +60,10 @@ int main(int argc, char **argv) {
               "CSV text did not round-trip exactly");
       require(got.nearP == 0 && got.nearN == 1 && got.farP == 2 &&
                   got.farN == 3, "CSV numerical port columns changed");
+      Metadata metadata;
+      metadata.ports = 4;
+      metadata.reference = {50, 50, 50, 50};
+      validateMapping(decoded, metadata);
       writeMappingCsv(b, decoded);
       require(readBytes(a) == readBytes(b),
               "Repeated save changed CSV bytes or double-escaped the text");
