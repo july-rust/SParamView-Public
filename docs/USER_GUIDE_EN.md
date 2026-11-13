@@ -1,10 +1,10 @@
 # SParamView User Guide
 
-**Applies to:** SParamView **v1.3.3 official release**
+**Applies to:** SParamView **v1.3.4 official release**
 **Supported platforms:** Windows x64 / Windows ARM64 / macOS Apple Silicon (arm64)
-**Documentation updated:** **2026-11-13 (KST)**. v1.3.3 hardens malformed numeric port declarations and uses linear input parsing while preserving valid legacy label conventions. Covers v1.3.2 project switching and title bar, v1.3.1 multi-process cache safety, v1.3.0 Touchstone/port-label compatibility, Windows package layout, and the v1.2.5 cache policy. Historical release assets are unchanged.
+**Documentation updated:** **2026-11-13 (KST)**. v1.3.4 integrates Mapping CSV formula-safety, lossless versioned import, guarded GUI startup and fail-closed cache construction; v1.3.3 hardens malformed numeric port declarations and uses linear input parsing while preserving valid legacy label conventions. Covers v1.3.2 project switching and title bar, v1.3.1 multi-process cache safety, v1.3.0 Touchstone/port-label compatibility, Windows package layout, and the v1.2.5 cache policy. Historical release assets are unchanged.
 
-[한국어 사용자 설명서](USER_GUIDE_KO.md) | [English README](../README_EN.md) | [v1.3.3 Release Notes](Release_1.3.3.md)
+[한국어 사용자 설명서](USER_GUIDE_KO.md) | [English README](../README_EN.md) | [v1.3.4 Release Notes](Release_1.3.4.md)
 
 ---
 
@@ -63,6 +63,12 @@ The v1.2.0 source partitioning is an internal code-structure change and requires
 
 See [Temporary Cache Cleanup](Temporary_Cache_Cleanup.md) and [v1.2.5 Release Notes](Release_1.2.5.md).
 
+### v1.3.4 Mapping CSV and GUI/cache safety
+
+- Mapping CSV v2 uses version-marked formula-safe text escaping, preserves UTF-8/quotes/embedded newlines, and retains unmarked legacy CSV compatibility. Spreadsheet save/reopen behavior in Excel/LibreOffice was not independently verified.
+- GUI startup errors are reported interactively, or exit nonzero for headless/automated launches; failed cache session construction cleans only owned temporary resources.
+- Electrical calculations and project schema remain unchanged. See [v1.3.4 release notes](Release_1.3.4.md), [Stage 2 validation](V133_Stage2_CSV_Validation.md), and [Stage 3 validation](V133_Stage3_Startup_Validation.md).
+
 ### v1.3.3 Touchstone port parsing safety
 
 - PowerSI `.DiffChannels` indices are zero-based unsigned decimal integers; fractional, signed, overflowing or out-of-range entries are not confirmed. The tool reports mapping diagnostics and preserves manual review options.
@@ -104,9 +110,9 @@ Download the package that matches your system from GitHub Releases.
 
 | System | Recommended package |
 |---|---|
-| Windows x64 | `SParamView_Windows_x64_v1.3.2.zip` |
-| Windows ARM64 | `SParamView_Windows_ARM64_v1.3.2.zip` |
-| macOS Apple Silicon | `SParamView_macOS_AppleSilicon_arm64_v1.3.2.dmg` or `.zip` |
+| Windows x64 | `SParamView_Windows_x64_v1.3.4.zip` |
+| Windows ARM64 | `SParamView_Windows_ARM64_v1.3.4.zip` |
+| macOS Apple Silicon | `SParamView_macOS_AppleSilicon_arm64_v1.3.4.dmg` or `.zip` |
 
 SHA-256 files are also provided with the release. To verify download integrity, run `Get-FileHash <filename> -Algorithm SHA256` in Windows PowerShell or `shasum -a 256 <filename>` in macOS Terminal, then compare the result with the corresponding `.sha256` file.
 
@@ -582,7 +588,7 @@ Contact: **sparamview@gmail.com**
 
 ## 22. Documentation verification sources
 
-Historical v1.2.1 feature changes are supported by the [v1.2.1 release notes](Release_1.2.1.md) and the source links below. For the current release, see the [v1.3.2 release notes](Release_1.3.2.md), [temporary-cache policy](Temporary_Cache_Cleanup.md), [revision history](Revision_History.md), and [tagged source](https://github.com/july-rust/SParamView-Public/tree/v1.3.2). Previous v1.2.4a validation is retained in the [historical release notes](Release_1.2.4a.md).
+Historical v1.2.1 feature changes are supported by the [v1.2.1 release notes](Release_1.2.1.md) and the source links below. For the current release, see the [v1.3.4 release notes](Release_1.3.4.md), [temporary-cache policy](Temporary_Cache_Cleanup.md), [revision history](Revision_History.md), and [tagged source](https://github.com/july-rust/SParamView-Public/tree/v1.3.4). Previous v1.2.4a validation is retained in the [historical release notes](Release_1.2.4a.md).
 
 - [Initial TDR axes and automatic scaling](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/src/plot.cpp)
 - [Plot interaction and viewport restoration](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/src/navigation.cpp)
@@ -595,4 +601,4 @@ Historical v1.2.1 feature changes are supported by the [v1.2.1 release notes](Re
 
 ### Document Version
 
-This guide was updated on **2026-10-29 (KST)** for the **SParamView v1.3.2 official release**. The embedded screenshots remain **historical v1.2.1 validation captures** (see [images/README.md](images/README.md)); no v1.3.2 screenshots are claimed. The published v1.3.0 tag and attached guide assets remain immutable.
+This guide was updated on **2026-11-13 (KST)** for the **SParamView v1.3.4 official release**. The embedded screenshots remain **historical v1.2.1 validation captures** (see [images/README.md](images/README.md)); no v1.3.2 screenshots are claimed. The published v1.3.0 tag and attached guide assets remain immutable.

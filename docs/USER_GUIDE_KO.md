@@ -1,10 +1,10 @@
 # SParamView 사용자 설명서
 
-**적용 기준:** SParamView **v1.3.3 공식 릴리스**
+**적용 기준:** SParamView **v1.3.4 공식 릴리스**
 **지원 플랫폼:** Windows x64 / Windows ARM64 / macOS Apple Silicon (arm64)
-**문서 갱신:** **2026-11-13(KST)**. v1.3.3의 포트 번호 경계 검증과 선형 문자열 파싱을 반영합니다. v1.3.2 프로젝트 캐시 격리 및 타이틀바 파일명, v1.3.1 다중 프로세스 캐시 안전성, v1.3.0 Touchstone 입력·포트 매핑·Windows 배포 구조, v1.2.5 임시 캐시 정책을 반영합니다. 과거 릴리스 자산은 변경하지 않았습니다.
+**문서 갱신:** **2026-11-13(KST)**. v1.3.4는 Mapping CSV 보안·무손실 v2 입출력, GUI 시작 예외 안내 및 실패 시 안전한 캐시 초기화 정리를 통합합니다. v1.3.3의 포트 번호 경계 검증과 선형 문자열 파싱을 반영합니다. v1.3.2 프로젝트 캐시 격리 및 타이틀바 파일명, v1.3.1 다중 프로세스 캐시 안전성, v1.3.0 Touchstone 입력·포트 매핑·Windows 배포 구조, v1.2.5 임시 캐시 정책을 반영합니다. 과거 릴리스 자산은 변경하지 않았습니다.
 
-[English User Guide](USER_GUIDE_EN.md) | [한국어 README](../README_KO.md) | [v1.3.3 Release Notes](Release_1.3.3.md)
+[English User Guide](USER_GUIDE_EN.md) | [한국어 README](../README_KO.md) | [v1.3.4 Release Notes](Release_1.3.4.md)
 
 ---
 
@@ -63,6 +63,12 @@ v1.2.0의 기능별 소스 분할은 내부 코드 구조 변경입니다. 사�
 
 상세 내용: [임시 캐시 정리 설명](Temporary_Cache_Cleanup.md) 및 [v1.2.5 변경사항](Release_1.2.5.md).
 
+### v1.3.4 Mapping CSV 및 GUI·캐시 초기화 안정성
+
+- Mapping CSV v2는 버전 마커를 사용해 수식으로 해석될 수 있는 텍스트를 보호하면서 Unicode·따옴표·줄바꿈을 보존하고, 구형 CSV를 기존 방식으로 읽습니다. Excel/LibreOffice에서 저장 후 재열기는 별도 검증 대상입니다.
+- GUI 초기화 예외를 안내하고 자동화·헤드리스 실행에서는 비정상 종료 코드로 보고합니다. 캐시 세션 초기화 실패 시 임시 자원을 안전하게 정리합니다.
+- 전기적 계산 및 프로젝트 스키마는 변경하지 않았습니다. [v1.3.4 릴리스 노트](Release_1.3.4.md), [2단계 검증](V133_Stage2_CSV_Validation.md), [3단계 검증](V133_Stage3_Startup_Validation.md)을 참고하십시오.
+
 ### v1.3.3 Touchstone 포트 파싱 안정성
 
 - PowerSI `.DiffChannels` 포트 인덱스는 0부터 시작하는 부호 없는 10진 정수입니다. 소수, 부호, 오버플로 또는 범위를 벗어난 인덱스는 확정하지 않고 진단 및 수동 매핑 검토 대상으로 처리합니다.
@@ -104,9 +110,9 @@ GitHub Releases에서 사용 중인 시스템에 맞는 패키지를 선택합�
 
 | 시스템 | 권장 패키지 |
 |---|---|
-| Windows x64 | `SParamView_Windows_x64_v1.3.2.zip` |
-| Windows ARM64 | `SParamView_Windows_ARM64_v1.3.2.zip` |
-| macOS Apple Silicon | `SParamView_macOS_AppleSilicon_arm64_v1.3.2.dmg` 또는 `.zip` |
+| Windows x64 | `SParamView_Windows_x64_v1.3.4.zip` |
+| Windows ARM64 | `SParamView_Windows_ARM64_v1.3.4.zip` |
+| macOS Apple Silicon | `SParamView_macOS_AppleSilicon_arm64_v1.3.4.dmg` 또는 `.zip` |
 
 릴리스에는 SHA-256 확인용 파일도 함께 제공됩니다. 다운로드 무결성을 확인하려면 Windows PowerShell에서 `Get-FileHash <파일명> -Algorithm SHA256`, macOS Terminal에서 `shasum -a 256 <파일명>`을 실행한 뒤 릴리스의 `.sha256` 값과 비교할 수 있습니다.
 
@@ -584,7 +590,7 @@ SParamView 소스는 MIT License로 배포됩니다. Third-party component와 fo
 
 ## 22. 문서 검증 근거
 
-v1.2.1에서 도입된 과거 기능은 [v1.2.1 릴리스 노트](Release_1.2.1.md)와 다음 소스 자료를 참고했습니다. 현재 버전은 [v1.3.2 릴리스 노트](Release_1.3.2.md), [임시 캐시 정리](Temporary_Cache_Cleanup.md), [변경 이력](Revision_History.md) 및 [v1.3.2 소스](https://github.com/july-rust/SParamView-Public/tree/v1.3.2)를 참고하십시오. 이전 v1.2.4a 검증 기록은 [이전 릴리스 노트](Release_1.2.4a.md)에 보존되어 있습니다.
+v1.2.1에서 도입된 과거 기능은 [v1.2.1 릴리스 노트](Release_1.2.1.md)와 다음 소스 자료를 참고했습니다. 현재 버전은 [v1.3.4 릴리스 노트](Release_1.3.4.md), [임시 캐시 정리](Temporary_Cache_Cleanup.md), [변경 이력](Revision_History.md) 및 [v1.3.4 소스](https://github.com/july-rust/SParamView-Public/tree/v1.3.4)를 참고하십시오. 이전 v1.2.4a 검증 기록은 [이전 릴리스 노트](Release_1.2.4a.md)에 보존되어 있습니다.
 
 - [TDR 초기 축 범위 및 자동 스케일](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/src/plot.cpp)
 - [그래프 조작 및 초기 화면 복귀](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/src/navigation.cpp)
@@ -597,4 +603,4 @@ v1.2.1에서 도입된 과거 기능은 [v1.2.1 릴리스 노트](Release_1.2.1.
 
 ### 문서 버전
 
-이 설명서는 **SParamView v1.3.2 정식 릴리스**를 기준으로 **2026-10-29(KST)** 갱신했습니다. 수록 이미지는 [출처가 확인된 v1.2.1 검증 화면](images/README.md)으로 v1.3.2에서 촬영하지 않았습니다. 이미 게시된 v1.3.0 태그와 릴리스 첨부 문서는 변경하지 않습니다.
+이 설명서는 **SParamView v1.3.4 정식 릴리스**를 기준으로 **2026-11-13(KST)** 갱신했습니다. 수록 이미지는 [출처가 확인된 v1.2.1 검증 화면](images/README.md)으로 v1.3.2에서 촬영하지 않았습니다. 이미 게시된 v1.3.0 태그와 릴리스 첨부 문서는 변경하지 않습니다.
