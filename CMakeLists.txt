@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(SParamView VERSION 1.3.2 LANGUAGES CXX)
+project(SParamView VERSION 1.3.3 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 option(SI_BUILD_GUI "Build Qt 6 desktop application" ON)
@@ -203,3 +203,10 @@ add_executable(si_v130_touchstone_tests tests/v130_touchstone_tests.cpp)
 target_link_libraries(si_v130_touchstone_tests PRIVATE si_core)
 add_test(NAME v130_touchstone_compatibility COMMAND si_v130_touchstone_tests)
 install(TARGETS si_v130_touchstone_tests RUNTIME DESTINATION tests)
+
+# v1.3.3 deterministic parser boundary and compatibility regressions
+add_executable(si_v133_parser_tests tests/v133_parser_tests.cpp)
+target_link_libraries(si_v133_parser_tests PRIVATE si_core)
+add_test(NAME v133_parser_hardening COMMAND si_v133_parser_tests)
+set_tests_properties(v133_parser_hardening PROPERTIES TIMEOUT 30)
+install(TARGETS si_v133_parser_tests RUNTIME DESTINATION tests)
