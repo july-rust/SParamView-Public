@@ -16,7 +16,7 @@
 - A protective apostrophe is prepended to strings starting with a literal apostrophe, a leading ASCII control or BOM, or leading whitespace followed by =, +, -, @ or selected fullwidth operators.
 - Only files explicitly identified with the v2-text-escaped marker are unescaped on import. Unmarked legacy CSV values are never stripped of apostrophes.
 - V2 preserves leading/trailing spaces, empty strings, CR/LF, commas, quotes, and exact UTF-8 bytes across repeated export/import.
-- Legacy empty ID and group defaulting is retained; v2 stores the actual empty text.
+- Legacy empty ID and group defaulting is retained; v2 preserves empty metadata text. A blank channel name or ID is not a valid channel mapping and will be rejected by the existing mapping validator.
 - Unknown versioned text encoding is rejected.
 
 ## Compatibility and limits
