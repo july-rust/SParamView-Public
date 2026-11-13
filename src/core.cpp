@@ -19,6 +19,7 @@
 #include <regex>
 #include <set>
 #include <sstream>
+#include <string_view>
 #include <thread>
 #ifdef _WIN32
 #ifndef NOMINMAX
