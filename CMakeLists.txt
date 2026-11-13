@@ -210,3 +210,10 @@ target_link_libraries(si_v133_parser_tests PRIVATE si_core)
 add_test(NAME v133_parser_hardening COMMAND si_v133_parser_tests)
 set_tests_properties(v133_parser_hardening PROPERTIES TIMEOUT 30)
 install(TARGETS si_v133_parser_tests RUNTIME DESTINATION tests)
+
+# v1.3.3 Stage 2 CSV formula-safety and lossless Mapping CSV regressions
+add_executable(si_v133_csv_tests tests/v133_csv_tests.cpp)
+target_link_libraries(si_v133_csv_tests PRIVATE si_core)
+add_test(NAME v133_csv_roundtrip_security COMMAND si_v133_csv_tests "${CMAKE_BINARY_DIR}/v133-csv")
+set_tests_properties(v133_csv_roundtrip_security PROPERTIES TIMEOUT 30)
+install(TARGETS si_v133_csv_tests RUNTIME DESTINATION tests)
