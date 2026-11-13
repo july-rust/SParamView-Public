@@ -38,7 +38,7 @@ int main(int argc, char **argv) {
   try {
     const std::vector<std::string> values{
         "plain", "=1+2", "+SUM(1,2)", "-1+2", "@SUM(1,2)",
-        " =1+2", "\t=1+2", "\r\n=1+2", "\xef\xbc\x9d1+2",
+        " =1+2", "\t=1+2", "\r\n=1+2", "\xef\xbc\x9d" "1+2",
         "'", "'=1+2", "''=1+2", "John's Channel",
         "quoted \"name\"", "comma,=1+2", "line\r\nbreak",
         "\xed\x95\x9c\xea\xb8\x80", "", " leading and trailing "};
