@@ -1,10 +1,10 @@
 # SParamView 사용자 설명서
 
-**적용 기준:** SParamView **v1.3.2 공식 릴리스**
+**적용 기준:** SParamView **v1.3.3 공식 릴리스**
 **지원 플랫폼:** Windows x64 / Windows ARM64 / macOS Apple Silicon (arm64)
-**문서 갱신:** **2026-10-29(KST)**. v1.3.2 프로젝트 캐시 격리 및 타이틀바 파일명, v1.3.1 다중 프로세스 캐시 안전성, v1.3.0 Touchstone 입력·포트 매핑·Windows 배포 구조, v1.2.5 임시 캐시 정책을 반영합니다. 과거 릴리스 자산은 변경하지 않았습니다.
+**문서 갱신:** **2026-11-13(KST)**. v1.3.3의 포트 번호 경계 검증과 선형 문자열 파싱을 반영합니다. v1.3.2 프로젝트 캐시 격리 및 타이틀바 파일명, v1.3.1 다중 프로세스 캐시 안전성, v1.3.0 Touchstone 입력·포트 매핑·Windows 배포 구조, v1.2.5 임시 캐시 정책을 반영합니다. 과거 릴리스 자산은 변경하지 않았습니다.
 
-[English User Guide](USER_GUIDE_EN.md) | [한국어 README](../README_KO.md) | [v1.3.2 Release Notes](Release_1.3.2.md)
+[English User Guide](USER_GUIDE_EN.md) | [한국어 README](../README_KO.md) | [v1.3.3 Release Notes](Release_1.3.3.md)
 
 ---
 
@@ -62,6 +62,13 @@ v1.2.0의 기능별 소스 분할은 내부 코드 구조 변경입니다. 사�
 - 캐시 삭제 후에는 다음 실행에서 원본을 다시 변환해야 하므로 첫 로딩 시간이 늘어날 수 있습니다.
 
 상세 내용: [임시 캐시 정리 설명](Temporary_Cache_Cleanup.md) 및 [v1.2.5 변경사항](Release_1.2.5.md).
+
+### v1.3.3 Touchstone 포트 파싱 안정성
+
+- PowerSI `.DiffChannels` 포트 인덱스는 0부터 시작하는 부호 없는 10진 정수입니다. 소수, 부호, 오버플로 또는 범위를 벗어난 인덱스는 확정하지 않고 진단 및 수동 매핑 검토 대상으로 처리합니다.
+- Mixed-Mode `S<n>`, `D<n>,<n>`, `C<n>,<n>` 번호는 완전한 양의 정수여야 하며 실제 선언된 포트 범위 내에 있어야 합니다.
+- 기존 `! Port N = NAME`, `! PortN_COMPONENT_PIN::NET`, Near/Far 및 P/N 접미사 인식은 재귀 정규식 대신 선형 파싱으로 처리합니다. UTF-8 레이블과 정상적인 기존 차동 매핑 규칙은 보존합니다.
+- 프로젝트 스키마, 임시 캐시 정책, RL/IL/NEXT/FEXT/TDR 수치 연산, 다중 실행 격리 정책에는 변경을 의도하지 않았습니다. 자세한 내용은 [v1.3.3 릴리스 노트](Release_1.3.3.md)를 참고하십시오.
 
 ### v1.3.2 프로젝트 교체 및 Touchstone 파일명 표시
 
