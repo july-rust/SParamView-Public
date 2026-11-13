@@ -68,7 +68,7 @@ jobs:
           cmake_v = match(r'project\(SParamView VERSION ([0-9]+\.[0-9]+\.[0-9]+)', cmake, 'CMake')
           rc_v = match(r'VALUE "ProductVersion", "([0-9]+\.[0-9]+\.[0-9]+[a-z]?)\\0"', rc, 'Windows resource')
           # Suffix releases use CMake's numeric base, with a lettered public label.
-          if core_v != '1.3.3' or cmake_v != '1.3.3' or rc_v != core_v:
+          if cmake_v != re.match(r'^[0-9]+\.[0-9]+\.[0-9]+', core_v).group(0) or rc_v != core_v:
               raise SystemExit(f'Version mismatch: core={core_v}, cmake={cmake_v}, rc={rc_v}')
           notes = pathlib.Path(f'docs/Release_{core_v}.md')
           if not notes.is_file():
