@@ -772,6 +772,7 @@ void MainWindow::importMapping() {
     dirty = true;
     invalidateRevisionResults(revisions[size_t(i)].name);
     rebuildChannels();
+    notice->setText("Mapping confirmed. Select channels and run analysis.");
   } catch (const std::exception &e) {
     error(qs(e.what()));
   }

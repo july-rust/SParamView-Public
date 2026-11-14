@@ -73,6 +73,15 @@ production-core reimport. This evidence is specific to LibreOffice 25.2.3.2 on
 Linux; Microsoft Excel and native Windows/macOS spreadsheet GUIs remain
 unverified.
 
+Reopening the saved CSV in Calc and saving it a second time also preserved all
+values. The patched GUI imported that second file and displayed `Mapping:
+Confirmed`, including the exact `00123`, long numeric ID and `1E10` values.
+A separate unprotected `=1+2` control evaluated to 3, confirming that formula
+evaluation was active. The patched ODS snapshot contained no formula cells.
+The GUI trial also exposed a stale pre-import notice after a successful CSV
+import; successful import now replaces it with the existing mapping-confirmed
+guidance.
+
 ## Startup and cache qualification
 
 - Actual unmodified SParamView executable: a regular file occupying the cache
@@ -96,6 +105,9 @@ unverified.
 - Baseline local Qt build: 49/49 CTests passed.
 - Patched local core: 31/31 CTests passed, including numeric strings, line
   endings, percent literals, legacy/v2 compatibility and damaged-v3 rejection.
+- The CSV correction also passed all 49 local Qt CTests and all platform jobs
+  in PR workflow `43532094616`, including the native Windows ARM64 gate. The
+  later notice-only correction must be checked against the latest PR head.
 - Official baseline workflow run `43413775544` was independently inspected:
   Windows x64, Windows ARM64 build, native ARM64 packaged-binary gate,
   macOS arm64, core and publication jobs were successful. These are existing
