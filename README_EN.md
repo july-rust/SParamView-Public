@@ -1,4 +1,4 @@
-# SParamView v1.3.4
+# SParamView v1.3.5
 
 SParamView is a desktop application for Touchstone-based S-parameter analysis and visualization.
 
@@ -26,11 +26,11 @@ Quick TDR is a band-limited estimate affected by frequency span, spacing, extrap
 - [한국어 사용자 설명서](docs/USER_GUIDE_KO.md)
 - [Future development plan (not yet implemented): independent ILD / ICN / COM / Eye Diagram windows](docs/Channel_Analysis_Development_Plan.md)
 
-## Current release — v1.3.4
+## Current release — v1.3.5
 
-**[Official release and downloads](https://github.com/july-rust/SParamView-Public/releases/tag/v1.3.4)** · [v1.3.4 release notes](docs/Release_1.3.4.md) · [release CI](https://github.com/july-rust/SParamView-Public/actions)
+**[Official release and downloads](https://github.com/july-rust/SParamView-Public/releases/tag/v1.3.5)** · [v1.3.5 release notes](docs/Release_1.3.5.md) · [release CI](https://github.com/july-rust/SParamView-Public/actions)
 
-- **v1.3.4:** Versioned Mapping CSV formula protection and lossless round trips; guarded GUI startup and fail-closed cache-session construction.\n- **v1.3.3:** Strict integer parsing for PowerSI hints and mixed-mode port descriptors; linear-time Touchstone comment/label parsing without regular-expression recursion. Existing valid labels and differential pairing rules are retained.\n- **v1.3.2:** Open Project stages a new workspace cache, then clears the old cache, comparison table and plot/zoom state only after a successful switch. Open Touchstone still appends revisions. The window title shows the full active source filename (including extension), with the original path in the Revision tooltip; existing projects remain compatible.
+- **v1.3.5:** Versioned Mapping CSV formula protection and lossless round trips; guarded GUI startup and fail-closed cache-session construction.\n- **v1.3.3:** Strict integer parsing for PowerSI hints and mixed-mode port descriptors; linear-time Touchstone comment/label parsing without regular-expression recursion. Existing valid labels and differential pairing rules are retained.\n- **v1.3.2:** Open Project stages a new workspace cache, then clears the old cache, comparison table and plot/zoom state only after a successful switch. Open Touchstone still appends revisions. The window title shows the full active source filename (including extension), with the original path in the Revision tooltip; existing projects remain compatible.
 - **v1.3.1 (previous):** Concurrent SParamView processes use independent leased caches; shutdown removal is serialized with abandoned-session recovery.
 - **v1.3.0:** Import Touchstone **1.0/1.1** (implicit version) and **2.0/2.1** (explicit `[Version]`) **S-parameter** files, with RI/MA/DB, standard frequency units, and supported matrix layouts.
 - Recognize `! PortN_COMPONENT_PIN::NET` vendor comments as physical port labels; validate `!.DiffChannels` endpoint/NET/P-N mapping against physical ports instead of guessing polarity.
@@ -55,7 +55,7 @@ Quick TDR is a band-limited estimate affected by frequency span, spacing, extrap
 
 The previous [v1.2.4a published artifacts](https://github.com/july-rust/SParamView-Public/releases/tag/v1.2.4a) remain unchanged. On 2026-10-13, a separate documentation and CI maintenance pass verified zero warning messages across the six required validation gates, native Windows ARM64 mapping fallback 10/10 passes, and native Cocoa macOS GUI tests. These changes do not replace the tagged binaries. See [Revision History](docs/Revision_History.md) and [CI evidence](https://github.com/july-rust/SParamView-Public/actions/runs/38383938009).
 
-See [Release_1.3.4.md](docs/Release_1.3.4.md) for the current release, and [Release_1.3.0.md](docs/Release_1.3.0.md) for its Touchstone predecessor and [Release_1.2.5.md](docs/Release_1.2.5.md) / [Release_1.2.4a.md](docs/Release_1.2.4a.md) for historical details. Earlier changes: [v1.1.6](docs/Release_1.1.6.md), [v1.1.7](docs/Release_1.1.7.md), [v1.2.0](docs/Release_1.2.0.md).
+See [Release_1.3.5.md](docs/Release_1.3.5.md) for the current release, and [Release_1.3.0.md](docs/Release_1.3.0.md) for its Touchstone predecessor and [Release_1.2.5.md](docs/Release_1.2.5.md) / [Release_1.2.4a.md](docs/Release_1.2.4a.md) for historical details. Earlier changes: [v1.1.6](docs/Release_1.1.6.md), [v1.1.7](docs/Release_1.1.7.md), [v1.2.0](docs/Release_1.2.0.md).
 
 ## Build
 SParamView uses C++20, CMake, and Qt 6.8.3 (Core, Gui, Widgets, Concurrent).
@@ -68,3 +68,7 @@ Third-party notices and license texts are stored under `third_party/`.
 
 ## Contact
 sparamview@gmail.com
+
+### Mapping CSV v3 compatibility
+
+Mapping CSV v3 (`v3-text-percent`) prefixes all four text columns with `text:` and percent-encodes whitespace, controls and `%`. Examples: `00123` → `text:00123`, newline → `%0A`, literal `%` → `%25`. Port columns remain integers. Preserve the prefix and escapes when editing CSV directly; prefer the Channel Mapping editor. Legacy v1/v2 files remain readable, but **v1.3.4 cannot read new v3 files**. See [qualification scope](docs/Final_Qualification_1.3.5.md) for actual Linux Calc GUI evidence and Excel/platform limitations.

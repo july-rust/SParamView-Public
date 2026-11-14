@@ -1,12 +1,20 @@
 # SParamView Revision History
 
-**Current official release: [v1.3.4](https://github.com/july-rust/SParamView-Public/releases/tag/v1.3.4)** — versioned Mapping CSV and fail-closed GUI/cache startup hardening, building on v1.3.3 Touchstone input validation; retains the v1.3.2 cache separation and filename display. This preserves v1.3.1 cross-process cache safety. The [v1.3.0 release](https://github.com/july-rust/SParamView-Public/releases/tag/v1.3.0) was published on 2026-10-29 11:43 KST and remains preserved.
+**Current official release: [v1.3.5](https://github.com/july-rust/SParamView-Public/releases/tag/v1.3.5)** — versioned Mapping CSV and fail-closed GUI/cache startup hardening, building on v1.3.3 Touchstone input validation; retains the v1.3.2 cache separation and filename display. This preserves v1.3.1 cross-process cache safety. The [v1.3.0 release](https://github.com/july-rust/SParamView-Public/releases/tag/v1.3.0) was published on 2026-10-29 11:43 KST and remains preserved.
 
 **Integration history:** [Stage 2 Mapping CSV safety (PR #25)](https://github.com/july-rust/SParamView-Public/pull/25) and [Stage 3 GUI/cache startup hardening (PR #27)](https://github.com/july-rust/SParamView-Public/pull/27) are integrated for v1.3.4. These changes are not part of the already-published v1.3.3 assets, which remain intact.
 
 This document records the development sequence from the original SI Analyzer engineering preview through the current SParamView release. The development record predates the GitHub repository itself: the first retained engineering-preview validation is dated **2026-09-08**, while the current GitHub repository was created on **2026-09-25**.
 
 Historical entries before v1.1.5 refer to private development records, not files shipped in this public repository. They are historical context, not current validation evidence. v1.2.2 and v1.2.3 were development releases. v1.2.4 was initially promoted publicly; it was subsequently superseded and its public release/tag retired after successful publication of **v1.2.4a**. The follow-up **v1.2.5** improves temporary-data cleanup without changing numerical analysis algorithms. **v1.3.0** extends Touchstone S-parameter input compatibility and relocates Windows auxiliary executables; the existing tagged release assets remain immutable.
+
+## v1.3.5 — 2026-11-14
+
+Mapping CSV v3 preserves numeric-looking IDs, whitespace and line endings through
+spreadsheet saves. Successful mapping import refreshes guidance. New isolated
+failure probes exercise production startup guards and native Qt dialog buttons.
+See [release notes](Release_1.3.5.md) and [qualification scope](Final_Qualification_1.3.5.md).
+The v1.3.4 tag and assets remain pinned to their original commit.
 
 ## Development timeline
 
