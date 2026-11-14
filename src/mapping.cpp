@@ -397,7 +397,7 @@ std::vector<Channel> suggestMapping(const Metadata &m,
   }
   return out;
 }
-// Mapping CSV v2 keeps text opaque on round-trip. A format marker is necessary:
+// Versioned Mapping CSV keeps text opaque on round-trip. A marker is necessary:
 // an unmarked legacy value beginning with an apostrophe is user data, NOT an
 // escape sequence. CSV quoting alone is not a spreadsheet formula defense.
 enum class CsvFieldState { Start, Plain, Quoted, AfterQuote };
@@ -465,30 +465,45 @@ static std::string csvQuote(const std::string &s) {
   }
   return out + '"';
 }
-// A conservative export rule: treat leading controls, ASCII space followed by
-// formula operators, and common fullwidth operator variants as spreadsheet
-// sensitive. Apostrophe-prefixed source strings must also be escaped so the
-// versioned decoder can always distinguish source text from protection.
-static bool csvFormulaLead(const std::string &s) {
-  if (s.empty())
-    return false;
-  if (static_cast<unsigned char>(s.front()) < 0x20 ||
-      s.starts_with("\xef\xbb\xbf"))
-    return true;
-  size_t i = 0;
-  while (i < s.size() && static_cast<unsigned char>(s[i]) <= 0x20)
-    ++i;
-  if (i == s.size())
-    return false;
-  const char c = s[i];
-  return c == '=' || c == '+' || c == '-' || c == '@' ||
-         s.compare(i, 3, "\xef\xbc\x9d") == 0 || // U+FF1D FULLWIDTH EQUALS
-         s.compare(i, 3, "\xef\xbc\x8b") == 0 || // U+FF0B FULLWIDTH PLUS
-         s.compare(i, 3, "\xef\xbc\x8d") == 0 || // U+FF0D FULLWIDTH HYPHEN
-         s.compare(i, 3, "\xef\xbc\xa0") == 0;   // U+FF20 FULLWIDTH AT
-}
+// v3 prefixes EVERY text cell with a visible non-formula/non-numeric token.
+// CSV quotes and apostrophes alone do not stop spreadsheet type conversion or
+// CR/LF normalization. Escape whitespace/control bytes and '%' before export;
+// UTF-8, punctuation and ordinary letters remain readable. Ports stay numeric.
 static std::string csvText(const std::string &s) {
-  return csvQuote((csvFormulaLead(s) || s.starts_with("'") ? "'" : "") + s);
+  constexpr char hex[] = "0123456789ABCDEF";
+  std::string encoded = "text:";
+  for (unsigned char c : s) {
+    if (c <= 0x20 || c == 0x7f || c == '%') {
+      encoded += '%';
+      encoded += hex[c >> 4];
+      encoded += hex[c & 15];
+    } else {
+      encoded += static_cast<char>(c);
+    }
+  }
+  return csvQuote(encoded);
+}
+static std::string decodeCsvTextV3(const std::string &s) {
+  if (!s.starts_with("text:"))
+    throw Error("Missing Mapping CSV v3 text: prefix");
+  auto nibble = [](char c) -> int {
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    return -1;
+  };
+  std::string out;
+  for (size_t i = 5; i < s.size(); ++i) {
+    if (s[i] != '%') {
+      out += s[i];
+      continue;
+    }
+    if (i + 2 >= s.size() || nibble(s[i + 1]) < 0 || nibble(s[i + 2]) < 0)
+      throw Error("Invalid Mapping CSV v3 percent escape");
+    out += static_cast<char>((nibble(s[i + 1]) << 4) | nibble(s[i + 2]));
+    i += 2;
+  }
+  return out;
 }
 std::vector<Channel> readMappingCsv(const fs::path &p) {
   std::ifstream in(p, std::ios::binary);
@@ -514,12 +529,16 @@ std::vector<Channel> readMappingCsv(const fs::path &p) {
       return columns.count(key) && columns[key] < record->size()
                  ? (*record)[columns[key]] : std::string{};
     };
-    if (versioned && raw("sparamviewcsv") != "v2-text-escaped")
+    const auto encoding = raw("sparamviewcsv");
+    if (versioned && encoding != "v2-text-escaped" &&
+        encoding != "v3-text-percent")
       throw Error("Unknown Mapping CSV text encoding");
     auto cell = [&](const std::string &key) {
       std::string value = raw(key);
       if (!versioned)
         return trim(value); // Preserve historic import semantics for v1 CSV.
+      if (encoding == "v3-text-percent")
+        return decodeCsvTextV3(value);
       // Every leading apostrophe in v2 was deliberately encoded on write.
       if (!value.empty() && value.front() == '\'')
         value.erase(0, 1);
@@ -563,7 +582,7 @@ void writeMappingCsv(const fs::path &p, const std::vector<Channel> &cs) {
     for (auto i : {c.nearP, c.nearN, c.farP, c.farN})
       out << ',' << (i < 0 ? "" : std::to_string(i + 1));
     out << ',' << csvText(c.group) << ',' << csvText(c.alias) << ','
-        << csvText(c.id) << ",v2-text-escaped\r\n";
+        << csvText(c.id) << ",v3-text-percent\r\n";
   }
   if (!out)
     throw Error("CSV write failed");

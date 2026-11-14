@@ -50,6 +50,12 @@ int main(int argc, char **argv) {
     expect(threw && finished == 2, "Join before failure propagation");
     pool.run(1, [&] { ++finished; });
     expect(finished == 3, "Pool usable after failure");
+    bool allocationFailure = false;
+    try { pool.run(2, [] { throw std::bad_alloc(); }); }
+    catch (const std::bad_alloc &) { allocationFailure = true; }
+    expect(allocationFailure, "Worker bad_alloc propagates after join");
+    pool.run(1, [&] { ++finished; });
+    expect(finished == 4, "Pool reusable after injected bad_alloc");
     auto dir = si::fs::temp_directory_path() / "si_qt_tests";
     si::fs::create_directories(dir);
     TestDirectoryCleanup cleanup{dir};

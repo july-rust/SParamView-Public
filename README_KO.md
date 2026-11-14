@@ -1,4 +1,4 @@
-# SParamView v1.3.4
+# SParamView v1.3.5
 
 SParamView는 Touchstone S-parameter 데이터를 열고 채널 기준으로 분석하는 C++20 / Qt 6 데스크톱 프로그램입니다.
 
@@ -24,11 +24,13 @@ Quick TDR은 제한된 주파수 대역을 이용한 추정값이며 계측기 T
 - [전체 변경 이력](docs/Revision_History.md)
 - [개발 예정: 상단 메뉴에서 별도 창으로 실행하는 ILD·ICN·COM·Eye Diagram](docs/Channel_Analysis_Development_Plan.md)
 
-## 공식 최신 릴리스 — v1.3.4
+## 공식 최신 릴리스 — v1.3.5
 
-[**v1.3.4 다운로드**](https://github.com/july-rust/SParamView-Public/releases/tag/v1.3.4) · [릴리스 노트](docs/Release_1.3.4.md) · [공식 CI](https://github.com/july-rust/SParamView-Public/actions)
+[**v1.3.5 다운로드**](https://github.com/july-rust/SParamView-Public/releases/tag/v1.3.5) · [릴리스 노트](docs/Release_1.3.5.md) · [공식 CI](https://github.com/july-rust/SParamView-Public/actions)
 
-- **v1.3.4:** Mapping CSV 수식 주입 방어와 무손실 버전 2 입출력, GUI 시작 예외 처리 및 캐시 초기화 실패 시 안전한 중단을 통합했습니다.\n- **v1.3.3:** PowerSI 포트 인덱스와 Mixed-Mode 포트 번호를 엄격히 정수 검증하고, Touchstone 포트명과 채널 레이블의 정규식 기반 처리를 선형 파싱으로 변경했습니다. 기존 정상 포트명과 차동 매핑 정책을 유지합니다.\n- **v1.3.2:** 프로젝트를 교체하면 이전 프로젝트 캐시·비교 테이블·그래프 확대 상태를 정리합니다. 일반 Touchstone 열기는 기존처럼 Revision을 추가합니다. 타이틀바에 현재 선택한 원본 Touchstone 파일명과 확장자를 표시하고 Revision 툴팁에 전체 원본 경로를 표시합니다. 기존 프로젝트 형식은 유지합니다.
+- **v1.3.5:** Mapping CSV v3로 스프레드시트 재저장 시 텍스트 손실을 수정하고 가져오기 성공 안내를 갱신합니다. 별도 프로세스의 시작 오류·치명적 종료·캐시 복구 및 네이티브 GUI 시험을 추가했습니다. v1.3.4의 시작·캐시 보호는 유지합니다.
+- **v1.3.3:** PowerSI 포트 인덱스와 Mixed-Mode 포트 번호를 엄격히 정수 검증하고, Touchstone 포트명과 채널 레이블의 정규식 기반 처리를 선형 파싱으로 변경했습니다. 기존 정상 포트명과 차동 매핑 정책을 유지합니다.
+- **v1.3.2:** 프로젝트를 교체하면 이전 프로젝트 캐시·비교 테이블·그래프 확대 상태를 정리합니다. 일반 Touchstone 열기는 기존처럼 Revision을 추가합니다. 타이틀바에 현재 선택한 원본 Touchstone 파일명과 확장자를 표시하고 Revision 툴팁에 전체 원본 경로를 표시합니다. 기존 프로젝트 형식은 유지합니다.
 - **v1.3.1 (이전 버전):** 여러 프로그램이 실행되어도 독립 캐시를 유지하며 종료 시 안전한 삭제를 수행합니다.
 - **v1.3.0:** Touchstone **1.0/1.1**(암시적 버전) 및 **2.0/2.1**(`[Version]` 선언) **S-파라미터** 입력을 지원합니다. `1.9`는 공식 Touchstone 버전이 아닙니다.
 - 제조사 확장 `! PortN_COMPONENT_PIN::NET`에서 물리 포트 이름을 인식하며, `!.DiffChannels` 포트 인덱스·NET·물리 핀·P/N 극성을 대조합니다.
@@ -105,3 +107,7 @@ ctest --test-dir build --output-on-failure
 ## 라이선스
 
 SParamView 프로그램 소스는 MIT License를 사용합니다. Third-party component, runtime notice, font는 각각의 라이선스를 유지합니다. `LICENSE`, `COPYRIGHT.txt`, `third_party/`를 확인하세요.
+
+### Mapping CSV v3 compatibility
+
+Mapping CSV v3(`v3-text-percent`)는 네 텍스트 열에 `text:` 접두어를 붙이고 공백·제어 문자·%를 퍼센트 인코딩합니다. 예: `00123` → `text:00123`, 줄바꿈 → `%0A`, `%` → `%25`. 포트 번호는 정수입니다. CSV를 직접 편집할 때 접두어와 인코딩을 유지하고, 일반 편집은 Channel Mapping 창을 사용하십시오. 구형 v1/v2 CSV는 읽을 수 있지만 **v1.3.4는 새 v3 CSV를 읽을 수 없습니다**. Linux LibreOffice GUI 왕복에서 확인한 범위와 Excel·플랫폼별 미검증 제한은 [검증 범위](docs/Final_Qualification_1.3.5.md)를 참고하십시오.
