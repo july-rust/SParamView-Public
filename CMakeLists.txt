@@ -118,6 +118,7 @@ if(SI_BUILD_GUI)
   target_link_libraries(SParamView PRIVATE si_core si_qt_workers Qt6::Widgets)
   # Fault hooks cannot be enabled by environment or arguments in SParamView.
   qt_add_executable(si_failure_probe ${SPARAMVIEW_SOURCES})
+  set_target_properties(si_failure_probe PROPERTIES WIN32_EXECUTABLE FALSE)
   target_compile_definitions(si_failure_probe PRIVATE SPARAMVIEW_QUALIFICATION_BUILD=1)
   target_link_libraries(si_failure_probe PRIVATE si_core si_qt_workers Qt6::Widgets)
   install(TARGETS si_failure_probe RUNTIME DESTINATION tests)

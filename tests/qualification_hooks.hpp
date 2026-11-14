@@ -38,7 +38,10 @@ inline void afterApp(QApplication &app) {
         if (!box || !box->isVisible()) continue;
         auto *ok = box->button(QMessageBox::Ok);
         if (!ok || !ok->isVisible()) continue;
-        const bool title = box->windowTitle() == "SParamView - Startup failed";
+        // Qt explicitly ignores QMessageBox titles on macOS.
+        const bool title = QGuiApplication::platformName() == "cocoa"
+          ? box->windowTitle().isEmpty()
+          : box->windowTitle() == "SParamView - Startup failed";
         const bool text = box->text().contains("Cannot start SParamView.") &&
                           box->text().contains("restart the application.");
         const bool screenshot = box->grab().save(QDir(root()).filePath("dialog.png"));

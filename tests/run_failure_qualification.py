@@ -9,6 +9,42 @@ a.probe = a.probe.resolve(); a.output = a.output.resolve()
 a.output.mkdir(parents=True, exist_ok=True)
 results = []
 
+def dismiss_windows_platform_error(child, folder):
+    # Qt may show a Win32 MessageBox before QApplication exists. Match only
+    # this child's known platform-plugin error; never interact with other apps.
+    import ctypes
+    from ctypes import wintypes
+    user = ctypes.windll.user32
+    seen = []
+    callback_type = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+    @callback_type
+    def visit(hwnd, _):
+        pid = wintypes.DWORD()
+        user.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        if pid.value != child.pid: return True
+        texts = []
+        @callback_type
+        def collect(control, unused):
+            text = ctypes.create_unicode_buffer(4096)
+            user.GetWindowTextW(control, text, len(text))
+            texts.append(text.value)
+            return True
+        user.EnumChildWindows(hwnd, collect, 0)
+        if any('Qt platform plugin' in text for text in texts):
+            user.GetDlgItem.restype = wintypes.HWND
+            button = user.GetDlgItem(hwnd, 1)
+            if button:
+                seen.append(texts)
+                user.SendMessageW(button, 0x00F5, 0, 0) # BM_CLICK, this dialog's IDOK
+        return True
+    deadline = time.monotonic() + 15
+    while child.poll() is None and time.monotonic() < deadline:
+        user.EnumWindows(visit, 0)
+        time.sleep(.05)
+    if seen:
+        (folder/'native-platform-dialog.json').write_text(json.dumps(seen,indent=2))
+
+
 def run(mode, *, native=False, reuse=None):
     folder = reuse or a.output / mode
     folder.mkdir(parents=True, exist_ok=True)
@@ -19,10 +55,13 @@ def run(mode, *, native=False, reuse=None):
     if native: env['SPARAMVIEW_QA_CLICK'] = '1'
     if mode == 'qt-init': env['QT_QPA_PLATFORM'] = 'sparamview-nonexistent-qa'
     command = [str(a.probe)] + (['QA-invalid-file'] if mode == 'file-open' else [])
+    print("RUN", mode, "native=", native, flush=True)
     started = time.monotonic()
+    timed_out = False
     with (folder / (mode + '.log')).open('wb') as log:
         child = subprocess.Popen(command, env=env, stdout=log, stderr=subprocess.STDOUT)
         try:
+            if mode == 'qt-init' and os.name == 'nt': dismiss_windows_platform_error(child, folder)
             if mode == 'hold':
                 deadline = time.monotonic() + 20
                 while not (folder / 'ready').exists() and child.poll() is None and time.monotonic() < deadline:
@@ -30,8 +69,10 @@ def run(mode, *, native=False, reuse=None):
                 if not (folder / 'ready').exists(): raise RuntimeError('No readiness handshake')
                 child.kill()
             code = child.wait(timeout=30)
-        except Exception:
-            child.kill(); child.wait(); raise
+        except (subprocess.TimeoutExpired, RuntimeError):
+            timed_out = True
+            child.kill(); child.wait()
+            code = child.returncode
     text = (folder / (mode + '.log')).read_text(errors='replace')
     runtime_path = folder / 'runtime.json'
     runtime = json.loads(runtime_path.read_text()) if runtime_path.exists() else {}
@@ -49,7 +90,8 @@ def run(mode, *, native=False, reuse=None):
         dialog_path = folder / 'dialog.json'
         dialog = json.loads(dialog_path.read_text()) if dialog_path.exists() else {}
         ok = ok and dialog.get('valid', False) and runtime.get('platform') == a.platform
-    results.append(dict(case=mode, status='PASS' if ok else 'FAIL', exit=code,
+    ok = ok and not timed_out
+    results.append(dict(case=mode, timed_out=timed_out, status='PASS' if ok else 'FAIL', exit=code,
                         command=command, platform=runtime.get('platform'), native=native,
                         elapsed=time.monotonic()-started, remaining=remaining,
                         expected=('nonzero fatal/kill; recover next launch' if mode in ('fatal','timer-unhandled','hold','qt-init')

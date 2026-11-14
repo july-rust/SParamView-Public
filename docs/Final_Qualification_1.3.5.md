@@ -57,3 +57,13 @@ unless separately recorded. A passing build does not establish these results.
 The release pipeline records its exact commit in each package and refuses to
 replace an existing release with a different commit. All required platform gates
 and publication provenance checks must succeed before v1.3.5 is called released.
+
+## Platform-specific test corrections
+
+Qt documents that QMessageBox ignores its window title on macOS
+([Qt documentation](https://doc.qt.io/qt-6/qmessagebox.html)). Cocoa checks therefore
+record the empty title and require the full error body, visible OK button,
+screenshot, dismissal and exit. Windows/Linux require the supplied title.
+The isolated Windows probe uses the console subsystem and can acknowledge Qt's
+own pre-QApplication Win32 platform-plugin error box by child PID and exact
+message class. Neither change alters production error handling.
