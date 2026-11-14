@@ -16,7 +16,10 @@ if not office:
 record['office']=office
 try: record['version']=subprocess.check_output([office,'--version'],timeout=30,text=True).strip()
 except Exception as e: record['version_error']=str(e)
-profile=a.output/'profile';standard=profile/'user/basic/Standard';standard.mkdir(parents=True,exist_ok=True)
+profile=a.output/'profile'
+# First-run initialization installs Standard/Module1; do it BEFORE our macro.
+subprocess.run([office,'-env:UserInstallation='+profile.as_uri(),'--headless','--terminate_after_init'],timeout=45,check=True)
+standard=profile/'user/basic/Standard';standard.mkdir(parents=True,exist_ok=True)
 (profile/'user/basic/script.xlc').write_text('''<?xml version="1.0"?><library:libraries xmlns:library="http://openoffice.org/2000/library" xmlns:xlink="http://www.w3.org/1999/xlink"><library:library library:name="Standard" xlink:href="'''+escape((standard/'script.xlb').as_uri())+'''" xlink:type="simple" library:link="false"/></library:libraries>''')
 (standard/'script.xlb').write_text('''<?xml version="1.0"?><library:library xmlns:library="http://openoffice.org/2000/library" library:name="Standard" library:readonly="false" library:passwordprotected="false"><library:element library:name="Module1"/></library:library>''')
 (standard/'dialog.xlb').write_text('''<?xml version="1.0"?><library:library xmlns:library="http://openoffice.org/2000/library" library:name="Standard" library:readonly="false" library:passwordprotected="false"/>''')
@@ -36,7 +39,7 @@ props(1).Value = "OPTIONS"
 props(2).Name = "Hidden"
 props(2).Value = False
 Dim doc As Object, sh As Object, cell As Object
-Dim f As Integer, r As Long, c As Long
+Dim f As Integer, r As Long, c As Variant
 doc = StarDesktop.loadComponentFromURL("SOURCE", "_blank", 0, props())
 sh = doc.Sheets(0)
 f = FreeFile
