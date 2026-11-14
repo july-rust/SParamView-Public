@@ -88,6 +88,8 @@ with (a.output/'office.log').open('wb') as log:
     deadline=time.monotonic()+60
     while not ready.exists() and not done.exists() and time.monotonic()<deadline:time.sleep(.2)
     if ready.exists():
+        if platform.system() == 'Darwin':
+            subprocess.run(['osascript','-e','tell application "LibreOffice" to activate'],timeout=15,check=False)
         # OS screenshot documents a visible GUI; absence is never replaced by headless output.
         shot=a.output/'calc.png'
         try:
@@ -100,6 +102,8 @@ with (a.output/'office.log').open('wb') as log:
         go.write_text('continue')
     deadline=time.monotonic()+45
     while not done.exists() and time.monotonic()<deadline:time.sleep(.2)
+    if not done.exists() and platform.system() == 'Darwin':
+        subprocess.run(['screencapture','-x',str(a.output/'timeout.png')],timeout=15,check=False)
     try:child.wait(timeout=10)
     except subprocess.TimeoutExpired:child.kill();child.wait()
 record['exit_code']=child.returncode

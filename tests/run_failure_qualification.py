@@ -15,6 +15,10 @@ def dismiss_windows_platform_error(child, folder):
     import ctypes
     from ctypes import wintypes
     user = ctypes.windll.user32
+    user.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
+    user.GetWindowTextW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
+    user.GetDlgItem.argtypes = [wintypes.HWND, ctypes.c_int]
+    user.SendMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
     seen = []
     callback_type = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
     @callback_type
@@ -74,6 +78,8 @@ def run(mode, *, native=False, reuse=None):
             child.kill(); child.wait()
             code = child.returncode
     text = (folder / (mode + '.log')).read_text(errors='replace')
+    qt_log = folder / 'qt-messages.log'
+    if qt_log.exists(): text += qt_log.read_text(errors='replace')
     runtime_path = folder / 'runtime.json'
     runtime = json.loads(runtime_path.read_text()) if runtime_path.exists() else {}
     cache = pathlib.Path(runtime['cache']) / 'v3' if runtime else None

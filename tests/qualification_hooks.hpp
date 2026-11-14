@@ -10,14 +10,30 @@
 #include <QMessageBox>
 #include <QDir>
 #include <new>
+#include <cstdio>
 #include <stdexcept>
 namespace qualification {
 inline QString mode() { return qEnvironmentVariable("SPARAMVIEW_QA_SCENARIO"); }
 inline QString root() { return qEnvironmentVariable("SPARAMVIEW_QA_ROOT"); }
 inline void beforeApp() {
+  // Windows Qt diagnostics may otherwise go only to OutputDebugString.
+  // Capture real Qt messages in the isolated probe, before QApplication.
+  qInstallMessageHandler([](QtMsgType, const QMessageLogContext &, const QString &message) {
+    const auto bytes = message.toUtf8();
+    std::fwrite(bytes.constData(), 1, size_t(bytes.size()), stderr);
+    std::fputc('\n', stderr);
+    std::fflush(stderr);
+    QFile log(QDir(root()).filePath("qt-messages.log"));
+    if (log.open(QIODevice::WriteOnly | QIODevice::Append)) {
+      log.write(bytes); log.write("\n"); log.flush();
+    }
+  });
 #ifdef Q_OS_WIN
   // Isolated crash probes must not wait for Windows Error Reporting UI.
   SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
+  // qguiapplication.cpp displays a Win32 error before qFatal when there is
+  // no console. This scenario measures fatal init, not Win32 popup input.
+  if (mode() == "qt-init" && !GetConsoleWindow()) AllocConsole();
 #endif
   if (mode() == "pre-app") throw std::runtime_error("QA pre-QApplication exception");
 }

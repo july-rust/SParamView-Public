@@ -64,6 +64,8 @@ Qt documents that QMessageBox ignores its window title on macOS
 ([Qt documentation](https://doc.qt.io/qt-6/qmessagebox.html)). Cocoa checks therefore
 record the empty title and require the full error body, visible OK button,
 screenshot, dismissal and exit. Windows/Linux require the supplied title.
-The isolated Windows probe uses the console subsystem and can acknowledge Qt's
-own pre-QApplication Win32 platform-plugin error box by child PID and exact
-message class. Neither change alters production error handling.
+The isolated Windows probe uses a console for the invalid-platform scenario
+(Qt otherwise opens a pre-QApplication Win32 popup). A test-only Qt message
+handler records Qt's actual diagnostics to stderr and a flushed file. Other
+native-dialog probes still use the normal Windows platform and real QMessageBox.
+Source: [Qt 6.8.3 platform initialization](https://github.com/qt/qtbase/blob/v6.8.3/src/gui/kernel/qguiapplication.cpp). Neither change alters production error handling.
