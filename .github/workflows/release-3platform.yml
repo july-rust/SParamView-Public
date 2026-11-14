@@ -271,6 +271,14 @@ jobs:
       run:
         shell: pwsh
     steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
       # GitHub CLI is Go-based. The upstream actions/download-artifact@v7
       # runtime emits Node DEP0005 on Windows ARM64 despite successful downloads.
       # Keep authenticated Actions artifact retrieval; never hide Node warnings.
