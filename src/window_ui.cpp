@@ -326,7 +326,7 @@ MainWindow::MainWindow() {
   analysisWindows->installMenu();
   // Only GUI-thread provider access may read MainWindow revisions. The returned
   // cache/mapping are immutable worker inputs and SHA-verified on the worker.
-  analysisWindows->setIldSourceProvider([this](int index)
+  auto channelSourceProvider = [this](int index)
       -> std::optional<si::gui::IldSourceInput> {
     if(index<0 || size_t(index)>=revisions.size()) return std::nullopt;
     const auto &revision=revisions[size_t(index)];
@@ -336,7 +336,9 @@ MainWindow::MainWindow() {
     return si::gui::IldSourceInput{
       revision.cache,revision.channels,ss(revision.name),
       revision.cache->meta().sha256,generation,generation};
-  });
+  };
+  analysisWindows->setIldSourceProvider(channelSourceProvider);
+  analysisWindows->setIcnSourceProvider(channelSourceProvider);
   auto rules = menuBar()->addMenu("Limit");
   rules->addAction("Save Preset...", this, [this] { preset(true); });
   rules->addAction("Load Preset...", this, [this] { preset(false); });
