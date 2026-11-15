@@ -129,6 +129,14 @@ int main(int argc, char **argv) {
     }), "Exception test job did not start");
     drain(manager.scheduler());
     check(windows[3]->status() == S::Error, "Worker exception status not propagated");
+    check(windows[3]->startWork([](const std::atomic_bool &,
+                                   std::atomic_int &) -> WorkOutcome {
+      throw si::Cancelled();
+    }),"Cancelled exception test did not start");
+    drain(manager.scheduler());
+    check(windows[3]->status()==S::Cancelled,
+          "Cooperative cancellation exception reported as ERROR");
+
 
     // Deleting a window while its worker is alive must not use a dangling QObject.
     check(windows[0]->startWork(slowWork()), "Close-while-busy job did not start");
