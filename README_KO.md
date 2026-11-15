@@ -23,6 +23,7 @@ Quick TDR은 제한된 주파수 대역을 이용한 추정값이며 계측기 T
 - [English User Guide](docs/USER_GUIDE_EN.md)
 - [전체 변경 이력](docs/Revision_History.md)
 - [개발 예정: 상단 메뉴에서 별도 창으로 실행하는 ILD·ICN·COM·Eye Diagram](docs/Channel_Analysis_Development_Plan.md)
+- [v1.4.0 전체 개발 계획 — 012_01~012_14](docs/Development_Plan_012_v1.4.0.md)
 
 ## 공식 최신 릴리스 — v1.3.5
 
