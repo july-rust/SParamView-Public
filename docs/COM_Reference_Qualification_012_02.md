@@ -25,7 +25,14 @@
 - [Read-only upstream probe CI 43691394632](https://github.com/july-rust/SParamView-Public/actions/runs/43691394632): official tag `4.17.0` resolves to Git commit **`47459695a169fdf1fd10c541a5b19c69a5ae9285`**; GitLab API HTTP 200.
 - Release file `release/com_ieee8023_4p17p0.m`, Git blob ID **`bdfc766226e4986f3428460b5fdb6818f3a3fcd5`**. Git blob ID is not SHA-256; API JSON response hash is not code-content hash.
 - Repository root README and LICENSE both identify BSD 3-Clause; root LICENSE SHA-256 **`f5532297b5eeef9ef3236a38ecb5973d6521b542f567db15c4025e1f71d91631`**.
-- Programmatic stage tests: synthetic/provenance unit tests cover missing source, hash, paths, values, NEXT/FEXT presence and tolerance citation; **not** IEEE COM numeric golden verification. Consult the latest linked CI run for the exact test count.
+- Programmatic stage tests: synthetic/provenance unit tests cover missing source, hash, paths, values, NEXT/FEXT presence, tolerance citation and rejection of unapproved draft profiles; **not** IEEE COM numeric golden verification. Consult the latest linked CI run for the exact test count.
+
+## Second-pass template inventory and executable entry point (2026-11-15)
+
+- [IEEE upstream profile/tree probe CI 43693613982](https://github.com/july-rust/SParamView-Public/actions/runs/43693613982): `v4.17.0` C2C and C2M `200G` configs refer to **P802.3dj D2.1/D2.2/D2.3** (.xlsx). KR/CPC listed under 200G/400G. **No already-qualified 802.3ck 100GAUI-1 C2C config was identified in the inspected tree.**
+- Released reference code was downloaded **read-only in CI**: `release/com_ieee8023_4p17p0.m`, **533,634 bytes**, content SHA-256 `cdcd739ac13c9cc3ca59733fd938a015f040429655b5dbf5543c897789cfed9b`. Main MATLAB function signature `results=com_ieee8023_(varargin)`, copyright and BSD-3-Clause header present. File was **not imported** into SParamView.
+- Official normative candidate: **published IEEE Std 802.3ck-2022**, 100GAUI-1 C2C (Annex 120F); use only published parameter table and exact tests, not 802.3dj drafts. Standard catalog: https://standards.ieee.org/ieee/802.3ch/7322/
+- Still missing: full normatively qualified PHY settings, realistic legal THRU/NEXT/FEXT dataset, independent published numeric COM results, runtime execution of pinned reference and justified tolerances. No change to **BLOCKED** decision.
 
 ## Added reproducible evidence gate
 
