@@ -31,13 +31,19 @@ def synthetic_manifest(root):
             attach(root, f"case{i}/thru.s4p", "synthetic THRU", "thru"),
             attach(root, f"case{i}/config.txt", "synthetic profile", "config")
         ]
+        if i == 1:
+            inputs += [
+                attach(root, f"case{i}/next.s4p", "synthetic NEXT", "next"),
+                attach(root, f"case{i}/fext.s4p", "synthetic FEXT", "fext")
+            ]
         run = attach(root, f"case{i}/run.json", json.dumps({
             "com_db": 3.0 + i, "reference_commit": ref_commit, "profile_id": "TEST-ONLY"
         }))
         cases.append({
             "id": f"SYN-{i}", "published_source_url": "https://example.org/synthetic-only",
             "input_files": inputs, "reproduced_result": run,
-            "published_expected_com_db": 3.0 + i, "tolerance_db": 0.01
+            "published_expected_com_db": 3.0 + i, "tolerance_db": 0.01,
+            "tolerance_basis_url": "https://example.org/synthetic-tolerance-only"
         })
     return {
         "contract_version": 1, "status": "LOCKED", "profile_id": "TEST-ONLY",
@@ -99,6 +105,22 @@ class ReferenceManifestTests(unittest.TestCase):
             data = synthetic_manifest(root)
             data["license"]["evidence"]["path"] = "../leak"
             with self.assertRaises((preflight.QualificationError, FileNotFoundError)):
+                preflight.qualify(data, root)
+
+    def test_no_next_fext_is_rejected(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            data = synthetic_manifest(root)
+            data["cases"][1]["input_files"] = data["cases"][1]["input_files"][:2]
+            with self.assertRaisesRegex(preflight.QualificationError, "NEXT and FEXT"):
+                preflight.qualify(data, root)
+
+    def test_missing_tolerance_basis_is_rejected(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            data = synthetic_manifest(root)
+            del data["cases"][0]["tolerance_basis_url"]
+            with self.assertRaisesRegex(preflight.QualificationError, "tolerance basis"):
                 preflight.qualify(data, root)
 
     def test_nonfinite_reference_is_rejected(self):
