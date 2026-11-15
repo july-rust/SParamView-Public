@@ -1,12 +1,14 @@
 {
   "contract_version": 1,
   "status": "BLOCKED",
-  "profile_id": "IEEE-802.3-2022-Annex-93A-CANDIDATE",
+  "profile_id": "IEEE-802.3ck-2022-100GAUI-1-C2C-120F-CANDIDATE",
   "standard": {
-    "edition": "IEEE Std 802.3-2022 (candidate, provisionally identified)",
-    "annex": "93A",
+    "edition": "IEEE Std 802.3ck-2022 (approved standard; candidate profile NOT LOCKED)",
+    "annex": "93A methodology; 120F C2C interface (candidate; table values unverified)",
     "applicable_clause": null,
-    "parameter_table": null
+    "parameter_table": null,
+    "approval_status": "PUBLISHED",
+    "normative_source_url": "https://standards.ieee.org/ieee/802.3ch/7322/"
   },
   "reference": {
     "release": "4.17.0 (official GitLab tag)",
@@ -23,9 +25,9 @@
   },
   "cases": [],
   "blockers": [
-    "Selected PHY clause/parameter table for Annex 93A not independently locked",
-    "Real licensed THRU/NEXT/FEXT fixtures and numerical reference outputs not reproduced",
-    "Fixture data rights, per-file dependency obligations and cross-platform redistributability not audited",
-    "License evidence must be saved with pinned artifacts and profile-specific settings"
+    "IEEE 802.3ck-2022 Annex 120F candidate has no reviewed complete published PHY COM parameter table/settings in this repository",
+    "IEEE official GitLab v4.17.0 config_templates/C2C/200G files reference P802.3dj D2.x drafts (not a suitable 802.3ck normative profile)",
+    "No three independent real licensed THRU/NEXT/FEXT fixture + published expected COM + executed reference output cases",
+    "Fixture and dependency redistribution requirements remain unverified; avoid copying draft spreadsheets without license audit"
   ]
 }
