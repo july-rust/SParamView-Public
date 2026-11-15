@@ -1,0 +1,30 @@
+name: COM reference provenance preflight (012_02)
+on:
+  pull_request:
+    branches: [integration/v1.4.0]
+    paths:
+      - 'scripts/com_reference_preflight.py'
+      - 'tests/channel_analysis/test_com_reference_preflight.py'
+      - 'tests/fixtures/channel/com_reference/**'
+      - '.github/workflows/com-reference-preflight.yml'
+  push:
+    branches: [integration/v1.4.0]
+    paths:
+      - 'scripts/com_reference_preflight.py'
+      - 'tests/channel_analysis/test_com_reference_preflight.py'
+      - 'tests/fixtures/channel/com_reference/**'
+      - '.github/workflows/com-reference-preflight.yml'
+jobs:
+  contract-tests:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify schema and synthetic rejection cases (not IEEE COM numerical PASS)
+        run: |
+          python scripts/com_reference_preflight.py --mode schema --root tests/fixtures/channel/com_reference --manifest tests/fixtures/channel/com_reference/manifest.json
+          python -m unittest discover -s tests/channel_analysis -p test_com_reference_preflight.py -v
