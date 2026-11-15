@@ -17,6 +17,11 @@ TARGETS = {
     "release_tree": BASE + "/repository/tree?path=release&ref=main&per_page=100",
     "root_tree": BASE + "/repository/tree?ref=main&per_page=100",
     "tags": BASE + "/repository/tags?per_page=30",
+    "release_4_17_tag": BASE + "/repository/tags/4.17.0",
+    "release_4_17_commit": BASE + "/repository/commits/4.17.0",
+    "release_4_17_license": BASE + "/repository/files/LICENSE/raw?ref=4.17.0",
+    "release_4_17_code_meta": BASE + "/repository/files/release%2Fcom_ieee8023_4p17p0.m?ref=4.17.0",
+    "config_templates": BASE + "/repository/tree?path=config_templates&ref=4.17.0&per_page=100",
     "readme": BASE + "/repository/files/README.md/raw?ref=main",
 }
 output = {"status": "UNVERIFIED", "results": {}}
@@ -29,17 +34,22 @@ for name, uri in TARGETS.items():
             if len(raw) > 2_000_000:
                 raise ValueError("payload exceeds limit")
             item = {"http": response.status, "sha256": hashlib.sha256(raw).hexdigest(), "bytes": len(raw)}
-            if name in ("project_metadata", "main_commit"):
+            if name in ("project_metadata", "main_commit", "release_4_17_commit", "release_4_17_code_meta"):
                 data = json.loads(raw)
                 item.update({k: data.get(k) for k in ("id", "path_with_namespace", "sha",
-                             "web_url", "license", "created_at", "committed_date") if k in data})
-            elif name in ("root_tree", "release_tree"):
+                             "web_url", "license", "created_at", "committed_date", "blob_id", "size", "file_path") if k in data})
+            elif name in ("root_tree", "release_tree", "config_templates"):
                 data = json.loads(raw)
                 item["paths"] = [x.get("path") for x in data][:100]
+            elif name == "release_4_17_tag":
+                data = json.loads(raw)
+                item["tag_name"] = data.get("name")
+                item["tag_commit_id"] = (data.get("commit") or {}).get("id")
+                item["release"] = (data.get("release") or {}).get("description", "")[:300]
             elif name == "tags":
                 data = json.loads(raw)
                 item["tag_names"] = [x.get("name") for x in data][:30]
-            elif name == "license_root":
+            elif name in ("license_root", "release_4_17_license"):
                 text = raw.decode("utf-8", errors="replace")
                 item["license_first_lines"] = text.splitlines()[:7]
                 item["has_bsd_three_conditions"] = all(phrase in text for phrase in (
