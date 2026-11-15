@@ -300,6 +300,8 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
   auto *exports = new QHBoxLayout;
   csv_ = new QPushButton(QStringLiteral("Export CSV"));
   png_ = new QPushButton(QStringLiteral("Export PNG"));
+  csv_->setObjectName(QStringLiteral("analysisCsv"));
+  png_->setObjectName(QStringLiteral("analysisPng"));
   csv_->setEnabled(false);
   png_->setEnabled(false);
   exports->addWidget(csv_);
@@ -535,7 +537,7 @@ void AnalysisWindow::showIld(const WorkOutcome &outcome) {
   const auto &d=*ildResult_;
   setStatus(outcome.status,QStringLiteral("RMS %1 dB | peak abs %2 dB @ %3 GHz | %4 samples. Exploratory: no standard PASS")
     .arg(d.rmsDb,0,'g',6).arg(d.peakAbsoluteDb,0,'g',6)
-    .arg(d.peakFrequencyHz/1e9,0,'g',7).arg(d.frequencyHz.size()));
+    .arg(d.peakFrequencyHz/1e9,0,'g',7).arg(qulonglong(d.frequencyHz.size())));
 }
 void AnalysisWindow::exportIldCsv() {
   if(!ildResult_) return;
@@ -557,6 +559,7 @@ void AnalysisWindow::exportIldCsv() {
   out<<"# source_sha256,"<<safe(ildProvenance_.sourceSha256)<<"\n"
      <<"# revision,"<<safe(ildProvenance_.revision)<<"\n"
      <<"# mapping,"<<safe(ildProvenance_.mappingIdentity)<<"\n"
+     <<"# settings_identity,"<<safe(ildProvenance_.settingsIdentity)<<"\n"
      <<"# parameter,"<<safe(d.parameter)<<"\n"
      <<"# algorithm,"<<safe(ildProvenance_.algorithm)<<"\n"
      <<"# algorithm_version,"<<safe(ildProvenance_.version)<<"\n"
