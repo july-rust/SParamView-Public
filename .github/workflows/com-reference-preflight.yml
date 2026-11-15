@@ -33,6 +33,7 @@ jobs:
       - name: Verify schema and synthetic rejection cases (not IEEE COM numerical PASS)
         run: |
           python scripts/com_reference_preflight.py --mode schema --root tests/fixtures/channel/com_reference --manifest tests/fixtures/channel/com_reference/manifest.json
+          python scripts/com_reference_preflight.py --mode reference-ready --root tests/fixtures/channel/com_reference --manifest tests/fixtures/channel/com_reference/manifest.json
           python -m unittest discover -s tests/channel_analysis -p test_com_reference_preflight.py -v
       - name: Read-only IEEE GitLab metadata/license access probe (not qualification)
         if: always()
