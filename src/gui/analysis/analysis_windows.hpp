@@ -30,6 +30,7 @@ struct WorkOutcome {
   si::channel::Status status = si::channel::Status::NotEvaluated;
   QString diagnostic;
   std::shared_ptr<const si::channel::IldData> ild;
+  si::channel::Provenance provenance;
 };
 struct IldSourceInput {
   std::shared_ptr<const si::Cache> cache;
