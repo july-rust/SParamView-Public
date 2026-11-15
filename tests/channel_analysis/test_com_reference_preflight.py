@@ -49,7 +49,9 @@ def synthetic_manifest(root):
         "contract_version": 1, "status": "LOCKED", "profile_id": "TEST-ONLY",
         "standard": {
             "edition": "Synthetic", "annex": "Synthetic",
-            "applicable_clause": "Synthetic", "parameter_table": "Synthetic"
+            "applicable_clause": "Synthetic", "parameter_table": "Synthetic",
+            "approval_status": "PUBLISHED",
+            "normative_source_url": "https://standards.ieee.org/ieee/synthetic-example"
         },
         "reference": {
             "release": "synthetic", "source_url": "https://example.org/synthetic-only",
@@ -81,6 +83,14 @@ class ReferenceManifestTests(unittest.TestCase):
             data = synthetic_manifest(root)
             data["reference"]["source_commit"] = None
             with self.assertRaises(preflight.QualificationError):
+                preflight.qualify(data, root)
+
+    def test_unapproved_draft_profile_is_rejected(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            data = synthetic_manifest(root)
+            data["standard"]["approval_status"] = "DRAFT"
+            with self.assertRaisesRegex(preflight.QualificationError, "unapproved IEEE drafts"):
                 preflight.qualify(data, root)
 
     def test_missing_license_evidence_is_rejected(self):
