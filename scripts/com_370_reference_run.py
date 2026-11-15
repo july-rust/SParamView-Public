@@ -6,7 +6,7 @@ committed/re-distributed. This does not by itself certify the *published* 802.3c
 normative COM profile or agreement with an independent oracle.
 """
 from __future__ import annotations
-import hashlib, io, json, math, os, pathlib, shutil, subprocess, sys, tempfile, zipfile
+import hashlib, io, json, math, os, pathlib, re, shutil, subprocess, sys, tempfile, zipfile
 from urllib.request import Request,urlopen
 
 ARCHIVE_URL="https://www.ieee802.org/3/ck/public/tools/tools/mellitz_3ck_adhoc_01_032322_COM3p70.zip"
@@ -52,7 +52,30 @@ def main():
         code=z.read(CODE_NAME)
         config=z.read(CONFIG_NAME)
         source_path=root/"com_ieee8023_93a.m" # function declared com_ieee8023_93a, not _370
-        source_path.write_bytes(code)
+        original_text=code.decode("utf-8","replace")
+        for i,line in enumerate(original_text.splitlines(),1):
+            if "verLessThan" in line:
+                print(f"REFERENCE_MATLAB_VERSION_CHECK_ORIGINAL_LINE {i}: {line[:160]}",flush=True)
+        # Adapter ONLY for MATLAB package-version queries; original reference
+        # source and its SHA remain independently pinned. Emulates an R2022b
+        # installation for version-branch selection; not numerical qualification.
+        matlab_compat_version=(9,13,0)
+        adapted=[]
+        def adapt_matlab_version(match):
+            target=tuple(int(n) for n in match.group(3).split("."))
+            target=target+(0,)*(3-len(target))
+            value="true" if matlab_compat_version<target else "false"
+            adapted.append({"original":match.group(0),"replacement":value})
+            return value
+        rx=r"verLessThan\\(\\s*(['\\\"])matlab\\1\\s*,\\s*(['\\\"])([0-9.]+)\\2\\s*\\)"
+        adapted_text=re.sub(rx,adapt_matlab_version,original_text,flags=re.I)
+        print("REFERENCE_OCTAVE_MATLAB_VERSION_ADAPTER",
+              json.dumps(adapted,ensure_ascii=False),flush=True)
+        if not adapted:
+            raise RuntimeError("Cannot validate MATLAB version call-site; refuse silent patch")
+        source_path.write_text(adapted_text,encoding="utf-8")
+        print("REFERENCE_ADAPTED_SOURCE_SHA256",
+              hashlib.sha256(source_path.read_bytes()).hexdigest(),flush=True)
         config_path=root/"reference_120f_c2c.xlsx"
         config_path.write_bytes(config)
         s4p_path=root/"synthetic_c2c_thru.s4p"
