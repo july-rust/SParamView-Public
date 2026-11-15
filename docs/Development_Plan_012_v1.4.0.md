@@ -3,7 +3,7 @@
 **기준일:** 2026-11-15 (KST)
 **공식 기준:** v1.3.5 (tag/release 불변)
 **목표:** ILD·ICN·Eye Diagram·COM을 각각 독립적인 C++20 수치 엔진, Qt6 창, 테스트로 구현하고 **v1.4.0 한 번에 릴리스**
-**상태:** 012_01 COMPLETE / 012_02 COMPLETE (REFERENCE_READY: COM 참조·독립 수치 재현 완료; IEEE PHY 최종 수치 적합성은 012_09/11 필수) / 분석 엔진 미구현 / v1.4.0 미출시
+**상태:** 012_01 COMPLETE / 012_02 COMPLETE (REFERENCE_READY) / 012_03 CORE VERIFIED (PR #37; 최종 병합 상태는 PR 참조) / 012_04~14 미착수 / 분석 엔진 미구현 / v1.4.0 미출시
 **작업 번호:** 012_01 ~ 012_14. 단계별 PR, CI, 증거와 완료 조건을 연결한다.
 
 > 이 문서는 향후 실행할 개발 명령의 기준이며, 문서 작성만으로 기능이나 공식 표준 적합성을 검증했다고 주장하지 않는다.
@@ -60,6 +60,8 @@
 - **완료:** `REFERENCE_READY` 확인과 참조 숫자 재현, PR 필수 CI 및 squash-merge 성공. **실제 802.3ck 규격 적합성은 여기서 인정하지 않는다.**
 
 ### 012_03 — 공통 Channel Analysis Core
+- **구현·1차 수치 검증 완료:** Qt-free C++20 `si_channel_analysis`, SHA 재확인 SourceSnapshot, 확정 매핑/방향, 진단 상태, 복소 재표본화, radix-2 FFT/IFFT, 캐시 키/취소, fail-closed. [012_03 구현·제약](Channel_Analysis_Core_012_03.md). 기존 TDR 계산 파일 불변.
+- **실제 검증 증거:** [PR #37](https://github.com/july-rust/SParamView-Public/pull/37) · [CI 43702830271](https://github.com/july-rust/SParamView-Public/actions/runs/43702830271): Release Core CTest **32/32**, ASan/UBSan Core CTest **32/32**, Clang 정적 분석, Windows x64/ARM64, macOS arm64 및 **네이티브 Windows ARM64 패키지 게이트 전부 PASS**. PR 최종 커밋과 병합 후 통합 CI를 따로 확인한다.
 - **실행:** 불변 SourceSnapshot(파일 SHA·Revision·포트·매핑 세대), typed result, 진단/quality enum, 공통 주파수축·복소 trace·FFT/재표본화/시간영역 변환·데이터 검증 API 구현.
 - **산출:** UI 독립 C++20 공통 라이브러리, 계산 캐시 키/메타데이터, 단위 테스트.
 - **완료:** DC 부족·불충분 대역·포트 오류·비등간격 데이터 처리 및 구형 TDR/RL/IL/NEXT/FEXT 수치 회귀 통과.
@@ -147,7 +149,8 @@
 | --- | --- | --- |
 | 012_01 기준선/설계 | REQUIREMENTS LOCKED; 통합 브랜치 CI는 실행 후 별도 판정 | [v1.3.5 baseline + CI evidence](Channel_Analysis_Baseline_012_01.md), [기능/API/수치 검증 계약](Channel_Analysis_Requirements_v1.4.0.md) |
 | 012_02 COM 참조 준비 | **COMPLETE (REFERENCE_READY)**: IEEE 공식 4.17 source/licensing + 실제 독립 COM 2조건 숫자 재현 PASS; 승인 PHY 최종 숫자·Test1/Test2·3건 동규격 golden은 **012_09 필수** | [COM 프로파일](COM_Profile_Lock_012_02.md) · [참조 검증](COM_Reference_Qualification_012_02.md) · [라이선스](COM_License_Review_012_02.md) |
-| 012_03~012_14 구현/릴리스 | NOT STARTED | 4개 분석 엔진 아직 미구현; 기존 v1.3.5 불변 |
+| 012_03 공통 Core | **CODE + INITIAL CI PASS**; squash merge 및 병합 후 검증은 [PR #37](https://github.com/july-rust/SParamView-Public/pull/37)에서 추적 | [검증 로그](https://github.com/july-rust/SParamView-Public/actions/runs/43702830271), [구현 계약](Channel_Analysis_Core_012_03.md) |
+| 012_04~012_14 GUI·개별 엔진·릴리스 | NOT STARTED | 4개 분석 엔진 미구현; v1.3.5 릴리스 불변 |
 | 계획 문서 | PLANNED | 본 문서 및 링크된 상위 로드맵 |
 
 ## 7. 출처
