@@ -145,7 +145,7 @@
 | 항목 | 상태 | 증거 |
 | --- | --- | --- |
 | 012_01 기준선/설계 | REQUIREMENTS LOCKED; 통합 브랜치 CI는 실행 후 별도 판정 | [v1.3.5 baseline + CI evidence](Channel_Analysis_Baseline_012_01.md), [기능/API/수치 검증 계약](Channel_Analysis_Requirements_v1.4.0.md) |
-| 012_02 COM 참조·라이선스 | **BLOCKED**: 코드 커밋, 라이선스, Golden 재현 미확정 | [COM 프로파일](COM_Profile_Lock_012_02.md) · [참조 검증](COM_Reference_Qualification_012_02.md) · [라이선스](COM_License_Review_012_02.md) |
+| 012_02 COM 참조·라이선스 | **BLOCKED**: official code v4.17.0 SHA + BSD-3 verified; approved 802.3ck PHY settings / actual COM Golden not reproduced; 802.3dj D2.x configs in official tree are draft-only | [COM 프로파일](COM_Profile_Lock_012_02.md) · [참조 검증](COM_Reference_Qualification_012_02.md) · [라이선스](COM_License_Review_012_02.md) |
 | 012_03~012_14 구현/릴리스 | NOT STARTED | 4개 분석 엔진 아직 미구현; 기존 v1.3.5 불변 |
 | 계획 문서 | PLANNED | 본 문서 및 링크된 상위 로드맵 |
 
