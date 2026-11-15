@@ -247,8 +247,99 @@ int main(int argc, char **argv) {
     check(!ild->saveIldCsv(ildDir.filePath(QStringLiteral("stale.csv"))) &&
           !ild->saveIldPng(ildDir.filePath(QStringLiteral("stale.png"))),
           "STALE result was exported as current");
+    // 012_06: real 4-port Touchstone, two mapped channels, separate NEXT/FEXT
+    // paths -> generic NRZ ICN worker -> GUI -> CSV/PNG -> stale protection.
+    const auto icnPath=si::pathFromUtf8(
+      (ildDir.path()+QStringLiteral("/icn.s4p")).toStdString());
+    {
+      std::ofstream out(icnPath);
+      out<<std::setprecision(17)<<"# GHz S RI R 50\n";
+      for(int f=0;f<=8;++f) {
+        out<<f;
+        for(int sourcePort=0;sourcePort<4;++sourcePort)
+          for(int responsePort=0;responsePort<4;++responsePort) {
+            double value=0;
+            if(sourcePort/2 != responsePort/2) value=0.08;
+            else if(sourcePort!=responsePort) value=0.85;
+            out<<" "<<value<<" 0";
+          }
+        out<<"\n";
+      }
+    }
+    auto icnCache=si::Cache::open(icnPath,
+       si::pathFromUtf8((ildDir.path()+QStringLiteral("/icn-cache")).toStdString()),
+       nullptr,true);
+    si::Channel icnVictim;
+    icnVictim.id="victim";icnVictim.name="Victim";icnVictim.nearP=0;icnVictim.farP=1;
+    si::Channel icnAggressor;
+    icnAggressor.id="aggressor";icnAggressor.name="Aggressor";
+    icnAggressor.nearP=2;icnAggressor.farP=3;
+    AnalysisContext icnContext;
+    icnContext.activeSource=0;
+    SourceItem icnSource;
+    icnSource.revision=QStringLiteral("ICN s4p fixture");
+    icnSource.sha256=QString::fromStdString(icnCache->meta().sha256);
+    icnSource.mappingDigest=QStringLiteral("icn-physical-map");
+    icnSource.mappingConfirmed=true;
+    icnSource.channels={QStringLiteral("Victim"),QStringLiteral("Aggressor")};
+    icnSource.channelIds={QStringLiteral("victim"),QStringLiteral("aggressor")};
+    icnContext.sources.append(icnSource);
+    manager.setIcnSourceProvider([icnCache,icnVictim,icnAggressor](int idx)
+        ->std::optional<IldSourceInput> {
+      if(idx!=0) return std::nullopt;
+      return IldSourceInput{icnCache,{icnVictim,icnAggressor},
+         "ICN s4p fixture",icnCache->meta().sha256,1,1};
+    });
+    manager.setContext(icnContext);
+    auto *icn=manager.openWindow(Feature::Icn);
+    check(manager.action(Feature::Icn)->isEnabled() && icn->runButton()->isEnabled(),
+          "ICN menu/run unavailable with verified source provider");
+    auto *items=icn->findChild<QListWidget *>(QStringLiteral("icnAggressorList"));
+    check(items && items->count()==2,"Expected NEXT and FEXT aggressor choices");
+    items->item(0)->setCheckState(Qt::Checked);
+    items->item(1)->setCheckState(Qt::Checked);
+    icn->runButton()->click();
+    check(icn->status()==S::NotEvaluated,
+          "Multiple aggressors must require explicit RSS assumption");
+    auto *rss=icn->findChild<QCheckBox *>(QStringLiteral("icnIndependentAssumption"));
+    check(rss && !rss->isChecked(),"RSS assumption must not be pre-accepted");
+    rss->setChecked(true);
+    icn->runButton()->click();
+    drain(manager.scheduler());
+    check(icn->status()==S::Valid || icn->status()==S::Warning,
+          "Real ICN did not produce qualified result");
+    check(icn->findChild<QWidget *>(QStringLiteral("icnResultGraph"))!=nullptr,
+          "Actual ICN result graph missing");
+    auto *icnCsv=icn->findChild<QPushButton *>(QStringLiteral("analysisCsv"));
+    auto *icnPng=icn->findChild<QPushButton *>(QStringLiteral("analysisPng"));
+    check(icnCsv && icnCsv->isEnabled() && icnPng && icnPng->isEnabled(),
+          "ICN CSV/PNG exports unavailable");
+    const QString icnCsvPath=ildDir.filePath(QStringLiteral("icn-result.csv"));
+    const QString icnPngPath=ildDir.filePath(QStringLiteral("icn-result.png"));
+    check(icn->saveIcnCsv(icnCsvPath) && icn->saveIcnPng(icnPngPath),
+          "Real ICN file export failed");
+    QFile output(icnCsvPath);
+    check(output.open(QIODevice::ReadOnly),"ICN CSV readback failed");
+    const QByteArray content=output.readAll();
+    check(content.contains("# total_rms_mV,") &&
+          content.contains("# path_0_type,NEXT") &&
+          content.contains("# path_1_type,FEXT") &&
+          content.contains("Total_Cumulative_RMS_mV") &&
+          content.count('\n')>=25,"ICN CSV columns or provenances missing");
+    QImage icnImage(icnPngPath);
+    check(!icnImage.isNull() && icnImage.width()>200 && icnImage.height()>200,
+          "ICN PNG not an actual rendered plot");
+    // Stale metadata and path selection must prevent all exports.
+    icnContext.sources[0].sha256=QStringLiteral("changed-icn-sha");
+    manager.setContext(icnContext);
+    check(icn->status()==S::Stale && !icnCsv->isEnabled() && !icnPng->isEnabled(),
+          "Stale ICN result remained exportable");
+    check(!icn->saveIcnCsv(ildDir.filePath(QStringLiteral("stale-icn.csv"))) &&
+          !icn->saveIcnPng(ildDir.filePath(QStringLiteral("stale-icn.png"))),
+          "Stale ICN export was accepted");
+    manager.setIcnSourceProvider({});
     manager.setIldSourceProvider({});
-    std::cout << "012_04/012_05 QT GUI and ILD workflow PASS\n";
+    std::cout << "012_04/012_05/012_06 QT GUI, ILD and ICN workflow PASS\n";
     return 0;
   } catch (const std::exception &error) {
     std::cerr << "012_04 QT GUI/worker lifecycle FAIL: " << error.what() << '\n';

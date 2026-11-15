@@ -3,7 +3,7 @@
 **기준일:** 2026-11-15 (KST)
 **공식 기준:** v1.3.5 (tag/release 불변)
 **목표:** ILD·ICN·Eye Diagram·COM을 각각 독립적인 C++20 수치 엔진, Qt6 창, 테스트로 구현하고 **v1.4.0 한 번에 릴리스**
-**상태:** 012_01 COMPLETE / 012_02 COMPLETE (REFERENCE_READY) / 012_03 CORE VERIFIED (PR #37; 최종 병합 상태는 PR 참조) / 012_04 GUI/워커 COMPLETE (PR #38; CI 43708927772) / 012_05 COMPLETE (ILD 엔진/GUI PR #40; CI 43766947020) / 012_06~14 미착수 / 다른 3개 분석 엔진 미구현 / v1.4.0 미출시
+**상태:** 012_01 COMPLETE / 012_02 COMPLETE (REFERENCE_READY) / 012_03 CORE VERIFIED (PR #37; 최종 병합 상태는 PR 참조) / 012_04 GUI/워커 COMPLETE (PR #38; CI 43708927772) / 012_05 COMPLETE (ILD 엔진/GUI PR #40; CI 43766947020) / 012_06 ICN 구현 PR #42 CI 검증 중 / 012_07~14 미착수 / Eye/COM 미구현 / v1.4.0 미출시
 **작업 번호:** 012_01 ~ 012_14. 단계별 PR, CI, 증거와 완료 조건을 연결한다.
 
 > 이 문서는 향후 실행할 개발 명령의 기준이며, 문서 작성만으로 기능이나 공식 표준 적합성을 검증했다고 주장하지 않는다.
@@ -79,6 +79,7 @@
 - **완료:** 이상 무리플 채널/의도적 리플 채널의 독립 골든 값 일치, 빈/손상 입력 fail-closed, 채널 방향·주파수 범위 검증.
 
 ### 012_06 — ICN 수치 엔진·GUI 완성
+- **구현 진행:** [PR #42](https://github.com/july-rust/SParamView-Public/pull/42)에서 독립 C++20 Generic ICN 수치 엔진·멀티 NEXT/FEXT 파워 합산·NRZ TX/RX 모델·Qt 별도 창·CSV/PNG·독립 Golden·s4p GUI 테스트를 작성. [ICN 수치/GUI 계약](Channel_Analysis_ICN_012_06.md). CI 및 통합 브랜치 병합 완료 전에는 COMPLETE로 표기하지 않는다. IEEE/SNIA 표준 ICN·COM 기준은 미구현·미검증.
 - **실행:** Victim 및 여러 Aggressor의 NEXT/FEXT 방향·극성을 검증하여 S-파라미터 추출, TX 스펙트럼·진폭 및 RX 필터를 이용해 주파수 적분·전력 합산. 누화 성분별 기여 표시.
 - **산출:** icn.cpp, IcnWindow, 개별/전체 기여 그래프, 조건·단위·CSV/PNG, icn_tests.
 - **완료:** 0누화/1개·다수 Aggressor/진폭 배율/극성·방향에 대한 독립 oracle 일치. TX 진폭 미상이라면 절대 mV 출력 금지.

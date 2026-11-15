@@ -25,6 +25,8 @@ Quick TDR은 제한된 주파수 대역을 이용한 추정값이며 계측기 T
 - [개발 예정: 상단 메뉴에서 별도 창으로 실행하는 ILD·ICN·COM·Eye Diagram](docs/Channel_Analysis_Development_Plan.md)
 - [v1.4.0 전체 개발 계획 — 012_01~012_14](docs/Development_Plan_012_v1.4.0.md)
 
+**개발 중 v1.4.0 (012_06):** 별도 ICN 창에서 다중 NEXT/FEXT 누화 경로와 NRZ 송신·수신 필터 조건으로 대역 제한 Generic ICN을 계산하는 기능을 [PR #42](https://github.com/july-rust/SParamView-Public/pull/42)에서 검증하고 있습니다. 공식 v1.3.5에는 없으며 IEEE/SNIA/MIPI 규격 적합성 판정이 아닙니다. [계산·검증 계약](docs/Channel_Analysis_ICN_012_06.md).
+
 ## 공식 최신 릴리스 — v1.3.5
 
 [**v1.3.5 다운로드**](https://github.com/july-rust/SParamView-Public/releases/tag/v1.3.5) · [릴리스 노트](docs/Release_1.3.5.md) · [공식 CI](https://github.com/july-rust/SParamView-Public/actions)

@@ -181,6 +181,101 @@ private:
   double viewFrom_=0,viewTo_=0,lastX_=0;
   bool dragging_=false;
 };
+
+class IcnPlotWidget final : public QWidget {
+public:
+  explicit IcnPlotWidget(QWidget *parent=nullptr) : QWidget(parent) {
+    setObjectName(QStringLiteral("icnResultGraph"));
+    setMinimumHeight(410);
+  }
+  void setData(std::shared_ptr<const si::channel::IcnData> data) {
+    data_=std::move(data);
+    update();
+  }
+protected:
+  void paintEvent(QPaintEvent *) override {
+    QPainter p(this);
+    p.fillRect(rect(),palette().base());
+    p.setRenderHint(QPainter::Antialiasing);
+    if(!data_ || data_->frequencyHz.size()<2) {
+      p.setPen(palette().text().color());
+      p.drawText(rect(),Qt::AlignCenter,QStringLiteral(
+        "Select NEXT/FEXT aggressors and run the generic ICN model."));
+      return;
+    }
+    const auto &d=*data_;
+    const double f0=d.frequencyHz.front(), f1=d.frequencyHz.back();
+    const size_t n=d.frequencyHz.size();
+    if(!(f1>f0)) return;
+    for(int panel=0;panel<3;++panel) {
+      const double heightPer=double(height())/3.0;
+      QRectF area(80,25+heightPer*panel,std::max(60,width()-100),
+                  std::max(28.0,heightPer-45));
+      const int seriesCount=panel==0 ? 2 : 2+int(d.aggressors.size());
+      auto sample=[&](size_t i,int which)->double {
+        if(which>=2) {
+          const auto &a=d.aggressors[size_t(which-2)];
+          return panel==1?a.spectralDensityV2Hz[i]*1e15:a.cumulativeRmsV[i]*1000.0;
+        }
+        if(panel==0) return which?d.fextPowerDb[i]:d.nextPowerDb[i];
+        if(panel==1) return (which?d.fextDensityV2Hz[i]:d.nextDensityV2Hz[i])*1e15;
+        return (which?d.fextCumulativeRmsV[i]:d.nextCumulativeRmsV[i])*1000.0;
+      };
+      double low=0,high=0;
+      for(size_t i=0;i<n;++i)
+        for(int w=0;w<seriesCount;++w) {
+          low=std::min(low,sample(i,w));
+          high=std::max(high,sample(i,w));
+        }
+      const double extra=std::max((high-low)*0.08,0.05);
+      low-=extra;high+=extra;
+      p.setPen(QPen(palette().mid().color(),1));
+      p.drawRect(area);
+      p.setPen(palette().text().color());
+      const QString title=panel==0?QStringLiteral("NEXT / FEXT power sum (dB, -300 dB zero floor)")
+        :panel==1?QStringLiteral("Weighted noise PSD (mV²/GHz)")
+                 :QStringLiteral("Cumulative NEXT / FEXT RMS (mV)");
+      p.drawText(QRectF(area.left(),area.top()-21,area.width(),18),Qt::AlignLeft,title);
+      p.drawText(QRectF(2,area.top(),75,20),Qt::AlignRight,QString::number(high,'g',4));
+      p.drawText(QRectF(2,area.bottom()-19,75,20),Qt::AlignRight,QString::number(low,'g',4));
+      p.drawText(QRectF(area.left(),area.bottom()+3,area.width(),18),Qt::AlignLeft,
+                 QString::number(f0/1e9,'g',5)+QStringLiteral(" GHz"));
+      p.drawText(QRectF(area.left(),area.bottom()+3,area.width(),18),Qt::AlignRight,
+                 QString::number(f1/1e9,'g',5)+QStringLiteral(" GHz"));
+      p.save();
+      p.setClipRect(area);
+      for(int which=0;which<seriesCount;++which) {
+        const size_t stride=std::max<size_t>(1,n/3200);
+        QPainterPath path;
+        bool first=true;
+        auto vertex=[&](size_t i) {
+          const double x=area.left()+(d.frequencyHz[i]-f0)/(f1-f0)*area.width();
+          const double y=area.bottom()-(sample(i,which)-low)/(high-low)*area.height();
+          if(first) {path.moveTo(x,y);first=false;} else path.lineTo(x,y);
+        };
+        for(size_t i=0;i<n;i+=stride) {
+          const size_t end=std::min(n,i+stride);
+          size_t mini=i,maxi=i;
+          for(size_t k=i+1;k<end;++k) {
+            if(sample(k,which)<sample(mini,which))mini=k;
+            if(sample(k,which)>sample(maxi,which))maxi=k;
+          }
+          if(mini<=maxi) {vertex(mini);if(mini!=maxi)vertex(maxi);}
+          else {vertex(maxi);vertex(mini);}
+        }
+        vertex(n-1);
+        const QColor color=which==0?QColor("#236db6"):
+          which==1?QColor("#d47a24"):
+          QColor::fromHsv((int(which)-2)*53%360,180,180);
+        p.setPen(QPen(color,which<2?1.8:1.15));
+        p.drawPath(path);
+      }
+      p.restore();
+    }
+  }
+private:
+  std::shared_ptr<const si::channel::IcnData> data_;
+};
 }
 struct AsyncScheduler::Ticket {
   Feature feature;
@@ -324,14 +419,46 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     fitModel_->setCurrentIndex(2);
     form->addRow(QStringLiteral("ILD fit model"),fitModel_);
   }
+  if(feature_ == Feature::Icn) {
+    icnAggressors_=new QListWidget;
+    icnAggressors_->setObjectName(QStringLiteral("icnAggressorList"));
+    icnAggressors_->setMinimumHeight(100);
+    icnIndependent_=new QCheckBox(QStringLiteral("I confirm selected aggressors are modeled as uncorrelated (RSS)"));
+    icnIndependent_->setObjectName(QStringLiteral("icnIndependentAssumption"));
+    icnIndependent_->setChecked(false);
+    icnBaud_=new QDoubleSpinBox;
+    icnBaud_->setObjectName(QStringLiteral("icnSymbolRate"));
+    icnBaud_->setRange(0.001,1000);icnBaud_->setDecimals(3);
+    icnBaud_->setSuffix(QStringLiteral(" GBd"));icnBaud_->setValue(4);
+    icnVpp_=new QDoubleSpinBox;
+    icnVpp_->setObjectName(QStringLiteral("icnTxVpp"));
+    icnVpp_->setRange(0,100000);icnVpp_->setDecimals(3);
+    icnVpp_->setSuffix(QStringLiteral(" mVpp"));icnVpp_->setValue(800);
+    icnRise_=new QDoubleSpinBox;
+    icnRise_->setObjectName(QStringLiteral("icnRiseTime"));
+    icnRise_->setRange(0,100000);icnRise_->setDecimals(3);
+    icnRise_->setSuffix(QStringLiteral(" ps (10–90%)"));icnRise_->setValue(30);
+    icnRx_=new QDoubleSpinBox;
+    icnRx_->setObjectName(QStringLiteral("icnRxBandwidth"));
+    icnRx_->setRange(0.001,1000);icnRx_->setDecimals(3);
+    icnRx_->setSuffix(QStringLiteral(" GHz"));icnRx_->setValue(10);
+  }
   form->addRow(QStringLiteral("Source / Revision"), source_);
   form->addRow(QStringLiteral("Victim Channel"), victim_);
-  if (feature_ == Feature::Icn || feature_ == Feature::Com)
+  if (feature_ == Feature::Com)
     form->addRow(QStringLiteral("Aggressor"), aggressor_);
   else aggressor_->hide();
   form->addRow(QStringLiteral("Direction"), direction_);
   form->addRow(QStringLiteral("Start frequency"), fromGhz_);
   form->addRow(QStringLiteral("Stop frequency"), toGhz_);
+  if(feature_==Feature::Icn) {
+    form->addRow(QStringLiteral("NEXT / FEXT paths (check multiple)"),icnAggressors_);
+    form->addRow(QStringLiteral("Aggressor correlation"),icnIndependent_);
+    form->addRow(QStringLiteral("NRZ symbol rate"),icnBaud_);
+    form->addRow(QStringLiteral("TX amplitude, peak-to-peak"),icnVpp_);
+    form->addRow(QStringLiteral("Gaussian rise time"),icnRise_);
+    form->addRow(QStringLiteral("RX 3 dB bandwidth"),icnRx_);
+  }
   outer->addLayout(form);
   auto *controls = new QHBoxLayout;
   run_ = new QPushButton(QStringLiteral("Run"));
@@ -363,6 +490,14 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     graphPlaceholder_->hide();
     ildGraph_=new IldPlotWidget(this);
     outer->addWidget(ildGraph_,2);
+  } else if(feature_==Feature::Icn) {
+    graphPlaceholder_->hide();
+    icnGraph_=new IcnPlotWidget(this);
+    outer->addWidget(icnGraph_,2);
+    icnContributions_=new QLabel(QStringLiteral("Select NEXT/FEXT paths to display individual contributions."));
+    icnContributions_->setObjectName(QStringLiteral("icnContributions"));
+    icnContributions_->setWordWrap(true);
+    outer->addWidget(icnContributions_);
   }
   auto *exports = new QHBoxLayout;
   csv_ = new QPushButton(QStringLiteral("Export CSV"));
@@ -384,6 +519,19 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     connect(png_, &QPushButton::clicked,this,[this]{exportIldPng();});
     connect(fitModel_, &QComboBox::currentIndexChanged,this,[this]{invalidateRequest();});
   }
+  if(feature_==Feature::Icn) {
+    connect(run_,&QPushButton::clicked,this,[this]{launchIcn();});
+    connect(csv_,&QPushButton::clicked,this,[this]{exportIcnCsv();});
+    connect(png_,&QPushButton::clicked,this,[this]{exportIcnPng();});
+    connect(icnAggressors_,&QListWidget::itemChanged,this,[this]{invalidateRequest();});
+    connect(icnIndependent_,&QCheckBox::toggled,this,[this]{invalidateRequest();});
+    for(auto *spin:{icnBaud_,icnVpp_,icnRise_,icnRx_})
+      connect(spin,QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+              this,[this](double){invalidateRequest();});
+    connect(victim_,&QComboBox::currentIndexChanged,this,[this]{
+      populateIcnAggressors();
+    });
+  }
   connect(source_, &QComboBox::currentIndexChanged, this, [this] {
     QSignalBlocker block(victim_);
     QSignalBlocker aggressiveBlock(aggressor_);
@@ -396,6 +544,7 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
       aggressor_->addItem(QStringLiteral("Select aggressor..."));
       aggressor_->addItems(selected.channels);
     }
+    populateIcnAggressors();
     invalidateRequest();
   });
   for (auto *combo : {victim_, aggressor_, direction_})
@@ -419,16 +568,29 @@ QString AnalysisWindow::selectionIdentity() const {
   const int index = source_->currentIndex();
   if (index < 0 || index >= context_.sources.size()) return {};
   const auto &item = context_.sources[index];
-  return item.sha256 + QLatin1Char('|') + item.revision + QLatin1Char('|') +
+  QString identity = item.sha256 + QLatin1Char('|') + item.revision + QLatin1Char('|') +
     item.mappingDigest + QLatin1Char('|') + victim_->currentText() +
     QLatin1Char('|') + aggressor_->currentText() + QLatin1Char('|') +
     QString::number(direction_->currentIndex()) + QLatin1Char('|') +
     QString::number(fromGhz_->value(), 'g', 17) + QLatin1Char('|') +
     QString::number(toGhz_->value(), 'g', 17) + QLatin1Char('|') +
     QString::number(fitModel_ ? fitModel_->currentIndex() : -1);
+  if(feature_==Feature::Icn) {
+    for(int k=0;k<icnAggressors_->count();++k) {
+      auto *item=icnAggressors_->item(k);
+      if(item->checkState()==Qt::Checked)
+        identity+=QStringLiteral("|X")+QString::number(item->data(Qt::UserRole).toInt())+
+                  QStringLiteral("/") + QString::number(item->data(Qt::UserRole+1).toInt());
+    }
+    identity+=icnIndependent_->isChecked()?QStringLiteral("|RSS_ACK"):QStringLiteral("|RSS_NOT_ACK");
+    for(auto *spin:{icnBaud_,icnVpp_,icnRise_,icnRx_})
+      identity+=QStringLiteral("|")+QString::number(spin->value(),'g',17);
+  }
+  return identity;
 }
 void AnalysisWindow::invalidateRequest() {
   clearIld();
+  clearIcn();
   const bool hadWork = scheduler_ && scheduler_->running(feature_);
   ++requestGeneration_;
   if (scheduler_) scheduler_->cancel(feature_);
@@ -441,6 +603,7 @@ void AnalysisWindow::invalidateRequest() {
 }
 void AnalysisWindow::setContext(const AnalysisContext &context) {
   clearIld();
+  clearIcn();
   const bool hadWork = scheduler_ && scheduler_->running(feature_);
   const bool hadResult = status_ == si::channel::Status::Valid ||
                          status_ == si::channel::Status::Warning;
@@ -464,10 +627,12 @@ void AnalysisWindow::setContext(const AnalysisContext &context) {
     aggressor_->addItem(QStringLiteral("Select aggressor..."));
     aggressor_->addItems(item.channels);
   } else source_->setCurrentIndex(-1);
+  populateIcnAggressors();
   setStatus(hadWork || hadResult ? si::channel::Status::Stale
            : si::channel::Status::NotEvaluated,
-           feature_ == Feature::Ild && ildProvider_ ?
-             QStringLiteral("Context updated; run ILD on the confirmed mapping") :
+           (feature_ == Feature::Ild && ildProvider_) ||
+            (feature_ == Feature::Icn && icnProvider_) ?
+             QStringLiteral("Context updated; select channels and run the verified engine") :
              QStringLiteral("Context updated; analysis engine not installed"));
 }
 bool AnalysisWindow::startWork(AsyncWork work) {
@@ -500,17 +665,22 @@ bool AnalysisWindow::startWork(AsyncWork work) {
               QStringLiteral("Older result discarded after context/settings change"));
           return;
         }
-        guard->progress_->setValue(outcome.status == si::channel::Status::Valid ? 100 : 0);
+        guard->progress_->setValue((outcome.status == si::channel::Status::Valid ||
+           outcome.status == si::channel::Status::Warning) ? 100 : 0);
         guard->setStatus(outcome.status, outcome.diagnostic);
         if (outcome.ild && (outcome.status == si::channel::Status::Valid ||
                             outcome.status == si::channel::Status::Warning))
           guard->showIld(outcome);
+        if (outcome.icn && (outcome.status == si::channel::Status::Valid ||
+                            outcome.status == si::channel::Status::Warning))
+          guard->showIcn(outcome);
       });
   } catch (const std::exception &e) {
     setStatus(si::channel::Status::Error, QString::fromUtf8(e.what()));
     return false;
   }
   clearIld();
+  clearIcn();
   cancel_->setEnabled(true);
   setStatus(si::channel::Status::NotEvaluated, QStringLiteral("Calculation running"));
   progressPoll_.start();
@@ -669,6 +839,256 @@ bool AnalysisWindow::saveIldPng(const QString &name) {
   if(!okay) setStatus(si::channel::Status::Error,QStringLiteral("ILD PNG write failed"));
   return okay;
 }
+
+void AnalysisWindow::populateIcnAggressors() {
+  if(!icnAggressors_) return;
+  QSignalBlocker blocked(icnAggressors_);
+  icnAggressors_->clear();
+  const int idx=source_->currentIndex();
+  if(idx<0 || idx>=context_.sources.size()) return;
+  const auto &src=context_.sources[idx];
+  const int victimIndex=victim_->currentIndex();
+  if(victimIndex<0 || victimIndex>=src.channelIds.size()) return;
+  for(int k=0;k<src.channelIds.size();++k) {
+    if(k==victimIndex) continue;
+    for(int end=0;end<2;++end) {
+      auto *item=new QListWidgetItem(
+        (end==0?QStringLiteral("NEXT — "):QStringLiteral("FEXT — "))+src.channels[k],
+        icnAggressors_);
+      item->setFlags(item->flags()|Qt::ItemIsUserCheckable);
+      item->setCheckState(Qt::Unchecked);
+      item->setData(Qt::UserRole,k);
+      item->setData(Qt::UserRole+1,end);
+    }
+  }
+}
+void AnalysisWindow::setIcnSourceProvider(IcnSourceProvider provider) {
+  icnProvider_=std::move(provider);
+  if(feature_==Feature::Icn) {
+    run_->setEnabled(bool(icnProvider_));
+    run_->setToolTip(icnProvider_?QStringLiteral("Run generic band-limited NRZ ICN")
+      :QStringLiteral("ICN source provider unavailable"));
+  }
+}
+void AnalysisWindow::clearIcn() {
+  icnResult_.reset();
+  if(icnGraph_) static_cast<IcnPlotWidget *>(icnGraph_)->setData({});
+  if(icnContributions_) icnContributions_->setText(QStringLiteral("No current ICN result."));
+  if(feature_==Feature::Icn) {
+    csv_->setEnabled(false);
+    png_->setEnabled(false);
+  }
+}
+void AnalysisWindow::launchIcn() {
+  if(feature_!=Feature::Icn || !icnProvider_) return;
+  const int idx=source_->currentIndex();
+  if(idx<0 || idx>=context_.sources.size() || victim_->currentIndex()<0 ||
+     fromGhz_->value()>=toGhz_->value()) {
+    setStatus(si::channel::Status::InvalidSource,
+              QStringLiteral("Select confirmed source and frequency band"));
+    return;
+  }
+  const auto &source=context_.sources[idx];
+  const int victimIndex=victim_->currentIndex();
+  if(!source.mappingConfirmed || victimIndex>=source.channelIds.size()) {
+    setStatus(si::channel::Status::InvalidSource,
+              QStringLiteral("Missing confirmed physical victim identity"));
+    return;
+  }
+  std::vector<std::pair<std::string,si::channel::IcnEnd>> chosen;
+  for(int k=0;k<icnAggressors_->count();++k) {
+    auto *item=icnAggressors_->item(k);
+    if(item->checkState()!=Qt::Checked) continue;
+    const int index=item->data(Qt::UserRole).toInt();
+    const int end=item->data(Qt::UserRole+1).toInt();
+    if(index<0 || index>=source.channelIds.size() || index==victimIndex ||
+       (end!=0 && end!=1)) {
+      setStatus(si::channel::Status::InvalidSource,QStringLiteral("Invalid aggressor mapping"));
+      return;
+    }
+    chosen.emplace_back(source.channelIds[index].toStdString(),
+        end==0?si::channel::IcnEnd::Next:si::channel::IcnEnd::Fext);
+  }
+  if(chosen.empty() || chosen.size()>32) {
+    setStatus(si::channel::Status::NotEvaluated,
+              QStringLiteral("Select 1–32 NEXT/FEXT aggressor paths"));
+    return;
+  }
+  if(chosen.size()>1 && !icnIndependent_->isChecked()) {
+    setStatus(si::channel::Status::NotEvaluated,
+      QStringLiteral("Multiple aggressors require explicitly confirming the uncorrelated RSS assumption"));
+    return;
+  }
+  const auto input=icnProvider_(idx);
+  if(!input || !input->cache ||
+     input->revision!=source.revision.toStdString() ||
+     input->expectedSha!=source.sha256.toStdString()) {
+    setStatus(si::channel::Status::InvalidSource,
+              QStringLiteral("Source revision changed; refresh analysis"));
+    return;
+  }
+  const std::string victimId=source.channelIds[victimIndex].toStdString();
+  const bool reverse=direction_->currentIndex()==1;
+  si::channel::IcnSettings settings;
+  settings.startHz=fromGhz_->value()*1e9;
+  settings.stopHz=toGhz_->value()*1e9;
+  settings.symbolRateHz=icnBaud_->value()*1e9;
+  settings.txPeakToPeakV=icnVpp_->value()*1e-3;
+  settings.riseTimeSeconds=icnRise_->value()*1e-12;
+  settings.rxBandwidthHz=icnRx_->value()*1e9;
+  const std::string settingsIdentity=selectionIdentity().toStdString();
+  startWork([input=*input,victimId,reverse,chosen,settings,settingsIdentity]
+      (const std::atomic_bool &cancel,std::atomic_int &progress)->WorkOutcome {
+    if(cancel.load()) throw si::Cancelled();
+    progress.store(10);
+    auto snap=si::channel::SourceSnapshot::capture(
+      input.cache,input.mapping,input.revision,
+      input.workspaceGeneration,input.mappingGeneration);
+    if(snap.identity().sha256!=input.expectedSha)
+      throw si::Error("ICN source SHA mismatch");
+    const auto &victim=snap.channel(victimId);
+    std::vector<si::channel::IcnAggressorInput> paths;
+    paths.reserve(chosen.size());
+    for(size_t i=0;i<chosen.size();++i) {
+      if(cancel.load()) throw si::Cancelled();
+      const auto &a=snap.channel(chosen[i].first);
+      if(a.id==victim.id || a.group!=victim.group ||
+         a.differential()!=victim.differential())
+        throw si::Error("ICN aggressor must be a different, compatible channel in the victim group");
+      const auto metric=chosen[i].second==si::channel::IcnEnd::Next ?
+                         si::Metric::NEXT:si::Metric::FEXT;
+      auto trace=si::channel::extract(snap,victimId,metric,reverse,
+                 std::string_view(chosen[i].first));
+      paths.push_back({chosen[i].first,chosen[i].second,std::move(trace)});
+      progress.store(15+int(50*(i+1)/chosen.size()));
+    }
+    const auto &identity=snap.identity();
+    si::channel::Provenance provenance{identity.sha256,identity.revision,
+      identity.mappingIdentity,"Generic uncorrelated NRZ ICN","012_06-v1",
+      settingsIdentity,identity.workspaceGeneration,identity.mappingGeneration};
+    auto result=si::channel::calculateIcn(paths,settings,provenance,&cancel);
+    if(cancel.load()) throw si::Cancelled();
+    progress.store(100);
+    WorkOutcome outcome;
+    outcome.status=result.status;
+    outcome.diagnostic=QStringLiteral("Generic NRZ band-limited ICN; not IEEE/SNIA compliance");
+    outcome.icn=std::make_shared<si::channel::IcnData>(std::move(*result.value));
+    outcome.provenance=std::move(result.provenance);
+    return outcome;
+  });
+}
+void AnalysisWindow::showIcn(const WorkOutcome &outcome) {
+  if(!outcome.icn || !icnGraph_) return;
+  icnResult_=outcome.icn;
+  icnProvenance_=outcome.provenance;
+  static_cast<IcnPlotWidget *>(icnGraph_)->setData(icnResult_);
+  csv_->setEnabled(true);
+  png_->setEnabled(true);
+  const auto &d=*icnResult_;
+  QStringList contributions;
+  for(size_t i=0;i<d.aggressors.size();++i) {
+    const auto &a=d.aggressors[i];
+    contributions<<QStringLiteral("Path %1 %2 %3: %4 mV RMS (%5% power)")
+      .arg(qulonglong(i)).arg(a.end==si::channel::IcnEnd::Next?
+          QStringLiteral("NEXT"):QStringLiteral("FEXT"))
+      .arg(QString::fromStdString(a.id)).arg(a.rmsV*1000,0,'g',6)
+      .arg(a.powerPercent,0,'g',5);
+  }
+  if(icnContributions_) icnContributions_->setText(contributions.join(QStringLiteral(" | ")));
+  setStatus(outcome.status,QStringLiteral(
+    "NEXT %1 mV RMS | FEXT %2 mV RMS | Total %3 mV RMS | %4 paths%5 — Generic NRZ, no standard PASS")
+    .arg(d.nextRmsV*1000,0,'g',7).arg(d.fextRmsV*1000,0,'g',7)
+    .arg(d.totalRmsV*1000,0,'g',7).arg(qulonglong(d.aggressors.size()))
+    .arg(d.bandLimited?QStringLiteral(" | BAND LIMITED"):QString()));
+}
+void AnalysisWindow::exportIcnCsv() {
+  if(!icnResult_) return;
+  const QString name=QFileDialog::getSaveFileName(this,
+    QStringLiteral("Export ICN numerical data"),QStringLiteral("ICN.csv"),
+    QStringLiteral("CSV (*.csv)"));
+  if(!name.isEmpty()) saveIcnCsv(name);
+}
+bool AnalysisWindow::saveIcnCsv(const QString &name) {
+  if(!icnResult_ || name.isEmpty() ||
+     (status_!=si::channel::Status::Valid &&
+      status_!=si::channel::Status::Warning)) return false;
+  QSaveFile file(name);
+  if(!file.open(QIODevice::WriteOnly|QIODevice::Text)) {
+    setStatus(si::channel::Status::Error,QStringLiteral("Cannot open ICN CSV"));
+    return false;
+  }
+  QTextStream out(&file);
+  const auto &d=*icnResult_;
+  auto safe=[](const std::string &raw) {
+    QString v=QString::fromStdString(raw);
+    v.replace(QLatin1Char('\r'),QLatin1Char(' '));
+    v.replace(QLatin1Char('\n'),QLatin1Char(' '));
+    v.replace(QStringLiteral("\""),QStringLiteral("\"\""));
+    const QString trimmed=v.trimmed();
+    if(!trimmed.isEmpty() && QStringLiteral("=+-@").contains(trimmed.front()))
+      v.prepend(QLatin1Char('\''));
+    return QStringLiteral("\"")+v+QStringLiteral("\"");
+  };
+  const auto n=[](double v){return QString::number(v,'g',17);};
+  out<<"# source_sha256,"<<safe(icnProvenance_.sourceSha256)<<"\n"
+     <<"# revision,"<<safe(icnProvenance_.revision)<<"\n"
+     <<"# mapping,"<<safe(icnProvenance_.mappingIdentity)<<"\n"
+     <<"# settings_identity,"<<safe(icnProvenance_.settingsIdentity)<<"\n"
+     <<"# algorithm,"<<safe(icnProvenance_.algorithm)<<"\n"
+     <<"# version,"<<safe(icnProvenance_.version)<<"\n"
+     <<"# model,"<<safe(d.model)<<"\n"
+     <<"# band_limited,"<<(d.bandLimited?"true":"false")<<"\n"
+     <<"# actual_start_hz,"<<n(d.actualStartHz)<<"\n"
+     <<"# actual_stop_hz,"<<n(d.actualStopHz)<<"\n"
+     <<"# next_rms_mV,"<<n(d.nextRmsV*1000)<<"\n"
+     <<"# fext_rms_mV,"<<n(d.fextRmsV*1000)<<"\n"
+     <<"# total_rms_mV,"<<n(d.totalRmsV*1000)<<"\n";
+  for(size_t k=0;k<d.aggressors.size();++k) {
+    const auto &a=d.aggressors[k];
+    out<<"# path_"<<k<<"_id,"<<safe(a.id)<<"\n"
+       <<"# path_"<<k<<"_type,"<<(a.end==si::channel::IcnEnd::Next?"NEXT":"FEXT")<<"\n"
+       <<"# path_"<<k<<"_parameter,"<<safe(a.parameter)<<"\n"
+       <<"# path_"<<k<<"_rms_mV,"<<n(a.rmsV*1000)<<"\n"
+       <<"# path_"<<k<<"_power_percent,"<<n(a.powerPercent)<<"\n";
+  }
+  out<<"Frequency_GHz,NEXT_Power_dB,FEXT_Power_dB,"
+        "NEXT_PSD_V2_per_Hz,FEXT_PSD_V2_per_Hz,"
+        "NEXT_Cumulative_RMS_mV,FEXT_Cumulative_RMS_mV,Total_Cumulative_RMS_mV";
+  for(size_t k=0;k<d.aggressors.size();++k)
+    out<<",Path"<<k<<"_PSD_V2_per_Hz,Path"<<k<<"_Cumulative_RMS_mV";
+  out<<"\n";
+  for(size_t i=0;i<d.frequencyHz.size();++i) {
+    out<<n(d.frequencyHz[i]/1e9)<<","<<n(d.nextPowerDb[i])<<","
+       <<n(d.fextPowerDb[i])<<","<<n(d.nextDensityV2Hz[i])<<","
+       <<n(d.fextDensityV2Hz[i])<<","<<n(d.nextCumulativeRmsV[i]*1000)
+       <<","<<n(d.fextCumulativeRmsV[i]*1000)<<","
+       <<n(d.totalCumulativeRmsV[i]*1000);
+    for(const auto &a:d.aggressors)
+      out<<","<<n(a.spectralDensityV2Hz[i])<<","<<n(a.cumulativeRmsV[i]*1000);
+    out<<"\n";
+  }
+  out.flush();
+  const bool okay=out.status()==QTextStream::Ok && file.commit();
+  if(!okay) setStatus(si::channel::Status::Error,QStringLiteral("ICN CSV write failed"));
+  return okay;
+}
+void AnalysisWindow::exportIcnPng() {
+  if(!icnResult_) return;
+  const QString name=QFileDialog::getSaveFileName(this,
+    QStringLiteral("Export ICN plot"),QStringLiteral("ICN.png"),
+    QStringLiteral("PNG (*.png)"));
+  if(!name.isEmpty()) saveIcnPng(name);
+}
+bool AnalysisWindow::saveIcnPng(const QString &name) {
+  if(!icnResult_ || !icnGraph_ || name.isEmpty() ||
+     (status_!=si::channel::Status::Valid &&
+      status_!=si::channel::Status::Warning)) return false;
+  QSaveFile file(name);
+  const bool okay=file.open(QIODevice::WriteOnly) &&
+                   icnGraph_->grab().save(&file,"PNG") && file.commit();
+  if(!okay) setStatus(si::channel::Status::Error,QStringLiteral("ICN PNG write failed"));
+  return okay;
+}
 void AnalysisWindow::closeEvent(QCloseEvent *event) {
   if (scheduler_ && scheduler_->running(feature_)) cancelWork();
   progressPoll_.stop();
@@ -735,6 +1155,12 @@ void AnalysisWindowManager::setIldSourceProvider(IldSourceProvider provider) {
     windows_[int(Feature::Ild)]->setIldSourceProvider(ildProvider_);
   setEngineAvailable(Feature::Ild,bool(ildProvider_));
 }
+void AnalysisWindowManager::setIcnSourceProvider(IcnSourceProvider provider) {
+  icnProvider_=std::move(provider);
+  if(windows_[int(Feature::Icn)])
+    windows_[int(Feature::Icn)]->setIcnSourceProvider(icnProvider_);
+  setEngineAvailable(Feature::Icn,bool(icnProvider_));
+}
 void AnalysisWindowManager::setEngineAvailable(Feature feature, bool available) {
   available_[int(feature)] = available;
   if (auto *action = actions_[int(feature)])
@@ -750,6 +1176,7 @@ AnalysisWindow *AnalysisWindowManager::openWindow(Feature feature) {
   }
   auto *window = new AnalysisWindow(feature, &scheduler_, owner_);
   if(feature == Feature::Ild) window->setIldSourceProvider(ildProvider_);
+  if(feature == Feature::Icn) window->setIcnSourceProvider(icnProvider_);
   window->setContext(context_);
   windows_[index] = window;
   connect(window, &QObject::destroyed, this, [this, index] {
