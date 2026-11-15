@@ -62,12 +62,36 @@ def synthetic_manifest(root):
     }
 
 class ReferenceManifestTests(unittest.TestCase):
-    def test_real_scaffold_schema_is_valid_but_blocked(self):
+    def test_real_reference_stage_ready_but_normative_still_closed(self):
         root = REPO_ROOT / "tests" / "fixtures" / "channel" / "com_reference"
         manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
         preflight.schema_check(manifest)
-        with self.assertRaisesRegex(preflight.QualificationError, "BLOCKED"):
+        result = preflight.reference_ready(manifest)
+        self.assertEqual(result["status"], "REFERENCE_READY_NOT_IEEE_CONFORMANCE")
+        self.assertEqual(result["independent_numeric_cases"], 2)
+        with self.assertRaises(preflight.QualificationError):
             preflight.qualify(manifest, root)
+
+    def test_reference_stage_rejects_unapproved_draft(self):
+        root = REPO_ROOT / "tests" / "fixtures" / "channel" / "com_reference"
+        manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+        manifest["standard"]["approval_status"] = "DRAFT"
+        with self.assertRaisesRegex(preflight.QualificationError, "draft IEEE"):
+            preflight.reference_ready(manifest)
+
+    def test_reference_stage_rejects_missing_numerical_case(self):
+        root = REPO_ROOT / "tests" / "fixtures" / "channel" / "com_reference"
+        manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+        manifest["reference_oracles"].pop()
+        with self.assertRaisesRegex(preflight.QualificationError, "two actual"):
+            preflight.reference_ready(manifest)
+
+    def test_reference_stage_rejects_mislabeled_normative_pass(self):
+        root = REPO_ROOT / "tests" / "fixtures" / "channel" / "com_reference"
+        manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+        manifest["standard"]["parameter_values_qualified"] = True
+        with self.assertRaisesRegex(preflight.QualificationError, "does not qualify"):
+            preflight.reference_ready(manifest)
 
     def test_synthetic_three_case_integrity(self):
         with TemporaryDirectory() as tmp:
