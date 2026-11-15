@@ -25,7 +25,12 @@ ctest --test-dir build -C Release --output-on-failure
 
 Qt offscreen tests do **not** independently certify real Windows or macOS native GUI behavior; native execution remains the separate 012_12 gate. No synthetic fixture is a numerical accuracy oracle for ILD/ICN/Eye/COM.
 
-**Acceptance evidence:** Use the 012_04 PR's required CI logs, review, squash merge receipt, and post-merge integration check. Record unexecuted checks as `UNVERIFIED`, never PASS.
+## Verified acceptance (2026-11-15 KST)
+
+- [PR #38](https://github.com/july-rust/SParamView-Public/pull/38): squash merged into `integration/v1.4.0` as commit `c21898657e5bb1fa13a446198eeb0468c6c04f79`.
+- [PR CI run 43708927772](https://github.com/july-rust/SParamView-Public/actions/runs/43708927772): version/release consistency PASS; Core Release + sanitizers/static analysis PASS; Windows x64 CTest **51/51** PASS (including `channel_analysis_window_lifecycle` and `header_project_buttons`), macOS ARM64 CTest **47/47** PASS including both GUI tests; Windows ARM64 crossbuild/package PASS; native Windows ARM64 packaged-binary gate PASS. Release publication job intentionally skipped.
+- [Post-merge integration CI run 43709948534](https://github.com/july-rust/SParamView-Public/actions/runs/43709948534): verify the final result separately on the merged SHA.
+- Full interactive physical Windows/macOS GUI qualification, numerical ILD/ICN/Eye/COM engines and release readiness remain subsequent `012_05–012_14` responsibilities. Passing synthetic scheduler fixtures is **not** numerical/IEEE conformance evidence.
 
 ## Next-stage handoff
 
