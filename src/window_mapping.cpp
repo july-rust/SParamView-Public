@@ -303,6 +303,7 @@ void MainWindow::invalidateRevisionResults(const QString &revision) {
   std::erase_if(results, [&](const si::Result &r) { return r.revision == name; });
   std::erase_if(lastJobs, [&](const si::Job &j) { return j.revision == name; });
   if (!busy) { refreshResults(); refreshPlot(); }
+  refreshAnalysisContext();
 }
 void MainWindow::syncSettings() {
   settings.startHz = start->value() * 1e9;
