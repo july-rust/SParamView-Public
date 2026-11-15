@@ -6,7 +6,7 @@
 
 | Component | Evidence | Distribution decision |
 |---|---|---|
-| IEEE COM source | Official v4.17.0 GitLab tag `47459695...`; root LICENSE and README verified in GitHub Actions | Root code indicates **BSD 3-Clause**; individual copyright notices and dependencies still require inventory |
+| IEEE COM source | Official v4.17.0 GitLab tag `47459695...`; root LICENSE and README **and downloaded v4.17.0 .m header** independently identify BSD 3-Clause in GitHub Actions | Core reference code BSD 3-Clause established; included dependencies, external template/datasets and obligations still require inventory |
 | License evidence | At tag `4.17.0`, the actual 1516-byte `LICENSE` identifies **BSD 3-Clause**; SHA-256 `f5532297b5eeef9ef3236a38ecb5973d6521b542f567db15c4025e1f71d91631`; README confirms BSD3 | Verified repository-level license; not automatic permission for externally sourced tables/fixtures |
 | IEEE standard text | Annex 93A / 178A equations and methods are normative; software reference is distinct | **Do not copy** copyrighted standard text into this repository; cite edition/clause and implement within lawful access |
 | Fixture S-parameters | IEEE presentation links do not grant unrestricted data redistribution | **NOT CLEARED** pending fixture author/license and hash |
