@@ -423,6 +423,9 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     icnAggressors_=new QListWidget;
     icnAggressors_->setObjectName(QStringLiteral("icnAggressorList"));
     icnAggressors_->setMinimumHeight(100);
+    icnIndependent_=new QCheckBox(QStringLiteral("I confirm selected aggressors are modeled as uncorrelated (RSS)"));
+    icnIndependent_->setObjectName(QStringLiteral("icnIndependentAssumption"));
+    icnIndependent_->setChecked(false);
     icnBaud_=new QDoubleSpinBox;
     icnBaud_->setObjectName(QStringLiteral("icnSymbolRate"));
     icnBaud_->setRange(0.001,1000);icnBaud_->setDecimals(3);
@@ -450,6 +453,7 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
   form->addRow(QStringLiteral("Stop frequency"), toGhz_);
   if(feature_==Feature::Icn) {
     form->addRow(QStringLiteral("NEXT / FEXT paths (check multiple)"),icnAggressors_);
+    form->addRow(QStringLiteral("Aggressor correlation"),icnIndependent_);
     form->addRow(QStringLiteral("NRZ symbol rate"),icnBaud_);
     form->addRow(QStringLiteral("TX amplitude, peak-to-peak"),icnVpp_);
     form->addRow(QStringLiteral("Gaussian rise time"),icnRise_);
@@ -520,6 +524,7 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     connect(csv_,&QPushButton::clicked,this,[this]{exportIcnCsv();});
     connect(png_,&QPushButton::clicked,this,[this]{exportIcnPng();});
     connect(icnAggressors_,&QListWidget::itemChanged,this,[this]{invalidateRequest();});
+    connect(icnIndependent_,&QCheckBox::toggled,this,[this]{invalidateRequest();});
     for(auto *spin:{icnBaud_,icnVpp_,icnRise_,icnRx_})
       connect(spin,QOverload<double>::of(&QDoubleSpinBox::valueChanged),
               this,[this](double){invalidateRequest();});
@@ -577,6 +582,7 @@ QString AnalysisWindow::selectionIdentity() const {
         identity+=QStringLiteral("|X")+QString::number(item->data(Qt::UserRole).toInt())+
                   QStringLiteral("/") + QString::number(item->data(Qt::UserRole+1).toInt());
     }
+    identity+=icnIndependent_->isChecked()?QStringLiteral("|RSS_ACK"):QStringLiteral("|RSS_NOT_ACK");
     for(auto *spin:{icnBaud_,icnVpp_,icnRise_,icnRx_})
       identity+=QStringLiteral("|")+QString::number(spin->value(),'g',17);
   }
@@ -906,6 +912,11 @@ void AnalysisWindow::launchIcn() {
   if(chosen.empty() || chosen.size()>32) {
     setStatus(si::channel::Status::NotEvaluated,
               QStringLiteral("Select 1–32 NEXT/FEXT aggressor paths"));
+    return;
+  }
+  if(chosen.size()>1 && !icnIndependent_->isChecked()) {
+    setStatus(si::channel::Status::NotEvaluated,
+      QStringLiteral("Multiple aggressors require explicitly confirming the uncorrelated RSS assumption"));
     return;
   }
   const auto input=icnProvider_(idx);
