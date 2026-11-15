@@ -602,3 +602,15 @@ Historical v1.2.1 feature changes are supported by the [v1.2.1 release notes](Re
 ### Document Version
 
 This guide was updated on **2026-11-14 (KST)** for the **SParamView v1.3.5 official release**. The embedded screenshots remain **historical v1.2.1 validation captures** (see [images/README.md](images/README.md)); no v1.3.2 screenshots are claimed. The published v1.3.0 tag and attached guide assets remain immutable.
+
+
+
+## In-development v1.4.0 — independent ILD window (not in official v1.3.5)
+
+> Applies only to the 012_05 feature on the v1.4.0 integration branch. The official release remains v1.3.5; native GUI/release qualification is not claimed before 012_14.
+
+Open **Analysis → ILD** as a separate top-level window. Select a confirmed source revision, channel, forward/reverse direction, measured frequency range, and one of the available fit models. **Run** re-verifies the original SHA-256 in a background worker. The first plot shows positive IL \(-20\log_{10}|S21|\) with fitted IL; the second shows signed **ILD(f) = IL − fitted IL**. RMS and peak absolute residual are displayed. CSV exports numeric frequency, original/fitted IL, ILD, fit coefficients, actual range and provenance; PNG exports the real plot. Source, mapping or configuration changes invalidate previous output as **STALE**.
+
+Generic sample RMS and peak residual are **not** an IEEE weighted FOM_ILD or an IEEE/MIPI PHY PASS/FAIL declaration. Invalid or insufficient inputs fail closed. See [ILD implementation and qualification contract](Channel_Analysis_ILD_012_05.md).
+
+---
