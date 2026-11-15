@@ -605,10 +605,13 @@ void AnalysisWindow::exportIldCsv() {
   if(!ildResult_) return;
   const QString name=QFileDialog::getSaveFileName(this,QStringLiteral("Export ILD data"),
                           QStringLiteral("ILD.csv"),QStringLiteral("CSV (*.csv)"));
-  if(name.isEmpty()) return;
+  if(!name.isEmpty()) saveIldCsv(name);
+}
+bool AnalysisWindow::saveIldCsv(const QString &name) {
+  if(!ildResult_ || name.isEmpty()) return false;
   QSaveFile file(name);
   if(!file.open(QIODevice::WriteOnly|QIODevice::Text)) {
-    setStatus(si::channel::Status::Error,QStringLiteral("Cannot open CSV output"));return;
+    setStatus(si::channel::Status::Error,QStringLiteral("Cannot open CSV output"));return false;
   }
   QTextStream out(&file);
   const auto &d=*ildResult_;
@@ -640,18 +643,23 @@ void AnalysisWindow::exportIldCsv() {
        <<QString::number(d.fittedLossDb[i],'g',17)<<","
        <<QString::number(d.deviationDb[i],'g',17)<<"\n";
   out.flush();
-  if(out.status()!=QTextStream::Ok || !file.commit())
-    setStatus(si::channel::Status::Error,QStringLiteral("ILD CSV write failed"));
+  const bool okay = out.status()==QTextStream::Ok && file.commit();
+  if(!okay) setStatus(si::channel::Status::Error,QStringLiteral("ILD CSV write failed"));
+  return okay;
 }
 void AnalysisWindow::exportIldPng() {
   if(!ildResult_ || !ildGraph_) return;
   const QString name=QFileDialog::getSaveFileName(this,QStringLiteral("Export ILD plot"),
                        QStringLiteral("ILD.png"),QStringLiteral("PNG (*.png)"));
-  if(name.isEmpty())return;
+  if(!name.isEmpty()) saveIldPng(name);
+}
+bool AnalysisWindow::saveIldPng(const QString &name) {
+  if(!ildResult_ || !ildGraph_ || name.isEmpty()) return false;
   QSaveFile file(name);
-  if(!file.open(QIODevice::WriteOnly) ||
-     !ildGraph_->grab().save(&file,"PNG") || !file.commit())
-    setStatus(si::channel::Status::Error,QStringLiteral("ILD PNG write failed"));
+  const bool okay=file.open(QIODevice::WriteOnly) &&
+                   ildGraph_->grab().save(&file,"PNG") && file.commit();
+  if(!okay) setStatus(si::channel::Status::Error,QStringLiteral("ILD PNG write failed"));
+  return okay;
 }
 void AnalysisWindow::closeEvent(QCloseEvent *event) {
   if (scheduler_ && scheduler_->running(feature_)) cancelWork();
