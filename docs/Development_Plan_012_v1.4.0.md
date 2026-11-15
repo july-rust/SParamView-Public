@@ -3,7 +3,7 @@
 **기준일:** 2026-11-15 (KST)
 **공식 기준:** v1.3.5 (tag/release 불변)
 **목표:** ILD·ICN·Eye Diagram·COM을 각각 독립적인 C++20 수치 엔진, Qt6 창, 테스트로 구현하고 **v1.4.0 한 번에 릴리스**
-**상태:** 012_01 COMPLETE / 012_02 COMPLETE (REFERENCE_READY) / 012_03 CORE VERIFIED (PR #37; 최종 병합 상태는 PR 참조) / 012_04 GUI/워커 COMPLETE (PR #38; CI 43708927772) / 012_05 COMPLETE (ILD 엔진/GUI PR #40; CI 43766947020) / 012_06 ICN 구현 PR #42 CI 검증 중 / 012_07~14 미착수 / Eye/COM 미구현 / v1.4.0 미출시
+**상태:** 012_01 COMPLETE / 012_02 COMPLETE (REFERENCE_READY) / 012_03 CORE VERIFIED (PR #37; 최종 병합 상태는 PR 참조) / 012_04 GUI/워커 COMPLETE (PR #38; CI 43708927772) / 012_05 COMPLETE (ILD 엔진/GUI PR #40; CI 43766947020) / 012_06 ICN CODE MERGED / PR CI PASS (#42, 43775680490); 병합 SHA 1bcf5400, post-merge CI 43776856345 검증 대기 / 012_07~14 미착수 / Eye/COM 미구현 / v1.4.0 미출시
 **작업 번호:** 012_01 ~ 012_14. 단계별 PR, CI, 증거와 완료 조건을 연결한다.
 
 > 이 문서는 향후 실행할 개발 명령의 기준이며, 문서 작성만으로 기능이나 공식 표준 적합성을 검증했다고 주장하지 않는다.
@@ -79,7 +79,7 @@
 - **완료:** 이상 무리플 채널/의도적 리플 채널의 독립 골든 값 일치, 빈/손상 입력 fail-closed, 채널 방향·주파수 범위 검증.
 
 ### 012_06 — ICN 수치 엔진·GUI 완성
-- **구현 진행:** [PR #42](https://github.com/july-rust/SParamView-Public/pull/42)에서 독립 C++20 Generic ICN 수치 엔진·멀티 NEXT/FEXT 파워 합산·NRZ TX/RX 모델·Qt 별도 창·CSV/PNG·독립 Golden·s4p GUI 테스트를 작성. [ICN 수치/GUI 계약](Channel_Analysis_ICN_012_06.md). CI 및 통합 브랜치 병합 완료 전에는 COMPLETE로 표기하지 않는다. IEEE/SNIA 표준 ICN·COM 기준은 미구현·미검증.
+- **구현·PR 검증 완료:** [PR #42](https://github.com/july-rust/SParamView-Public/pull/42) squash-merge `1bcf54008d3031c5b8ef634e4d2bef1479eee96a` → `integration/v1.4.0`. [PR CI 43775680490](https://github.com/july-rust/SParamView-Public/actions/runs/43775680490): Core quality, Windows x64, Windows ARM64, macOS arm64, native Windows ARM64 packaged-binary gate 전부 PASS. C++20 Generic ICN·멀티 NEXT/FEXT RSS·명시적 NRZ TX/RX 가정·독립 Qt 창·CSV/PNG·Golden·s4p GUI 검증 포함. [계약 및 한계](Channel_Analysis_ICN_012_06.md). **병합 SHA 기준 후속 CI 43776856345는 별도 확인 전**이며 이 기록만으로 012_06 전체 COMPLETE를 선언하지 않는다. IEEE/SNIA ICN·COM 규격 적합성은 미구현·미검증.
 - **실행:** Victim 및 여러 Aggressor의 NEXT/FEXT 방향·극성을 검증하여 S-파라미터 추출, TX 스펙트럼·진폭 및 RX 필터를 이용해 주파수 적분·전력 합산. 누화 성분별 기여 표시.
 - **산출:** icn.cpp, IcnWindow, 개별/전체 기여 그래프, 조건·단위·CSV/PNG, icn_tests.
 - **완료:** 0누화/1개·다수 Aggressor/진폭 배율/극성·방향에 대한 독립 oracle 일치. TX 진폭 미상이라면 절대 mV 출력 금지.
@@ -155,7 +155,8 @@
 | 012_03 공통 Core | **CODE + INITIAL CI PASS**; squash merge 및 병합 후 검증은 [PR #37](https://github.com/july-rust/SParamView-Public/pull/37)에서 추적 | [검증 로그](https://github.com/july-rust/SParamView-Public/actions/runs/43702830271), [구현 계약](Channel_Analysis_Core_012_03.md) |
 | 012_04 GUI/워커 | **COMPLETE (프레임워크)** | [병합 PR #38](https://github.com/july-rust/SParamView-Public/pull/38) · [CI PASS](https://github.com/july-rust/SParamView-Public/actions/runs/43708927772); 미완성 엔진 메뉴 비활성화 |
 | 012_05 ILD 엔진·GUI | **COMPLETE** (선언 범위: 일반 ILD 계산·GUI·자동 CI) | [병합 PR #40](https://github.com/july-rust/SParamView-Public/pull/40) · [CI 43766947020](https://github.com/july-rust/SParamView-Public/actions/runs/43766947020) · 통합 SHA `90a59ada15a9c17aa787ffb317fcafefb4285c75` |
-| 012_06~012_14 ICN/Eye/COM·릴리스 | NOT STARTED | ICN/Eye/COM 미구현; v1.3.5 릴리스 불변 |
+| 012_06 ICN 엔진·GUI | CODE MERGED / PR CI PASS; POST-MERGE PENDING | [PR #42](https://github.com/july-rust/SParamView-Public/pull/42) · [PR CI 43775680490](https://github.com/july-rust/SParamView-Public/actions/runs/43775680490) · [post-merge CI 43776856345](https://github.com/july-rust/SParamView-Public/actions/runs/43776856345) |
+| 012_07~012_14 Eye/COM·통합 릴리스 | NOT STARTED | Eye/COM 엔진 미구현; 공식 v1.3.5 릴리스 불변 |
 | 계획 문서 | PLANNED | 본 문서 및 링크된 상위 로드맵 |
 
 ## 7. 출처
