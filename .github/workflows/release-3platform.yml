@@ -3,7 +3,7 @@ name: SParamView three-platform CI and release
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, integration/v1.4.0]
     paths:
       - 'CMakeLists.txt'
       - 'src/**'
@@ -12,9 +12,11 @@ on:
       - 'scripts/**'
       - 'assets/**'
       - 'docs/Release_*.md'
+      - 'docs/Development_Plan_012_v1.4.0.md'
+      - 'docs/Channel_Analysis_*.md'
       - '.github/workflows/release-3platform.yml'
   pull_request:
-    branches: [main]
+    branches: [main, integration/v1.4.0]
     paths:
       - 'CMakeLists.txt'
       - 'src/**'
@@ -23,6 +25,8 @@ on:
       - 'scripts/**'
       - 'assets/**'
       - 'docs/Release_*.md'
+      - 'docs/Development_Plan_012_v1.4.0.md'
+      - 'docs/Channel_Analysis_*.md'
       - '.github/workflows/release-3platform.yml'
 
 permissions:
