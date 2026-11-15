@@ -322,6 +322,8 @@ MainWindow::MainWindow() {
     if (channels) channels->clearSelection();
   });
   viewMenu->addAction("Reset Layout", this, &MainWindow::resetWorkspaceLayout);
+  analysisWindows = std::make_unique<si::gui::AnalysisWindowManager>(this);
+  analysisWindows->installMenu();
   auto rules = menuBar()->addMenu("Limit");
   rules->addAction("Save Preset...", this, [this] { preset(true); });
   rules->addAction("Load Preset...", this, [this] { preset(false); });
@@ -701,6 +703,7 @@ MainWindow::MainWindow() {
     updateActiveTouchstoneTitle();
     rebuildChannels();
     if (!busy) { refreshResults(); refreshPlot(); }
+    refreshAnalysisContext();
   });
   connect(groupBox, &QComboBox::currentIndexChanged, this, [this] {
     QString group = groupBox->currentText();
@@ -773,6 +776,7 @@ MainWindow::MainWindow() {
   connect(channels,&QListWidget::itemChanged,this,[this]{markDirty();});
   restoreWorkspaceLayout();
   updateActiveTouchstoneTitle();
+  refreshAnalysisContext();
 }
 void MainWindow::markDirty() {
   if(!restoringProject && !revisions.empty()) dirty=true;

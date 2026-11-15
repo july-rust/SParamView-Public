@@ -5,6 +5,7 @@
 #include <regex>
 #include "si/mapping_policy.hpp"
 #include "si/direction_policy.hpp"
+#include <QCryptographicHash>
 #include "window_ui.cpp"
 #include "window_workspace.cpp"
 #include "window_mapping.cpp"
@@ -65,4 +66,31 @@ void applyCompactAnalysisSettings(MainWindow &window) {
     tool->setMaximumWidth(68);
     break;
   }
+}
+
+void MainWindow::refreshAnalysisContext() {
+  if (!analysisWindows) return;
+  si::gui::AnalysisContext context;
+  context.activeSource = revisionBox ? revisionBox->currentIndex() : -1;
+  for (const auto &revision : revisions) {
+    si::gui::SourceItem source;
+    source.revision = revision.name;
+    source.mappingConfirmed = revision.confirmed;
+    if (revision.cache) source.sha256 = qs(revision.cache->meta().sha256);
+    // Persist no Cache handle in a GUI window. Numerical adapters must capture
+    // a verified immutable SourceSnapshot on their worker thread instead.
+    QByteArray encoded;
+    if (revision.confirmed) {
+      for (const auto &channel : revision.channels) {
+        source.channels.append(qs(channel.name));
+        encoded.append(QJsonDocument(channelJson(channel)).toJson(QJsonDocument::Compact));
+        encoded.append('\n');
+      }
+      if (!encoded.isEmpty())
+        source.mappingDigest = QString::fromLatin1(
+            QCryptographicHash::hash(encoded, QCryptographicHash::Sha256).toHex());
+    }
+    context.sources.append(std::move(source));
+  }
+  analysisWindows->setContext(std::move(context));
 }

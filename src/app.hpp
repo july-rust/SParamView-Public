@@ -2,6 +2,7 @@
 #include "si/core.hpp"
 #include "workers.hpp"
 #include "cache_session.hpp"
+#include "gui/analysis/analysis_windows.hpp"
 #include <QtConcurrent>
 #include <QtWidgets>
 #include <functional>
@@ -170,6 +171,7 @@ protected:
 private:
   // Declared before all cache users so its directory outlives their handles.
   CacheSession cacheSession;
+  std::unique_ptr<si::gui::AnalysisWindowManager> analysisWindows;
   // A private workspace subtree rotates on successful full-project replacement.
   // Appending a Touchstone revision keeps the existing workspace subtree.
   std::shared_ptr<QTemporaryDir> workspaceCache;
@@ -243,6 +245,7 @@ private:
   bool confirmProjectTransition();
   void markDirty();
   void invalidateRevisionResults(const QString &);
+  void refreshAnalysisContext();
   void refreshResults();
   void showMetric(si::Metric);
   void refreshPlot(bool selectedOnly = false);

@@ -154,6 +154,8 @@ void MainWindow::loadProject(QString path) {
         },
         [this, staged, loaded, settingsLoaded, path, obj] {
           QScopedValueRollback<bool> restoring(restoringProject,true);
+          // Cancel channel jobs before releasing or replacing source caches.
+          if (analysisWindows) analysisWindows->setContext({});
           // The viewport worker can still hold Jobs into the previous cache.
           // Wait for cancellation before dropping those handles on Windows.
           if (viewControl) viewControl->cancelled = true;
@@ -176,7 +178,9 @@ void MainWindow::loadProject(QString path) {
           plot->resetView();
           // Only remove an owned workspace directory; never delete an
           // active parallel process's session or a user-managed source.
-          if (previousWorkspace && !previousWorkspace->remove())
+          if (analysisWindows)
+            analysisWindows->retireWorkspace(std::move(previousWorkspace));
+          else if (previousWorkspace && !previousWorkspace->remove())
             qWarning() << "SParamView: retired workspace cache cleanup deferred";
 
           projectName = obj["name"].toString("Untitled");
@@ -213,6 +217,7 @@ void MainWindow::loadProject(QString path) {
           refreshResults();
           refreshPlot();
           dirty = false;
+          refreshAnalysisContext();
           notice->setText("Project restored. Reconfirm mapping for revisions whose source files have changed.");
         });
   } catch (const std::exception &e) {

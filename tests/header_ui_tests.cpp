@@ -72,5 +72,16 @@ int main(int argc, char **argv) {
     }
   }
 
+  auto *analysisMenu = window.menuBar()->findChild<QMenu *>("channelAnalysisMenu");
+  if (!analysisMenu || analysisMenu->actions().size() != 4) {
+    std::cerr << "012_04 Analysis menu was not integrated into MainWindow\\n";
+    return 10;
+  }
+  for (const auto *action : analysisMenu->actions()) {
+    if (action->isEnabled()) {
+      std::cerr << "Unimplemented 012_04 engine action was exposed\\n";
+      return 11;
+    }
+  }
   return 0;
 }
