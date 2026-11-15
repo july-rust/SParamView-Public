@@ -63,6 +63,11 @@ def qualify(manifest: dict, root: Path) -> dict:
     std = manifest["standard"]
     for key in ("edition", "annex", "applicable_clause", "parameter_table"):
         _require(isinstance(std.get(key), str) and bool(std[key].strip()), f"standard.{key} missing")
+    _require(std.get("approval_status") == "PUBLISHED",
+             "unapproved IEEE drafts cannot be used for conformance profiles")
+    official_url = std.get("normative_source_url")
+    _require(isinstance(official_url, str) and official_url.startswith("https://standards.ieee.org/"),
+             "standard.normative_source_url must reference a published IEEE standard")
     ref = manifest["reference"]
     _require(isinstance(ref.get("source_commit"), str) and COMMIT.fullmatch(ref["source_commit"]) is not None,
              "reference.source_commit requires a pinned 40-character SHA")
