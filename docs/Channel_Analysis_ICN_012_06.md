@@ -3,7 +3,7 @@
 **Baseline:** official v1.3.5 remains unchanged.  
 **Target:** `integration/v1.4.0` (unreleased development).  
 **Work:** 012_06; PR [#42](https://github.com/july-rust/SParamView-Public/pull/42).  
-**Qualification:** CI and protected squash merge must be verified; no automatic claim of COMPLETE.  
+**Qualification:** [PR #42](https://github.com/july-rust/SParamView-Public/pull/42) protected squash-merged to `integration/v1.4.0`, merge SHA `1bcf54008d3031c5b8ef634e4d2bef1479eee96a`. [PR CI 43775680490](https://github.com/july-rust/SParamView-Public/actions/runs/43775680490) passed all required Core, Windows x64, Windows ARM64, macOS arm64, and native ARM64 package jobs; publication skipped by design. [Post-merge integration CI 43776856345](https://github.com/july-rust/SParamView-Public/actions/runs/43776856345) is an independent required receipt and is **PENDING verification** at the time of this record. 012_12 physical GUI qualification is still outstanding; no v1.4.0 release.  
 **Conformance:** **NO IEEE 802.3 / SNIA SFF-TA-1002 / COM / MIPI conformance or PASS/FAIL**.
 
 ## Inputs and physical source checks
