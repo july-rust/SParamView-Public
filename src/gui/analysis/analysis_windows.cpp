@@ -44,9 +44,67 @@ public:
   }
   void setData(std::shared_ptr<const si::channel::IldData> data) {
     data_ = std::move(data);
+    if(data_ && data_->frequencyHz.size()>1) {
+      viewFrom_=data_->frequencyHz.front();
+      viewTo_=data_->frequencyHz.back();
+    } else {viewFrom_=0;viewTo_=0;}
     update();
   }
 protected:
+  void wheelEvent(QWheelEvent *e) override {
+    if(!data_ || viewTo_<=viewFrom_ || !e->angleDelta().y()) return;
+    const double full0=data_->frequencyHz.front(), full1=data_->frequencyHz.back();
+    const double fullSpan=full1-full0, span=viewTo_-viewFrom_;
+    const double newSpan=std::clamp(span*(e->angleDelta().y()>0?0.8:1.25),
+      fullSpan/4096.0,fullSpan);
+    const double portion=std::clamp((e->position().x()-70.0)/
+                                   std::max(1.0,double(width()-92)),0.0,1.0);
+    const double center=viewFrom_+portion*span;
+    viewFrom_=std::clamp(center-portion*newSpan,full0,full1-newSpan);
+    viewTo_=viewFrom_+newSpan;
+    update();
+    e->accept();
+  }
+  void mousePressEvent(QMouseEvent *e) override {
+    if(data_ && e->button()==Qt::LeftButton) {
+      dragging_=true;lastX_=e->position().x();e->accept();
+    } else QWidget::mousePressEvent(e);
+  }
+  void mouseMoveEvent(QMouseEvent *e) override {
+    if(!data_)return;
+    if(dragging_ && viewTo_>viewFrom_) {
+      const double dx=e->position().x()-lastX_;
+      lastX_=e->position().x();
+      const double span=viewTo_-viewFrom_;
+      const double full0=data_->frequencyHz.front(),full1=data_->frequencyHz.back();
+      viewFrom_=std::clamp(viewFrom_-dx*span/std::max(1.0,double(width()-92)),
+                           full0,full1-span);
+      viewTo_=viewFrom_+span;
+      update();
+    } else {
+      const double t=std::clamp((e->position().x()-70.0)/
+                                std::max(1.0,double(width()-92)),0.0,1.0);
+      const double frequency=viewFrom_+t*(viewTo_-viewFrom_);
+      const auto &xs=data_->frequencyHz;
+      auto it=std::lower_bound(xs.begin(),xs.end(),frequency);
+      const size_t i=it==xs.end()?xs.size()-1:size_t(it-xs.begin());
+      setToolTip(QStringLiteral("%1 GHz | IL %2 dB | fit %3 dB | ILD %4 dB")
+        .arg(xs[i]/1e9,0,'g',8).arg(data_->insertionLossDb[i],0,'g',7)
+        .arg(data_->fittedLossDb[i],0,'g',7)
+        .arg(data_->deviationDb[i],0,'g',7));
+    }
+    e->accept();
+  }
+  void mouseReleaseEvent(QMouseEvent *e) override {
+    dragging_=false; QWidget::mouseReleaseEvent(e);
+  }
+  void mouseDoubleClickEvent(QMouseEvent *e) override {
+    if(data_) {
+      viewFrom_=data_->frequencyHz.front();
+      viewTo_=data_->frequencyHz.back();
+      update();e->accept();
+    } else QWidget::mouseDoubleClickEvent(e);
+  }
   void paintEvent(QPaintEvent *) override {
     QPainter p(this);
     p.fillRect(rect(), palette().base());
@@ -58,7 +116,7 @@ protected:
     }
     const auto &d = *data_;
     const int n = int(d.frequencyHz.size());
-    const double f0 = d.frequencyHz.front(), f1 = d.frequencyHz.back();
+    const double f0 = viewFrom_, f1 = viewTo_;
     if (!(f1 > f0)) return;
     const int padX = 70, right = 22;
     for (int panel=0;panel<2;++panel) {
@@ -87,6 +145,7 @@ protected:
         QString::number(f0/1e9,'g',5)+QStringLiteral(" GHz"));
       p.drawText(QRectF(area.left(),area.bottom()+2,area.width(),18),Qt::AlignRight,
         QString::number(f1/1e9,'g',5)+QStringLiteral(" GHz"));
+      p.save(); p.setClipRect(area);
       auto drawSeries=[&](const std::vector<double> &data,QColor color) {
         const int stride=std::max(1,n/4000);
         QPainterPath path;
@@ -113,10 +172,13 @@ protected:
         drawSeries(d.insertionLossDb,QColor("#176eae"));
         drawSeries(d.fittedLossDb,QColor("#e26c32"));
       } else drawSeries(d.deviationDb,QColor("#8b4cb8"));
+      p.restore();
     }
   }
 private:
   std::shared_ptr<const si::channel::IldData> data_;
+  double viewFrom_=0,viewTo_=0,lastX_=0;
+  bool dragging_=false;
 };
 }
 struct AsyncScheduler::Ticket {
