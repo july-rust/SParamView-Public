@@ -5,6 +5,7 @@
 #include <regex>
 #include "si/mapping_policy.hpp"
 #include "si/direction_policy.hpp"
+#include <QCryptographicHash>
 #include "window_ui.cpp"
 #include "window_workspace.cpp"
 #include "window_mapping.cpp"
