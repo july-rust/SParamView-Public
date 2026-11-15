@@ -76,6 +76,8 @@ public:
   // This does not enable the public Run action without an installed engine.
   bool startWork(AsyncWork work);
   void setIldSourceProvider(IldSourceProvider provider);
+  bool saveIldCsv(const QString &filename);
+  bool saveIldPng(const QString &filename);
   void cancelWork();
   si::channel::Status status() const { return status_; }
   QPushButton *runButton() const { return run_; }
