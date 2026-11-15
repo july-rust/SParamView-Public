@@ -28,7 +28,8 @@ target_link_libraries(si_cli PRIVATE si_core)
 enable_testing()
 # 012_03: independent, Qt-free v1.4.0 shared channel-analysis Core.
 add_library(si_channel_analysis src/channel_analysis/common.cpp
-                                src/channel_analysis/ild.cpp)
+                                src/channel_analysis/ild.cpp
+                                src/channel_analysis/icn.cpp)
 target_include_directories(si_channel_analysis PUBLIC include)
 target_link_libraries(si_channel_analysis PUBLIC si_core)
 if(MSVC)
@@ -48,6 +49,12 @@ target_link_libraries(si_ild_tests PRIVATE si_channel_analysis)
 add_test(NAME channel_ild_numerics COMMAND si_ild_tests)
 set_tests_properties(channel_ild_numerics PROPERTIES TIMEOUT 90)
 install(TARGETS si_ild_tests RUNTIME DESTINATION tests)
+# 012_06: Qt-free multi-aggressor generic ICN numerical golden qualification.
+add_executable(si_icn_tests tests/channel_analysis/icn_tests.cpp)
+target_link_libraries(si_icn_tests PRIVATE si_channel_analysis)
+add_test(NAME channel_icn_numerics COMMAND si_icn_tests)
+set_tests_properties(channel_icn_numerics PROPERTIES TIMEOUT 90)
+install(TARGETS si_icn_tests RUNTIME DESTINATION tests)
 add_executable(si_hardening_tests tests/hardening_tests.cpp)
 target_link_libraries(si_hardening_tests PRIVATE si_core)
 install(TARGETS si_hardening_tests RUNTIME DESTINATION tests)
