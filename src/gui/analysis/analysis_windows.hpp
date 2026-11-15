@@ -119,6 +119,7 @@ private:
                  *icnRise_ = nullptr, *icnRx_ = nullptr;
   QDoubleSpinBox *fromGhz_ = nullptr, *toGhz_ = nullptr;
   QLabel *statusLabel_ = nullptr, *graphPlaceholder_ = nullptr;
+  QLabel *icnContributions_ = nullptr;
   QWidget *ildGraph_ = nullptr, *icnGraph_ = nullptr;
   IldSourceProvider ildProvider_;
   IcnSourceProvider icnProvider_;
