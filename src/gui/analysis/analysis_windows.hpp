@@ -2,6 +2,8 @@
 // 012_04: GUI-only scaffolding; numerical engines are introduced in later steps.
 #include "si/channel_analysis/common.hpp"
 #include <QtConcurrent>
+#include <QTemporaryDir>
+#include <vector>
 #include <QtWidgets>
 #include <array>
 #include <atomic>
@@ -94,6 +96,9 @@ public:
   ~AnalysisWindowManager() override;
   void installMenu();
   void setContext(AnalysisContext context);
+  // Keep an old project cache directory alive while any cancelled worker
+  // may still own a SourceSnapshot backed by its files.
+  void retireWorkspace(std::shared_ptr<QTemporaryDir> workspace);
   // Deferred engine registration; all four actions remain disabled in 012_04.
   void setEngineAvailable(Feature feature, bool available);
   AnalysisWindow *openWindow(Feature feature);
@@ -106,6 +111,9 @@ public:
 
 private:
   QMainWindow *owner_ = nullptr;
+  // Destruction order: scheduler must drain BEFORE retired workspaces vanish.
+  std::vector<std::shared_ptr<QTemporaryDir>> retiredWorkspaces_;
+  QTimer retirementPoll_;
   AsyncScheduler scheduler_;
   std::array<QPointer<AnalysisWindow>, featureCount> windows_{};
   std::array<QAction *, featureCount> actions_{};
