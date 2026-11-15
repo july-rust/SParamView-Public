@@ -25,6 +25,10 @@ TARGETS = {
     "template_C2C": BASE + "/repository/tree?path=config_templates%2FC2C&ref=4.17.0&per_page=100",
     "template_C2M": BASE + "/repository/tree?path=config_templates%2FC2M&ref=4.17.0&per_page=100",
     "template_CR": BASE + "/repository/tree?path=config_templates%2FCR&ref=4.17.0&per_page=100",
+    "template_C2C_200G": BASE + "/repository/tree?path=config_templates%2FC2C%2F200G&ref=4.17.0&per_page=100",
+    "template_C2M_200G": BASE + "/repository/tree?path=config_templates%2FC2M%2F200G&ref=4.17.0&per_page=100",
+    "template_CR_200G": BASE + "/repository/tree?path=config_templates%2FCR%2F200G&ref=4.17.0&per_page=100",
+    "template_KR": BASE + "/repository/tree?path=config_templates%2FKR_and_CPC&ref=4.17.0&per_page=100",
     "template_readme": BASE + "/repository/files/config_templates%2FREADME.md/raw?ref=4.17.0",
     "release_code_prefix": BASE + "/repository/files/release%2Fcom_ieee8023_4p17p0.m/raw?ref=4.17.0",
     "readme": BASE + "/repository/files/README.md/raw?ref=main",
@@ -43,7 +47,7 @@ for name, uri in TARGETS.items():
                 data = json.loads(raw)
                 item.update({k: data.get(k) for k in ("id", "path_with_namespace", "sha",
                              "web_url", "license", "created_at", "committed_date", "blob_id", "size", "file_path") if k in data})
-            elif name in ("root_tree", "release_tree", "config_templates", "template_C2C", "template_C2M", "template_CR"):
+            elif name in ("root_tree", "release_tree", "config_templates", "template_C2C", "template_C2M", "template_CR", "template_C2C_200G", "template_C2M_200G", "template_CR_200G", "template_KR"):
                 data = json.loads(raw)
                 item["paths"] = [x.get("path") for x in data][:100]
             elif name == "release_4_17_tag":
