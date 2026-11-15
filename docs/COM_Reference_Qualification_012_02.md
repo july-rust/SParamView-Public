@@ -1,6 +1,6 @@
 # 012_02 — COM independent reference / Golden qualification
 
-**Status: BLOCKED** (no official execution or numeric oracle has been performed as part of this stage).
+**Status: BLOCKED** (IEEE source tag and root license verified through CI; no official COM numerical oracle executed).
 
 ## Source audit
 
@@ -14,11 +14,18 @@
 
 | Attempt | Observation | Decision |
 |---|---|---|
-| Fetch IEEE GitLab through web | HTTP 418 / inaccessible | Do not fabricate source commit |
-| Fetch GitLab raw LICENSE and API from execution container | DNS NameResolutionError | Cannot pin license SHA or file provenance |
+| Fetch IEEE GitLab through web | HTTP 418 / inaccessible | Local environment access blocked; GitHub Actions API fetch succeeded |
+| Fetch GitLab raw LICENSE and API from execution container | DNS NameResolutionError | GitHub Actions independently fetched BSD-3-Clause license at tag `4.17.0`, sha256 `f5532297b5eeef9ef3236a38ecb5973d6521b542f567db15c4025e1f71d91631` |
 | Fetch project GitHub via execution container | DNS NameResolutionError | GitHub connector used for actual repository mutations |
 | MATLAB/Octave/Python COM reference execution | No verified source/fixtures available | NOT RUN; do not claim COM numeric PASS |
 | SHA-256 of official fixture(s) | Official fixture bytes unavailable | NOT GENERATED; no fake hashes |
+
+## Pinned source evidence (actual GitHub Actions, not numerical verification)
+
+- [Read-only upstream probe CI 43691394632](https://github.com/july-rust/SParamView-Public/actions/runs/43691394632): official tag `4.17.0` resolves to Git commit **`47459695a169fdf1fd10c541a5b19c69a5ae9285`**; GitLab API HTTP 200.
+- Release file `release/com_ieee8023_4p17p0.m`, Git blob ID **`bdfc766226e4986f3428460b5fdb6818f3a3fcd5`**. Git blob ID is not SHA-256; API JSON response hash is not code-content hash.
+- Repository root README and LICENSE both identify BSD 3-Clause; root LICENSE SHA-256 **`f5532297b5eeef9ef3236a38ecb5973d6521b542f567db15c4025e1f71d91631`**.
+- Programmatic stage tests: **7 synthetic/provenance tests passed**, *not* actual IEEE COM numeric golden verification.
 
 ## Added reproducible evidence gate
 
@@ -48,4 +55,4 @@ For at least three **real**, independently traceable IEEE reference cases:
 - Record numeric error per case and provide convergence evidence for tolerance. Current checker enforces integrity/COM scalar comparison, **not** mathematical correctness of COM algorithm, fixture semantic fitness, or provenance authenticity. Manual/independent audit remains mandatory.
 - Any missing reference/privilege/standard or licensing evidence => `BLOCKED`, not PASS.
 
-**Acceptance status now:** profile UNLOCKED, committed fixture SHA UNAVAILABLE, reference run NOT EXECUTED, numeric oracle NOT VERIFIED, redistribution UNCLEARED. Consequently 012_02 remains **BLOCKED**, even if CI infrastructure tests succeed.
+**Acceptance status now:** IEEE official source TAG/commit and BSD-3-Clause root LICENSE verified, but profile UNLOCKED, official fixture SHA UNAVAILABLE, reference run NOT EXECUTED, numeric oracle NOT VERIFIED, external fixture/dependency redistribution UNCLEARED. Consequently 012_02 remains **BLOCKED**, even if CI infrastructure tests succeed.
