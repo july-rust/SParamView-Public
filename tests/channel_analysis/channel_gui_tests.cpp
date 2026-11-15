@@ -9,6 +9,11 @@
 #include <QThread>
 #include <QTimer>
 #include <iostream>
+#include <cmath>
+#include <fstream>
+#include <iomanip>
+#include <filesystem>
+#include <QTemporaryDir>
 #include <stdexcept>
 
 using namespace si::gui;
@@ -159,7 +164,62 @@ int main(int argc, char **argv) {
       auto *w = manager.existingWindow(static_cast<Feature>(i));
       check(w && w->isVisible(), "One feature close affected an unrelated window");
     }
-    std::cout << "012_04 QT GUI/worker lifecycle PASS\n";
+
+    // 012_05 real channel fixture: verified cached Touchstone -> independent ILD
+    // numerical worker -> GUI results, without fake completed jobs.
+    QTemporaryDir ildDir;
+    check(ildDir.isValid(), "ILD fixture temp directory");
+    const auto snp=si::pathFromUtf8((ildDir.path()+QStringLiteral("/ild.s2p")).toStdString());
+    {
+      std::ofstream out(snp);
+      out<<std::setprecision(17)<<"# GHz S RI R 50\n";
+      for(int i=0;i<=16;++i) {
+        const double x=double(i)/16.0;
+        const double loss=1.5+2.0*std::sqrt(x)+3.0*x+0.25*x*x;
+        const double v=std::pow(10.0,-loss/20.0);
+        out<<i<<" 0 0 "<<v<<" 0 "<<v<<" 0 0 0\n";
+      }
+    }
+    auto cache=si::Cache::open(snp,
+      si::pathFromUtf8((ildDir.path()+QStringLiteral("/cache")).toStdString()),
+      nullptr,true);
+    si::Channel channel;
+    channel.id="victim";channel.name="Victim";channel.nearP=0;channel.farP=1;
+    AnalysisContext numericContext;
+    numericContext.activeSource=0;
+    SourceItem numericSource;
+    numericSource.sha256=QString::fromStdString(cache->meta().sha256);
+    numericSource.mappingDigest=QStringLiteral("confirmed-physical-map");
+    numericSource.revision=QStringLiteral("ILD fixture revision");
+    numericSource.mappingConfirmed=true;
+    numericSource.channels={QStringLiteral("Victim")};
+    numericSource.channelIds={QStringLiteral("victim")};
+    numericContext.sources.append(numericSource);
+    manager.setIldSourceProvider([cache,channel](int index)
+      -> std::optional<IldSourceInput> {
+      if(index!=0)return std::nullopt;
+      return IldSourceInput{cache,{channel},"ILD fixture revision",
+                            cache->meta().sha256,1,1};
+    });
+    manager.setContext(numericContext);
+    auto *ild=manager.openWindow(Feature::Ild);
+    check(manager.action(Feature::Ild)->isEnabled(), "ILD menu not enabled");
+    check(ild->runButton()->isEnabled(), "Verified ILD Run disabled");
+    ild->runButton()->click();
+    drain(manager.scheduler());
+    check(ild->status()==S::Valid, "Real ILD worker did not produce VALID result");
+    check(ild->findChild<QWidget *>(QStringLiteral("ildResultGraph"))!=nullptr,
+          "Actual ILD graph widget missing");
+    auto *csv=ild->findChild<QPushButton *>(QStringLiteral("analysisCsv"));
+    auto *png=ild->findChild<QPushButton *>(QStringLiteral("analysisPng"));
+    check(csv && csv->isEnabled() && png && png->isEnabled(),
+          "Verified ILD exports not enabled");
+    numericContext.sources[0].sha256=QStringLiteral("stale-sha");
+    manager.setContext(numericContext);
+    check(ild->status()==S::Stale,"Context replacement failed to mark ILD STALE");
+    check(!csv->isEnabled() && !png->isEnabled(),"Stale ILD allowed export");
+    manager.setIldSourceProvider({});
+    std::cout << "012_04/012_05 QT GUI and ILD workflow PASS\n";
     return 0;
   } catch (const std::exception &error) {
     std::cerr << "012_04 QT GUI/worker lifecycle FAIL: " << error.what() << '\n';
