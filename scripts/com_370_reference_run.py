@@ -62,12 +62,12 @@ def main():
         matlab_compat_version=(9,13,0)
         adapted=[]
         def adapt_matlab_version(match):
-            target=tuple(int(n) for n in match.group(3).split("."))
+            target=tuple(int(n) for n in match.group(1).split("."))
             target=target+(0,)*(3-len(target))
             value="true" if matlab_compat_version<target else "false"
             adapted.append({"original":match.group(0),"replacement":value})
             return value
-        rx=r"verLessThan\\(\\s*(['\\\"])matlab\\1\\s*,\\s*(['\\\"])([0-9.]+)\\2\\s*\\)"
+        rx=r"""verLessThan\s*\(\s*['"]matlab['"]\s*,\s*['"]([0-9.]+)['"]\s*\)"""
         adapted_text=re.sub(rx,adapt_matlab_version,original_text,flags=re.I)
         print("REFERENCE_OCTAVE_MATLAB_VERSION_ADAPTER",
               json.dumps(adapted,ensure_ascii=False),flush=True)
