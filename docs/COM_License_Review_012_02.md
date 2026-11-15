@@ -1,13 +1,13 @@
 # 012_02 — COM license and distribution qualification
 
-**Status: NOT CLEARED — fail closed for source/data reuse** (2026-11-15).
+**Status: BSD-3-Clause confirmed for root IEEE COM repository v4.17.0; dependency/fixture redistribution remains NOT CLEARED** (2026-11-15).
 
 ## Findings and evidence limits
 
 | Component | Evidence | Distribution decision |
 |---|---|---|
-| IEEE COM source | IEEE SA COM open-source project approved and repository publicly announced | **NOT CLEARED** until actual repo LICENSE and all relevant files checked |
-| Preliminary license | March 2025 IEEE SA Open tutorial states project chose **BSD-3 clause license agreement** | Preliminary evidence only; not proof that every current file, table, spreadsheet and dependency is under BSD-3-Clause |
+| IEEE COM source | Official v4.17.0 GitLab tag `47459695...`; root LICENSE and README verified in GitHub Actions | Root code indicates **BSD 3-Clause**; individual copyright notices and dependencies still require inventory |
+| License evidence | At tag `4.17.0`, the actual 1516-byte `LICENSE` identifies **BSD 3-Clause**; SHA-256 `f5532297b5eeef9ef3236a38ecb5973d6521b542f567db15c4025e1f71d91631`; README confirms BSD3 | Verified repository-level license; not automatic permission for externally sourced tables/fixtures |
 | IEEE standard text | Annex 93A / 178A equations and methods are normative; software reference is distinct | **Do not copy** copyrighted standard text into this repository; cite edition/clause and implement within lawful access |
 | Fixture S-parameters | IEEE presentation links do not grant unrestricted data redistribution | **NOT CLEARED** pending fixture author/license and hash |
 | MATLAB runtime | May require separate proprietary runtime/license | No MATLAB redistribution authorized by this review |
@@ -28,9 +28,9 @@ No official `*.m`, `*.xlsx`, S-parameter third-party datasets or third-party lic
 
 ## Mandatory pre-release evidence
 
-1. Retrieve canonical GitLab commit SHA, LICENSE file contents and SHA-256; verify SPDX ID per included file and third-party deps.
+1. **DONE for root reference:** GitLab tag `4.17.0` = commit `47459695a169fdf1fd10c541a5b19c69a5ae9285`; root LICENSE BSD-3-Clause SHA-256 verified. Still inspect copyright/SPDX for each included source and dependency.
 2. Verify copyright/notice reproduction, source modification obligations, patent/attribution requirements, data rights and platform runtime licenses.
 3. Verify official dataset redistribution or use external download at test time with rights and checksum; otherwise create original synthetic fixtures and independent reference in licensed environment.
 4. Inventory per Windows/macOS release package; obtain needed author permission when license is ambiguous. If ambiguous, **block redistribution**.
 
-This technical screening is not a substitute for formal legal advice; report licensing as **unverified** until the actual artifact and terms are examined.
+Repository root BSD 3-Clause is **verified** at v4.17.0 using [GitHub Actions 43691394632](https://github.com/july-rust/SParamView-Public/actions/runs/43691394632). Separate COM example files, external datasets and runtime dependencies remain **unverified** until individually inspected. Technical screening does not replace formal legal advice.
