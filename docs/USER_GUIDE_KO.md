@@ -626,7 +626,7 @@ v1.2.1에서 도입된 과거 기능은 [v1.2.1 릴리스 노트](Release_1.2.1.
 
 ## 개발 중 v1.4.0 — ICN 독립 분석 창 (012_06, 공식 v1.3.5 미포함)
 
-[PR #42](https://github.com/july-rust/SParamView-Public/pull/42)에서 구현·검증 중입니다. **Analysis → ICN** 메뉴를 선택하면 별도의 비모달 창이 열립니다. Touchstone 리비전과 Victim 채널을 선택하고, NEXT/FEXT 누화원 경로를 체크박스로 여러 개 선택합니다. 심볼 속도(GBd), TX 차동 또는 단일 종단 피크투피크 진폭(mVpp), 10~90% 상승시간(ps), RX -3 dB 대역폭(GHz), 적분 주파수를 실제 조건에 맞게 설정하고 Run을 실행합니다. 초깃값은 실제 장비에서 읽어온 값이 아닌 **예시 설정값**입니다.
+[PR #42](https://github.com/july-rust/SParamView-Public/pull/42)에서 구현·세 플랫폼 자동화 CI 검증 후 통합 브랜치에 병합되었습니다. **Analysis → ICN** 메뉴를 선택하면 별도의 비모달 창이 열립니다. Touchstone 리비전과 Victim 채널을 선택하고, NEXT/FEXT 누화원 경로를 체크박스로 여러 개 선택합니다. 심볼 속도(GBd), TX 차동 또는 단일 종단 피크투피크 진폭(mVpp), 10~90% 상승시간(ps), RX -3 dB 대역폭(GHz), 적분 주파수를 실제 조건에 맞게 설정하고 Run을 실행합니다. 초깃값은 실제 장비에서 읽어온 값이 아닌 **예시 설정값**입니다.
 
 그래프는 NEXT/FEXT 파워 합계, TX/RX 가중 PSD, NEXT/FEXT 누적 RMS 잡음량을 보여줍니다. CSV에는 원본 SHA, 리비전, 매핑, 계산 모델, 누화원별 기여도와 주파수별 원시 값이 저장되며 PNG에는 실제 계산 그래프가 저장됩니다. DC 누락 또는 측정 대역 초과는 **BAND LIMITED**로 표시하고 외삽을 하지 않습니다. 입력·매핑·원본이 바뀌면 이전 결과는 STALE로 무효화됩니다.
 
