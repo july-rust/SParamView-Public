@@ -1,5 +1,7 @@
 # SParamView Channel Analysis Development Plan — v1.3.5 Baseline
 
+**Implementation work breakdown:** [012_01~012_14 complete v1.4.0 development, verification and release plan](Development_Plan_012_v1.4.0.md). This is the controlling numbered implementation checklist; the present page retains the feature/architecture overview.
+
 **Updated:** 2026-11-15 (KST)  
 **Status:** PLANNED / **NOT IMPLEMENTED**  
 **Frozen baseline:** Official **v1.3.5** tag, its release assets and numerical results remain unchanged.  
