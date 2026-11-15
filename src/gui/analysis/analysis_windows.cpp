@@ -411,14 +411,42 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     fitModel_->setCurrentIndex(2);
     form->addRow(QStringLiteral("ILD fit model"),fitModel_);
   }
+  if(feature_ == Feature::Icn) {
+    icnAggressors_=new QListWidget;
+    icnAggressors_->setObjectName(QStringLiteral("icnAggressorList"));
+    icnAggressors_->setMinimumHeight(100);
+    icnBaud_=new QDoubleSpinBox;
+    icnBaud_->setObjectName(QStringLiteral("icnSymbolRate"));
+    icnBaud_->setRange(0.001,1000);icnBaud_->setDecimals(3);
+    icnBaud_->setSuffix(QStringLiteral(" GBd"));icnBaud_->setValue(4);
+    icnVpp_=new QDoubleSpinBox;
+    icnVpp_->setObjectName(QStringLiteral("icnTxVpp"));
+    icnVpp_->setRange(0,100000);icnVpp_->setDecimals(3);
+    icnVpp_->setSuffix(QStringLiteral(" mVpp"));icnVpp_->setValue(800);
+    icnRise_=new QDoubleSpinBox;
+    icnRise_->setObjectName(QStringLiteral("icnRiseTime"));
+    icnRise_->setRange(0,100000);icnRise_->setDecimals(3);
+    icnRise_->setSuffix(QStringLiteral(" ps (10–90%)"));icnRise_->setValue(30);
+    icnRx_=new QDoubleSpinBox;
+    icnRx_->setObjectName(QStringLiteral("icnRxBandwidth"));
+    icnRx_->setRange(0.001,1000);icnRx_->setDecimals(3);
+    icnRx_->setSuffix(QStringLiteral(" GHz"));icnRx_->setValue(10);
+  }
   form->addRow(QStringLiteral("Source / Revision"), source_);
   form->addRow(QStringLiteral("Victim Channel"), victim_);
-  if (feature_ == Feature::Icn || feature_ == Feature::Com)
+  if (feature_ == Feature::Com)
     form->addRow(QStringLiteral("Aggressor"), aggressor_);
   else aggressor_->hide();
   form->addRow(QStringLiteral("Direction"), direction_);
   form->addRow(QStringLiteral("Start frequency"), fromGhz_);
   form->addRow(QStringLiteral("Stop frequency"), toGhz_);
+  if(feature_==Feature::Icn) {
+    form->addRow(QStringLiteral("NEXT / FEXT paths (check multiple)"),icnAggressors_);
+    form->addRow(QStringLiteral("NRZ symbol rate"),icnBaud_);
+    form->addRow(QStringLiteral("TX amplitude, peak-to-peak"),icnVpp_);
+    form->addRow(QStringLiteral("Gaussian rise time"),icnRise_);
+    form->addRow(QStringLiteral("RX 3 dB bandwidth"),icnRx_);
+  }
   outer->addLayout(form);
   auto *controls = new QHBoxLayout;
   run_ = new QPushButton(QStringLiteral("Run"));
@@ -450,6 +478,10 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     graphPlaceholder_->hide();
     ildGraph_=new IldPlotWidget(this);
     outer->addWidget(ildGraph_,2);
+  } else if(feature_==Feature::Icn) {
+    graphPlaceholder_->hide();
+    icnGraph_=new IcnPlotWidget(this);
+    outer->addWidget(icnGraph_,2);
   }
   auto *exports = new QHBoxLayout;
   csv_ = new QPushButton(QStringLiteral("Export CSV"));
@@ -471,6 +503,18 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     connect(png_, &QPushButton::clicked,this,[this]{exportIldPng();});
     connect(fitModel_, &QComboBox::currentIndexChanged,this,[this]{invalidateRequest();});
   }
+  if(feature_==Feature::Icn) {
+    connect(run_,&QPushButton::clicked,this,[this]{launchIcn();});
+    connect(csv_,&QPushButton::clicked,this,[this]{exportIcnCsv();});
+    connect(png_,&QPushButton::clicked,this,[this]{exportIcnPng();});
+    connect(icnAggressors_,&QListWidget::itemChanged,this,[this]{invalidateRequest();});
+    for(auto *spin:{icnBaud_,icnVpp_,icnRise_,icnRx_})
+      connect(spin,QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+              this,[this](double){invalidateRequest();});
+    connect(victim_,&QComboBox::currentIndexChanged,this,[this]{
+      populateIcnAggressors();
+    });
+  }
   connect(source_, &QComboBox::currentIndexChanged, this, [this] {
     QSignalBlocker block(victim_);
     QSignalBlocker aggressiveBlock(aggressor_);
@@ -483,6 +527,7 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
       aggressor_->addItem(QStringLiteral("Select aggressor..."));
       aggressor_->addItems(selected.channels);
     }
+    populateIcnAggressors();
     invalidateRequest();
   });
   for (auto *combo : {victim_, aggressor_, direction_})
@@ -506,16 +551,28 @@ QString AnalysisWindow::selectionIdentity() const {
   const int index = source_->currentIndex();
   if (index < 0 || index >= context_.sources.size()) return {};
   const auto &item = context_.sources[index];
-  return item.sha256 + QLatin1Char('|') + item.revision + QLatin1Char('|') +
+  QString identity = item.sha256 + QLatin1Char('|') + item.revision + QLatin1Char('|') +
     item.mappingDigest + QLatin1Char('|') + victim_->currentText() +
     QLatin1Char('|') + aggressor_->currentText() + QLatin1Char('|') +
     QString::number(direction_->currentIndex()) + QLatin1Char('|') +
     QString::number(fromGhz_->value(), 'g', 17) + QLatin1Char('|') +
     QString::number(toGhz_->value(), 'g', 17) + QLatin1Char('|') +
     QString::number(fitModel_ ? fitModel_->currentIndex() : -1);
+  if(feature_==Feature::Icn) {
+    for(int k=0;k<icnAggressors_->count();++k) {
+      auto *item=icnAggressors_->item(k);
+      if(item->checkState()==Qt::Checked)
+        identity+=QStringLiteral("|X")+QString::number(item->data(Qt::UserRole).toInt())+
+                  QStringLiteral("/") + QString::number(item->data(Qt::UserRole+1).toInt());
+    }
+    for(auto *spin:{icnBaud_,icnVpp_,icnRise_,icnRx_})
+      identity+=QStringLiteral("|")+QString::number(spin->value(),'g',17);
+  }
+  return identity;
 }
 void AnalysisWindow::invalidateRequest() {
   clearIld();
+  clearIcn();
   const bool hadWork = scheduler_ && scheduler_->running(feature_);
   ++requestGeneration_;
   if (scheduler_) scheduler_->cancel(feature_);
@@ -528,6 +585,7 @@ void AnalysisWindow::invalidateRequest() {
 }
 void AnalysisWindow::setContext(const AnalysisContext &context) {
   clearIld();
+  clearIcn();
   const bool hadWork = scheduler_ && scheduler_->running(feature_);
   const bool hadResult = status_ == si::channel::Status::Valid ||
                          status_ == si::channel::Status::Warning;
@@ -551,10 +609,12 @@ void AnalysisWindow::setContext(const AnalysisContext &context) {
     aggressor_->addItem(QStringLiteral("Select aggressor..."));
     aggressor_->addItems(item.channels);
   } else source_->setCurrentIndex(-1);
+  populateIcnAggressors();
   setStatus(hadWork || hadResult ? si::channel::Status::Stale
            : si::channel::Status::NotEvaluated,
-           feature_ == Feature::Ild && ildProvider_ ?
-             QStringLiteral("Context updated; run ILD on the confirmed mapping") :
+           (feature_ == Feature::Ild && ildProvider_) ||
+            (feature_ == Feature::Icn && icnProvider_) ?
+             QStringLiteral("Context updated; select channels and run the verified engine") :
              QStringLiteral("Context updated; analysis engine not installed"));
 }
 bool AnalysisWindow::startWork(AsyncWork work) {
@@ -587,17 +647,22 @@ bool AnalysisWindow::startWork(AsyncWork work) {
               QStringLiteral("Older result discarded after context/settings change"));
           return;
         }
-        guard->progress_->setValue(outcome.status == si::channel::Status::Valid ? 100 : 0);
+        guard->progress_->setValue((outcome.status == si::channel::Status::Valid ||
+           outcome.status == si::channel::Status::Warning) ? 100 : 0);
         guard->setStatus(outcome.status, outcome.diagnostic);
         if (outcome.ild && (outcome.status == si::channel::Status::Valid ||
                             outcome.status == si::channel::Status::Warning))
           guard->showIld(outcome);
+        if (outcome.icn && (outcome.status == si::channel::Status::Valid ||
+                            outcome.status == si::channel::Status::Warning))
+          guard->showIcn(outcome);
       });
   } catch (const std::exception &e) {
     setStatus(si::channel::Status::Error, QString::fromUtf8(e.what()));
     return false;
   }
   clearIld();
+  clearIcn();
   cancel_->setEnabled(true);
   setStatus(si::channel::Status::NotEvaluated, QStringLiteral("Calculation running"));
   progressPoll_.start();
