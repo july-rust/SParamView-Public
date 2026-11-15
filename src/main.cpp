@@ -1,6 +1,12 @@
 #include "app.hpp"
 #include "startup_failure.hpp"
 #include <iostream>
+#ifdef SPARAMVIEW_QUALIFICATION_BUILD
+#ifdef Q_OS_WIN
+#include <windows.h>
+#endif
+#include "../tests/qualification_hooks.hpp"
+#endif
 
 void applyCompactAnalysisSettings(MainWindow &window);
 
@@ -8,11 +14,17 @@ int main(int argc, char **argv) {
   const bool automated = sparamview::isAutomatedLaunch(argc, argv);
   // A failure before QApplication exists cannot safely display Qt UI.
   try {
+#ifdef SPARAMVIEW_QUALIFICATION_BUILD
+    qualification::beforeApp();
+#endif
     QApplication app(argc, argv);
     try {
       QApplication::setApplicationName("SParamView");
       QApplication::setOrganizationName("SParamView");
       QApplication::setApplicationVersion(si::version);
+#ifdef SPARAMVIEW_QUALIFICATION_BUILD
+      qualification::afterApp(app);
+#endif
       applyLightTheme(app);
       QApplication::setWindowIcon(QIcon(":/SParamView.ico"));
       QFontDatabase::addApplicationFont(QCoreApplication::applicationDirPath() +
@@ -25,6 +37,9 @@ int main(int argc, char **argv) {
       applyCompactAnalysisSettings(window);
       window.installHeaderProjectButtons();
       window.show();
+#ifdef SPARAMVIEW_QUALIFICATION_BUILD
+      qualification::afterWindow(app);
+#endif
       auto args = app.arguments();
       if (args.size() >= 4 &&
           (args[1] == "--selftest" || args[1] == "--validate-project")) {
@@ -46,6 +61,9 @@ int main(int argc, char **argv) {
         // startup try/catch cannot intercept exceptions crossing Qt events.
         QTimer::singleShot(0, [&app, &window, args, automated] {
           try {
+#ifdef SPARAMVIEW_QUALIFICATION_BUILD
+            qualification::fileOpen();
+#endif
             window.openPaths(args.mid(1));
           } catch (const std::exception &e) {
             sparamview::reportStartupFailure(QString::fromUtf8(e.what()),

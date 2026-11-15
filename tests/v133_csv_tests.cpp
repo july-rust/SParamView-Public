@@ -41,7 +41,9 @@ int main(int argc, char **argv) {
         " =1+2", "\t=1+2", "\r\n=1+2", "\xef\xbc\x9d" "1+2",
         "'", "'=1+2", "''=1+2", "John's Channel",
         "quoted \"name\"", "comma,=1+2", "line\r\nbreak",
-        "\xed\x95\x9c\xea\xb8\x80", "", " leading and trailing "};
+        "\xed\x95\x9c\xea\xb8\x80", "", " leading and trailing ", "00123", "12345678901234567890",
+        "1E10", "01/02", "TRUE", "line\rbreak", "line\nbreak",
+        "text:=1+2", "%0D%0A", "100%", "\x7f"};
     for (size_t i = 0; i < values.size(); ++i) {
       const fs::path a = dir / ("roundtrip-" + std::to_string(i) + ".csv");
       const fs::path b = dir / ("repeat-" + std::to_string(i) + ".csv");
@@ -70,11 +72,11 @@ int main(int argc, char **argv) {
       const auto exported = readBytes(a);
       require(exported.starts_with("\xef\xbb\xbf") &&
                   exported.find(",SParamViewCSV\r\n") != std::string::npos &&
-                  exported.find(",v2-text-escaped\r\n") != std::string::npos,
+                  exported.find(",v3-text-percent\r\n") != std::string::npos,
               "CSV BOM/format marker missing");
       if (values[i].starts_with("=") || values[i].starts_with("+") ||
           values[i].starts_with("-") || values[i].starts_with("@"))
-        require(exported.find("\"'" + values[i] + "\"") != std::string::npos,
+        require(exported.find("\"text:" + values[i] + "\"") != std::string::npos,
                 "Formula-looking text was exported without protection");
       require(exported.find(",1,2,3,4,") != std::string::npos,
               "Numerical port fields became string-prefixed");
@@ -96,6 +98,22 @@ int main(int argc, char **argv) {
     require(spaces.size() == 1 && spaces[0].name == "old name" &&
                 spaces[0].group == "Default" && spaces[0].id == "csv:old name",
             "Legacy trimming/default fields changed");
+    const fs::path v2 = dir / "v2.csv";
+    writeBytes(v2, "Channel,NearP,NearN,FarP,FarN,Group,Alias,ID,SParamViewCSV\r\n"
+                   "'=1+2,1,2,3,4,''plain,normal,'id,v2-text-escaped\r\n");
+    auto v2rows = readMappingCsv(v2);
+    require(v2rows.size() == 1 && v2rows[0].name == "=1+2" &&
+                v2rows[0].group == "'plain" && v2rows[0].id == "id",
+            "Existing v2 decoding changed");
+    for (const auto &bad : {"=1+2", "text:%", "text:%0", "text:%GG"}) {
+      const fs::path damaged = dir / "damaged-v3.csv";
+      writeBytes(damaged,
+          "Channel,NearP,NearN,FarP,FarN,Group,Alias,ID,SParamViewCSV\r\n" +
+          std::string(bad) + ",1,2,3,4,text:group,text:,text:id,v3-text-percent\r\n");
+      bool denied = false;
+      try { (void)readMappingCsv(damaged); } catch (const Error &) { denied = true; }
+      require(denied, "Damaged v3 text was not rejected");
+    }
     const fs::path malformed = dir / "malformed.csv";
     writeBytes(malformed,
                "Channel,NearP,NearN,FarP,FarN,SParamViewCSV\r\n"
