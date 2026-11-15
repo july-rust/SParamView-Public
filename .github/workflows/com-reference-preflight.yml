@@ -55,3 +55,32 @@ jobs:
           name: ieee-com-upstream-access-012-02
           path: ieee-com-probe.json
           if-no-files-found: warn
+
+  legacy-370-numerical-probe:
+    name: IEEE 802.3ck 3.70 Octave numerical feasibility (EXPLORATORY ONLY)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Octave + workbook reader
+        run: |
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends octave octave-io
+      - name: Execute pinned official 802.3ck COM 3.70 on original analytic 4-port fixture
+        continue-on-error: true
+        timeout-minutes: 12
+        run: |
+          python scripts/com_370_reference_run.py 2>&1 | tee octave-com-370-result.log
+          test "${PIPESTATUS[0]}" -eq 0
+      - name: Save reference attempt output (including errors)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ieee-com-370-octave-numerical-probe
+          path: octave-com-370-result.log
+          if-no-files-found: warn
