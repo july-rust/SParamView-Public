@@ -115,6 +115,7 @@ private:
   QComboBox *source_ = nullptr, *victim_ = nullptr, *aggressor_ = nullptr;
   QComboBox *direction_ = nullptr, *fitModel_ = nullptr;
   QListWidget *icnAggressors_ = nullptr;
+  QCheckBox *icnIndependent_ = nullptr;
   QDoubleSpinBox *icnBaud_ = nullptr, *icnVpp_ = nullptr,
                  *icnRise_ = nullptr, *icnRx_ = nullptr;
   QDoubleSpinBox *fromGhz_ = nullptr, *toGhz_ = nullptr;
