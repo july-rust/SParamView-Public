@@ -16,7 +16,7 @@ from pathlib import Path
 
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 COMMIT = re.compile(r"^[0-9a-f]{40}$")
-VALID_STATES = {"BLOCKED", "LOCKED"}
+VALID_STATES = {"BLOCKED", "REFERENCE_READY", "LOCKED"}
 
 class QualificationError(ValueError):
     pass
@@ -55,6 +55,78 @@ def _evidence_file(item: object, root: Path, label: str) -> Path:
 def _finite(value: object, label: str) -> float:
     _require(type(value) in (int, float) and math.isfinite(value), f"{label}: expected finite number")
     return float(value)
+
+def reference_ready(manifest: dict) -> dict:
+    """012_02 stage gate: source/reproducible 2-case oracle, NOT PHY compliance.
+
+    The CI's numerical job must independently execute and prove the evidence
+    linked here. Manifest fields alone are never a substitute for actual runs.
+    """
+    schema_check(manifest)
+    _require(manifest["status"] == "REFERENCE_READY", "reference stage is not REFERENCE_READY")
+    std = manifest["standard"]
+    for key in ("edition", "annex", "applicable_clause", "parameter_table"):
+        _require(isinstance(std.get(key), str) and bool(std[key].strip()), f"standard.{key} missing")
+    _require(std.get("approval_status") == "PUBLISHED", "draft IEEE PHY standard not approved")
+    _require(str(std.get("normative_source_url", "")).startswith("https://standards.ieee.org/ieee/802.3ck/"),
+             "normative source must be IEEE 802.3ck published catalog")
+    _require(std.get("parameter_values_qualified") is False,
+             "reference readiness does not qualify the final PHY numeric parameter table")
+    ref = manifest["reference"]
+    _require(isinstance(ref.get("source_commit"), str) and COMMIT.fullmatch(ref["source_commit"]) is not None,
+             "official COM reference source not pinned")
+    _require(str(ref.get("release")) == "4.17.0", "unexpected reference version")
+    _require(isinstance(ref.get("source_content_sha256"), str) and SHA256.fullmatch(ref["source_content_sha256"]) is not None,
+             "source bytes SHA-256 not pinned")
+    lic = manifest["license"]
+    _require(lic.get("verified_spdx") == "BSD-3-Clause",
+             "BSD3 COM source repository license required")
+    _require(isinstance(lic.get("confirmed_root_license_sha256"), str) and
+             SHA256.fullmatch(lic["confirmed_root_license_sha256"]) is not None,
+             "BSD3 license SHA-256 must be pinned")
+    _require(lic.get("distribution_strategy") == "QA_ONLY_REFERENCE_EXTERNAL" and
+             lic.get("bundled_third_party_sources") is False and
+             lic.get("bundled_third_party_channel_files") is False,
+             "do not redistribute third-party code/channel data under an unreviewed license")
+    oracle = _dict(manifest.get("independent_oracle"), "independent_oracle")
+    _require(isinstance(oracle.get("source_commit"), str) and COMMIT.fullmatch(oracle["source_commit"]) is not None,
+             "independent code commit not pinned")
+    _require(oracle.get("source_license_spdx") == "BSD-3-Clause", "independent source license not pinned")
+    _require(isinstance(oracle.get("channels_zip_sha256"), str) and SHA256.fullmatch(oracle["channels_zip_sha256"]) is not None,
+             "external channel data ZIP SHA256 not pinned")
+    for key in ("expected_results_url", "execution_run_url", "evidence_artifact_url", "channels_url"):
+        _require(str(oracle.get(key, "")).startswith("https://"),
+                 f"independent_oracle.{key} missing")
+    _require(oracle.get("execution_result") == "SUCCESS", "no successful actual numerical run")
+    _require("NOT IEEE 802.3ck normative conformance" in oracle.get("scope", ""),
+             "non-normative correlation must be explicitly labeled")
+    cases = manifest.get("reference_oracles")
+    _require(isinstance(cases, list) and len(cases) >= 2, "two actual reference comparisons required")
+    profiles = set()
+    for item in cases:
+        case = _dict(item, "reference_oracle")
+        _require(case.get("kind") == "ALGORITHM_CORRELATION_NON_NORMATIVE",
+                 "normative and algorithm oracles must not be conflated")
+        _require(isinstance(case.get("id"), str) and bool(case["id"]), "case ID missing")
+        counts = _dict(case.get("aggressor_count"), "aggressor_count")
+        nex, fex = counts.get("next"), counts.get("fext")
+        _require(type(nex) is int and type(fex) is int and nex >= 0 and fex >= 0,
+                 "aggressor counts invalid")
+        profile = "WITH_CROSSTALK" if nex + fex > 0 else "NO_CROSSTALK"
+        _require(profile not in profiles, "duplicate independent case condition")
+        profiles.add(profile)
+        for metric in ("com_db", "fom"):
+            expected = _finite(case.get("published_" + metric), "published_" + metric)
+            measured = _finite(case.get("ci_reproduced_" + metric), "ci_reproduced_" + metric)
+            _require(abs(expected - measured) <= 1e-9, "independent numerical correlation mismatch")
+        tolerance = _finite(case.get("tolerance_db"), "tolerance_db")
+        _require(0 < tolerance <= 1e-9, "published reference tolerance not locked to strict scalar gate")
+    _require(profiles == {"NO_CROSSTALK", "WITH_CROSSTALK"}, "both crosstalk conditions required")
+    _require(manifest.get("cases") == [], "normative IEEE conformance cases must remain separate")
+    return {"status": "REFERENCE_READY_NOT_IEEE_CONFORMANCE",
+            "independent_numeric_cases": len(cases),
+            "remaining": "012_09/11 require final approved PHY full table/Test1+Test2 and >=3 same-profile goldens"}
+
 
 def qualify(manifest: dict, root: Path) -> dict:
     """Check provenance and reference arithmetic; never claim full COM compliance."""
@@ -119,13 +191,15 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", required=True, type=Path)
     parser.add_argument("--root", required=True, type=Path)
-    parser.add_argument("--mode", choices=("schema", "qualify"), default="qualify")
+    parser.add_argument("--mode", choices=("schema", "reference-ready", "qualify"), default="qualify")
     args = parser.parse_args()
     try:
         manifest = _dict(json.loads(args.manifest.read_text(encoding="utf-8")), "manifest")
         if args.mode == "schema":
             schema_check(manifest)
             print("SCHEMA PASS (COM numerical qualification NOT claimed)")
+        elif args.mode == "reference-ready":
+            print(json.dumps(reference_ready(manifest), indent=2))
         else:
             print(json.dumps(qualify(manifest, args.root), indent=2))
         return 0
