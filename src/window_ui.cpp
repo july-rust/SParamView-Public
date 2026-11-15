@@ -324,6 +324,19 @@ MainWindow::MainWindow() {
   viewMenu->addAction("Reset Layout", this, &MainWindow::resetWorkspaceLayout);
   analysisWindows = std::make_unique<si::gui::AnalysisWindowManager>(this);
   analysisWindows->installMenu();
+  // Only GUI-thread provider access may read MainWindow revisions. The returned
+  // cache/mapping are immutable worker inputs and SHA-verified on the worker.
+  analysisWindows->setIldSourceProvider([this](int index)
+      -> std::optional<si::gui::IldSourceInput> {
+    if(index<0 || size_t(index)>=revisions.size()) return std::nullopt;
+    const auto &revision=revisions[size_t(index)];
+    if(!revision.confirmed || !revision.cache || revision.channels.empty())
+      return std::nullopt;
+    const auto generation=std::max<quint64>(1,analysisWindows->context().generation);
+    return si::gui::IldSourceInput{
+      revision.cache,revision.channels,ss(revision.name),
+      revision.cache->meta().sha256,generation,generation};
+  });
   auto rules = menuBar()->addMenu("Limit");
   rules->addAction("Save Preset...", this, [this] { preset(true); });
   rules->addAction("Load Preset...", this, [this] { preset(false); });
