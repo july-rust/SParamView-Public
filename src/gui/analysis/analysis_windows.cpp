@@ -1,5 +1,11 @@
 #include "gui/analysis/analysis_windows.hpp"
 #include <algorithm>
+#include <cmath>
+#include <QPainter>
+#include <QPainterPath>
+#include <QSaveFile>
+#include <QFileDialog>
+#include <QTextStream>
 #include <exception>
 #include <stdexcept>
 #include <utility>
@@ -29,6 +35,89 @@ QString statusName(si::channel::Status status) {
   }
   return QStringLiteral("ERROR");
 }
+
+class IldPlotWidget final : public QWidget {
+public:
+  explicit IldPlotWidget(QWidget *parent = nullptr) : QWidget(parent) {
+    setObjectName(QStringLiteral("ildResultGraph"));
+    setMinimumHeight(260);
+  }
+  void setData(std::shared_ptr<const si::channel::IldData> data) {
+    data_ = std::move(data);
+    update();
+  }
+protected:
+  void paintEvent(QPaintEvent *) override {
+    QPainter p(this);
+    p.fillRect(rect(), palette().base());
+    p.setRenderHint(QPainter::Antialiasing);
+    if (!data_ || data_->frequencyHz.size() < 2) {
+      p.setPen(palette().text().color());
+      p.drawText(rect(), Qt::AlignCenter, QStringLiteral("Run ILD to display measured/fitted IL and deviation."));
+      return;
+    }
+    const auto &d = *data_;
+    const int n = int(d.frequencyHz.size());
+    const double f0 = d.frequencyHz.front(), f1 = d.frequencyHz.back();
+    if (!(f1 > f0)) return;
+    const int padX = 70, right = 22;
+    for (int panel=0;panel<2;++panel) {
+      QRectF area(padX, 24 + panel*(height()-35)/2,
+                  std::max(50,width()-padX-right),
+                  std::max(55,(height()-35)/2-35));
+      const auto &y0 = panel==0 ? d.insertionLossDb : d.deviationDb;
+      double low = 0, high = 0;
+      for (double v : y0) { low=std::min(low,v);high=std::max(high,v); }
+      if(panel==0) for(double v:d.fittedLossDb) {
+        low=std::min(low,v);high=std::max(high,v);
+      }
+      const double padding = std::max(0.05,(high-low)*0.08);
+      low -= padding; high += padding;
+      p.setPen(QPen(palette().mid().color(),1));
+      p.drawRect(area);
+      p.setPen(palette().text().color());
+      p.drawText(QRectF(4,area.top(),padX-10,20), Qt::AlignRight,
+        QString::number(high,'g',4));
+      p.drawText(QRectF(4,area.bottom()-20,padX-10,20),Qt::AlignRight,
+        QString::number(low,'g',4));
+      p.drawText(QRectF(area.left(),area.top()-20,area.width(),18),Qt::AlignLeft,
+        panel==0?QStringLiteral("Insertion loss (dB) — raw / fitted")
+                :QStringLiteral("ILD(f) (dB) — raw minus fitted"));
+      p.drawText(QRectF(area.left(),area.bottom()+2,area.width(),18),Qt::AlignLeft,
+        QString::number(f0/1e9,'g',5)+QStringLiteral(" GHz"));
+      p.drawText(QRectF(area.left(),area.bottom()+2,area.width(),18),Qt::AlignRight,
+        QString::number(f1/1e9,'g',5)+QStringLiteral(" GHz"));
+      auto drawSeries=[&](const std::vector<double> &data,QColor color) {
+        const int stride=std::max(1,n/4000);
+        QPainterPath path;
+        bool first = true;
+        auto vertex=[&](int i) {
+          double x=area.left()+(d.frequencyHz[size_t(i)]-f0)/(f1-f0)*area.width();
+          double y=area.bottom()-(data[size_t(i)]-low)/(high-low)*area.height();
+          if(first){path.moveTo(x,y);first=false;} else path.lineTo(x,y);
+        };
+        // Every group emits its extrema, avoiding loss of narrow peaks.
+        for(int i=0;i<n;i+=stride) {
+          int end=std::min(n,i+stride),mini=i,maxi=i;
+          for(int j=i+1;j<end;++j) {
+            if(data[size_t(j)]<data[size_t(mini)])mini=j;
+            if(data[size_t(j)]>data[size_t(maxi)])maxi=j;
+          }
+          if(mini<=maxi) { vertex(mini);if(mini!=maxi)vertex(maxi); }
+          else {vertex(maxi);vertex(mini);}
+        }
+        if((n-1)%stride)vertex(n-1);
+        p.setPen(QPen(color,1.7)); p.drawPath(path);
+      };
+      if(panel==0) {
+        drawSeries(d.insertionLossDb,QColor("#176eae"));
+        drawSeries(d.fittedLossDb,QColor("#e26c32"));
+      } else drawSeries(d.deviationDb,QColor("#8b4cb8"));
+    }
+  }
+private:
+  std::shared_ptr<const si::channel::IldData> data_;
+};
 }
 struct AsyncScheduler::Ticket {
   Feature feature;
@@ -160,6 +249,14 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     spin->setSuffix(QStringLiteral(" GHz"));
   }
   toGhz_->setValue(30);
+  if (feature_ == Feature::Ild) {
+    fitModel_ = new QComboBox;
+    fitModel_->setObjectName(QStringLiteral("ildFitModel"));
+    fitModel_->addItems({QStringLiteral("Linear"), QStringLiteral("Root + linear"),
+                         QStringLiteral("Root + linear + quadratic")});
+    fitModel_->setCurrentIndex(2);
+    form->addRow(QStringLiteral("ILD fit model"),fitModel_);
+  }
   form->addRow(QStringLiteral("Source / Revision"), source_);
   form->addRow(QStringLiteral("Victim Channel"), victim_);
   if (feature_ == Feature::Icn || feature_ == Feature::Com)
@@ -195,6 +292,11 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
   graphPlaceholder_->setMinimumHeight(180);
   graphPlaceholder_->setFrameStyle(QFrame::StyledPanel);
   outer->addWidget(graphPlaceholder_, 1);
+  if(feature_ == Feature::Ild) {
+    graphPlaceholder_->hide();
+    ildGraph_=new IldPlotWidget(this);
+    outer->addWidget(ildGraph_,2);
+  }
   auto *exports = new QHBoxLayout;
   csv_ = new QPushButton(QStringLiteral("Export CSV"));
   png_ = new QPushButton(QStringLiteral("Export PNG"));
@@ -207,6 +309,12 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
   setStatus(si::channel::Status::NotEvaluated,
             QStringLiteral("Engine not yet implemented; no simulated or conformant results"));
   connect(cancel_, &QPushButton::clicked, this, [this] { cancelWork(); });
+  if(feature_ == Feature::Ild) {
+    connect(run_, &QPushButton::clicked,this,[this]{launchIld();});
+    connect(csv_, &QPushButton::clicked,this,[this]{exportIldCsv();});
+    connect(png_, &QPushButton::clicked,this,[this]{exportIldPng();});
+    connect(fitModel_, &QComboBox::currentIndexChanged,this,[this]{invalidateRequest();});
+  }
   connect(source_, &QComboBox::currentIndexChanged, this, [this] {
     QSignalBlocker block(victim_);
     QSignalBlocker aggressiveBlock(aggressor_);
@@ -247,9 +355,11 @@ QString AnalysisWindow::selectionIdentity() const {
     QLatin1Char('|') + aggressor_->currentText() + QLatin1Char('|') +
     QString::number(direction_->currentIndex()) + QLatin1Char('|') +
     QString::number(fromGhz_->value(), 'g', 17) + QLatin1Char('|') +
-    QString::number(toGhz_->value(), 'g', 17);
+    QString::number(toGhz_->value(), 'g', 17) + QLatin1Char('|') +
+    QString::number(fitModel_ ? fitModel_->currentIndex() : -1);
 }
 void AnalysisWindow::invalidateRequest() {
+  clearIld();
   const bool hadWork = scheduler_ && scheduler_->running(feature_);
   ++requestGeneration_;
   if (scheduler_) scheduler_->cancel(feature_);
@@ -261,6 +371,7 @@ void AnalysisWindow::invalidateRequest() {
             QStringLiteral("Inputs changed; previous analysis is invalid"));
 }
 void AnalysisWindow::setContext(const AnalysisContext &context) {
+  clearIld();
   const bool hadWork = scheduler_ && scheduler_->running(feature_);
   const bool hadResult = status_ == si::channel::Status::Valid ||
                          status_ == si::channel::Status::Warning;
@@ -286,7 +397,9 @@ void AnalysisWindow::setContext(const AnalysisContext &context) {
   } else source_->setCurrentIndex(-1);
   setStatus(hadWork || hadResult ? si::channel::Status::Stale
            : si::channel::Status::NotEvaluated,
-           QStringLiteral("Context updated; analysis engine not installed"));
+           feature_ == Feature::Ild && ildProvider_ ?
+             QStringLiteral("Context updated; run ILD on the confirmed mapping") :
+             QStringLiteral("Context updated; analysis engine not installed"));
 }
 bool AnalysisWindow::startWork(AsyncWork work) {
   const int index = source_->currentIndex();
@@ -320,11 +433,15 @@ bool AnalysisWindow::startWork(AsyncWork work) {
         }
         guard->progress_->setValue(outcome.status == si::channel::Status::Valid ? 100 : 0);
         guard->setStatus(outcome.status, outcome.diagnostic);
+        if (outcome.ild && (outcome.status == si::channel::Status::Valid ||
+                            outcome.status == si::channel::Status::Warning))
+          guard->showIld(outcome);
       });
   } catch (const std::exception &e) {
     setStatus(si::channel::Status::Error, QString::fromUtf8(e.what()));
     return false;
   }
+  clearIld();
   cancel_->setEnabled(true);
   setStatus(si::channel::Status::NotEvaluated, QStringLiteral("Calculation running"));
   progressPoll_.start();
@@ -335,6 +452,141 @@ void AnalysisWindow::cancelWork() {
   cancel_->setEnabled(false);
   setStatus(si::channel::Status::Cancelled,
             QStringLiteral("Cancellation requested; pending work cannot publish results"));
+}
+void AnalysisWindow::clearIld() {
+  ildResult_.reset();
+  if(ildGraph_) static_cast<IldPlotWidget *>(ildGraph_)->setData({});
+  if(csv_) csv_->setEnabled(false);
+  if(png_) png_->setEnabled(false);
+}
+void AnalysisWindow::setIldSourceProvider(IldSourceProvider provider) {
+  ildProvider_=std::move(provider);
+  if(feature_ == Feature::Ild) {
+    run_->setEnabled(bool(ildProvider_));
+    run_->setToolTip(ildProvider_?QStringLiteral("Run verified ILD fit")
+                :QStringLiteral("ILD source provider unavailable"));
+  }
+}
+void AnalysisWindow::launchIld() {
+  if(feature_ != Feature::Ild || !ildProvider_) return;
+  const int idx=source_->currentIndex();
+  if(idx<0 || idx>=context_.sources.size() ||
+      victim_->currentIndex()<0 || fromGhz_->value()>=toGhz_->value()) {
+    setStatus(si::channel::Status::InvalidSource,QStringLiteral("Choose confirmed source, channel and frequency range"));
+    return;
+  }
+  const auto &source=context_.sources[idx];
+  const int victimIndex=victim_->currentIndex();
+  if(!source.mappingConfirmed || victimIndex>=source.channelIds.size()) {
+    setStatus(si::channel::Status::InvalidSource,QStringLiteral("Missing confirmed physical channel identity"));
+    return;
+  }
+  const auto input=ildProvider_(idx);
+  if(!input || !input->cache || input->expectedSha != source.sha256.toStdString() ||
+      input->revision != source.revision.toStdString()) {
+    setStatus(si::channel::Status::InvalidSource,QStringLiteral("Source revision changed; refresh analysis context"));
+    return;
+  }
+  const std::string victimId=source.channelIds[victimIndex].toStdString();
+  const bool reverse=direction_->currentIndex()==1;
+  si::channel::IldSettings cfg;
+  cfg.startHz=fromGhz_->value()*1e9;
+  cfg.stopHz=toGhz_->value()*1e9;
+  cfg.model=static_cast<si::channel::IldFitModel>(fitModel_->currentIndex());
+  const std::string fitIdentity=selectionIdentity().toStdString();
+  const bool accepted=startWork([input=*input,victimId,reverse,cfg,fitIdentity]
+     (const std::atomic_bool &cancel,std::atomic_int &progress)->WorkOutcome {
+    if(cancel.load()) return {si::channel::Status::Cancelled,QStringLiteral("Cancelled")};
+    progress.store(10);
+    // Capture/re-hash on worker thread; never use live GUI objects.
+    auto snapshot=si::channel::SourceSnapshot::capture(
+      input.cache,input.mapping,input.revision,input.workspaceGeneration,
+      input.mappingGeneration);
+    if(cancel.load()) return {si::channel::Status::Cancelled,QStringLiteral("Cancelled")};
+    if(snapshot.identity().sha256 != input.expectedSha)
+      throw si::Error("Revision SHA mismatch");
+    auto trace=si::channel::extract(snapshot,victimId,si::Metric::IL,reverse);
+    if(cancel.load()) return {si::channel::Status::Cancelled,QStringLiteral("Cancelled")};
+    progress.store(65);
+    const auto &identity=snapshot.identity();
+    si::channel::Provenance provenance{identity.sha256,identity.revision,
+      identity.mappingIdentity,"Generic ILD least-squares","012_05-v1",
+      fitIdentity,identity.workspaceGeneration,identity.mappingGeneration};
+    auto output=si::channel::calculateIld(trace,cfg,provenance,&cancel);
+    if(cancel.load()) return {si::channel::Status::Cancelled,QStringLiteral("Cancelled")};
+    auto data=std::make_shared<si::channel::IldData>(std::move(*output.value));
+    progress.store(100);
+    WorkOutcome outcome;
+    outcome.status=output.status;
+    outcome.diagnostic=QStringLiteral("Exploratory ILD; no IEEE/MIPI PASS or FAIL");
+    outcome.ild=std::move(data);
+    outcome.provenance=std::move(output.provenance);
+    return outcome;
+  });
+  if(!accepted) return;
+}
+void AnalysisWindow::showIld(const WorkOutcome &outcome) {
+  if(!outcome.ild) return;
+  ildResult_=outcome.ild;
+  ildProvenance_=outcome.provenance;
+  static_cast<IldPlotWidget *>(ildGraph_)->setData(ildResult_);
+  csv_->setEnabled(true);
+  png_->setEnabled(true);
+  const auto &d=*ildResult_;
+  setStatus(outcome.status,QStringLiteral("RMS %1 dB | peak abs %2 dB @ %3 GHz | %4 samples. Exploratory: no standard PASS")
+    .arg(d.rmsDb,0,'g',6).arg(d.peakAbsoluteDb,0,'g',6)
+    .arg(d.peakFrequencyHz/1e9,0,'g',7).arg(d.frequencyHz.size()));
+}
+void AnalysisWindow::exportIldCsv() {
+  if(!ildResult_) return;
+  const QString name=QFileDialog::getSaveFileName(this,QStringLiteral("Export ILD data"),
+                          QStringLiteral("ILD.csv"),QStringLiteral("CSV (*.csv)"));
+  if(name.isEmpty()) return;
+  QSaveFile file(name);
+  if(!file.open(QIODevice::WriteOnly|QIODevice::Text)) {
+    setStatus(si::channel::Status::Error,QStringLiteral("Cannot open CSV output"));return;
+  }
+  QTextStream out(&file);
+  const auto &d=*ildResult_;
+  auto safe=[](const std::string &raw) {
+    QString v=QString::fromStdString(raw);
+    v.replace(QStringLiteral("\""),QStringLiteral("\"\""));
+    if(!v.isEmpty() && QStringLiteral("=+-@").contains(v.front()))v.prepend(QLatin1Char('\''));
+    return QStringLiteral("\"")+v+QStringLiteral("\"");
+  };
+  out<<"# source_sha256,"<<safe(ildProvenance_.sourceSha256)<<"\n"
+     <<"# revision,"<<safe(ildProvenance_.revision)<<"\n"
+     <<"# mapping,"<<safe(ildProvenance_.mappingIdentity)<<"\n"
+     <<"# parameter,"<<safe(d.parameter)<<"\n"
+     <<"# algorithm,"<<safe(ildProvenance_.algorithm)<<"\n"
+     <<"# algorithm_version,"<<safe(ildProvenance_.version)<<"\n"
+     <<"# fitting_model,"<<safe(d.modelName)<<"\n"
+     <<"# frequency_normalization_hz,"<<QString::number(d.frequencyScaleHz,'g',17)<<"\n"
+     <<"# fit_start_hz,"<<QString::number(d.rangeStartHz,'g',17)<<"\n"
+     <<"# fit_stop_hz,"<<QString::number(d.rangeStopHz,'g',17)<<"\n"
+     <<"# rms_db,"<<QString::number(d.rmsDb,'g',17)<<"\n"
+     <<"# peak_abs_db,"<<QString::number(d.peakAbsoluteDb,'g',17)<<"\n";
+  for(size_t i=0;i<d.coefficients.size();++i)
+    out<<"# a"<<i<<","<<QString::number(d.coefficients[i],'g',17)<<"\n";
+  out<<"Frequency_GHz,IL_dB,Fitted_IL_dB,ILD_dB\n";
+  for(size_t i=0;i<d.frequencyHz.size();++i)
+    out<<QString::number(d.frequencyHz[i]/1e9,'g',17)<<","
+       <<QString::number(d.insertionLossDb[i],'g',17)<<","
+       <<QString::number(d.fittedLossDb[i],'g',17)<<","
+       <<QString::number(d.deviationDb[i],'g',17)<<"\n";
+  out.flush();
+  if(out.status()!=QTextStream::Ok || !file.commit())
+    setStatus(si::channel::Status::Error,QStringLiteral("ILD CSV write failed"));
+}
+void AnalysisWindow::exportIldPng() {
+  if(!ildResult_ || !ildGraph_) return;
+  const QString name=QFileDialog::getSaveFileName(this,QStringLiteral("Export ILD plot"),
+                       QStringLiteral("ILD.png"),QStringLiteral("PNG (*.png)"));
+  if(name.isEmpty())return;
+  QSaveFile file(name);
+  if(!file.open(QIODevice::WriteOnly) ||
+     !ildGraph_->grab().save(&file,"PNG") || !file.commit())
+    setStatus(si::channel::Status::Error,QStringLiteral("ILD PNG write failed"));
 }
 void AnalysisWindow::closeEvent(QCloseEvent *event) {
   if (scheduler_ && scheduler_->running(feature_)) cancelWork();
@@ -396,6 +648,12 @@ void AnalysisWindowManager::retireWorkspace(std::shared_ptr<QTemporaryDir> works
   retiredWorkspaces_.push_back(std::move(workspace));
   retirementPoll_.start();
 }
+void AnalysisWindowManager::setIldSourceProvider(IldSourceProvider provider) {
+  ildProvider_=std::move(provider);
+  if(windows_[int(Feature::Ild)])
+    windows_[int(Feature::Ild)]->setIldSourceProvider(ildProvider_);
+  setEngineAvailable(Feature::Ild,bool(ildProvider_));
+}
 void AnalysisWindowManager::setEngineAvailable(Feature feature, bool available) {
   available_[int(feature)] = available;
   if (auto *action = actions_[int(feature)])
@@ -410,6 +668,7 @@ AnalysisWindow *AnalysisWindowManager::openWindow(Feature feature) {
     return windows_[index];
   }
   auto *window = new AnalysisWindow(feature, &scheduler_, owner_);
+  if(feature == Feature::Ild) window->setIldSourceProvider(ildProvider_);
   window->setContext(context_);
   windows_[index] = window;
   connect(window, &QObject::destroyed, this, [this, index] {
