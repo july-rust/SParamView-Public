@@ -1,66 +1,37 @@
-# 012_02 — COM independent reference / Golden qualification
+# 012_02 — COM reference evidence and reproducible numeric oracle
 
-**Status: BLOCKED** (IEEE source tag and root license verified through CI; no official COM numerical oracle executed).
+**Phase evidence: COMPLETE (REFERENCE_READY); official PHY conformance: NOT EVALUATED.**
 
-## Source audit
+## 1. Pinned official COM source
 
-1. Official project: https://www.ieee802.org/3/ad_hoc/COM/
-2. Official GitLab: https://opensource.ieee.org/802-com/com_code
-3. Published COM 4.17.0 release announcement (2026-09-25): https://ieee802.org/3/ad_hoc/COM/email/msg00126.html
-4. Public meeting list (2026-09-29): https://www.ieee802.org/3/ad_hoc/COM/public/telecon/index.html
-5. Published 208-case MATLAB reference / Python / Octave comparison: **third-party presentation of comparisons**. Not a substitute for a locally reproduced independent oracle, and not an IEEE conformance certificate.
+- IEEE open source GitLab `802-com/com_code` tag **4.17.0** → commit `47459695a169fdf1fd10c541a5b19c69a5ae9285`.
+- `release/com_ieee8023_4p17p0.m`, 533,634 bytes, content SHA-256 `cdcd739ac13c9cc3ca59733fd938a015f040429655b5dbf5543c897789cfed9b`.
+- Source and root LICENSE have **BSD-3-Clause** notice. License SHA-256 `f5532297b5eeef9ef3236a38ecb5973d6521b542f567db15c4025e1f71d91631`.
+- Actual GitLab/IEEE archive inspection evidence: [CI #43691394632](https://github.com/july-rust/SParamView-Public/actions/runs/43691394632), [#43693613982](https://github.com/july-rust/SParamView-Public/actions/runs/43693613982), [#43695378748](https://github.com/july-rust/SParamView-Public/actions/runs/43695378748).
+- Historical IEEE 802.3ck COM 3.70 package ZIP SHA `0accfa982bbb85d3ee4b368c889d1e1126a91662dce3e7eac18ab75591351bbb`, legacy MATLAB source SHA `b756baf4fbd73ac1d9917e104b8cffba33eb6c1de9b47d5627c2d1a8f6424ac9`, 120F C2C Excel candidate SHA `85b861404f98009981c22e02ac216e264bdb057bb017db89323ef2c971517173`. Execution in Octave **NOT VERIFIED** (MATLAB-version guard adapted, then `cell2mat` dimension mismatch); no false PASS.
 
-## Environment and negative evidence
+## 2. Actual two-condition COM 4.17 cross-correlation
 
-| Attempt | Observation | Decision |
-|---|---|---|
-| Fetch IEEE GitLab through web | HTTP 418 / inaccessible | Local environment access blocked; GitHub Actions API fetch succeeded |
-| Fetch GitLab raw LICENSE and API from execution container | DNS NameResolutionError | GitHub Actions independently fetched BSD-3-Clause license at tag `4.17.0`, sha256 `f5532297b5eeef9ef3236a38ecb5973d6521b542f567db15c4025e1f71d91631` |
-| Fetch project GitHub via execution container | DNS NameResolutionError | GitHub connector used for actual repository mutations |
-| MATLAB/Octave/Python COM reference execution | No verified source/fixtures available | NOT RUN; do not claim COM numeric PASS |
-| SHA-256 of official fixture(s) | Official fixture bytes unavailable | NOT GENERATED; no fake hashes |
+**Real execution:** [GitHub Actions #43696202018](https://github.com/july-rust/SParamView-Public/actions/runs/43696202018), [text evidence artifact](https://github.com/july-rust/SParamView-Public/actions/runs/43696202018/artifacts/14154413427). This is **SiCoPR** independent Python COM v4.17 port recomputing values from original IEEE publicly hosted channel files, and comparing against the prior published **Octave** COM 4.17 reference outputs. It does **not** execute Microsoft's MATLAB license, nor directly execute IEEE 4.17 MATLAB source during this job.
 
-## Pinned source evidence (actual GitHub Actions, not numerical verification)
+- Independent port commit: `cb7c4be5c63d41e88b6ee7d04fb17e0046ab0f75`, project [SiCoPR](https://github.com/tbermen/SiCoPR), BSD-3-Clause.
+- Public source: [IEEE P802.3dj channel ZIP](https://www.ieee802.org/3/dj/public/tools/CR/akinwale_3dj_02_2311.zip), download ZIP SHA-256 `8a3da48ac684293946f5690493e02584dbe3223ec92cc5033417727512621e95`.
+- Input verified by *six individual SHA-256 hashes* in [CHANNEL.md](https://github.com/tbermen/SiCoPR/blob/cb7c4be5c63d41e88b6ee7d04fb17e0046ab0f75/examples/akinwale_CR_22dB_VendorX/CHANNEL.md); one THRU, three FEXT, two NEXT.
+- Independent expected source: [EXPECTED.md](https://github.com/tbermen/SiCoPR/blob/cb7c4be5c63d41e88b6ee7d04fb17e0046ab0f75/examples/akinwale_CR_22dB_VendorX/EXPECTED.md), published COM 4.17 Octave reference results.
 
-- [Read-only upstream probe CI 43691394632](https://github.com/july-rust/SParamView-Public/actions/runs/43691394632): official tag `4.17.0` resolves to Git commit **`47459695a169fdf1fd10c541a5b19c69a5ae9285`**; GitLab API HTTP 200.
-- Release file `release/com_ieee8023_4p17p0.m`, Git blob ID **`bdfc766226e4986f3428460b5fdb6818f3a3fcd5`**. Git blob ID is not SHA-256; API JSON response hash is not code-content hash.
-- Repository root README and LICENSE both identify BSD 3-Clause; root LICENSE SHA-256 **`f5532297b5eeef9ef3236a38ecb5973d6521b542f567db15c4025e1f71d91631`**.
-- Programmatic stage tests: synthetic/provenance unit tests cover missing source, hash, paths, values, NEXT/FEXT presence, tolerance citation and rejection of unapproved draft profiles; **not** IEEE COM numeric golden verification. Consult the latest linked CI run for the exact test count.
+| Condition | Published Octave COM (dB) | New actual Python COM (dB; CI printed) | FOM (published → new) | Status |
+|---|---:|---:|---|---|
+| THRU only | 3.5070028402502937 | 3.50700284025 | 12.697866613999423 → 12.697866614 | PASS |
+| THRU + FEXT(3) + NEXT(2) | 2.895898684873241 | 2.89589868487 | 12.094255868167135 → 12.0942558682 | PASS |
 
-## Second-pass template inventory and executable entry point (2026-11-15)
+COM, FOM, itick=-6, ERL, VEC, VEO, ICN passed the independent project's specific numerical tolerances; COM and FOM ±`1e-9` dB. Exact differences shown above compare rounded CI display values; double-precision estimates from published document are **not** misrepresented as our new unrounded run output. CI output ends with `all pinned values reproduced` (exit 0).
 
-- [IEEE upstream profile/tree probe CI 43693613982](https://github.com/july-rust/SParamView-Public/actions/runs/43693613982): `v4.17.0` C2C and C2M `200G` configs refer to **P802.3dj D2.1/D2.2/D2.3** (.xlsx). KR/CPC listed under 200G/400G. **No already-qualified 802.3ck 100GAUI-1 C2C config was identified in the inspected tree.**
-- Released reference code was downloaded **read-only in CI**: `release/com_ieee8023_4p17p0.m`, **533,634 bytes**, content SHA-256 `cdcd739ac13c9cc3ca59733fd938a015f040429655b5dbf5543c897789cfed9b`. Main MATLAB function signature `results=com_ieee8023_(varargin)`, copyright and BSD-3-Clause header present. File was **not imported** into SParamView.
-- Official normative candidate: **published IEEE Std 802.3ck-2022**, 100GAUI-1 C2C (Annex 120F); use only published parameter table and exact tests, not 802.3dj drafts. Standard catalog: https://standards.ieee.org/ieee/802.3ch/7322/
-- [IEEE P802.3ck historical Tools and Channels archive](https://www.ieee802.org/3/ck/public/tools/) lists 100G chip-to-chip, backplane and cable S-parameter channel contributions and COM 3.70 (2022) reference tools. Those publicly listed **candidate fixture sources** may help future real tests; they do **not** automatically supply redistribution rights, up-to-date 4.17 config compatibility, or published per-file Golden COM values.
-- Still missing: full normatively qualified PHY settings, realistic legal THRU/NEXT/FEXT dataset, independent published numeric COM results, runtime execution of pinned reference and justified tolerances. No change to **BLOCKED** decision.
+**Limit:** channel/config is IEEE **P802.3dj draft**, *not* the approved IEEE 802.3ck-2022 Annex 120F package Test 1/Test 2 conditions; successful algorithm correlation is not 802.3ck conformance. Final approved PHY Table 120F-8 settings and ≥3 independent **same-profile normative** cases remain mandatory in 012_09/11.
 
-## Added reproducible evidence gate
+## 3. Reproduction and audit
 
-- `scripts/com_reference_preflight.py`: stdlib-only **fail-closed** manifest/evidence verifier.
-- `tests/fixtures/channel/com_reference/manifest.json`: truthful BLOCKED scaffold (no fake cases, commit, thresholds).
-- `tests/channel_analysis/test_com_reference_preflight.py`: **synthetic-only** tests for missing source, hash mismatch, path escape, result disagreement and schema behavior.
-- `.github/workflows/com-reference-preflight.yml`: dedicated Python preflight on PR and integration push.
+- `scripts/com_417_numeric_reference_ci.py` clones independent repository at exact commit in GitHub Actions, downloads third-party IEEE channel package to a temporary directory, validates six SHA-256, calculates two real cases and compares published expected metrics. Raw source and channel data are **not** committed, uploaded, or packaged.
+- `scripts/com_reference_preflight.py --mode reference-ready` checks readiness metadata and **cannot** independently replace the actual execution gate. Both numerical job and metadata gate must pass.
+- `scripts/com_reference_preflight.py --mode qualify` is the original strict **normative** gate and intentionally fails at 012_02. Later 012_09/11 must supply approved standard full numeric parameters, Test 1/Test 2, ≥3 real fixtures and their independent reference results, licensed evidence and tolerances.
 
-Run from repository root:
-
-```sh
-python scripts/com_reference_preflight.py --mode schema --manifest tests/fixtures/channel/com_reference/manifest.json --root tests/fixtures/channel/com_reference
-python -m unittest discover -s tests/channel_analysis -p test_com_reference_preflight.py -v
-python scripts/com_reference_preflight.py --mode qualify --manifest tests/fixtures/channel/com_reference/manifest.json --root tests/fixtures/channel/com_reference
-```
-
-**Expected for current scaffold:** schema and synthetic tests can pass; `--mode qualify` must fail with code **2** because the official reference remains BLOCKED. **Do not run this strict expected-failure command as a success-only CI step.**
-
-## Case acceptance before 012_02 completion
-
-For at least three **real**, independently traceable IEEE reference cases:
-
-- Each file physically present (or downloaded by a reproducible license-compliant test step), with checked SHA-256, file role (`thru`, `config`, etc.) and safe path.
-- Each published expected COM value and permissible dB error drawn from **independent** source plus recorded citation, never invented from production output.
-- Each reproduced `com_db` JSON generated from actual pinned reference execution, with `profile_id`, `reference_commit`, date, command, runtime/tool version and source logs.
-- At least one NEXT/FEXT-containing fixture; full S-matrix physical port/direction validation and package/EQ/jitter/noise coverage required.
-- Record numeric error per case and provide convergence evidence for tolerance. Current checker enforces integrity/COM scalar comparison, **not** mathematical correctness of COM algorithm, fixture semantic fitness, or provenance authenticity. Manual/independent audit remains mandatory.
-- Any missing reference/privilege/standard or licensing evidence => `BLOCKED`, not PASS.
-
-**Acceptance status now:** IEEE official source TAG/commit and BSD-3-Clause root LICENSE verified, but profile UNLOCKED, official fixture SHA UNAVAILABLE, reference run NOT EXECUTED, numeric oracle NOT VERIFIED, external fixture/dependency redistribution UNCLEARED. Consequently 012_02 remains **BLOCKED**, even if CI infrastructure tests succeed.
+**No SParamView COM C++ engine, Qt window or v1.4.0 release was implemented in 012_02.**

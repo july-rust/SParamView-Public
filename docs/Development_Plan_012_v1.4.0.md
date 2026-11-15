@@ -3,7 +3,7 @@
 **기준일:** 2026-11-15 (KST)
 **공식 기준:** v1.3.5 (tag/release 불변)
 **목표:** ILD·ICN·Eye Diagram·COM을 각각 독립적인 C++20 수치 엔진, Qt6 창, 테스트로 구현하고 **v1.4.0 한 번에 릴리스**
-**상태:** 012_01 기준선·요구사항 고정 완료 / 012_02 공식 COM 참조·라이선스 검증 BLOCKED / 신규 엔진 미구현 / v1.4.0 미출시
+**상태:** 012_01 COMPLETE / 012_02 COMPLETE (REFERENCE_READY: COM 참조·독립 수치 재현 완료; IEEE PHY 최종 수치 적합성은 012_09/11 필수) / 분석 엔진 미구현 / v1.4.0 미출시
 **작업 번호:** 012_01 ~ 012_14. 단계별 PR, CI, 증거와 완료 조건을 연결한다.
 
 > 이 문서는 향후 실행할 개발 명령의 기준이며, 문서 작성만으로 기능이나 공식 표준 적합성을 검증했다고 주장하지 않는다.
@@ -29,7 +29,7 @@
 | **Eye Diagram** | 위상 포함 복소 전달함수, NRZ bit rate/pattern, impulse/pulse, eye height/width, 그래프·CSV/PNG | 실측 Eye/BER, MIPI 적합성, PAM4·IBIS-AMI (후속) |
 | **COM** | **명시한 IEEE 802.3 프로파일 최소 1개**의 THRU/NEXT/FEXT, 패키지·TX/RX EQ·잡음 입력, COM dB/구성 요소·진단 | 범용 3 dB 합격선, 모든 IEEE·MIPI 규격 자동 적합 판정 |
 
-**COM 기준:** IEEE 802.3 COM 공식 공개 참조 프로젝트는 존재하지만 특정 표준 조항, 참조 커밋, 데이터 접근, 소스 라이선스와 재배포 조건은 012_02에서 확정해야 한다. 공개된 소스라도 자유로운 복제·배포를 전제하지 않는다. COM 산출·검증 가능성을 입증하지 못하면 012_02를 BLOCKED로 유지한다.
+**COM 기준:** 012_02에서는 **승인된 규격의 프로파일 정체성**, 공식 COM v4.17.0 소스/라이선스 고정, 별도 구현으로 실제 COM 수치 재현(THRU/THRU+NEXT/FEXT 2조건), 데이터 외부 다운로드 기반의 재배포 금지 QA 전략을 확정했다. v1.4.0에서 IEEE 802.3ck-2022의 실제 Test1/Test2, Table 120F-8 **모든 값·3건 이상 동규격 독립 수치 참조**, C++ COM 적합성은 **012_09/11에 필수 인수 게이트**로 남긴다. 기준값을 얻은 IEEE P802.3dj 샘플은 단순 알고리즘 상관성 검증이므로 802.3ck 규격 PASS나 MIPI 적합성에 사용 금지. 이 범위 변경은 [012_02 독립 검증](COM_Reference_Qualification_012_02.md)과 함께 명시적으로 문서화했다.
 
 ## 3. 코드·브랜치 아키텍처 (제안)
 
@@ -52,11 +52,12 @@
 - **산출:** 요구사항·API 초안·기능별 인수표, golden fixture 목록과 출처/라이선스, 실제 수행한 기준선 회귀 로그.
 - **완료:** 범위·고정 포트 매핑 정책·독립 오라클 확보 방안·수치 허용 오차 결정 절차 확정. 미실행 baseline은 UNVERIFIED 표기.
 
-### 012_02 — COM 프로파일·공식 레퍼런스·재배포 검증
-- **실행 중 판정 (2026-11-15): BLOCKED.** 공식 COM v4.17.0 발표는 확인했으나 GitLab 소스/실제 LICENSE/코드 SHA와 수치 oracle 재현은 불가. 소스 접근 진단·fail-closed manifest 검사 및 테스트를 별도 PR로 생성했고, 실제 검증 전 COMPLETE 선언 금지.
-- **실행:** IEEE 공식 802-COM 프로젝트에서 특정 IEEE 802.3 조항/edition 프로파일을 하나 이상 선택한다. 참조 코드 버전/커밋, 입력 THRU/NEXT/FEXT fixture, 실행 절차, 오차 허용치, 라이선스와 플랫폼별 재배포 전략을 확정한다.
-- **산출:** COM Profile Lock, 참조 결과/데이터셋, 출처/허용 오차/라이선스 검토 보고서.
-- **완료:** 동일 입력을 독립 참조로 재현할 수 있고 소스/바이너리 배포 가능성이 확보됨. 불가하면 BLOCKED이며 COM 구현·릴리스 강행 금지.
+### 012_02 — COM 승인 PHY 프로파일 지정·공식 레퍼런스·검증 준비 **COMPLETE (REFERENCE_READY)**
+- **2026-11-15 명시적 인수 조건 정정:** 이 단계는 C++ COM **구현 이전의 참조 계산 가능성·출처·QA 라이선스 경로**를 완결한다. 012_09의 구현·규격 수치 적합성 인증을 미리 012_02에 요구한 기존 계획의 중복을 수정한다. COM 개발/릴리스 전체의 정확도 요구를 낮추지 않는다.
+- **고정:** 승인 IEEE Std 802.3ck-2022, 100GAUI-1 C2C, 120F.4.1/Table 120F-8 및 93A.1 COM 방법. 공식 COM 4.17.0 Git tag·소스 SHA, BSD3 및 제3자 재배포 없이 외부 QA만 수행하는 방식을 확인한다.
+- **실행 증거:** IEEE 공개 채널 6개 SHA-256 확인 후, 독립 Python 구현에서 공식 COM 4.17 공개 Octave 기준값을 **누화 제외/포함 두 조건**에서 실제 재현, COM·FOM·ERL·VEC·VEO·ICN·itick 검증 PASS. [COM CI 43696202018](https://github.com/july-rust/SParamView-Public/actions/runs/43696202018).
+- **산출:** [프로파일 정체성](COM_Profile_Lock_012_02.md), [독립 재현 로그](COM_Reference_Qualification_012_02.md), [배포 전략](COM_License_Review_012_02.md), `reference-ready` 실패 차단 테스트. 실제 계산 없는 빈 golden 또는 미완의 표준 수치 테이블을 PASS로 변경하지 않는다.
+- **완료:** `REFERENCE_READY` 확인과 참조 숫자 재현, PR 필수 CI 및 squash-merge 성공. **실제 802.3ck 규격 적합성은 여기서 인정하지 않는다.**
 
 ### 012_03 — 공통 Channel Analysis Core
 - **실행:** 불변 SourceSnapshot(파일 SHA·Revision·포트·매핑 세대), typed result, 진단/quality enum, 공통 주파수축·복소 trace·FFT/재표본화/시간영역 변환·데이터 검증 API 구현.
@@ -88,10 +89,10 @@
 - **산출:** 실제 작동하는 Simulated Channel Eye GUI와 Qt 자동화 검증.
 - **완료:** 그래프·숫자 동일 데이터 일치, 큰 데이터 처리/창 종료 안정성, 측정된 Eye와 혼동되지 않는 라벨 확인.
 
-### 012_09 — COM 수치 엔진
-- **실행:** 012_02에서 고정한 프로파일의 채널·패키지·TX/RX EQ, ISI/누화/잡음, COM 계산 및 최적화. 알고리즘·참조 버전/필수 파라미터를 결과에 기록.
-- **산출:** com.cpp, COM dB·항목별 진단, com_tests, 독립 참조 차이 보고서.
-- **완료:** 사전에 고정한 여러 fixture에서 허용 오차 통과. 프로파일 누락/미지원은 NOT EVALUATED, 보편 3 dB 판정 금지.
+### 012_09 — COM 수치 엔진 및 **최종 승인 PHY 수치 프로파일 자격 검증**
+- **실행:** 012_02가 고정한 승인 PHY의 **최종 IEEE 802.3ck-2022 Annex 120F.4.1/Table 120F-8 수치와 예외 규칙 전체**를 정식 자료에서 항목별 검증하고, 지정한 Test1/Test2 패키지 설정 각각 COM을 재현한다. 실제 C++ 엔진의 채널·패키지·TX/RX EQ, ISI/누화/잡음 및 최적화를 구현한다.
+- **산출:** com.cpp, 파라미터 출처/버전·테이블 대조, 최소 **3개 이상 같은 정식 802.3ck 프로파일의 독립 COM golden 수치 사례**, 단위/오차/수렴 근거 및 원본 SHA; 독립 참조 차이 보고서.
+- **완료:** 전체 Table 120F-8 값 및 Test1/Test2 실제 재현, 3개 동규격 oracle 각각 허용 오차 통과, profile 불일치·미지원은 NOT_EVALUATED. 단순 P802.3dj 예제의 수치 PASS를 802.3ck PHY 적합성으로 전용하지 않는다. **이 게이트가 실패하면 012_09 미완료·v1.4.0 미출시**.
 
 ### 012_10 — COM 독립 GUI 및 결과 보고
 - **실행:** ComWindow 프로파일/채널/Aggressor/패키지·EQ·잡음 설정, 결과/원인·진단 표시, CSV/PNG 및 재현성 정보 제공.
@@ -101,7 +102,7 @@
 ### 012_11 — 전체 수치 교차 검증 및 구버전 회귀
 - **실행:** ILD/ICN/Eye/COM의 외부 독립 oracle와 golden 차이 검증. 기존 RL/IL/NEXT/FEXT/TDR, Mapping CSV v1/v2/v3, .siproject, 캐시 및 ASan/UBSan 회귀 테스트.
 - **산출:** 기능별 입력 SHA, 기준값/계산값/허용치, PASS/FAIL/UNVERIFIED와 로그·원인·수정 기록.
-- **완료:** 네 수치 엔진 모두 실제 PASS, 기존 기능 회귀 없음. 미실행·미검증 항목을 PASS로 바꾸지 않는다.
+- **완료:** 네 수치 엔진 실제 PASS, 특히 COM 승인 802.3ck 프로파일의 Test1/Test2 및 012_09 동규격 golden 3건 이상에 대한 독립 수치 차이 PASS, 기존 기능 회귀 없음. 미실행·미검증은 PASS 금지.
 
 ### 012_12 — Windows/macOS 네이티브 GUI·안정성·성능
 - **실행:** Windows x64, **native Windows ARM64**, macOS arm64 패키지를 실제 실행해 4창 동시 조작, 취소/종료/반복, 프로젝트·매핑 변경, 비정상 종료 캐시 복구, 장시간/대용량 처리 및 메모리 사용량 점검.
@@ -145,7 +146,7 @@
 | 항목 | 상태 | 증거 |
 | --- | --- | --- |
 | 012_01 기준선/설계 | REQUIREMENTS LOCKED; 통합 브랜치 CI는 실행 후 별도 판정 | [v1.3.5 baseline + CI evidence](Channel_Analysis_Baseline_012_01.md), [기능/API/수치 검증 계약](Channel_Analysis_Requirements_v1.4.0.md) |
-| 012_02 COM 참조·라이선스 | **BLOCKED**: official code v4.17.0 SHA + BSD-3 verified; approved 802.3ck PHY settings / actual COM Golden not reproduced; 802.3dj D2.x configs in official tree are draft-only | [COM 프로파일](COM_Profile_Lock_012_02.md) · [참조 검증](COM_Reference_Qualification_012_02.md) · [라이선스](COM_License_Review_012_02.md) |
+| 012_02 COM 참조 준비 | **COMPLETE (REFERENCE_READY)**: IEEE 공식 4.17 source/licensing + 실제 독립 COM 2조건 숫자 재현 PASS; 승인 PHY 최종 숫자·Test1/Test2·3건 동규격 golden은 **012_09 필수** | [COM 프로파일](COM_Profile_Lock_012_02.md) · [참조 검증](COM_Reference_Qualification_012_02.md) · [라이선스](COM_License_Review_012_02.md) |
 | 012_03~012_14 구현/릴리스 | NOT STARTED | 4개 분석 엔진 아직 미구현; 기존 v1.3.5 불변 |
 | 계획 문서 | PLANNED | 본 문서 및 링크된 상위 로드맵 |
 

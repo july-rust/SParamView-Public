@@ -1,27 +1,33 @@
 {
   "contract_version": 1,
-  "status": "BLOCKED",
-  "profile_id": "IEEE-802.3ck-2022-100GAUI-1-C2C-120F-CANDIDATE",
+  "status": "REFERENCE_READY",
+  "profile_id": "IEEE-802.3ck-2022-100GAUI-1-C2C-120F-REFERENCE-CANDIDATE",
   "standard": {
-    "edition": "IEEE Std 802.3ck-2022 (approved standard; candidate profile NOT LOCKED)",
-    "annex": "93A methodology; 120F C2C interface (candidate; table values unverified)",
-    "applicable_clause": null,
-    "parameter_table": null,
+    "edition": "IEEE Std 802.3ck-2022",
+    "annex": "120F; Annex 93A.1 COM methodology",
+    "applicable_clause": "120F.4.1",
+    "parameter_table": "120F-8 (identity pinned; complete numeric parameter verification NOT performed)",
     "approval_status": "PUBLISHED",
-    "normative_source_url": "https://standards.ieee.org/ieee/802.3ch/7322/"
+    "normative_source_url": "https://standards.ieee.org/ieee/802.3ck/7322/",
+    "normative_criterion": "COM >= 3 dB separately for both device package Test 1 and Test 2",
+    "parameter_values_qualified": false
   },
   "reference": {
-    "release": "4.17.0 (official GitLab tag)",
+    "release": "4.17.0",
     "source_url": "https://opensource.ieee.org/802-com/com_code/-/tree/4.17.0",
     "source_commit": "47459695a169fdf1fd10c541a5b19c69a5ae9285",
     "release_file": "release/com_ieee8023_4p17p0.m",
-    "release_file_git_blob_id": "bdfc766226e4986f3428460b5fdb6818f3a3fcd5"
+    "release_file_git_blob_id": "bdfc766226e4986f3428460b5fdb6818f3a3fcd5",
+    "source_content_sha256": "cdcd739ac13c9cc3ca59733fd938a015f040429655b5dbf5543c897789cfed9b"
   },
   "license": {
-    "preliminary": "Confirmed repository root LICENSE at 4.17.0 is BSD 3-Clause; per-file and fixture licenses pending",
     "verified_spdx": "BSD-3-Clause",
+    "confirmed_root_license_sha256": "f5532297b5eeef9ef3236a38ecb5973d6521b542f567db15c4025e1f71d91631",
     "evidence": null,
-    "confirmed_root_license_sha256": "f5532297b5eeef9ef3236a38ecb5973d6521b542f567db15c4025e1f71d91631"
+    "distribution_strategy": "QA_ONLY_REFERENCE_EXTERNAL",
+    "bundled_third_party_sources": false,
+    "bundled_third_party_channel_files": false,
+    "scope": "Only official COM source and independent Python port root licenses verified. Data reuse/redistribution and runtime dependency audit remain release gates."
   },
   "cases": [],
   "blockers": [
@@ -29,5 +35,53 @@
     "IEEE official GitLab v4.17.0 config_templates/C2C/200G files reference P802.3dj D2.x drafts (not a suitable 802.3ck normative profile)",
     "No three independent real licensed THRU/NEXT/FEXT fixture + published expected COM + executed reference output cases",
     "Fixture and dependency redistribution requirements remain unverified; avoid copying draft spreadsheets without license audit"
+  ],
+  "independent_oracle": {
+    "name": "SiCoPR",
+    "role": "Independent algorithm correlation versus separately published Octave COM 4p17p0 expected values",
+    "repository": "https://github.com/tbermen/SiCoPR",
+    "source_commit": "cb7c4be5c63d41e88b6ee7d04fb17e0046ab0f75",
+    "source_license_spdx": "BSD-3-Clause",
+    "expected_results_url": "https://github.com/tbermen/SiCoPR/blob/cb7c4be5c63d41e88b6ee7d04fb17e0046ab0f75/examples/akinwale_CR_22dB_VendorX/EXPECTED.md",
+    "channels_url": "https://www.ieee802.org/3/dj/public/tools/CR/akinwale_3dj_02_2311.zip",
+    "channels_zip_sha256": "8a3da48ac684293946f5690493e02584dbe3223ec92cc5033417727512621e95",
+    "execution_run_url": "https://github.com/july-rust/SParamView-Public/actions/runs/43696202018",
+    "evidence_artifact_url": "https://github.com/july-rust/SParamView-Public/actions/runs/43696202018/artifacts/14154413427",
+    "execution_result": "SUCCESS",
+    "scope": "P802.3dj-derived channel EXPLORATORY algorithm correlation ONLY; NOT IEEE 802.3ck normative conformance"
+  },
+  "reference_oracles": [
+    {
+      "id": "COM417-NOXTALK",
+      "kind": "ALGORITHM_CORRELATION_NON_NORMATIVE",
+      "aggressor_count": {
+        "next": 0,
+        "fext": 0
+      },
+      "published_com_db": 3.5070028402502937,
+      "ci_reproduced_com_db": 3.50700284025,
+      "tolerance_db": 1e-9,
+      "published_fom": 12.697866613999423,
+      "ci_reproduced_fom": 12.697866614
+    },
+    {
+      "id": "COM417-5XTALK",
+      "kind": "ALGORITHM_CORRELATION_NON_NORMATIVE",
+      "aggressor_count": {
+        "next": 2,
+        "fext": 3
+      },
+      "published_com_db": 2.895898684873241,
+      "ci_reproduced_com_db": 2.89589868487,
+      "tolerance_db": 1e-9,
+      "published_fom": 12.094255868167135,
+      "ci_reproduced_fom": 12.0942558682
+    }
+  ],
+  "remaining_release_gates": [
+    "012_09: check every 802.3ck-2022 Annex 120F.4.1 Table 120F-8 numeric parameter against licensed final standard, including Test1/Test2",
+    "012_09: implement C++ COM engine and obtain >=3 valid same-802.3ck-profile independent numeric fixture/oracle cases including NEXT/FEXT",
+    "012_11: production COM numerical cross-validation, real profile fail-closed, regression tests",
+    "012_13: audit third-party license/dependencies and package notices; no IEEE/SiCoPR code or vendor channel included unless separately authorized"
   ]
 }

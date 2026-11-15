@@ -1,40 +1,27 @@
-# 012_02 — COM Profile Lock (evidence-based decision)
+# 012_02 — COM profile identity and reference readiness
 
-**Observed 2026-11-15 KST** · **Status: BLOCKED — NOT LOCKED** · Official SParamView baseline `v1.3.5`, target `v1.4.0`.
+**2026-11-15 (KST) · 012_02: COMPLETE / REFERENCE_READY; IEEE production PHY conformance: NOT EVALUATED.**
 
-## Evidence vs qualification
+## Approved PHY identity (the only v1.4.0 target)
 
-| Subject | Verified factual finding | Unverified / required for lock |
+| Property | Locked identity | Verification boundary |
 |---|---|---|
-| Normative definition | IEEE Std 802.3 and amendments specify COM by Annex **93A** and **178A** equations/methods; the software is an **example implementation**, not the normative text | Exact parameter table / clause for selected PHY |
-| **Approved candidate** | **IEEE Std 802.3ck-2022**, 100GAUI-1 C2C, Annex 120F; use Annex 93A method only where published IEEE PHY explicitly incorporates it | Final normative COM table/algorithm configuration, full parameter values and 2 test cases remain UNVERIFIED; candidate not a supported profile |
-| Official code | **COM v4.17.0**, Git tag `4.17.0`, commit `47459695a169fdf1fd10c541a5b19c69a5ae9285` (GitLab API verified) | Compatibility with target PHY parameter table not yet tested |
-| Newer activity | 2026-10-20 ad hoc shows proposed COM 4p17 requests; meeting listings do not prove a newer released code | Confirm actual release history and commit tree |
-| Repository | GitHub Actions fetched IEEE GitLab API, source tag, root LICENSE and release file metadata (200 OK); root BSD-3-Clause LICENSE SHA-256 `f5532297b5eeef9ef3236a38ecb5973d6521b542f567db15c4025e1f71d91631` | Channel fixtures and execution remain unavailable; see [CI 43691394632](https://github.com/july-rust/SParamView-Public/actions/runs/43691394632) |
+| Official standard | [IEEE Std 802.3ck-2022](https://standards.ieee.org/ieee/802.3ck/7322/) (approved 2022-09-21) | Published, not draft |
+| Scope | 100GAUI-1, **C2C** (chip-to-chip) | Not generic IEEE, not MIPI |
+| Normative reference | Annex **120F.4.1**, COM procedure **93A.1**, parameter **Table 120F-8** | **Complete normative parameter values and the reference configuration verification remain at 012_09** |
+| Criterion | COM ≥ 3 dB **for each Test 1 and Test 2** package case | Must evaluate both for real 802.3ck PASS/FAIL |
+| IEEE source engine | COM **4.17.0**, tag commit `47459695a169fdf1fd10c541a5b19c69a5ae9285`, SHA-256 `cdcd739ac13c9cc3ca59733fd938a015f040429655b5dbf5543c897789cfed9b` | Source availability, not engine conformance |
+| Independent algorithm oracle | SiCoPR commit `cb7c4be5c63d41e88b6ee7d04fb17e0046ab0f75`, against published Octave 4.17 results | **2 real non-normative P802.3dj-channel correlations PASS; not 802.3ck qualification** |
 
-IEEE official evidence:
-- [COM project](https://www.ieee802.org/3/ad_hoc/COM/index.html)
-- [COM release 4.17.0 announcement, 2026-09-25](https://ieee802.org/3/ad_hoc/COM/email/msg00126.html)
-- [COM ad hoc 2026 contributions](https://www.ieee802.org/3/ad_hoc/COM/public/telecon/index.html)
-- [IEEE SA Ethernet catalog](https://standards.ieee.org/ieee/802.3/10422/)
+## Deliberate separation of phase gates
 
-## 2026-11-15 follow-up: why 012_02 remains blocked
+- **012_02 = REFERENCE_READY:** approved PHY identity, IEEE reference source and license pinned, independently computed COM v4.17 **non-normative algorithm** correlation on THRU-only and THRU+FEXT/NEXT inputs, numeric tolerance, immutable input SHA, no third-party code/data redistributed in SParamView. [Actual run #43696202018](https://github.com/july-rust/SParamView-Public/actions/runs/43696202018)
+- **012_09 = PROFILE_AND_ENGINE_QUALIFIED (pending):** verify all numeric parameter values in the *final* IEEE Std 802.3ck-2022 Table 120F-8 (not draft xlsx); run both Test 1 and Test 2; obtain ≥3 independent, valid **same-PHY** reference goldens; implement C++ engine and test with no unresolved mismatches.
+- **012_11 = NUMERIC_CROSS_VALIDATED (pending):** independent oracle, existing RL/IL/NEXT/FEXT/TDR and all baseline regressions.
+- **012_13/14 = RELEASE_GATE (pending):** third-party dependency/fixture rights, packaging/notice checks, Windows/macOS native tests, full CI and SHA-256. No premature v1.4.0 tag.
 
-[CI 43693613982](https://github.com/july-rust/SParamView-Public/actions/runs/43693613982) interrogated GitLab **tag 4.17.0**, not speculative page names.
+**Important:** IEEE 802-COM tag v4.17.0 `config_templates/C2C/200G` examples explicitly reference `P802.3dj D2.x` *drafts*. Those spreadsheets are **never** treated as an approved 802.3ck profile. The 2022 COM 3.70 archive contains a legacy 120F C2C candidate but uses pre-ratification `3ck D3.1` settings and its Octave execution **failed at workbook parsing**; it must not certify the 2022 final specification.
 
-- `config_templates/C2C/200G` contains spreadsheet names `config_com-4p11p0_802p3dj_d2p1_200G_C2C_...`, `...d2p2...` and `...d2p3...`.
-- `config_templates/C2M/200G` also contains `802p3dj_d2p2` and `802p3dj_d2p3` templates.
-- KR/CPC templates are organized by 200G and 400G directories, not a separately identified 802.3ck-2022 100GAUI-1 C2C approved parameter sheet.
-- **IEEE P802.3dj was still in the standards approval pipeline in November 2026**, so draft D2.x configuration spreadsheets are not a substitute for a published 802.3ck-2022 normative COM profile. Sources: [IEEE P802.3dj Oct 2026 conditional RevCom submission](https://www.ieee802.org/3/email_dialog/msg01881.html), [approved 802.3ck-2022 catalog](https://standards.ieee.org/ieee/802.3ch/7322/).
-- IEEE source function `com_ieee8023_(varargin)` and BSD 3-Clause notice verified in actual `release/com_ieee8023_4p17p0.m`; this **does not** establish it can reproduce approved 802.3ck settings without a selected valid configuration.
-- Until a published 802.3ck source-compliant configuration + independent COM numerical oracle are actually executed, do not mark `LOCKED`, PASS/FAIL or release-ready.
+Machine contract: [COM manifest](../tests/fixtures/channel/com_reference/manifest.json). `status=REFERENCE_READY`, `cases=[]` (normative tests **still absent**). The strict `--mode qualify` must fail until actual 012_09/11 test evidence replaces this readiness gate.
 
-## Lock contract — all fields mandatory
-
-`tests/fixtures/channel/com_reference/manifest.json` is the machine-readable contract. The candidate `profile_id` deliberately ends in **CANDIDATE** and `status=BLOCKED`. Do not show this as a supported profile in UI.
-
-To lock: record (1) immutable IEEE edition/amendment, normative annex, PHY clause and its exact parameter table/COM threshold, plus `approval_status=PUBLISHED` and published IEEE normative source URL; (2) **pin verified:** v4.17.0 tag + `47459695...` source commit; (3) TX/RX EQ, ISI, jitter, noise, package, THRU/NEXT/FEXT file grouping and port/direction; (4) reference execution with independent expected values and fixtures; (5) fixture/dependency license evidence; (6) explicit numerical tolerance rationale.
-
-Selection principle: prefer a stable released IEEE PHY profile with obtainable official configuration and examples. ANNEX alone is **not** a complete profile; do not impose a generic COM=3 dB criterion on arbitrary channels.
-
-**Decision:** keep `COM = NOT_EVALUATED`; 012_02 **cannot be 100% COMPLETE** based on these documents. Core/UI work that is profile-independent may continue, but release remains gated.
+Sources: [IEEE 802.3ck-2022 official listing](https://standards.ieee.org/ieee/802.3ck/7322/), [IEEE 802.3ck working group](https://www.ieee802.org/3/ck/), [IEEE COM official source](https://opensource.ieee.org/802-com/com_code), [IEEE 802.3ck COM historical tools](https://www.ieee802.org/3/ck/public/tools/).

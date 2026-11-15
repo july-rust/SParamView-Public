@@ -69,6 +69,14 @@
 
 **메뉴/창 계약:** 상단 `Analysis` 메뉴 → ILD / ICN / Eye Diagram / COM의 **별도 비모달 최상위 창**, 모두 동시 존재 가능. 같은 종류 메뉴 재클릭 시 기존 창을 raise/activate; 닫으면 해당 창만 해제; 메인 파일/결과/탭 기능과 격리. 각 창은 입력/진행/취소/결과/그래프/내보내기 소유. **실제 엔진 완성 전에는 메뉴 비활성화**, v1.4.0 정식 배포에서는 네 기능이 모두 사용 가능해야 한다.
 
+## COM 012_02 인수 범위 정정 (2026-11-15)
+
+**012_02 = COMPLETE / REFERENCE_READY**는 **공식 COM 소스와 승인 PHY 정체성, 독립 계산 알고리즘의 2조건 재현, QA 전용 라이선스 경로**가 확보되었음을 뜻한다. 참고 [012_02 프로파일](COM_Profile_Lock_012_02.md), [실제 계산](COM_Reference_Qualification_012_02.md), [실제 CI](https://github.com/july-rust/SParamView-Public/actions/runs/43696202018).
+
+**802.3ck-2022 C2C 표준 적합성, 규격의 Table 120F-8 전 수치와 Test1/Test2 패키지의 실제 COM 및 3건 이상 동규격 외부 oracle 비교는 012_09와 012_11의 절대 인수 조건**이다. 이번에 재현한 IEEE P802.3dj 채널 예제 결과는 **COM v4.17 알고리즘 교차검증**만 입증하며 802.3ck COM 합격/불합격을 뜻하지 않는다. 새 C++ 엔진 미구현 상태이므로 COM 메뉴의 규격 PASS 출력은 금지한다.
+
+`manifest.json`의 `REFERENCE_READY`와 `LOCKED`는 서로 다르다. `reference-ready` 검사는 단계별 readiness 증거, `qualify` 검사는 후속 실제 규격의 전체 검증이며 후자는 현재 fail-closed 유지. 정식 v1.4.0 출시 게이트는 **전혀 완화하지 않는다.**
+
 ## 5. 단계별 인수 테스트 표
 
 | 개발 단계 | 필수 인수 관찰 | 통과 불가 사례 |
@@ -83,7 +91,7 @@
 | 012_12 플랫폼 | Windows x64 + **native** Windows ARM64 + macOS arm64 설치/패키지 네 창 실동작 | Linux offscreen 결과로 macOS/Windows GUI 판정 |
 | 012_13/14 배포 | QA·라이선스·가이드 EN/KO·SHA-256/CI, 1 main PR·공식 release | 필수 게이트 미완 |
 
-Golden fixture IDs·출처/현재 상태 및 오차 결정 절차는 [012_01 baseline](Channel_Analysis_Baseline_012_01.md)을 사용한다. **실제 수치 허용치는 fixture/oracle 데이터를 검증 후 잠금**한다. COM profile/라이선스 고정은 012_02의 별도 게이트.
+Golden fixture IDs·출처/현재 상태 및 오차 결정 절차는 [012_01 baseline](Channel_Analysis_Baseline_012_01.md)을 사용한다. **실제 수치 허용치는 fixture/oracle 데이터를 검증 후 잠금**한다. 012_02는 참조 준비 단계를 완결했으며 COM의 정식 IEEE 수치 프로파일·라이선스 배포 확인 및 C++ 엔진 적합성은 012_09/11/13 게이트에서 따로 완료해야 한다.
 
 ## 6. PR/통합·출시 계약
 
