@@ -11,11 +11,11 @@
 - `si::gui::AsyncScheduler` accepts pure value-based work with cancellation and atomic progress. `QFutureWatcher` delivers results only on the Qt GUI thread. Each feature has at most one in-flight job; at most four jobs across the scheduler. The previous synchronous `QtWorkerPool::run` is not used for this new GUI.
 - Cancellation, work-generation invalidation, per-window request generation, setting identity, and `QPointer` ensure that old/destroyed receivers cannot publish stale results.
 - `MainWindow::refreshAnalysisContext` stores only human-readable source metadata, source SHA, immutable physical mapping digest and channel labels, not a live cache handle. Real numerical adapters in 012_05–012_10 must capture and verify `si::channel::SourceSnapshot` on the worker thread prior to computation.
-- MainWindow import/project restoration/revision selection/mapping changes invalidate analysis work. Shutdown explicitly stops the scheduler before source cache cleanup. As with other cooperative jobs, real engines must perform bounded cancellation checks.
+- MainWindow import/project restoration/revision selection/mapping changes invalidate analysis work. A project replacement first cancels old workers and retains the retiring `QTemporaryDir` until all in-flight jobs drain, then removes it. Shutdown explicitly stops the scheduler before source cache cleanup. As with other cooperative jobs, real engines must perform bounded cancellation checks.
 
 ## Verification
 
-`channel_analysis_window_lifecycle` creates all four windows, checks default-disabled engine actions, action reuse, independent close/reopen, event-loop responsiveness while a synthetic job runs, cancellation, stale completion, worker exception, safe window destruction, and invalid mapping rejection.
+`channel_analysis_window_lifecycle` creates all four windows, checks default-disabled engine actions, action reuse, independent close/reopen, event-loop responsiveness while a synthetic job runs, cancellation, stale completion, worker exception, safe window destruction, invalid mapping rejection, and deferred old-workspace deletion. The existing `header_project_buttons` test additionally checks the actual MainWindow Analysis menu.
 
 ```sh
 cmake -S . -B build -DSI_BUILD_GUI=ON
