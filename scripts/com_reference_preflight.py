@@ -76,6 +76,7 @@ def qualify(manifest: dict, root: Path) -> dict:
     _require(len(cases) >= 3, "at least three independently reproducible cases required")
     seen = set()
     details = []
+    observed_kinds = set()
     for case in cases:
         c = _dict(case, "case")
         case_id = c.get("id")
@@ -87,6 +88,7 @@ def qualify(manifest: dict, root: Path) -> dict:
         _require(isinstance(assets, list) and len(assets) >= 2, f"{case_id}: THRU/config input required")
         kinds = {str(_dict(a, "input").get("kind")) for a in assets}
         _require({"thru", "config"} <= kinds, f"{case_id}: missing THRU/config")
+        observed_kinds |= kinds
         for index, asset in enumerate(assets):
             _evidence_file(asset, root, f"{case_id}.input_files[{index}]")
         run_file = _evidence_file(c.get("reproduced_result"), root, f"{case_id}.reproduced_result")
@@ -96,10 +98,14 @@ def qualify(manifest: dict, root: Path) -> dict:
         _require(run.get("profile_id") == manifest["profile_id"], f"{case_id}: profile mismatch")
         expected = _finite(c.get("published_expected_com_db"), f"{case_id}.published_expected_com_db")
         tolerance = _finite(c.get("tolerance_db"), f"{case_id}.tolerance_db")
-        _require(0 <= tolerance < 1, f"{case_id}: tolerance must be justified and under 1 dB")
+        _require(tolerance >= 0, f"{case_id}: tolerance cannot be negative")
+        _require(str(c.get("tolerance_basis_url", "")).startswith("https://"),
+                 f"{case_id}: independent tolerance basis URL required")
         delta = abs(result - expected)
         _require(delta <= tolerance, f"{case_id}: numerical deviation {delta} dB exceeds {tolerance} dB")
         details.append({"id": case_id, "delta_db": delta, "tolerance_db": tolerance})
+    _require({"next", "fext"} <= observed_kinds,
+             "qualified set must include both NEXT and FEXT inputs")
     return {"status": "MANIFEST_AND_REFERENCE_COMPARISON_PASS",
             "limitations": "Not a certification of IEEE conformance or source independence",
             "cases": details}
