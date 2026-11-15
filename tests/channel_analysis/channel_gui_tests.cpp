@@ -9,6 +9,13 @@
 #include <QThread>
 #include <QTimer>
 #include <iostream>
+#include <cmath>
+#include <fstream>
+#include <iomanip>
+#include <filesystem>
+#include <QTemporaryDir>
+#include <QFile>
+#include <QImage>
 #include <stdexcept>
 
 using namespace si::gui;
@@ -122,6 +129,14 @@ int main(int argc, char **argv) {
     }), "Exception test job did not start");
     drain(manager.scheduler());
     check(windows[3]->status() == S::Error, "Worker exception status not propagated");
+    check(windows[3]->startWork([](const std::atomic_bool &,
+                                   std::atomic_int &) -> WorkOutcome {
+      throw si::Cancelled();
+    }),"Cancelled exception test did not start");
+    drain(manager.scheduler());
+    check(windows[3]->status()==S::Cancelled,
+          "Cooperative cancellation exception reported as ERROR");
+
 
     // Deleting a window while its worker is alive must not use a dangling QObject.
     check(windows[0]->startWork(slowWork()), "Close-while-busy job did not start");
@@ -159,7 +174,81 @@ int main(int argc, char **argv) {
       auto *w = manager.existingWindow(static_cast<Feature>(i));
       check(w && w->isVisible(), "One feature close affected an unrelated window");
     }
-    std::cout << "012_04 QT GUI/worker lifecycle PASS\n";
+
+    // 012_05 real channel fixture: verified cached Touchstone -> independent ILD
+    // numerical worker -> GUI results, without fake completed jobs.
+    QTemporaryDir ildDir;
+    check(ildDir.isValid(), "ILD fixture temp directory");
+    const auto snp=si::pathFromUtf8((ildDir.path()+QStringLiteral("/ild.s2p")).toStdString());
+    {
+      std::ofstream out(snp);
+      out<<std::setprecision(17)<<"# GHz S RI R 50\n";
+      for(int i=0;i<=16;++i) {
+        const double x=double(i)/16.0;
+        const double loss=1.5+2.0*std::sqrt(x)+3.0*x+0.25*x*x;
+        const double v=std::pow(10.0,-loss/20.0);
+        out<<i<<" 0 0 "<<v<<" 0 "<<v<<" 0 0 0\n";
+      }
+    }
+    auto cache=si::Cache::open(snp,
+      si::pathFromUtf8((ildDir.path()+QStringLiteral("/cache")).toStdString()),
+      nullptr,true);
+    si::Channel channel;
+    channel.id="victim";channel.name="Victim";channel.nearP=0;channel.farP=1;
+    AnalysisContext numericContext;
+    numericContext.activeSource=0;
+    SourceItem numericSource;
+    numericSource.sha256=QString::fromStdString(cache->meta().sha256);
+    numericSource.mappingDigest=QStringLiteral("confirmed-physical-map");
+    numericSource.revision=QStringLiteral("ILD fixture revision");
+    numericSource.mappingConfirmed=true;
+    numericSource.channels={QStringLiteral("Victim")};
+    numericSource.channelIds={QStringLiteral("victim")};
+    numericContext.sources.append(numericSource);
+    manager.setIldSourceProvider([cache,channel](int index)
+      -> std::optional<IldSourceInput> {
+      if(index!=0)return std::nullopt;
+      return IldSourceInput{cache,{channel},"ILD fixture revision",
+                            cache->meta().sha256,1,1};
+    });
+    manager.setContext(numericContext);
+    auto *ild=manager.openWindow(Feature::Ild);
+    check(manager.action(Feature::Ild)->isEnabled(), "ILD menu not enabled");
+    check(ild->runButton()->isEnabled(), "Verified ILD Run disabled");
+    ild->runButton()->click();
+    drain(manager.scheduler());
+    check(ild->status()==S::Valid, "Real ILD worker did not produce VALID result");
+    check(ild->findChild<QWidget *>(QStringLiteral("ildResultGraph"))!=nullptr,
+          "Actual ILD graph widget missing");
+    auto *csv=ild->findChild<QPushButton *>(QStringLiteral("analysisCsv"));
+    auto *png=ild->findChild<QPushButton *>(QStringLiteral("analysisPng"));
+    check(csv && csv->isEnabled() && png && png->isEnabled(),
+          "Verified ILD exports not enabled");
+    const QString csvPath=ildDir.filePath(QStringLiteral("ild-result.csv"));
+    const QString pngPath=ildDir.filePath(QStringLiteral("ild-result.png"));
+    check(ild->saveIldCsv(csvPath),"Actual ILD CSV file export failed");
+    check(ild->saveIldPng(pngPath),"Actual ILD PNG file export failed");
+    QFile csvFile(csvPath);
+    check(csvFile.open(QIODevice::ReadOnly),"ILD CSV cannot be read back");
+    const QByteArray csvBytes=csvFile.readAll();
+    check(csvBytes.contains("Frequency_GHz,IL_dB,Fitted_IL_dB,ILD_dB") &&
+          csvBytes.contains("# source_sha256,") &&
+          csvBytes.contains("# fitting_model,"),
+          "CSV numerical/provenance columns missing");
+    check(csvBytes.count('\n')>=32,"CSV numeric row count suspicious");
+    QImage actualPng(pngPath);
+    check(!actualPng.isNull() && actualPng.width()>200 &&
+          actualPng.height()>200,"PNG not a usable rendered plot");
+
+    numericContext.sources[0].sha256=QStringLiteral("stale-sha");
+    manager.setContext(numericContext);
+    check(ild->status()==S::Stale,"Context replacement failed to mark ILD STALE");
+    check(!csv->isEnabled() && !png->isEnabled(),"Stale ILD allowed export");
+    check(!ild->saveIldCsv(ildDir.filePath(QStringLiteral("stale.csv"))) &&
+          !ild->saveIldPng(ildDir.filePath(QStringLiteral("stale.png"))),
+          "STALE result was exported as current");
+    manager.setIldSourceProvider({});
+    std::cout << "012_04/012_05 QT GUI and ILD workflow PASS\n";
     return 0;
   } catch (const std::exception &error) {
     std::cerr << "012_04 QT GUI/worker lifecycle FAIL: " << error.what() << '\n';

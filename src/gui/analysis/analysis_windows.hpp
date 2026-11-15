@@ -1,6 +1,7 @@
 #pragma once
 // 012_04: GUI-only scaffolding; numerical engines are introduced in later steps.
 #include "si/channel_analysis/common.hpp"
+#include "si/channel_analysis/ild.hpp"
 #include <QtConcurrent>
 #include <QTemporaryDir>
 #include <vector>
@@ -9,6 +10,7 @@
 #include <atomic>
 #include <functional>
 #include <memory>
+#include <optional>
 
 namespace si::gui {
 enum class Feature : int { Ild = 0, Icn = 1, Eye = 2, Com = 3 };
@@ -16,7 +18,7 @@ constexpr int featureCount = 4;
 
 struct SourceItem {
   QString revision, sha256, mappingDigest;
-  QStringList channels;
+  QStringList channels, channelIds;
   bool mappingConfirmed = false;
 };
 struct AnalysisContext {
@@ -27,7 +29,16 @@ struct AnalysisContext {
 struct WorkOutcome {
   si::channel::Status status = si::channel::Status::NotEvaluated;
   QString diagnostic;
+  std::shared_ptr<const si::channel::IldData> ild;
+  si::channel::Provenance provenance;
 };
+struct IldSourceInput {
+  std::shared_ptr<const si::Cache> cache;
+  std::vector<si::Channel> mapping;
+  std::string revision, expectedSha;
+  uint64_t workspaceGeneration = 0, mappingGeneration = 0;
+};
+using IldSourceProvider = std::function<std::optional<IldSourceInput>(int)>;
 // Work MUST NOT touch a QObject or GUI object. Capture immutable value types and
 // a verified SourceSnapshot by value when numerical engines are added.
 using AsyncWork = std::function<WorkOutcome(const std::atomic_bool &,
@@ -64,6 +75,9 @@ public:
   // Engine adapters call this only after validated input snapshot creation.
   // This does not enable the public Run action without an installed engine.
   bool startWork(AsyncWork work);
+  void setIldSourceProvider(IldSourceProvider provider);
+  bool saveIldCsv(const QString &filename);
+  bool saveIldPng(const QString &filename);
   void cancelWork();
   si::channel::Status status() const { return status_; }
   QPushButton *runButton() const { return run_; }
@@ -76,15 +90,24 @@ private:
   void invalidateRequest();
   void setStatus(si::channel::Status status, const QString &details);
   QString selectionIdentity() const;
+  void launchIld();
+  void showIld(const WorkOutcome &outcome);
+  void exportIldCsv();
+  void exportIldPng();
+  void clearIld();
   Feature feature_;
   AsyncScheduler *scheduler_ = nullptr;
   AnalysisContext context_;
   quint64 requestGeneration_ = 0;
   si::channel::Status status_ = si::channel::Status::NotEvaluated;
   QComboBox *source_ = nullptr, *victim_ = nullptr, *aggressor_ = nullptr;
-  QComboBox *direction_ = nullptr;
+  QComboBox *direction_ = nullptr, *fitModel_ = nullptr;
   QDoubleSpinBox *fromGhz_ = nullptr, *toGhz_ = nullptr;
   QLabel *statusLabel_ = nullptr, *graphPlaceholder_ = nullptr;
+  QWidget *ildGraph_ = nullptr;
+  IldSourceProvider ildProvider_;
+  std::shared_ptr<const si::channel::IldData> ildResult_;
+  si::channel::Provenance ildProvenance_;
   QProgressBar *progress_ = nullptr;
   QPushButton *run_ = nullptr, *cancel_ = nullptr, *csv_ = nullptr, *png_ = nullptr;
   QTimer progressPoll_;
@@ -101,6 +124,7 @@ public:
   void retireWorkspace(std::shared_ptr<QTemporaryDir> workspace);
   // Deferred engine registration; all four actions remain disabled in 012_04.
   void setEngineAvailable(Feature feature, bool available);
+  void setIldSourceProvider(IldSourceProvider provider);
   AnalysisWindow *openWindow(Feature feature);
   QAction *action(Feature feature) const { return actions_.at(int(feature)); }
   AnalysisWindow *existingWindow(Feature feature) const {
@@ -119,6 +143,7 @@ private:
   std::array<QAction *, featureCount> actions_{};
   std::array<bool, featureCount> available_{};
   AnalysisContext context_;
+  IldSourceProvider ildProvider_;
   quint64 contextGeneration_ = 0;
 };
 } // namespace si::gui

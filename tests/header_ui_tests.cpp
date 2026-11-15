@@ -78,8 +78,9 @@ int main(int argc, char **argv) {
     return 10;
   }
   for (const auto *action : analysisMenu->actions()) {
-    if (action->isEnabled()) {
-      std::cerr << "Unimplemented 012_04 engine action was exposed\\n";
+    const bool isIld = action->objectName() == QStringLiteral("analysisActionILD");
+    if (action->isEnabled() != isIld) {
+      std::cerr << "012_05 activation contract: only implemented ILD may be enabled\n";
       return 11;
     }
   }

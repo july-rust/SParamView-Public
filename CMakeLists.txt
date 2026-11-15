@@ -27,7 +27,8 @@ add_executable(si_cli src/cli.cpp)
 target_link_libraries(si_cli PRIVATE si_core)
 enable_testing()
 # 012_03: independent, Qt-free v1.4.0 shared channel-analysis Core.
-add_library(si_channel_analysis src/channel_analysis/common.cpp)
+add_library(si_channel_analysis src/channel_analysis/common.cpp
+                                src/channel_analysis/ild.cpp)
 target_include_directories(si_channel_analysis PUBLIC include)
 target_link_libraries(si_channel_analysis PUBLIC si_core)
 if(MSVC)
@@ -41,6 +42,12 @@ add_test(NAME channel_common_core COMMAND si_channel_core_tests
          "${CMAKE_BINARY_DIR}/channel-common")
 set_tests_properties(channel_common_core PROPERTIES TIMEOUT 90)
 install(TARGETS si_channel_core_tests RUNTIME DESTINATION tests)
+# 012_05: deterministic ILD oracle/edge qualification independent of Qt.
+add_executable(si_ild_tests tests/channel_analysis/ild_tests.cpp)
+target_link_libraries(si_ild_tests PRIVATE si_channel_analysis)
+add_test(NAME channel_ild_numerics COMMAND si_ild_tests)
+set_tests_properties(channel_ild_numerics PROPERTIES TIMEOUT 90)
+install(TARGETS si_ild_tests RUNTIME DESTINATION tests)
 add_executable(si_hardening_tests tests/hardening_tests.cpp)
 target_link_libraries(si_hardening_tests PRIVATE si_core)
 install(TARGETS si_hardening_tests RUNTIME DESTINATION tests)
