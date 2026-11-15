@@ -144,6 +144,8 @@ void MainWindow::saveWorkspaceLayout() {
   prefs.setValue("tablePixels", tableTextSize->currentData());
 }
 MainWindow::~MainWindow() {
+  // Shutdown channel workers before destroying QFutureWatchers and source caches.
+  analysisWindows.reset();
   if (viewControl) viewControl->cancelled = true;
   viewPool.waitForDone();
   if (control)
