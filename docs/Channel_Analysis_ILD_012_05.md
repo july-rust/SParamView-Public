@@ -2,7 +2,7 @@
 
 **Release baseline:** official v1.3.5 unchanged.  
 **Development target:** integration/v1.4.0.  
-**Numerical status:** analytical fixtures and CTest added; final CI outcome must be read from PR #40.  
+**Numerical status:** **COMPLETE** for exploratory generic ILD scope. PR #40 squash-merged to `integration/v1.4.0` as `90a59ada15a9c17aa787ffb317fcafefb4285c75`; [CI 43766947020](https://github.com/july-rust/SParamView-Public/actions/runs/43766947020) passed Core 33/33 Release + 33/33 ASan/UBSan, Windows x64 52/52, macOS arm64 48/48 and native Windows ARM64 packaged gate. Real hardware interactive UI remains 012_12.  
 **Standards status:** generic ILD only; **NOT** an IEEE-weighted FOM_ILD or MIPI PHY conformance statement.
 
 ## Calculation and sign convention
@@ -59,7 +59,7 @@ actual computed plot with a save-file commit.
   channel mapping, actual ILD execution, plot, export-button enablement, STALE
   invalidation, and inherited independent-window/cancellation tests.
 - Existing core, RL/IL/NEXT/FEXT/TDR, CSV/project, cache lifetime and required
-  three-platform CI must remain passing.
+  three-platform **automated CI passed on the PR head**. Re-verify on the post-merge integration SHA separately.
 - An independent implementation or analytical construction is used as the
   numerical oracle; no assertion of measured lab waveform or official PHY
   compliance.

@@ -3,7 +3,7 @@
 **기준일:** 2026-11-15 (KST)
 **공식 기준:** v1.3.5 (tag/release 불변)
 **목표:** ILD·ICN·Eye Diagram·COM을 각각 독립적인 C++20 수치 엔진, Qt6 창, 테스트로 구현하고 **v1.4.0 한 번에 릴리스**
-**상태:** 012_01 COMPLETE / 012_02 COMPLETE (REFERENCE_READY) / 012_03 CORE VERIFIED (PR #37; 최종 병합 상태는 PR 참조) / 012_04 GUI/워커 COMPLETE (PR #38; CI 43708927772) / 012_05 IN PROGRESS (ILD 엔진/GUI PR #40; CI 미확정) / 012_06~14 미착수 / 다른 3개 분석 엔진 미구현 / v1.4.0 미출시
+**상태:** 012_01 COMPLETE / 012_02 COMPLETE (REFERENCE_READY) / 012_03 CORE VERIFIED (PR #37; 최종 병합 상태는 PR 참조) / 012_04 GUI/워커 COMPLETE (PR #38; CI 43708927772) / 012_05 COMPLETE (ILD 엔진/GUI PR #40; CI 43766947020) / 012_06~14 미착수 / 다른 3개 분석 엔진 미구현 / v1.4.0 미출시
 **작업 번호:** 012_01 ~ 012_14. 단계별 PR, CI, 증거와 완료 조건을 연결한다.
 
 > 이 문서는 향후 실행할 개발 명령의 기준이며, 문서 작성만으로 기능이나 공식 표준 적합성을 검증했다고 주장하지 않는다.
@@ -73,9 +73,9 @@
 - **완료:** 서로 다른 창의 동시 실행·재클릭 포커스·단독 종료·프로젝트 변경 시 결과 무효화 및 안전한 워커 종료가 실제 GUI 테스트에서 확인됨.
 
 ### 012_05 — ILD 수치 엔진·GUI 완성
-- **개발 진행:** [PR #40](https://github.com/july-rust/SParamView-Public/pull/40)에서 Qt-free ILD QR 피팅·독립 GUI·원본 SHA 기반 수치 워커·CSV/PNG·실제 s2p GUI 테스트를 작성. [수치/GUI 계약](Channel_Analysis_ILD_012_05.md). CI 및 squash merge는 확인 전이며 PASS를 주장하지 않는다.
+- **완료 증거 (2026-11-16 KST):** [PR #40](https://github.com/july-rust/SParamView-Public/pull/40) squash-merge `90a59ada15a9c17aa787ffb317fcafefb4285c75` → `integration/v1.4.0`; [전체 PR CI 43766947020](https://github.com/july-rust/SParamView-Public/actions/runs/43766947020): Core Release 및 ASan/UBSan **33/33 + 33/33**, Windows x64 **52/52**, macOS arm64 **48/48**, Windows ARM64 크로스 빌드/패키지 + **네이티브 ARM64 패키지 게이트** 모두 PASS. [수치/GUI 계약](Channel_Analysis_ILD_012_05.md). 실제 물리적 사용자 GUI 직접 조작은 별도 012_12 최종 릴리스 게이트이며, 표준 가중 FOM·PHY 인증은 주장하지 않는다.
 - **실행:** IL, Fitted IL, ILD(f), peak/RMS 구현. 선택한 피팅 함수·가중치·주파수 구간을 출력에 명시하고 안정적 계산법 적용. 공식 규격 프로파일 없이 범용 ILD를 PASS/FAIL로 표기하지 않는다.
-- **산출:** ild.cpp, IldWindow, 원본/피팅/편차 그래프, CSV/PNG, ild_tests.
+- **산출:** 독립 `ild.cpp` 및 `ild.hpp`, 기존 독립 `AnalysisWindow`의 ILD 모드, 원본/피팅/편차 그래프, CSV/PNG, `ild_tests`/GUI 실파일 내보내기 테스트.
 - **완료:** 이상 무리플 채널/의도적 리플 채널의 독립 골든 값 일치, 빈/손상 입력 fail-closed, 채널 방향·주파수 범위 검증.
 
 ### 012_06 — ICN 수치 엔진·GUI 완성
@@ -153,7 +153,7 @@
 | 012_02 COM 참조 준비 | **COMPLETE (REFERENCE_READY)**: IEEE 공식 4.17 source/licensing + 실제 독립 COM 2조건 숫자 재현 PASS; 승인 PHY 최종 숫자·Test1/Test2·3건 동규격 golden은 **012_09 필수** | [COM 프로파일](COM_Profile_Lock_012_02.md) · [참조 검증](COM_Reference_Qualification_012_02.md) · [라이선스](COM_License_Review_012_02.md) |
 | 012_03 공통 Core | **CODE + INITIAL CI PASS**; squash merge 및 병합 후 검증은 [PR #37](https://github.com/july-rust/SParamView-Public/pull/37)에서 추적 | [검증 로그](https://github.com/july-rust/SParamView-Public/actions/runs/43702830271), [구현 계약](Channel_Analysis_Core_012_03.md) |
 | 012_04 GUI/워커 | **COMPLETE (프레임워크)** | [병합 PR #38](https://github.com/july-rust/SParamView-Public/pull/38) · [CI PASS](https://github.com/july-rust/SParamView-Public/actions/runs/43708927772); 미완성 엔진 메뉴 비활성화 |
-| 012_05 ILD 엔진·GUI | IN PROGRESS | [PR #40](https://github.com/july-rust/SParamView-Public/pull/40) 구현·독립 테스트 추가; CI 및 병합 대기 |
+| 012_05 ILD 엔진·GUI | **COMPLETE** (선언 범위: 일반 ILD 계산·GUI·자동 CI) | [병합 PR #40](https://github.com/july-rust/SParamView-Public/pull/40) · [CI 43766947020](https://github.com/july-rust/SParamView-Public/actions/runs/43766947020) · 통합 SHA `90a59ada15a9c17aa787ffb317fcafefb4285c75` |
 | 012_06~012_14 ICN/Eye/COM·릴리스 | NOT STARTED | ICN/Eye/COM 미구현; v1.3.5 릴리스 불변 |
 | 계획 문서 | PLANNED | 본 문서 및 링크된 상위 로드맵 |
 
