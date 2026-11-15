@@ -213,6 +213,7 @@ void MainWindow::loadProject(QString path) {
           refreshResults();
           refreshPlot();
           dirty = false;
+          refreshAnalysisContext();
           notice->setText("Project restored. Reconfirm mapping for revisions whose source files have changed.");
         });
   } catch (const std::exception &e) {
