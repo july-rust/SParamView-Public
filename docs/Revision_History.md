@@ -2,6 +2,8 @@
 
 **Current official release: [v1.3.5](https://github.com/july-rust/SParamView-Public/releases/tag/v1.3.5)** — versioned Mapping CSV and fail-closed GUI/cache startup hardening, building on v1.3.3 Touchstone input validation; retains the v1.3.2 cache separation and filename display. This preserves v1.3.1 cross-process cache safety. The [v1.3.0 release](https://github.com/july-rust/SParamView-Public/releases/tag/v1.3.0) was published on 2026-10-29 11:43 KST and remains preserved.
 
+**Unreleased v1.4.0 integration work (2026-11-16):** 012_05 generic ILD numerical engine, independent GUI plots, background SHA-qualified source calculation and CSV/PNG export are under qualification in [PR #40](https://github.com/july-rust/SParamView-Public/pull/40). This is *not* an official release, IEEE weighted FOM_ILD implementation or lab/PHY certification. [012_05 technical contract](Channel_Analysis_ILD_012_05.md). Existing official v1.3.5 assets remain unchanged.
+
 **Integration history:** [Stage 2 Mapping CSV safety (PR #25)](https://github.com/july-rust/SParamView-Public/pull/25) and [Stage 3 GUI/cache startup hardening (PR #27)](https://github.com/july-rust/SParamView-Public/pull/27) are integrated for v1.3.4. These changes are not part of the already-published v1.3.3 assets, which remain intact.
 
 This document records the development sequence from the original SI Analyzer engineering preview through the current SParamView release. The development record predates the GitHub repository itself: the first retained engineering-preview validation is dated **2026-09-08**, while the current GitHub repository was created on **2026-09-25**.
