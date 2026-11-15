@@ -83,6 +83,7 @@ void MainWindow::refreshAnalysisContext() {
     if (revision.confirmed) {
       for (const auto &channel : revision.channels) {
         source.channels.append(qs(channel.name));
+        source.channelIds.append(qs(channel.id));
         encoded.append(QJsonDocument(channelJson(channel)).toJson(QJsonDocument::Compact));
         encoded.append('\n');
       }
