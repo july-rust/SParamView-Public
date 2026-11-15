@@ -68,8 +68,9 @@ SourceSnapshot SourceSnapshot::capture(std::shared_ptr<const Cache> source,
   const auto actual = sha256File(pathFromUtf8(meta.source), control);
   require(actual == meta.sha256, "Source SHA-256 differs from cached revision");
   check(control);
+  const auto mappingKey = mappingIdentity(confirmedMapping);
   return SourceSnapshot(std::move(source), std::move(confirmedMapping),
-    {actual, std::move(revision), mappingIdentity(confirmedMapping),
+    {actual, std::move(revision), mappingKey,
      workspaceGeneration, mappingGeneration});
 }
 
