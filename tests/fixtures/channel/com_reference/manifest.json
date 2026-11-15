@@ -1,0 +1,28 @@
+{
+  "contract_version": 1,
+  "status": "BLOCKED",
+  "profile_id": "IEEE-802.3-2022-Annex-93A-CANDIDATE",
+  "standard": {
+    "edition": "IEEE Std 802.3-2022 (candidate, provisionally identified)",
+    "annex": "93A",
+    "applicable_clause": null,
+    "parameter_table": null
+  },
+  "reference": {
+    "release": "4.17.0 (IEEE notice 2026-09-25; compatibility not verified)",
+    "source_url": "https://opensource.ieee.org/802-com/com_code",
+    "source_commit": null
+  },
+  "license": {
+    "preliminary": "BSD-3-Clause selected per IEEE March 2025 tutorial; repository LICENSE not independently read",
+    "verified_spdx": null,
+    "evidence": null
+  },
+  "cases": [],
+  "blockers": [
+    "IEEE GitLab inaccessible from execution environment (HTTP 418/web, DNS failure/local)",
+    "Exact reference commit SHA and repository LICENSE not fetched",
+    "Clause-specific parameter table and official fixture rights unverified",
+    "No MATLAB/Octave/Python COM reference run with golden input/output performed"
+  ]
+}
