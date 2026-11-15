@@ -25,7 +25,7 @@
 - [Read-only upstream probe CI 43691394632](https://github.com/july-rust/SParamView-Public/actions/runs/43691394632): official tag `4.17.0` resolves to Git commit **`47459695a169fdf1fd10c541a5b19c69a5ae9285`**; GitLab API HTTP 200.
 - Release file `release/com_ieee8023_4p17p0.m`, Git blob ID **`bdfc766226e4986f3428460b5fdb6818f3a3fcd5`**. Git blob ID is not SHA-256; API JSON response hash is not code-content hash.
 - Repository root README and LICENSE both identify BSD 3-Clause; root LICENSE SHA-256 **`f5532297b5eeef9ef3236a38ecb5973d6521b542f567db15c4025e1f71d91631`**.
-- Programmatic stage tests: **7 synthetic/provenance tests passed**, *not* actual IEEE COM numeric golden verification.
+- Programmatic stage tests: synthetic/provenance unit tests cover missing source, hash, paths, values, NEXT/FEXT presence and tolerance citation; **not** IEEE COM numeric golden verification. Consult the latest linked CI run for the exact test count.
 
 ## Added reproducible evidence gate
 
