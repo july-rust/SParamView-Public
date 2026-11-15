@@ -821,6 +821,240 @@ bool AnalysisWindow::saveIldPng(const QString &name) {
   if(!okay) setStatus(si::channel::Status::Error,QStringLiteral("ILD PNG write failed"));
   return okay;
 }
+
+void AnalysisWindow::populateIcnAggressors() {
+  if(!icnAggressors_) return;
+  QSignalBlocker blocked(icnAggressors_);
+  icnAggressors_->clear();
+  const int idx=source_->currentIndex();
+  if(idx<0 || idx>=context_.sources.size()) return;
+  const auto &src=context_.sources[idx];
+  const int victimIndex=victim_->currentIndex();
+  if(victimIndex<0 || victimIndex>=src.channelIds.size()) return;
+  for(int k=0;k<src.channelIds.size();++k) {
+    if(k==victimIndex) continue;
+    for(int end=0;end<2;++end) {
+      auto *item=new QListWidgetItem(
+        (end==0?QStringLiteral("NEXT — "):QStringLiteral("FEXT — "))+src.channels[k],
+        icnAggressors_);
+      item->setFlags(item->flags()|Qt::ItemIsUserCheckable);
+      item->setCheckState(Qt::Unchecked);
+      item->setData(Qt::UserRole,k);
+      item->setData(Qt::UserRole+1,end);
+    }
+  }
+}
+void AnalysisWindow::setIcnSourceProvider(IcnSourceProvider provider) {
+  icnProvider_=std::move(provider);
+  if(feature_==Feature::Icn) {
+    run_->setEnabled(bool(icnProvider_));
+    run_->setToolTip(icnProvider_?QStringLiteral("Run generic band-limited NRZ ICN")
+      :QStringLiteral("ICN source provider unavailable"));
+  }
+}
+void AnalysisWindow::clearIcn() {
+  icnResult_.reset();
+  if(icnGraph_) static_cast<IcnPlotWidget *>(icnGraph_)->setData({});
+  if(feature_==Feature::Icn) {
+    csv_->setEnabled(false);
+    png_->setEnabled(false);
+  }
+}
+void AnalysisWindow::launchIcn() {
+  if(feature_!=Feature::Icn || !icnProvider_) return;
+  const int idx=source_->currentIndex();
+  if(idx<0 || idx>=context_.sources.size() || victim_->currentIndex()<0 ||
+     fromGhz_->value()>=toGhz_->value()) {
+    setStatus(si::channel::Status::InvalidSource,
+              QStringLiteral("Select confirmed source and frequency band"));
+    return;
+  }
+  const auto &source=context_.sources[idx];
+  const int victimIndex=victim_->currentIndex();
+  if(!source.mappingConfirmed || victimIndex>=source.channelIds.size()) {
+    setStatus(si::channel::Status::InvalidSource,
+              QStringLiteral("Missing confirmed physical victim identity"));
+    return;
+  }
+  std::vector<std::pair<std::string,si::channel::IcnEnd>> chosen;
+  for(int k=0;k<icnAggressors_->count();++k) {
+    auto *item=icnAggressors_->item(k);
+    if(item->checkState()!=Qt::Checked) continue;
+    const int index=item->data(Qt::UserRole).toInt();
+    const int end=item->data(Qt::UserRole+1).toInt();
+    if(index<0 || index>=source.channelIds.size() || index==victimIndex ||
+       (end!=0 && end!=1)) {
+      setStatus(si::channel::Status::InvalidSource,QStringLiteral("Invalid aggressor mapping"));
+      return;
+    }
+    chosen.emplace_back(source.channelIds[index].toStdString(),
+        end==0?si::channel::IcnEnd::Next:si::channel::IcnEnd::Fext);
+  }
+  if(chosen.empty() || chosen.size()>32) {
+    setStatus(si::channel::Status::NotEvaluated,
+              QStringLiteral("Select 1–32 NEXT/FEXT aggressor paths"));
+    return;
+  }
+  const auto input=icnProvider_(idx);
+  if(!input || !input->cache ||
+     input->revision!=source.revision.toStdString() ||
+     input->expectedSha!=source.sha256.toStdString()) {
+    setStatus(si::channel::Status::InvalidSource,
+              QStringLiteral("Source revision changed; refresh analysis"));
+    return;
+  }
+  const std::string victimId=source.channelIds[victimIndex].toStdString();
+  const bool reverse=direction_->currentIndex()==1;
+  si::channel::IcnSettings settings;
+  settings.startHz=fromGhz_->value()*1e9;
+  settings.stopHz=toGhz_->value()*1e9;
+  settings.symbolRateHz=icnBaud_->value()*1e9;
+  settings.txPeakToPeakV=icnVpp_->value()*1e-3;
+  settings.riseTimeSeconds=icnRise_->value()*1e-12;
+  settings.rxBandwidthHz=icnRx_->value()*1e9;
+  const std::string settingsIdentity=selectionIdentity().toStdString();
+  startWork([input=*input,victimId,reverse,chosen,settings,settingsIdentity]
+      (const std::atomic_bool &cancel,std::atomic_int &progress)->WorkOutcome {
+    if(cancel.load()) throw si::Cancelled();
+    progress.store(10);
+    auto snap=si::channel::SourceSnapshot::capture(
+      input.cache,input.mapping,input.revision,
+      input.workspaceGeneration,input.mappingGeneration);
+    if(snap.identity().sha256!=input.expectedSha)
+      throw si::Error("ICN source SHA mismatch");
+    const auto &victim=snap.channel(victimId);
+    std::vector<si::channel::IcnAggressorInput> paths;
+    paths.reserve(chosen.size());
+    for(size_t i=0;i<chosen.size();++i) {
+      if(cancel.load()) throw si::Cancelled();
+      const auto &a=snap.channel(chosen[i].first);
+      if(a.id==victim.id || a.group!=victim.group ||
+         a.differential()!=victim.differential())
+        throw si::Error("ICN aggressor must be a different, compatible channel in the victim group");
+      const auto metric=chosen[i].second==si::channel::IcnEnd::Next ?
+                         si::Metric::NEXT:si::Metric::FEXT;
+      auto trace=si::channel::extract(snap,victimId,metric,reverse,
+                 std::string_view(chosen[i].first));
+      paths.push_back({chosen[i].first,chosen[i].second,std::move(trace)});
+      progress.store(15+int(50*(i+1)/chosen.size()));
+    }
+    const auto &identity=snap.identity();
+    si::channel::Provenance provenance{identity.sha256,identity.revision,
+      identity.mappingIdentity,"Generic uncorrelated NRZ ICN","012_06-v1",
+      settingsIdentity,identity.workspaceGeneration,identity.mappingGeneration};
+    auto result=si::channel::calculateIcn(paths,settings,provenance,&cancel);
+    if(cancel.load()) throw si::Cancelled();
+    progress.store(100);
+    WorkOutcome outcome;
+    outcome.status=result.status;
+    outcome.diagnostic=QStringLiteral("Generic NRZ band-limited ICN; not IEEE/SNIA compliance");
+    outcome.icn=std::make_shared<si::channel::IcnData>(std::move(*result.value));
+    outcome.provenance=std::move(result.provenance);
+    return outcome;
+  });
+}
+void AnalysisWindow::showIcn(const WorkOutcome &outcome) {
+  if(!outcome.icn || !icnGraph_) return;
+  icnResult_=outcome.icn;
+  icnProvenance_=outcome.provenance;
+  static_cast<IcnPlotWidget *>(icnGraph_)->setData(icnResult_);
+  csv_->setEnabled(true);
+  png_->setEnabled(true);
+  const auto &d=*icnResult_;
+  setStatus(outcome.status,QStringLiteral(
+    "NEXT %1 mV RMS | FEXT %2 mV RMS | Total %3 mV RMS | %4 paths%5 — Generic NRZ, no standard PASS")
+    .arg(d.nextRmsV*1000,0,'g',7).arg(d.fextRmsV*1000,0,'g',7)
+    .arg(d.totalRmsV*1000,0,'g',7).arg(qulonglong(d.aggressors.size()))
+    .arg(d.bandLimited?QStringLiteral(" | BAND LIMITED"):QString()));
+}
+void AnalysisWindow::exportIcnCsv() {
+  if(!icnResult_) return;
+  const QString name=QFileDialog::getSaveFileName(this,
+    QStringLiteral("Export ICN numerical data"),QStringLiteral("ICN.csv"),
+    QStringLiteral("CSV (*.csv)"));
+  if(!name.isEmpty()) saveIcnCsv(name);
+}
+bool AnalysisWindow::saveIcnCsv(const QString &name) {
+  if(!icnResult_ || name.isEmpty() ||
+     (status_!=si::channel::Status::Valid &&
+      status_!=si::channel::Status::Warning)) return false;
+  QSaveFile file(name);
+  if(!file.open(QIODevice::WriteOnly|QIODevice::Text)) {
+    setStatus(si::channel::Status::Error,QStringLiteral("Cannot open ICN CSV"));
+    return false;
+  }
+  QTextStream out(&file);
+  const auto &d=*icnResult_;
+  auto safe=[](const std::string &raw) {
+    QString v=QString::fromStdString(raw);
+    v.replace(QLatin1Char('\r'),QLatin1Char(' '));
+    v.replace(QLatin1Char('\n'),QLatin1Char(' '));
+    v.replace(QStringLiteral("\""),QStringLiteral("\"\""));
+    const QString trimmed=v.trimmed();
+    if(!trimmed.isEmpty() && QStringLiteral("=+-@").contains(trimmed.front()))
+      v.prepend(QLatin1Char('\''));
+    return QStringLiteral("\"")+v+QStringLiteral("\"");
+  };
+  const auto n=[](double v){return QString::number(v,'g',17);};
+  out<<"# source_sha256,"<<safe(icnProvenance_.sourceSha256)<<"\n"
+     <<"# revision,"<<safe(icnProvenance_.revision)<<"\n"
+     <<"# mapping,"<<safe(icnProvenance_.mappingIdentity)<<"\n"
+     <<"# settings_identity,"<<safe(icnProvenance_.settingsIdentity)<<"\n"
+     <<"# algorithm,"<<safe(icnProvenance_.algorithm)<<"\n"
+     <<"# version,"<<safe(icnProvenance_.version)<<"\n"
+     <<"# model,"<<safe(d.model)<<"\n"
+     <<"# band_limited,"<<(d.bandLimited?"true":"false")<<"\n"
+     <<"# actual_start_hz,"<<n(d.actualStartHz)<<"\n"
+     <<"# actual_stop_hz,"<<n(d.actualStopHz)<<"\n"
+     <<"# next_rms_mV,"<<n(d.nextRmsV*1000)<<"\n"
+     <<"# fext_rms_mV,"<<n(d.fextRmsV*1000)<<"\n"
+     <<"# total_rms_mV,"<<n(d.totalRmsV*1000)<<"\n";
+  for(size_t k=0;k<d.aggressors.size();++k) {
+    const auto &a=d.aggressors[k];
+    out<<"# path_"<<k<<"_id,"<<safe(a.id)<<"\n"
+       <<"# path_"<<k<<"_type,"<<(a.end==si::channel::IcnEnd::Next?"NEXT":"FEXT")<<"\n"
+       <<"# path_"<<k<<"_parameter,"<<safe(a.parameter)<<"\n"
+       <<"# path_"<<k<<"_rms_mV,"<<n(a.rmsV*1000)<<"\n"
+       <<"# path_"<<k<<"_power_percent,"<<n(a.powerPercent)<<"\n";
+  }
+  out<<"Frequency_GHz,NEXT_Power_dB,FEXT_Power_dB,"
+        "NEXT_PSD_V2_per_Hz,FEXT_PSD_V2_per_Hz,"
+        "NEXT_Cumulative_RMS_mV,FEXT_Cumulative_RMS_mV,Total_Cumulative_RMS_mV";
+  for(size_t k=0;k<d.aggressors.size();++k)
+    out<<",Path"<<k<<"_PSD_V2_per_Hz,Path"<<k<<"_Cumulative_RMS_mV";
+  out<<"\n";
+  for(size_t i=0;i<d.frequencyHz.size();++i) {
+    out<<n(d.frequencyHz[i]/1e9)<<","<<n(d.nextPowerDb[i])<<","
+       <<n(d.fextPowerDb[i])<<","<<n(d.nextDensityV2Hz[i])<<","
+       <<n(d.fextDensityV2Hz[i])<<","<<n(d.nextCumulativeRmsV[i]*1000)
+       <<","<<n(d.fextCumulativeRmsV[i]*1000)<<","
+       <<n(d.totalCumulativeRmsV[i]*1000);
+    for(const auto &a:d.aggressors)
+      out<<","<<n(a.spectralDensityV2Hz[i])<<","<<n(a.cumulativeRmsV[i]*1000);
+    out<<"\n";
+  }
+  out.flush();
+  const bool okay=out.status()==QTextStream::Ok && file.commit();
+  if(!okay) setStatus(si::channel::Status::Error,QStringLiteral("ICN CSV write failed"));
+  return okay;
+}
+void AnalysisWindow::exportIcnPng() {
+  if(!icnResult_) return;
+  const QString name=QFileDialog::getSaveFileName(this,
+    QStringLiteral("Export ICN plot"),QStringLiteral("ICN.png"),
+    QStringLiteral("PNG (*.png)"));
+  if(!name.isEmpty()) saveIcnPng(name);
+}
+bool AnalysisWindow::saveIcnPng(const QString &name) {
+  if(!icnResult_ || !icnGraph_ || name.isEmpty() ||
+     (status_!=si::channel::Status::Valid &&
+      status_!=si::channel::Status::Warning)) return false;
+  QSaveFile file(name);
+  const bool okay=file.open(QIODevice::WriteOnly) &&
+                   icnGraph_->grab().save(&file,"PNG") && file.commit();
+  if(!okay) setStatus(si::channel::Status::Error,QStringLiteral("ICN PNG write failed"));
+  return okay;
+}
 void AnalysisWindow::closeEvent(QCloseEvent *event) {
   if (scheduler_ && scheduler_->running(feature_)) cancelWork();
   progressPoll_.stop();
@@ -887,6 +1121,12 @@ void AnalysisWindowManager::setIldSourceProvider(IldSourceProvider provider) {
     windows_[int(Feature::Ild)]->setIldSourceProvider(ildProvider_);
   setEngineAvailable(Feature::Ild,bool(ildProvider_));
 }
+void AnalysisWindowManager::setIcnSourceProvider(IcnSourceProvider provider) {
+  icnProvider_=std::move(provider);
+  if(windows_[int(Feature::Icn)])
+    windows_[int(Feature::Icn)]->setIcnSourceProvider(icnProvider_);
+  setEngineAvailable(Feature::Icn,bool(icnProvider_));
+}
 void AnalysisWindowManager::setEngineAvailable(Feature feature, bool available) {
   available_[int(feature)] = available;
   if (auto *action = actions_[int(feature)])
@@ -902,6 +1142,7 @@ AnalysisWindow *AnalysisWindowManager::openWindow(Feature feature) {
   }
   auto *window = new AnalysisWindow(feature, &scheduler_, owner_);
   if(feature == Feature::Ild) window->setIldSourceProvider(ildProvider_);
+  if(feature == Feature::Icn) window->setIcnSourceProvider(icnProvider_);
   window->setContext(context_);
   windows_[index] = window;
   connect(window, &QObject::destroyed, this, [this, index] {
