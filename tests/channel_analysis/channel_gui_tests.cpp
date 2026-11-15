@@ -3,6 +3,7 @@
 #include <QApplication>
 #include <QCoreApplication>
 #include <QElapsedTimer>
+#include <QDir>
 #include <QEvent>
 #include <QPointer>
 #include <QThread>
@@ -137,6 +138,21 @@ int main(int argc, char **argv) {
     manager.setContext(context(QStringLiteral("unknown"), false));
     check(!reopened->startWork(slowWork(1)), "Unconfirmed mapping accepted");
     check(reopened->status() == S::InvalidSource, "Invalid mapping not diagnosed");
+
+    // An old project workspace must remain alive while a cancelled/retired
+    // worker can still read its SourceSnapshot, then be removed on drain.
+    manager.setContext(context());
+    check(reopened->startWork(slowWork()), "Retired workspace fixture did not start");
+    auto retired = std::make_shared<QTemporaryDir>();
+    check(retired->isValid(), "Temporary project workspace could not be created");
+    const QString retiredPath = retired->path();
+    manager.retireWorkspace(retired);
+    retired.reset();
+    check(QDir(retiredPath).exists(), "Workspace removed while analysis worker was running");
+    manager.scheduler().cancel(Feature::Ild);
+    drain(manager.scheduler());
+    check(pumpUntil([&] { return !QDir(retiredPath).exists(); }),
+          "Retired workspace was not removed after workers drained");
 
     manager.setContext(context());
     for (int i = 0; i < featureCount; ++i) {
