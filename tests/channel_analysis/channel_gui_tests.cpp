@@ -299,6 +299,12 @@ int main(int argc, char **argv) {
     items->item(0)->setCheckState(Qt::Checked);
     items->item(1)->setCheckState(Qt::Checked);
     icn->runButton()->click();
+    check(icn->status()==S::NotEvaluated,
+          "Multiple aggressors must require explicit RSS assumption");
+    auto *rss=icn->findChild<QCheckBox *>(QStringLiteral("icnIndependentAssumption"));
+    check(rss && !rss->isChecked(),"RSS assumption must not be pre-accepted");
+    rss->setChecked(true);
+    icn->runButton()->click();
     drain(manager.scheduler());
     check(icn->status()==S::Valid || icn->status()==S::Warning,
           "Real ICN did not produce qualified result");
