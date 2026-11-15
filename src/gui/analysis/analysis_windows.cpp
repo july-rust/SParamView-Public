@@ -211,14 +211,19 @@ protected:
       const double heightPer=double(height())/3.0;
       QRectF area(80,25+heightPer*panel,std::max(60,width()-100),
                   std::max(28.0,heightPer-45));
+      const int seriesCount=panel==0 ? 2 : 2+int(d.aggressors.size());
       auto sample=[&](size_t i,int which)->double {
+        if(which>=2) {
+          const auto &a=d.aggressors[size_t(which-2)];
+          return panel==1?a.spectralDensityV2Hz[i]*1e15:a.cumulativeRmsV[i]*1000.0;
+        }
         if(panel==0) return which?d.fextPowerDb[i]:d.nextPowerDb[i];
         if(panel==1) return (which?d.fextDensityV2Hz[i]:d.nextDensityV2Hz[i])*1e15;
         return (which?d.fextCumulativeRmsV[i]:d.nextCumulativeRmsV[i])*1000.0;
       };
       double low=0,high=0;
       for(size_t i=0;i<n;++i)
-        for(int w=0;w<2;++w) {
+        for(int w=0;w<seriesCount;++w) {
           low=std::min(low,sample(i,w));
           high=std::max(high,sample(i,w));
         }
@@ -239,7 +244,7 @@ protected:
                  QString::number(f1/1e9,'g',5)+QStringLiteral(" GHz"));
       p.save();
       p.setClipRect(area);
-      for(int which=0;which<2;++which) {
+      for(int which=0;which<seriesCount;++which) {
         const size_t stride=std::max<size_t>(1,n/3200);
         QPainterPath path;
         bool first=true;
@@ -259,7 +264,10 @@ protected:
           else {vertex(maxi);vertex(mini);}
         }
         vertex(n-1);
-        p.setPen(QPen(which?QColor("#d47a24"):QColor("#236db6"),1.6));
+        const QColor color=which==0?QColor("#236db6"):
+          which==1?QColor("#d47a24"):
+          QColor::fromHsv((int(which)-2)*53%360,180,180);
+        p.setPen(QPen(color,which<2?1.8:1.15));
         p.drawPath(path);
       }
       p.restore();
@@ -482,6 +490,10 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     graphPlaceholder_->hide();
     icnGraph_=new IcnPlotWidget(this);
     outer->addWidget(icnGraph_,2);
+    icnContributions_=new QLabel(QStringLiteral("Select NEXT/FEXT paths to display individual contributions."));
+    icnContributions_->setObjectName(QStringLiteral("icnContributions"));
+    icnContributions_->setWordWrap(true);
+    outer->addWidget(icnContributions_);
   }
   auto *exports = new QHBoxLayout;
   csv_ = new QPushButton(QStringLiteral("Export CSV"));
@@ -855,6 +867,7 @@ void AnalysisWindow::setIcnSourceProvider(IcnSourceProvider provider) {
 void AnalysisWindow::clearIcn() {
   icnResult_.reset();
   if(icnGraph_) static_cast<IcnPlotWidget *>(icnGraph_)->setData({});
+  if(icnContributions_) icnContributions_->setText(QStringLiteral("No current ICN result."));
   if(feature_==Feature::Icn) {
     csv_->setEnabled(false);
     png_->setEnabled(false);
@@ -961,6 +974,16 @@ void AnalysisWindow::showIcn(const WorkOutcome &outcome) {
   csv_->setEnabled(true);
   png_->setEnabled(true);
   const auto &d=*icnResult_;
+  QStringList contributions;
+  for(size_t i=0;i<d.aggressors.size();++i) {
+    const auto &a=d.aggressors[i];
+    contributions<<QStringLiteral("Path %1 %2 %3: %4 mV RMS (%5% power)")
+      .arg(qulonglong(i)).arg(a.end==si::channel::IcnEnd::Next?
+          QStringLiteral("NEXT"):QStringLiteral("FEXT"))
+      .arg(QString::fromStdString(a.id)).arg(a.rmsV*1000,0,'g',6)
+      .arg(a.powerPercent,0,'g',5);
+  }
+  if(icnContributions_) icnContributions_->setText(contributions.join(QStringLiteral(" | ")));
   setStatus(outcome.status,QStringLiteral(
     "NEXT %1 mV RMS | FEXT %2 mV RMS | Total %3 mV RMS | %4 paths%5 — Generic NRZ, no standard PASS")
     .arg(d.nextRmsV*1000,0,'g',7).arg(d.fextRmsV*1000,0,'g',7)
