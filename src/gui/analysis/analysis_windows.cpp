@@ -181,6 +181,93 @@ private:
   double viewFrom_=0,viewTo_=0,lastX_=0;
   bool dragging_=false;
 };
+
+class IcnPlotWidget final : public QWidget {
+public:
+  explicit IcnPlotWidget(QWidget *parent=nullptr) : QWidget(parent) {
+    setObjectName(QStringLiteral("icnResultGraph"));
+    setMinimumHeight(410);
+  }
+  void setData(std::shared_ptr<const si::channel::IcnData> data) {
+    data_=std::move(data);
+    update();
+  }
+protected:
+  void paintEvent(QPaintEvent *) override {
+    QPainter p(this);
+    p.fillRect(rect(),palette().base());
+    p.setRenderHint(QPainter::Antialiasing);
+    if(!data_ || data_->frequencyHz.size()<2) {
+      p.setPen(palette().text().color());
+      p.drawText(rect(),Qt::AlignCenter,QStringLiteral(
+        "Select NEXT/FEXT aggressors and run the generic ICN model."));
+      return;
+    }
+    const auto &d=*data_;
+    const double f0=d.frequencyHz.front(), f1=d.frequencyHz.back();
+    const size_t n=d.frequencyHz.size();
+    if(!(f1>f0)) return;
+    for(int panel=0;panel<3;++panel) {
+      const double heightPer=double(height())/3.0;
+      QRectF area(80,25+heightPer*panel,std::max(60,width()-100),
+                  std::max(28.0,heightPer-45));
+      auto sample=[&](size_t i,int which)->double {
+        if(panel==0) return which?d.fextPowerDb[i]:d.nextPowerDb[i];
+        if(panel==1) return (which?d.fextDensityV2Hz[i]:d.nextDensityV2Hz[i])*1e15;
+        return (which?d.fextCumulativeRmsV[i]:d.nextCumulativeRmsV[i])*1000.0;
+      };
+      double low=0,high=0;
+      for(size_t i=0;i<n;++i)
+        for(int w=0;w<2;++w) {
+          low=std::min(low,sample(i,w));
+          high=std::max(high,sample(i,w));
+        }
+      const double extra=std::max((high-low)*0.08,0.05);
+      low-=extra;high+=extra;
+      p.setPen(QPen(palette().mid().color(),1));
+      p.drawRect(area);
+      p.setPen(palette().text().color());
+      const QString title=panel==0?QStringLiteral("NEXT / FEXT power sum (dB, -300 dB zero floor)")
+        :panel==1?QStringLiteral("Weighted noise PSD (mV²/GHz)")
+                 :QStringLiteral("Cumulative NEXT / FEXT RMS (mV)");
+      p.drawText(QRectF(area.left(),area.top()-21,area.width(),18),Qt::AlignLeft,title);
+      p.drawText(QRectF(2,area.top(),75,20),Qt::AlignRight,QString::number(high,'g',4));
+      p.drawText(QRectF(2,area.bottom()-19,75,20),Qt::AlignRight,QString::number(low,'g',4));
+      p.drawText(QRectF(area.left(),area.bottom()+3,area.width(),18),Qt::AlignLeft,
+                 QString::number(f0/1e9,'g',5)+QStringLiteral(" GHz"));
+      p.drawText(QRectF(area.left(),area.bottom()+3,area.width(),18),Qt::AlignRight,
+                 QString::number(f1/1e9,'g',5)+QStringLiteral(" GHz"));
+      p.save();
+      p.setClipRect(area);
+      for(int which=0;which<2;++which) {
+        const size_t stride=std::max<size_t>(1,n/3200);
+        QPainterPath path;
+        bool first=true;
+        auto vertex=[&](size_t i) {
+          const double x=area.left()+(d.frequencyHz[i]-f0)/(f1-f0)*area.width();
+          const double y=area.bottom()-(sample(i,which)-low)/(high-low)*area.height();
+          if(first) {path.moveTo(x,y);first=false;} else path.lineTo(x,y);
+        };
+        for(size_t i=0;i<n;i+=stride) {
+          const size_t end=std::min(n,i+stride);
+          size_t mini=i,maxi=i;
+          for(size_t k=i+1;k<end;++k) {
+            if(sample(k,which)<sample(mini,which))mini=k;
+            if(sample(k,which)>sample(maxi,which))maxi=k;
+          }
+          if(mini<=maxi) {vertex(mini);if(mini!=maxi)vertex(maxi);}
+          else {vertex(maxi);vertex(mini);}
+        }
+        vertex(n-1);
+        p.setPen(QPen(which?QColor("#d47a24"):QColor("#236db6"),1.6));
+        p.drawPath(path);
+      }
+      p.restore();
+    }
+  }
+private:
+  std::shared_ptr<const si::channel::IcnData> data_;
+};
 }
 struct AsyncScheduler::Ticket {
   Feature feature;
