@@ -22,6 +22,11 @@ TARGETS = {
     "release_4_17_license": BASE + "/repository/files/LICENSE/raw?ref=4.17.0",
     "release_4_17_code_meta": BASE + "/repository/files/release%2Fcom_ieee8023_4p17p0.m?ref=4.17.0",
     "config_templates": BASE + "/repository/tree?path=config_templates&ref=4.17.0&per_page=100",
+    "template_C2C": BASE + "/repository/tree?path=config_templates%2FC2C&ref=4.17.0&per_page=100",
+    "template_C2M": BASE + "/repository/tree?path=config_templates%2FC2M&ref=4.17.0&per_page=100",
+    "template_CR": BASE + "/repository/tree?path=config_templates%2FCR&ref=4.17.0&per_page=100",
+    "template_readme": BASE + "/repository/files/config_templates%2FREADME.md/raw?ref=4.17.0",
+    "release_code_prefix": BASE + "/repository/files/release%2Fcom_ieee8023_4p17p0.m/raw?ref=4.17.0",
     "readme": BASE + "/repository/files/README.md/raw?ref=main",
 }
 output = {"status": "UNVERIFIED", "results": {}}
@@ -38,7 +43,7 @@ for name, uri in TARGETS.items():
                 data = json.loads(raw)
                 item.update({k: data.get(k) for k in ("id", "path_with_namespace", "sha",
                              "web_url", "license", "created_at", "committed_date", "blob_id", "size", "file_path") if k in data})
-            elif name in ("root_tree", "release_tree", "config_templates"):
+            elif name in ("root_tree", "release_tree", "config_templates", "template_C2C", "template_C2M", "template_CR"):
                 data = json.loads(raw)
                 item["paths"] = [x.get("path") for x in data][:100]
             elif name == "release_4_17_tag":
@@ -58,6 +63,12 @@ for name, uri in TARGETS.items():
                 item["has_bsd_redistribution"] = "Redistribution and use in source and binary forms" in text
             elif name == "readme":
                 item["intro"] = raw.decode("utf-8", errors="replace")[:1600]
+            elif name == "template_readme":
+                item["text"] = raw.decode("utf-8", errors="replace")[:1600]
+            elif name == "release_code_prefix":
+                txt = raw.decode("utf-8", errors="replace")
+                item["first_30_lines"] = txt.splitlines()[:30]
+                item["functions_head"] = [line[:120] for line in txt.splitlines() if line.strip().startswith("function")][:15]
             output["results"][name] = item
     except (HTTPError, URLError, ValueError, TimeoutError) as exc:
         output["results"][name] = {"error": type(exc).__name__, "detail": str(exc)[:180]}
