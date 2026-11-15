@@ -1,6 +1,8 @@
 """Release safety gates must stop before any package or remote mutation."""
 import importlib.util
 import os
+import tempfile
+import zipfile
 from pathlib import Path
 import unittest
 from unittest.mock import patch
@@ -10,6 +12,20 @@ publisher=importlib.util.module_from_spec(spec)
 spec.loader.exec_module(publisher)
 
 class ReleaseSafety(unittest.TestCase):
+    def test_gui_and_csv_evidence_survives_release_packaging(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)/'evidence'; root.mkdir()
+            samples = {'dialog.png': b'PNG evidence', 'source.csv': b'original,00123\r\n',
+                       'saved.csv': b'original,00123\n', 'cells.tsv': b'1\t2\tSTRING',
+                       'results.json': b'{"status":"PASS"}'}
+            for name, data in samples.items(): (root/name).write_bytes(data)
+            (root/'profile').mkdir(); (root/'profile'/'private.json').write_text('{}')
+            archive=Path(folder)/'evidence.zip'
+            publisher.write_validation_evidence(archive,[root])
+            with zipfile.ZipFile(archive) as z:
+                self.assertEqual({Path(n).name for n in z.namelist()},set(samples))
+                for name in z.namelist(): self.assertEqual(z.read(name),samples[Path(name).name])
+
     def stopped(self, answers, message, environment=None):
         env=dict(SPARAMVIEW_VERSION='1.2.4a',GITHUB_SHA='a'*40,GITHUB_REPOSITORY='owner/repo',
                  GITHUB_REF='refs/heads/main',GITHUB_EVENT_NAME='push',GITHUB_RUN_ID='42')

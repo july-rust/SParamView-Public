@@ -46,6 +46,18 @@ def check_provenance(data, version, commit):
         raise RuntimeError('Package provenance does not match release version and build commit')
 
 
+def write_validation_evidence(destination, roots):
+    # Retain executable evidence, including GUI screenshots and CSV inputs/
+    # outputs. Disposable office profiles are not verification evidence.
+    extensions = {'.json', '.log', '.txt', '.md', '.png', '.csv', '.tsv', '.ods', '.sha256'}
+    with zipfile.ZipFile(destination, 'w', zipfile.ZIP_DEFLATED) as archive:
+        for root in roots:
+            for path in sorted(root.rglob('*')):
+                if (path.is_file() and path.suffix.lower() in extensions
+                        and 'profile' not in path.relative_to(root).parts):
+                    add_file(archive, path, path)
+
+
 def retire_v124_after_v124a_published(endpoint, repo, version, commit, expected_assets):
     """Remove the superseded official release only after complete v1.2.4a publication.
 
@@ -253,18 +265,17 @@ def main():
     for language in ('EN', 'KO'):
         shutil.copyfile(f'docs/USER_GUIDE_{language}.md', output/f'SParamView_User_Guide_{language}_v{version}.md')
     shutil.copyfile('README_FIRST.txt', output/f'README_FIRST_v{version}.txt')
-    with zipfile.ZipFile(output/f'SParamView_v{version}_Validation_Evidence.zip','w',zipfile.ZIP_DEFLATED) as archive:
-        evidence = list(Path('package/evidence').rglob('*'))
-        evidence += list(Path('docs/validation-v124').rglob('*'))
-        for path in sorted(evidence):
-            if path.is_file() and path.suffix.lower() in ('.json','.log','.txt','.md'):
-                add_file(archive, path, path)
+    write_validation_evidence(output/f'SParamView_v{version}_Validation_Evidence.zip',
+                              [Path('package/evidence'), Path('docs/validation-v124')])
     hashes = {path.name: sha(path) for path in sorted(output.iterdir()) if path.is_file()}
     status = dict(application='SParamView', version=version, release_commit=commit,
                   tag=tag, workflow_run=os.environ['GITHUB_RUN_ID'],
                   platforms=['Windows x64','Windows ARM64','macOS Apple Silicon arm64'],
                   automated_platform_gates='PASS', gates=gates, asset_sha256=hashes,
                   limitations=['macOS ad-hoc signed; not notarized', 'Quick TDR remains Preview',
+                               'Excel desktop round-trip UNVERIFIED: execution environment unavailable',
+                               'Windows/macOS Calc interactive import/save dialogs UNVERIFIED; see per-platform results for API round-trip',
+                               'Injected bad_alloc is not real OOM; arbitrary callback exceptions are not exhaustively verified',
                                'Automated GUI tests do not establish physical display or instrument acceptance'])
     status_path = output/f'SParamView_v{version}_Release_Status_FINAL.json'
     status_path.write_text(json.dumps(status, indent=2)+'\n', encoding='utf-8')

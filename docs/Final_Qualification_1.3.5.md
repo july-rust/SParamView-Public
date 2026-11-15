@@ -69,3 +69,15 @@ The isolated Windows probe uses a console for the invalid-platform scenario
 handler records Qt's actual diagnostics to stderr and a flushed file. Other
 native-dialog probes still use the normal Windows platform and real QMessageBox.
 Source: [Qt 6.8.3 platform initialization](https://github.com/qt/qtbase/blob/v6.8.3/src/gui/kernel/qguiapplication.cpp). Neither change alters production error handling.
+
+Service-runner Windows initialization probes also request a separate child
+console and use pointer-width-correct Win32 dialog enumeration. LibreOffice
+26.8 onboarding blocked the macOS save macro in observed screenshots; the
+isolated test profile disables only WhatsNew and ShowTipOfTheDay. CSV import
+options remain explicit and formula evaluation remains enabled.
+
+The release evidence archive retains PNG screenshots, CSV inputs/outputs,
+TSV cell audits and ODS cell-type evidence, in addition to JSON/log/text files.
+A packaging regression checks that those bytes survive archiving and that
+disposable LibreOffice profiles are excluded. Per-platform UNVERIFIED records
+remain in the archive and are never converted into a passing round-trip.

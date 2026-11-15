@@ -21,6 +21,8 @@ def dismiss_windows_platform_error(child, folder):
     user.SendMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
     seen = []
     callback_type = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+    user.EnumWindows.argtypes = [callback_type, wintypes.LPARAM]
+    user.EnumChildWindows.argtypes = [wintypes.HWND, callback_type, wintypes.LPARAM]
     @callback_type
     def visit(hwnd, _):
         pid = wintypes.DWORD()
@@ -63,7 +65,12 @@ def run(mode, *, native=False, reuse=None):
     started = time.monotonic()
     timed_out = False
     with (folder / (mode + '.log')).open('wb') as log:
-        child = subprocess.Popen(command, env=env, stdout=log, stderr=subprocess.STDOUT)
+        # A service runner can have an attached console without a console HWND.
+        # Give the invalid-platform child its own console, as required by Qt's
+        # pre-QApplication fatal path; never change the shipping executable.
+        flags = subprocess.CREATE_NEW_CONSOLE if os.name == 'nt' and mode == 'qt-init' else 0
+        child = subprocess.Popen(command, env=env, stdout=log, stderr=subprocess.STDOUT,
+                                 creationflags=flags)
         try:
             if mode == 'qt-init' and os.name == 'nt': dismiss_windows_platform_error(child, folder)
             if mode == 'hold':

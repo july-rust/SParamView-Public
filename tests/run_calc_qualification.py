@@ -1,9 +1,11 @@
 """Visible Calc/UNO Basic round-trip. Interactive import/save dialogs are separate UNVERIFIED scope."""
-import argparse, json, os, pathlib, platform, shutil, subprocess, time
+import argparse, hashlib, json, os, pathlib, platform, shutil, subprocess, time
+import xml.etree.ElementTree as ET
 from xml.sax.saxutils import escape
 p=argparse.ArgumentParser();p.add_argument('probe',type=pathlib.Path);p.add_argument('output',type=pathlib.Path);p.add_argument('--office');a=p.parse_args()
 a.probe=a.probe.resolve();a.output=a.output.resolve();a.output.mkdir(parents=True,exist_ok=True)
 record={'os':platform.platform(),'source_commit':os.getenv('GITHUB_SHA','local-working-tree'),
+        'probe_sha256':hashlib.sha256(a.probe.read_bytes()).hexdigest(),
         'interactive_import_save_dialogs':'UNVERIFIED',
         'excel':'UNVERIFIED — Excel execution environment unavailable',
         'scope':'Visible Calc document via supported UNO Basic API; dialogs bypassed by explicit FilterOptions'}
@@ -19,6 +21,18 @@ except Exception as e: record['version_error']=str(e)
 profile=a.output/'profile'
 # First-run initialization installs Standard/Module1; do it BEFORE our macro.
 subprocess.run([office,'-env:UserInstallation='+profile.as_uri(),'--headless','--terminate_after_init'],timeout=45,check=True)
+# Only this disposable profile: suppress first-run onboarding, which blocks
+# the macro's save call in LibreOffice 26.8. This does not change CSV settings.
+# See LibreOffice sfx2/source/view/viewfrm.cxx (Setup/Product/WhatsNew).
+registry=profile/'user/registrymodifications.xcu'
+ns='http://openoffice.org/2001/registry'; ET.register_namespace('oor',ns)
+tree=ET.parse(registry) if registry.exists() else ET.ElementTree(ET.Element('{'+ns+'}items'))
+for path,name in [('/org.openoffice.Setup/Product','WhatsNew'),('/org.openoffice.Office.Common/Misc','ShowTipOfTheDay')]:
+    item=ET.SubElement(tree.getroot(),'item',{'{'+ns+'}path':path})
+    prop=ET.SubElement(item,'prop',{'{'+ns+'}name':name,'{'+ns+'}op':'fuse'})
+    ET.SubElement(prop,'value').text='false'
+tree.write(registry,encoding='utf-8',xml_declaration=True)
+record['onboarding']='Disabled WhatsNew and ShowTipOfTheDay in isolated test profile'
 standard=profile/'user/basic/Standard';standard.mkdir(parents=True,exist_ok=True)
 (profile/'user/basic/script.xlc').write_text('''<?xml version="1.0"?><library:libraries xmlns:library="http://openoffice.org/2000/library" xmlns:xlink="http://www.w3.org/1999/xlink"><library:library library:name="Standard" xlink:href="'''+escape((standard/'script.xlb').as_uri())+'''" xlink:type="simple" library:link="false"/></library:libraries>''')
 (standard/'script.xlb').write_text('''<?xml version="1.0"?><library:library xmlns:library="http://openoffice.org/2000/library" library:name="Standard" library:readonly="false" library:passwordprotected="false"><library:element library:name="Module1"/></library:library>''')
