@@ -14,6 +14,8 @@
 #include <iomanip>
 #include <filesystem>
 #include <QTemporaryDir>
+#include <QFile>
+#include <QImage>
 #include <stdexcept>
 
 using namespace si::gui;
@@ -214,10 +216,29 @@ int main(int argc, char **argv) {
     auto *png=ild->findChild<QPushButton *>(QStringLiteral("analysisPng"));
     check(csv && csv->isEnabled() && png && png->isEnabled(),
           "Verified ILD exports not enabled");
+    const QString csvPath=ildDir.filePath(QStringLiteral("ild-result.csv"));
+    const QString pngPath=ildDir.filePath(QStringLiteral("ild-result.png"));
+    check(ild->saveIldCsv(csvPath),"Actual ILD CSV file export failed");
+    check(ild->saveIldPng(pngPath),"Actual ILD PNG file export failed");
+    QFile csvFile(csvPath);
+    check(csvFile.open(QIODevice::ReadOnly),"ILD CSV cannot be read back");
+    const QByteArray csvBytes=csvFile.readAll();
+    check(csvBytes.contains("Frequency_GHz,IL_dB,Fitted_IL_dB,ILD_dB") &&
+          csvBytes.contains("# source_sha256,") &&
+          csvBytes.contains("# fitting_model,"),
+          "CSV numerical/provenance columns missing");
+    check(csvBytes.count('\n')>=32,"CSV numeric row count suspicious");
+    QImage actualPng(pngPath);
+    check(!actualPng.isNull() && actualPng.width()>200 &&
+          actualPng.height()>200,"PNG not a usable rendered plot");
+
     numericContext.sources[0].sha256=QStringLiteral("stale-sha");
     manager.setContext(numericContext);
     check(ild->status()==S::Stale,"Context replacement failed to mark ILD STALE");
     check(!csv->isEnabled() && !png->isEnabled(),"Stale ILD allowed export");
+    check(!ild->saveIldCsv(ildDir.filePath(QStringLiteral("stale.csv"))) &&
+          !ild->saveIldPng(ildDir.filePath(QStringLiteral("stale.png"))),
+          "STALE result was exported as current");
     manager.setIldSourceProvider({});
     std::cout << "012_04/012_05 QT GUI and ILD workflow PASS\n";
     return 0;
