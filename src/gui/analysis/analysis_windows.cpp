@@ -41,6 +41,7 @@ public:
   explicit IldPlotWidget(QWidget *parent = nullptr) : QWidget(parent) {
     setObjectName(QStringLiteral("ildResultGraph"));
     setMinimumHeight(260);
+    setMouseTracking(true);
   }
   void setData(std::shared_ptr<const si::channel::IldData> data) {
     data_ = std::move(data);
@@ -244,7 +245,11 @@ quint64 AsyncScheduler::submit(Feature feature, QObject *recipient,
             if (cancelled->load(std::memory_order_acquire))
               return {si::channel::Status::Cancelled, QStringLiteral("Cancelled")};
             return outcome;
+          } catch (const si::Cancelled &) {
+            return {si::channel::Status::Cancelled, QStringLiteral("Calculation cancelled")};
           } catch (const std::exception &e) {
+            if(cancelled->load(std::memory_order_acquire))
+              return {si::channel::Status::Cancelled, QStringLiteral("Calculation cancelled")};
             return {si::channel::Status::Error, QString::fromUtf8(e.what())};
           } catch (...) {
             return {si::channel::Status::Error, QStringLiteral("Unknown worker failure")};
@@ -617,8 +622,11 @@ bool AnalysisWindow::saveIldCsv(const QString &name) {
   const auto &d=*ildResult_;
   auto safe=[](const std::string &raw) {
     QString v=QString::fromStdString(raw);
+    v.replace(QLatin1Char('\r'),QLatin1Char(' '));
+    v.replace(QLatin1Char('\n'),QLatin1Char(' '));
     v.replace(QStringLiteral("\""),QStringLiteral("\"\""));
-    if(!v.isEmpty() && QStringLiteral("=+-@").contains(v.front()))v.prepend(QLatin1Char('\''));
+    const QString trimmed=v.trimmed();
+    if(!trimmed.isEmpty() && QStringLiteral("=+-@").contains(trimmed.front()))v.prepend(QLatin1Char('\''));
     return QStringLiteral("\"")+v+QStringLiteral("\"");
   };
   out<<"# source_sha256,"<<safe(ildProvenance_.sourceSha256)<<"\n"
