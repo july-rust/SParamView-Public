@@ -614,3 +614,11 @@ Open **Analysis → ILD** as a separate top-level window. Select a confirmed sou
 Generic sample RMS and peak residual are **not** an IEEE weighted FOM_ILD or an IEEE/MIPI PHY PASS/FAIL declaration. Invalid or insufficient inputs fail closed. See [ILD implementation and qualification contract](Channel_Analysis_ILD_012_05.md).
 
 ---
+
+## In-development v1.4.0 — independent Generic ICN (012_06, not v1.3.5)
+
+Under verification in [PR #42](https://github.com/july-rust/SParamView-Public/pull/42). Open **Analysis → ICN** in a separate nonmodal window (only available after the engine is registered). Select a source revision, victim channel and one or more NEXT/FEXT aggressor paths with checkboxes. Enter symbol rate (GBd), TX voltage (mV **peak-to-peak**), Gaussian 10–90% rise time (ps), RX 3 dB bandwidth (GHz) and integration range (GHz); then Run. Initial numerical controls are **illustrative values, never automatically inferred from your transmitter**.
+
+The window displays summed NEXT/FEXT transfer power, weighted noise PSD and cumulative NEXT/FEXT RMS with a total RMS summary. CSV saves source SHA, reference mapping, model, individual aggressor contributions and full per-frequency numerical data; PNG saves the actual rendered graph. The program rejects invalid/missing TX voltage and stale exports. If measured frequency limits omit DC or a requested band, results are marked **BAND LIMITED**; no missing spectrum is invented.
+
+This is an **exploratory IID NRZ, uncorrelated-aggressor calculation**, NOT IEEE 802.3 ICN, SNIA ccICN, COM, lab-measured noise or PHY PASS/FAIL. See [ICN 012_06 contract](Channel_Analysis_ICN_012_06.md). Physical Windows/macOS GUI acceptance is scheduled for 012_12, and official v1.4.0 release for 012_14.
