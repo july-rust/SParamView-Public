@@ -1,105 +1,86 @@
-# Channel Analysis Extension Development Plan (ILD / ICN / COM / Eye Diagram)
+# SParamView Channel Analysis Development Plan — v1.3.5 Baseline
 
-> Status: **PLANNED / NOT IMPLEMENTED**. This is a prospective roadmap, not a v1.3.3 capability or a release announcement.
-> Baseline: SParamView v1.3.3. Release version for these extensions: **TBD**. Documentation-only change.
+**Updated:** 2026-11-15 (KST)  
+**Status:** PLANNED / **NOT IMPLEMENTED**  
+**Frozen baseline:** Official **v1.3.5** tag, its release assets and numerical results remain unchanged.  
+**First feature release candidate:** **v1.4.0**, subject to complete implementation and qualification; subsequent feature release numbers and dates are TBD.
 
-## 1. User-approved UI requirement (2026-11-13)
+This plan supersedes the previous v1.3.3-baseline plan. Do not interpret a menu mock-up, commit, CI build or documentation as a completed feature or a published release.
 
-- Add a dedicated **Analysis** top-level drop-down menu to the existing Qt6 menu bar.
-- Menu entries: **Insertion Loss Deviation (ILD)...**, **Integrated Crosstalk Noise (ICN)...**, **Channel Operating Margin (COM)...**, **Eye Diagram...**.
-- Selecting an entry opens a **new, independent, non-modal top-level analysis window**, not a tab, side panel or overlay within the existing main analysis workspace.
-- The original main window and its RL / IL / NEXT / FEXT / Quick TDR views remain intact and usable while extension windows are open.
-- Different analysis windows may be open and used simultaneously; each owns its own controls, plot zoom/pan, selection, progress, and export status.
-- Clicking an entry for an already-open analysis kind should raise/focus its existing window in the active workspace by default. If multiple instances of the same kind are added later, make the duplication action explicit rather than creating windows unexpectedly.
-- Closing a child analysis window must not close the main application or unrelated analysis windows.
-- Support Windows x64, Windows ARM64 and macOS Apple Silicon with native window management and menu behavior.
+## 1. User-approved UX contract
 
-## 2. Menu & window concept
+Add a **top-level Analysis menu** beside the existing menus. Each enabled item opens its **own independent, non-modal top-level window**, never a tab or embedded panel in the existing main workspace.
 
-    File | Channel Mapping | View | Limit | Analysis | Tools | About
-                                              +-- Insertion Loss Deviation (ILD)...
-                                              +-- Integrated Crosstalk Noise (ICN)...
-                                              +-- Channel Operating Margin (COM)...
-                                              +-- Eye Diagram...
+| Analysis menu entry | Dedicated window | Primary outputs |
+| --- | --- | --- |
+| Insertion Loss Deviation (ILD)… | ILD Window | Measured IL / fitted IL / ILD(f), deviation metrics |
+| Integrated Crosstalk Noise (ICN)… | ICN Window | Individual and combined aggressor noise, assumptions |
+| Eye Diagram… | Eye Diagram Window | Simulated eye and qualified eye-height/width metrics |
+| Channel Operating Margin (COM)… | COM Window | Profile-specific COM and diagnostics, when fully validated |
 
-Each window shall contain: source/revision/channel indicator; analysis-specific inputs and validated presets; Run / Cancel / Recalculate; progress and quality/errors; interactive graph and numerical results; and export of results/plot with metadata. Never quietly inherit stale settings/results from a different project.
+- Keep the main RL / IL / NEXT / FEXT / Quick TDR workspace unchanged and usable; allow **all four different windows to remain open simultaneously**.
+- Reopening the same analysis type focuses its existing window (no accidental duplicates). Closing one window must never close the main application or unrelated analysis windows.
+- Each window owns its settings, source/revision/channel selection, Run/Cancel, progress, error/quality status, zoom/pan, plot, numeric results and export actions. Show the active source and mapping on screen.
+- Window behavior must be native and testable on **Windows x64, native Windows ARM64 and macOS Apple Silicon arm64**. Use Qt6 non-modal top-level widgets with safe lifetime-managed callbacks.
+- **Never enable a menu item that claims to calculate a metric before the metric's real calculation, inputs, quality checks and regression tests are ready.** If needed, show clearly disabled items in early feature releases.
 
-Implementation proposal: keep the current MainWindow as the project owner; create a dedicated non-modal Qt6 window/controller for each analysis type (e.g. independent QMainWindow or appropriate top-level QWidget). Share immutable source snapshots and calculation services, **not** mutable graph widgets or main-window analysis result tables. Window ownership and async callbacks must use safe lifetime handling (e.g. QPointer or equivalent).
+## 2. v1.3.5 compatibility boundary
 
-## 3. Input integrity & lifecycle contract
+Source references: [v1.3.5 release notes](Release_1.3.5.md), [qualification scope](Final_Qualification_1.3.5.md), `../include/si/core.hpp`, `../src/trace.cpp`, `../src/window_ui.cpp`, `../src/window_analysis.cpp`, `../CMakeLists.txt`.
 
-1. Source: use the currently selected, validated Touchstone revision and confirmed physical/differential channel mapping. Present an explicit source selector if multiple revisions are loaded; do not silently guess victim/aggressor identities.
-2. Invalidation: when a source is replaced or a project is switched, cancel/retire work tied to its old generation and mark results stale. Do not show old-project results as valid for the new project; optionally preserve a clearly labeled historical view only as a future explicit feature.
-3. Concurrency: computing in a separate window shall not freeze the main Qt event loop or block another analysis window. Respect bounded workers, cancellation, safe shutdown and performance limits.
-4. Caching: reuse safe immutable source data only with provenance-based keys. Separate cache identity by source hash, mapping, analysis type, profile/algorithm revision, model inputs and relevant settings. Preserve v1.3.1+ cross-process cache isolation, project-switch invalidation and temporary-cache cleanup.
-5. Status: incomplete source frequency coverage, non-passive/non-causal or inconsistent S-parameters, missing reference impedance, insufficient aggressors, unconfirmed mapping, or missing transmitter/receiver/standard parameters must produce a clear quality warning or **UNSUPPORTED / NOT EVALUATED** state as applicable. Do not turn an unavailable metric into PASS.
-6. Reproducibility: record source file hash, Touchstone frequency range, channel/port identities, analysis settings, algorithm and selected standard/profile versions in every export.
+- Reuse validated Touchstone 1.x/2.x S-parameter imports, complex traces, confirmed single-ended/differential channel mapping, NEXT/FEXT extraction and the present Qt worker/cancellation facilities.
+- Do **not** change original Touchstone files, existing result semantics or v1.3.5 `.siproject` handling. Any later project-schema extension must support previous files or explicitly fail closed.
+- **Mapping CSV v3** is the current export/import contract. Preserve text/port fidelity, backward import of v1/v2 and protection against unsafe spreadsheet reinterpretation. Do not downgrade to v2 to suit new windows.
+- Preserve private-session caches, cross-process ownership/isolation, workspace replacement invalidation, abnormal-exit recovery and application-exit cleanup. Existing v1.3.5 fault-probe behavior must not regress.
+- A new window holds a versioned, immutable source/port-mapping snapshot. On project replacement, reimport, mapping edit or source hash change, cancel or invalidate old work and mark any retained graph **STALE**. Disallow results from another project/revision being silently presented as current.
+- Cache numerical results by source SHA-256, physical port/direction mapping, configuration, profile/version, algorithm revision and relevant TX/RX parameters. Keep bounded work, memory and cancellation; never share mutable plot controls between windows.
+- Split existing core numerical services from new typed `ILDResult`, `ICNResult`, `EyeResult` and `COMResult` models. Do not overload scalar legacy `Metric` / `Result` without reviewing compatibility.
 
-## 4. Feature scope and implementation order
+## 3. Incremental work and exit gates
 
-### Phase A — Shared channel-analysis framework
+| Stage | Deliverable | Must pass before completion |
+| --- | --- | --- |
+| **A: Framework** | Analysis menu, dedicated non-modal window host, source snapshots, isolation/cancellation and export framework | Real GUI open/focus/close, simultaneous windows, project-switch and cache lifecycle tests |
+| **B: ILD** | Fitted insertion-loss baseline, ILD(f) plot, RMS/max deviation and documented fitting conditions | Analytical/golden cases plus independent reference; no unsupported standards PASS |
+| **C: ICN** | Explicit victim/multi-aggressor NEXT/FEXT mapping; TX spectrum/RX filter profiles; power integration and contributions | Independent numeric oracle, polarity/direction and source-amplitude tests; no invented mV |
+| **D: Eye Diagram** | NRZ channel-simulated eye from complex S-parameters, UI, pulse response and PRBS settings; later jitter/noise/EQ/PAM4 only with verified models | Time/frequency transform checks, DC/spacing/bandwidth/causality warnings, known channels and eye opening tests |
+| **E: COM** | Separately versioned IEEE-profile engine, channel/package/TX/RX/EQ and noise/jitter inputs | Named IEEE edition/clause, reference implementation/oracle agreement, standard-specific PASS/FAIL evidence |
 
-- Extract reusable access to complex transfer and crosstalk responses without changing existing RL/IL/NEXT/FEXT/TDR semantics.
-- Define typed data models/results per new analysis rather than forcing waveforms and profile-heavy results into the existing scalar Metric/Result schema.
-- Introduce non-modal independent analysis windows, source snapshot handoff, job progress/cancel, explicit quality state and exports.
-- Add menu/window lifecycle and cache invalidation tests before enabling numerical metrics.
+**Sequence:** A → B → C → D → E. Stage A is shared infrastructure, not a separate feature marketing release. Prefer several small, fully tested PRs per stage over one large change. Every stage must include implementation, tests, docs and protected integration, with no open incomplete acceptance conditions.
 
-### Phase B — ILD (recommended first metric)
+**Release policy:** v1.3.5 remains immutable. **v1.4.0 is proposed for the first production-ready new analysis capability (A+B)**, provided existing CI and all supported platform packaging gates pass. ICN, Eye and COM are then added only through later explicitly qualified feature releases; do **not** promise specific version numbers or imply all four ship in v1.4.0. Use patch versions only for post-release fixes, not to silently bundle unverified new analyzers.
 
-- Compute IL deviation relative to a documented fitted insertion-loss baseline, and render measured IL, fitted IL and ILD(f).
-- Report fit method, interval, fit coefficients/degree, maximum and RMS deviation; when applicable, implement standard-specific weighted ILD FoM as separately versioned profiles.
-- Prevent official compliance PASS/FAIL without the precise standard-specific definition, frequency weighting, and qualification.
+## 4. Numerical definitions and limits
 
-### Phase C — ICN
+**ILD:** Document whether IL uses positive loss magnitude or signed dB, the selected baseline fit family, weighting, fit frequency range and extrapolation. A generic RMS or peak ILD is exploratory; a standard-qualified weighted figure requires the exact external specification and a reference fixture.
 
-- Support explicit victim and one or multiple aggressor selections; reuse complex NEXT/FEXT path extraction with verified port orientation.
-- Integrate crosstalk noise using an explicitly selected TX spectrum/amplitude and RX filter/equalizer model; handle independent aggressors and correlation assumptions transparently.
-- Display cumulative contribution, individual aggressor contributions and model assumptions; show output units only when the corresponding amplitude model is known.
+**ICN:** Integrate crosstalk from correctly oriented aggressors using explicit source spectrum/amplitude and receiver filtering. Record independent/correlated aggressor assumptions. If no amplitude model is supplied, report a normalized/conditional quantity, not an absolute millivolt noise or PASS.
 
-### Phase D — Eye Diagram
+**Eye:** Use complex transfer (including phase), not just IL magnitude. Document interpolation, DC extension, impulse/pulse construction, sampling interval, PRBS/bit rate, receiver threshold and any TX/RX equalization or jitter/noise assumptions. Show **Simulated Channel Eye** and quality status unless full PHY-specific models are verified; a visible eye opening is not measured BER or MIPI compliance.
 
-- Start with an NRZ channel-simulated eye from complex Sdd21 and a specified bit rate, idealized TX pattern and documented interpolation/DC/causality/bandwidth assumptions.
-- Add configurable TX rise/fall, pattern/PRBS, TX/RX filters, noise/jitter and (later) PAM4 and equalization.
-- Plot eye overlays plus reproducible metrics such as eye height, eye width, sampling point and UI; label results **Simulated Channel Eye** without an appropriate full PHY and measurement model.
-- Never infer an official BER or MIPI/Ethernet compliance result merely from the visible eye opening.
+**COM:** Treat COM as a standards-profile implementation, not a universal formula. Bind outputs and limits to a specific IEEE 802.3 edition/clause/annex and reference algorithm version. Review licensing and redistribution before incorporating an IEEE reference codebase. With missing parameters or mismatched reference results, return NOT EVALUATED / UNSUPPORTED—not a fabricated margin or PASS. Ethernet COM thresholds are not automatically MIPI D-PHY thresholds.
 
-### Phase E — COM
+## 5. Non-negotiable validation
 
-- Implement as a separately versioned and testable engine with a named IEEE 802.3 clause/annex and locked profile inputs; assess reference COM code, access/licensing and cross-platform redistribution before integration.
-- Include specified channel inputs, packaging/Tx/Rx/equalization, noise/jitter and aggressor conventions; retain the exact reference profile and output traceability.
-- Cross-check independent fixtures/reference implementation before enabling standard-qualified COM or PASS/FAIL; never apply a universal COM threshold to unrelated link standards.
+| Layer | Acceptance |
+| --- | --- |
+| **GUI** | Four menu definitions and separate host classes; each enabled item opens the correct window; close/reopen/focus/minimize; main results and layout unchanged; concurrent ILD and Eye windows |
+| **State** | Project switch, mapping edit, new Touchstone/revision, stale asynchronous callback, cancelled work and window destruction cannot relabel old data as current |
+| **Numerics** | Deterministic analytic fixtures, separate reference computations, convergence/frequency-range tests, invalid/non-passive or inconsistent inputs, insufficient aggressors and unsupported profiles produce clear quality states |
+| **Compatibility** | Original RL/IL/NEXT/FEXT/TDR values unchanged; old projects import; Mapping CSV v1/v2/v3 regression; cache isolation, cleanup and v1.3.5 native startup/failure probes |
+| **Platforms** | Native GUI and packaged-binary tests on Windows x64, Windows ARM64 and macOS arm64, plus existing sanitizer/CI/asset-provenance gates; physical GUI observations and unavailable Excel/LibreOffice checks labeled UNVERIFIED |
+| **Delivery** | Code review, complete tests, protected squash merge, EN/KO user guides, release notes and revision history all refer to the exact released commit, tag and verified assets |
 
-## 5. Interface and qualification principles
+Record actual source hashes, trace/profile versions, GUI evidence/logs and exact executed tests; **never write PASS from an unexecuted test or from another OS**.
 
-- Existing main screen remains unchanged in purpose; new features are accessed via the top menu, not appended to the main plot/results table by default.
-- Inputs needed for a particular analysis are edited **inside that analysis window**, not via global Quick Analysis settings. Project data is shared read-only.
-- Separate per-window presets and view state; close/reopen behavior should be predictable. No hidden persistent analysis cache left at application exit.
-- Input and standard/profile versions are explicit; standard-unqualified exploratory calculations must be labeled as such.
-- Test numerics with analytical fixtures, external/reference results, known bad/missing inputs and repeated-run determinism; don't claim numerical compliance from code compilation alone.
+## 6. Suggested implementation boundaries
 
-## 6. Acceptance tests (required before shipping)
+- UI: extend `src/window_ui.cpp` with a top-level Analysis menu and a minimal window manager; add dedicated ILD/ICN/Eye/COM Qt window classes. Keep presentation separate from jobs/results.
+- Core: add independent `channel_analysis` service contracts for frequency/time-domain transforms, noise integration and standard profiles, reusing `Cache::trace` and existing validated channel data where applicable.
+- Background workers: share only immutable input data; each window owns its cancellation generation and asynchronous completion safety.
+- Export: every result identifies file hash, channel/pins, input frequency span, assumptions, configuration, algorithm version and evaluation quality/status. Export errors cannot corrupt the original file.
+- Documentation: the present document is planning-only. Update existing release notes and EN/KO user instructions **at implementation time**. Do not rewrite historical v1.3.5 release contents or tagged assets.
 
-- Menu: all four entries are visible in the top-level Analysis menu; selecting each opens a distinct independent top-level window; the main analysis area and result/plot state do not change.
-- Multi-window: opening ILD and Eye simultaneously works; interacting, minimizing, moving, resizing and closing one leaves the others functional.
-- Reuse: choosing an already-open entry focuses that analysis window rather than spawning an accidental duplicate.
-- Data changes: adding a revision, changing channel mapping, switching projects and closing/reopening the main window cannot silently reuse stale numerical results or mis-map ports.
-- Cancellation: long-running analyses can be cancelled; worker completion after window destruction cannot dereference UI objects; shutdown cleans up temporary resources.
-- Failure modes: unsupported profiles, insufficient bandwidth, missing aggressors and corrupted/inconsistent source data show quality/fail-closed diagnostics, not fabricated PASS.
-- Portability: GUI/window lifecycle, numerical fixtures and performance checks pass on Windows x64, Windows ARM64 and macOS Apple Silicon; documentation-only changes should not require full native platform builds.
-- Documentation: update EN/KO guides, release notes and revision history **when implemented**; this planning document is not feature-completion evidence.
+## 7. Immediate next development task
 
-## 7. Korean requirement summary / 한글 요구사항
-
-- 기존 창 내부의 탭/그래프에 추가하지 않고 **상단 Analysis 드롭다운 메뉴에서 선택하면 각 기능이 별도의 독립 창으로 실행**되어야 한다.
-- ILD, ICN, COM, Eye Diagram 창을 **동시에 사용할 수 있고**, 원래 SParamView의 RL/IL/NEXT/FEXT/TDR 화면을 가리지 않거나 변경하지 않는다(사용자가 창을 이동/배치 가능).
-- 기존 프로젝트의 Touchstone 데이터 및 확정된 채널 매핑을 읽기 전용으로 공유하되 각 분석 창의 입력·그래프·분석 상태는 분리한다.
-- 프로젝트 전환, 파일 교체, 창 닫기, 다중 실행 시 오래된 결과 및 캐시 혼용이 발생하지 않도록 안전하게 무효화한다.
-- 규격에 필요한 파라미터가 없으면 임의의 PASS를 표시하지 않으며, Eye Diagram은 정확한 PHY 모델이 없을 경우 시뮬레이션 결과임을 명시한다.
-- **개발 순서:** 공통 창/분석 프레임워크 → ILD → ICN → Eye Diagram → COM. 실제 릴리스 버전과 일정은 추후 결정.
-
-## 8. Primary repository baseline
-
-- Existing Qt main menu: `src/window_ui.cpp` (File / Channel Mapping / View / Limit / Tools / About).
-- Existing complex trace and mapping: `include/si/core.hpp`, `src/trace.cpp`.
-- Existing transform/analysis/plot paths: `src/tdr.cpp`, `src/analysis.cpp`, `src/plot.cpp`.
-- This is a design plan only. No implementation, tests, builds or releases are claimed by this document.
+**Implement and qualify Stage A first, without release or placeholder calculations.** Its first PR should introduce only the independent-window architecture and lifecycle/state tests while leaving legacy analysis paths untouched. Then complete Stage B ILD and perform release qualification before deciding whether the tested build becomes **v1.4.0**.
