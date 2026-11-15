@@ -55,6 +55,11 @@ int main() {
   check(r.value->rmsDb>0.05 && r.value->peakAbsoluteDb>0.1,
         "ripple deliberately disturbed");
   check(r.value->minimumDb<0 && r.value->maximumDb>0,"signed ripple");
+  // Independent closed-form linear regression for a 17-point 0.2 dB
+  // quarter-period ripple: residual sum of squares = 16/51 dB^2.
+  near(r.value->rmsDb,std::sqrt(16.0/867.0),1e-10,"independent ripple RMS golden");
+  near(r.value->peakAbsoluteDb,0.2196078431372549,1e-10,
+       "independent ripple peak golden");
   s.stopHz=8e9;
   r=calculateIld(fromLoss(linear),s);
   near(r.value->rangeStopHz,8e9,1e-5,"range cap");
