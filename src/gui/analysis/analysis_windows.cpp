@@ -343,11 +343,24 @@ void AnalysisWindow::closeEvent(QCloseEvent *event) {
 }
 
 AnalysisWindowManager::AnalysisWindowManager(QMainWindow *owner)
-    : QObject(owner), owner_(owner), scheduler_(this) {}
+    : QObject(owner), owner_(owner), scheduler_(this) {
+  retirementPoll_.setInterval(50);
+  connect(&retirementPoll_, &QTimer::timeout, this, [this] {
+    if (scheduler_.inFlight() != 0) return;
+    retirementPoll_.stop();
+    for (auto &workspace : retiredWorkspaces_)
+      if (workspace && !workspace->remove())
+        qWarning() << "SParamView: retired analysis workspace cleanup deferred";
+    retiredWorkspaces_.clear();
+  });
+}
 AnalysisWindowManager::~AnalysisWindowManager() {
   scheduler_.invalidate();
+  retirementPoll_.stop();
   for (auto &window : windows_)
     if (window) window->close();
+  // The scheduler member is destroyed (and its workers joined) before the
+  // retained cache vector is destroyed; this ordering is intentional.
 }
 void AnalysisWindowManager::installMenu() {
   auto *menu = owner_->menuBar()->addMenu(QStringLiteral("Analysis"));
@@ -372,6 +385,16 @@ void AnalysisWindowManager::setContext(AnalysisContext context) {
   scheduler_.invalidate();
   for (auto &window : windows_)
     if (window) window->setContext(context_);
+}
+void AnalysisWindowManager::retireWorkspace(std::shared_ptr<QTemporaryDir> workspace) {
+  if (!workspace) return;
+  if (scheduler_.inFlight() == 0) {
+    if (!workspace->remove())
+      qWarning() << "SParamView: retired workspace cleanup deferred";
+    return;
+  }
+  retiredWorkspaces_.push_back(std::move(workspace));
+  retirementPoll_.start();
 }
 void AnalysisWindowManager::setEngineAvailable(Feature feature, bool available) {
   available_[int(feature)] = available;
