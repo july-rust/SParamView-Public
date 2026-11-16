@@ -5,6 +5,8 @@ on:
     paths:
       - 'scripts/com_3ck_c2c_real_reference.py'
       - 'scripts/com_3ck_c2c_octave_check.py'
+      - 'scripts/com_3ck_c2c_compare_numerics.py'
+      - 'tests/channel_analysis/test_com_3ck_c2c_compare_numerics.py'
       - 'tests/channel_analysis/test_com_3ck_c2c_real_reference.py'
       - 'tests/channel_analysis/test_com_3ck_c2c_octave_check.py'
       - '.github/workflows/com-ck-c2c-reference-numerics.yml'
@@ -13,6 +15,8 @@ on:
     paths:
       - 'scripts/com_3ck_c2c_real_reference.py'
       - 'scripts/com_3ck_c2c_octave_check.py'
+      - 'scripts/com_3ck_c2c_compare_numerics.py'
+      - 'tests/channel_analysis/test_com_3ck_c2c_compare_numerics.py'
       - 'tests/channel_analysis/test_com_3ck_c2c_real_reference.py'
       - 'tests/channel_analysis/test_com_3ck_c2c_octave_check.py'
       - '.github/workflows/com-ck-c2c-reference-numerics.yml'
@@ -106,6 +110,11 @@ jobs:
           if-no-files-found: warn
 
   historical-octave-independent-crosscheck:
+    needs: [real-ieee-c2c-reference]
+    strategy:
+      fail-fast: false
+      matrix:
+        condition: ${{ fromJSON(github.event_name == 'workflow_dispatch' && format('["{0}"]', inputs.channel) || '["10","16","18"]') }}
     # This compares the same historical source to a separate COM 4.17 Octave
     # implementation. It never qualifies final 802.3ck or native C++ COM.
     runs-on: ubuntu-latest
@@ -145,18 +154,34 @@ jobs:
       - name: Offline strict-typed MATLAB COM cell conversion regression tests
         run: |
           python -m unittest discover -s tests/channel_analysis \
-            -p test_com_3ck_c2c_octave_check.py -v
-      - name: Run independent 4p17p0 Octave historical C2C 10dB package reference
+            -p 'test_com_3ck_c2c_*py' -v
+      - name: Run independent 4p17p0 Octave historical C2C Test1/Test2
         shell: bash
         run: |
           set -euo pipefail
           python scripts/com_3ck_c2c_octave_check.py \
-            --channel 10 --external _external_qa_sicopr \
-            --output octave-historical-c2c-reference-10db.json
-      - name: Keep metadata only; never upload IEEE/third-party source
+            --channel "${{ matrix.condition }}" --external _external_qa_sicopr \
+            --output "octave-historical-c2c-reference-${{ matrix.condition }}db.json"
+      - name: Download same-channel Python reference metadata (no S4P)
+        uses: actions/download-artifact@v4
+        with:
+          name: ieee-3ck-c2c-historical-reference-${{ matrix.condition }}db
+          path: _python_historical_candidate
+      - name: Independently compare same-source Test1/Test2 COM and FOM
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/com_3ck_c2c_compare_numerics.py \
+            --channel "${{ matrix.condition }}" \
+            --python-reference "_python_historical_candidate/ieee-c2c-com-reference-${{ matrix.condition }}db.json" \
+            --octave-reference "octave-historical-c2c-reference-${{ matrix.condition }}db.json" \
+            --output "historical-correlation-${{ matrix.condition }}db.json"
+      - name: Keep source-free numerical metadata only
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: historical-ck-c2c-octave-reference-metadata
-          path: octave-historical-c2c-reference-10db.json
+          name: historical-ck-c2c-octave-reference-${{ matrix.condition }}db
+          path: |
+            octave-historical-c2c-reference-${{ matrix.condition }}db.json
+            historical-correlation-${{ matrix.condition }}db.json
           if-no-files-found: warn
