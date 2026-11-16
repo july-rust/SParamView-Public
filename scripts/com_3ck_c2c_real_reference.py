@@ -551,6 +551,81 @@ def audit_physical_thru_orientation(thru: Path) -> dict:
           json.dumps(receipt,ensure_ascii=False),flush=True)
     return receipt
 
+def verified_historical_port_order(channel: str, audit: dict) -> dict:
+    """Require measured source identity and topology before changing COM port map.
+
+    Public 2019 impaired C2C S4Ps are grouped TX 1/2, RX 3/4.
+    Historical 2022 generic workbook/SiCoPR default [1 3 2 4]
+    instead treats TX 1/3, RX 2/4. Check LF thru and 26.56 GHz
+    loss label against actual data; never guess orientation on magnitude only.
+    """
+    if channel not in SOURCES or audit.get("source_sha256") != SOURCES[channel][0][1]:
+        raise ValueError("Historical channel source does not match pinned THRU SHA")
+    candidates=audit.get("possible_pairing_sdd21_read_only")
+    if not isinstance(candidates,list) or len(candidates)!=5:
+        raise ValueError("Missing independently measured four-port topology audit")
+    low=candidates[0]["possible_port_pairings"]
+    high=candidates[-1]["possible_port_pairings"]
+    good_low=float(low["tx12_rx34"]["abs_sdd21"])
+    wrong_low=float(low["tx13_rx24"]["abs_sdd21"])
+    good_high=float(high["tx12_rx34"]["abs_sdd21"])
+    if not (0.9<=good_low<=1.1 and wrong_low<0.2 and
+            0.0<good_high<=1.0):
+        raise ValueError("C2C differential port order not independently identified")
+    measured_loss_db=-20*math.log10(good_high)
+    if abs(measured_loss_db-float(channel))>3.0:
+        raise ValueError("C2C proper port pairing disagrees with source loss label")
+    if abs(float(candidates[-1]["frequency_hz"])-26.5625e9)>1e8:
+        raise ValueError("C2C 26.5625 GHz loss comparison not sampled")
+    return {"source_thru_sha256":audit["source_sha256"],
+            "unverified_default_port_order":[1,3,2,4],
+            "verified_source_port_order":[1,2,3,4],
+            "source_low_frequency_sdd21_magnitude":good_low,
+            "source_default_low_frequency_sdd21_magnitude":wrong_low,
+            "source_nyquist_loss_db":measured_loss_db,
+            "source_loss_label_db":int(channel),
+            "port_order_selection":"PINNED_SOURCE_PHYSICAL_PAIRING_WITH_10MHZ_AND_26P56GHZ_EVIDENCE",
+            "final_normative_ieee_8023ck_profile":False}
+
+
+def configured_historical_port_order(original_csv: Path, result_csv: Path,
+                                      decision: dict) -> dict:
+    """Controlled *temporary* port override; preserve official input bytes."""
+    if decision.get("verified_source_port_order") != [1,2,3,4]:
+        raise ValueError("Unqualified historical source port-order selection")
+    with original_csv.open(newline="",encoding="utf-8") as stream:
+        rows=list(csv.reader(stream))
+    hits=[(r,c) for r,row in enumerate(rows) for c,value in enumerate(row)
+          if value.strip().casefold()=="port order"]
+    if len(hits)>1:
+        raise ValueError("Ambiguous Port Order entries in COM source")
+    previous="MISSING_SOURCE_EXPLICIT_PORT_ORDER"
+    if hits:
+        r,c=hits[0]
+        while len(rows[r])<=c+1:
+            rows[r].append("")
+        previous=rows[r][c+1]
+        # Never override an independently different, explicit source mapping.
+        if previous.strip() not in ("","[1 3 2 4]","[1,3,2,4]"):
+            raise ValueError("Unexpected explicit historical COM source Port Order")
+        rows[r][c+1]="[1 2 3 4]"
+    else:
+        # Global parameter must precede any Test1/Test2 .START block.
+        first_pkg=next((i for i,row in enumerate(rows)
+                        if row and row[0].strip()==".START"),len(rows))
+        rows.insert(first_pkg,["Port Order","[1 2 3 4]"])
+    with result_csv.open("w",newline="",encoding="utf-8") as stream:
+        csv.writer(stream).writerows(rows)
+    return {"official_config_csv_sha256":sha(original_csv.read_bytes()),
+            "ephemeral_corrected_config_csv_sha256":sha(result_csv.read_bytes()),
+            "source_port_order":previous,
+            "effective_port_order":"[1 2 3 4]",
+            "explicitly_overrode_historical_source_mapping":True,
+            "source_mapping_evidence":decision,
+            "new_source_edition_created":False,
+            "normative_approved_profile":False}
+
+
 def run(channel: str, output: Path) -> int:
     import sicopr
     if getattr(sicopr,"COM_MATLAB_VERSION",None) is None:
@@ -595,13 +670,18 @@ def run(channel: str, output: Path) -> int:
         csv_config=base/"working_c2c_reference_settings.csv"
         config_transform=canonical_config_csv(config,csv_config)
         measured_thru_orientation=audit_physical_thru_orientation(files[0])
+        decided_ports=verified_historical_port_order(
+            channel,measured_thru_orientation)
+        effective_csv=base/"effective_historical_c2c_portmapped.csv"
+        port_map_receipt=configured_historical_port_order(
+            csv_config,effective_csv,decided_ports)
         errors=io.StringIO()
         original=Path.cwd()
         try:
             os.chdir(base)
             with contextlib.redirect_stdout(errors):
                 n_fext,n_next,ordered=reference_2019_c2c_inputs(files)
-                result=sicopr._run_com(str(csv_config),n_fext,n_next,
+                result=sicopr._run_com(str(effective_csv),n_fext,n_next,
                     [str(p) for p in ordered],export_mat=False)
         finally:
             os.chdir(original)
@@ -632,6 +712,7 @@ def run(channel: str, output: Path) -> int:
       "official_2022_workbook_sha256":CONFIG_SHA,
       "physical_thru_orientation_audit":measured_thru_orientation,
       "historical_workbook_settings_conversion":config_transform,
+      "temporary_verified_physical_port_order_override":port_map_receipt,
       "official_2022_workbook_zip_sha256":CONFIG_ZIP_SHA,
       "official_2019_c2c_archive_sha256":CHANNEL_ZIP_SHA,
       "input_member_provenance":provenance,
