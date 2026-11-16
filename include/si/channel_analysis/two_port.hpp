@@ -7,6 +7,14 @@
 
 namespace si::channel {
 
+// Final 802.3ck-2022 120F.4.1 identifies *two distinct* package length
+// configurations. Values alone do not qualify the full Table 120F-8 model.
+enum class ComPackageCase { Test1, Test2 };
+struct ComPackageLengths {
+  double txMm = 0, rxMm = 0;
+};
+ComPackageLengths com8023ckC2cPackageLengths(ComPackageCase test);
+
 struct ComTwoPort {
   // Voltage/current ABCD convention:
   // [V1; I1] = [A B; C D] [V2; -I2] for currents entering both ports.
