@@ -167,6 +167,30 @@ def canonical_config_csv(original: Path, result_csv: Path) -> dict:
         print("HISTORICAL_2022_C2C_WORKSHEET_INVENTORY:",
               json.dumps(summary,ensure_ascii=False),flush=True)
         qualified=[x for x in observations if x[1]>=12]
+        if len(qualified)!=1 and not observations:
+            # Historical IEEE workbook may use Strict OOXML namespaces not
+            # understood by openpyxl. Record only layout metadata: no
+            # arbitrary sheet selection or untrusted XML-to-CSV conversion.
+            import xml.etree.ElementTree as ET
+            with zipfile.ZipFile(original) as archive:
+                workbook_xml = ET.fromstring(archive.read("xl/workbook.xml"))
+                sheets = [{
+                    "name": node.attrib.get("name"),
+                    "state": node.attrib.get("state","visible"),
+                    "id": node.attrib.get("sheetId"),
+                    "relationship": next((v for k,v in node.attrib.items()
+                                          if k.endswith("}id")),None),
+                } for node in workbook_xml.iter()
+                  if node.tag.split("}")[-1]=="sheet"]
+                xml_paths = sorted(name for name in archive.namelist()
+                                   if name.startswith("xl/worksheets/") and
+                                   name.endswith(".xml"))
+                print("HISTORICAL_OOXML_WORKBOOK_LAYOUT:",
+                      json.dumps({
+                          "namespace":workbook_xml.tag.split("}")[0]+"}",
+                          "declared_sheets":sheets,
+                          "raw_worksheet_xmls":xml_paths},
+                          ensure_ascii=False),flush=True)
         if len(qualified)!=1:
             # We cannot interpret a multi-sheet reference as a single COM
             # profile without an independently validated sheet selector.
