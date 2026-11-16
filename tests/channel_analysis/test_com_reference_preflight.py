@@ -61,6 +61,65 @@ def synthetic_manifest(root):
         "cases": cases
     }
 
+
+def spoofed_com_self_oracle_manifest(root):
+    """Synthetic adversarial envelope: never IEEE data or a positive golden."""
+    candidate = synthetic_manifest(root)
+    candidate["profile_id"] = "IEEE-802.3ck-2022-100GAUI-1-C2C-120F-QUALIFIED"
+    candidate["implementation_commit"] = "b" * 40
+    candidate["reference"].update({
+        "release": "4.17.0",
+        "source_commit": "47459695a169fdf1fd10c541a5b19c69a5ae9285",
+        "source_content_sha256":
+            "cdcd739ac13c9cc3ca59733fd938a015f040429655b5dbf5543c897789cfed9b"
+    })
+    candidate["license"].update({
+        "distribution_strategy": "QA_ONLY_REFERENCE_EXTERNAL",
+        "bundled_third_party_sources": False,
+        "bundled_third_party_channel_files": False
+    })
+    groups = [
+        {"name": name, "verified": True, "source_locator": "SYNTHETIC-ONLY"}
+        for name in ("timing", "package_test1", "package_test2", "tx",
+                     "rx", "noise_jitter", "optimization", "exceptions")
+    ]
+    audit = attach(root, "fake-audit.json", json.dumps({
+        "edition": "IEEE Std 802.3ck-2022", "clause": "120F.4.1",
+        "table": "120F-8", "review_status": "INDEPENDENT_REVIEWED",
+        "groups": groups
+    }))
+    candidate["standard"].update({
+        "edition": "IEEE Std 802.3ck-2022",
+        "applicable_clause": "120F.4.1",
+        "parameter_table": "120F-8",
+        "normative_source_url": "https://standards.ieee.org/ieee/802.3ck/7322/",
+        "parameter_values_qualified": True,
+        "final_parameter_audit": {"evidence": audit}
+    })
+    for i, case in enumerate(candidate["cases"]):
+        case["input_files"][0] = attach(root, f"case{i}/thru.s4p",
+                                        f"SYNTHETIC THRU #{i}", "thru")
+        case["reproduced_result"] = attach(root, f"case{i}/run.json",
+            json.dumps({
+                "com_db": 3 + i,
+                "reference_commit": candidate["reference"]["source_commit"],
+                "profile_id": candidate["profile_id"]
+            }))
+        case["package_runs"] = []
+        for test in ("Test1", "Test2"):
+            result = attach(root, f"case{i}/{test}_reference.json",
+                json.dumps({
+                    "test": test, "profile_id": candidate["profile_id"],
+                    "source_sha256": case["input_files"][0]["sha256"],
+                    "reference_commit": candidate["reference"]["source_commit"],
+                    "com_db": 3.0 + i
+                }))
+            case["package_runs"].append({
+                "test": test, "reference_result": result,
+                "cpp_result": result, "tolerance_db": 0.01
+            })
+    return candidate
+
 class ReferenceManifestTests(unittest.TestCase):
     def test_real_reference_stage_ready_but_normative_still_closed(self):
         root = REPO_ROOT / "tests" / "fixtures" / "channel" / "com_reference"
@@ -164,6 +223,76 @@ class ReferenceManifestTests(unittest.TestCase):
             data["cases"][0]["published_expected_com_db"] = float("nan")
             with self.assertRaises(preflight.QualificationError):
                 preflight.qualify(data, root)
+
+
+    def test_012_09_production_gate_rejects_reference_ready(self):
+        root = REPO_ROOT / "tests" / "fixtures" / "channel" / "com_reference"
+        manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+        with self.assertRaisesRegex(preflight.QualificationError, "REFERENCE_READY"):
+            preflight.qualify_normative(manifest, root)
+
+    def test_012_09_production_gate_rejects_synthetic_ieee_claim(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            fake = synthetic_manifest(root)
+            # Synthetic arithmetic verification remains available for testing
+            # the evidence checker but can never pass the production CLI gate.
+            self.assertEqual(len(preflight.qualify(fake, root)["cases"]), 3)
+            with self.assertRaisesRegex(preflight.QualificationError, "final IEEE"):
+                preflight.qualify_normative(fake, root)
+
+    def test_012_09_production_gate_requires_final_table_audit(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            candidate = synthetic_manifest(root)
+            candidate["profile_id"] = "IEEE-802.3ck-2022-100GAUI-1-C2C-120F-QUALIFIED"
+            candidate["standard"].update({
+                "edition": "IEEE Std 802.3ck-2022",
+                "applicable_clause": "120F.4.1",
+                "parameter_table": "120F-8",
+                "parameter_values_qualified": True,
+                "normative_source_url": "https://standards.ieee.org/ieee/802.3ck/7322/"
+            })
+            candidate["reference"].update({
+                "release": "4.17.0",
+                "source_commit": "47459695a169fdf1fd10c541a5b19c69a5ae9285",
+                "source_content_sha256":
+                    "cdcd739ac13c9cc3ca59733fd938a015f040429655b5dbf5543c897789cfed9b"
+            })
+            candidate["license"].update({
+                "distribution_strategy": "QA_ONLY_REFERENCE_EXTERNAL",
+                "bundled_third_party_sources": False,
+                "bundled_third_party_channel_files": False
+            })
+            with self.assertRaisesRegex(preflight.QualificationError, "final_parameter_audit"):
+                preflight.qualify_normative(candidate, root)
+
+
+    def test_012_09_rejects_reference_reused_as_cpp_result(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            forged = spoofed_com_self_oracle_manifest(root)
+            # Old arithmetic checker is intentionally satisfied: this
+            # regression must reach the stricter production provenance gate.
+            self.assertEqual(len(preflight.qualify(forged, root)["cases"]), 3)
+            with self.assertRaisesRegex(preflight.QualificationError,
+                                        "reuses reference artifact path"):
+                preflight.qualify_normative(forged, root)
+
+    def test_012_09_rejects_same_bytes_under_different_path(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            forged = spoofed_com_self_oracle_manifest(root)
+            for i, case in enumerate(forged["cases"]):
+                for run in case["package_runs"]:
+                    old = run["reference_result"]
+                    same_bytes = (root / old["path"]).read_bytes()
+                    run["cpp_result"] = attach(
+                        root, f"case{i}/{run['test']}_cpp_spoof.json",
+                        same_bytes.decode("utf-8"))
+            with self.assertRaisesRegex(preflight.QualificationError,
+                                        "must be distinct bytes"):
+                preflight.qualify_normative(forged, root)
 
 if __name__ == "__main__":
     unittest.main()

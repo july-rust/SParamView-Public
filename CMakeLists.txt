@@ -30,7 +30,8 @@ enable_testing()
 add_library(si_channel_analysis src/channel_analysis/common.cpp
                                 src/channel_analysis/ild.cpp
                                 src/channel_analysis/icn.cpp
-                                src/channel_analysis/eye.cpp)
+                                src/channel_analysis/eye.cpp
+                                src/channel_analysis/com.cpp)
 target_include_directories(si_channel_analysis PUBLIC include)
 target_link_libraries(si_channel_analysis PUBLIC si_core)
 if(MSVC)
@@ -62,6 +63,12 @@ target_link_libraries(si_eye_tests PRIVATE si_channel_analysis)
 add_test(NAME channel_eye_numerics COMMAND si_eye_tests)
 set_tests_properties(channel_eye_numerics PROPERTIES TIMEOUT 90)
 install(TARGETS si_eye_tests RUNTIME DESTINATION tests)
+# 012_09: explicit non-normative COM numerical preparation and fail-closed gate.
+add_executable(si_com_tests tests/channel_analysis/com_tests.cpp)
+target_link_libraries(si_com_tests PRIVATE si_channel_analysis)
+add_test(NAME channel_com_prequalification COMMAND si_com_tests)
+set_tests_properties(channel_com_prequalification PROPERTIES TIMEOUT 90)
+install(TARGETS si_com_tests RUNTIME DESTINATION tests)
 add_executable(si_hardening_tests tests/hardening_tests.cpp)
 target_link_libraries(si_hardening_tests PRIVATE si_core)
 install(TARGETS si_hardening_tests RUNTIME DESTINATION tests)
@@ -254,6 +261,12 @@ endif()
 
 find_package(Python3 COMPONENTS Interpreter QUIET)
 if(Python3_Interpreter_FOUND)
+  # 012_09: signed-profile evidence is not satisfied by synthetic 012_02 oracles.
+  add_test(NAME channel_com_normative_gate
+    COMMAND "${Python3_EXECUTABLE}" -m unittest discover
+            -s "${CMAKE_SOURCE_DIR}/tests/channel_analysis"
+            -p "test_com_reference_preflight.py" -v)
+  set_tests_properties(channel_com_normative_gate PROPERTIES TIMEOUT 45)
   add_test(NAME cli_session_cache_cleanup
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/check_cli_temp_cleanup.py" "$<TARGET_FILE:si_cli>")
   set_tests_properties(cli_session_cache_cleanup PROPERTIES TIMEOUT 45)
