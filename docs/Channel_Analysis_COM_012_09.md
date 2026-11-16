@@ -2,6 +2,16 @@
 
 **Status:** PARTIAL IMPLEMENTATION / 012_09 NOT COMPLETE. This is an auditable engineering handoff, not a COM-margin qualification.
 
+## 2026-11-16 incremental implementation and independent evidence
+
+- **PR #49** prequalification fail-closed core, [initial CI #43822495908](https://github.com/july-rust/SParamView-Public/actions/runs/43822495908), merged `077dfd92bf206c435c358612d9ca302c5c1496c2`.
+- **PR #50** independent reciprocal complex ABCD/two-port numerical tests, [CI #43827019566](https://github.com/july-rust/SParamView-Public/actions/runs/43827019566), merged `925d25cc2d9ed1d519e8873e1d9fd6c19f72e6df`.
+- **PR #51** passive 4-port S matrix -> differential mixed mode, Redheffer multiple-reflection cascade, physically explicit TX/RX package circuits, [CI #43832394254](https://github.com/july-rust/SParamView-Public/actions/runs/43832394254), merged `099d4ca34bf1801e01d9d1243f4fc988d0f7686f`; [post-merge CI #43835229303](https://github.com/july-rust/SParamView-Public/actions/runs/43835229303) SUCCESS.
+- **PR #52** official IEEE-hosted historical 2022 3ck SA C2C workbook **read-only** SHA evidence, exact [audit CI #43835564179](https://github.com/july-rust/SParamView-Public/actions/runs/43835564179) and [three-platform CI #43835564311](https://github.com/july-rust/SParamView-Public/actions/runs/43835564311) SUCCESS; merged `ed6d086e526eda7a2521ca302cac75f1e7e192ae`, post-merge [audit #43837671707](https://github.com/july-rust/SParamView-Public/actions/runs/43837671707) and [three-platform #43837671808](https://github.com/july-rust/SParamView-Public/actions/runs/43837671808) SUCCESS. Archive SHA `895857fbfb602c8ec10b221ab40a23d4b39244b4b57101dd27abc4b2a1a2fddc`, workbook SHA `e676b3fb3cb3048f80c98deaa8faca1d03c13daa216c6259de26885e715ca925`; **27 candidate named fields** with adjacent literal numeric values, NOT qualified final normative IEEE Table 120F-8. No third-party workbook redistributed. See [audit details](COM_2022_SA_Reference_Audit_012_09.md).
+- **PR #53** deterministic finite-state PAM4/Gaussian tail quantile, cancellation, target-relative probability convergence, nanovolt/femtovolt scale adversarial tests, [exact-head CI #43837614094](https://github.com/july-rust/SParamView-Public/actions/runs/43837614094) SUCCESS: Linux release CTest **41/41**, ASan/UBSan **41/41**, Windows x64/ARM64 plus native ARM64 package and macOS arm64. Merged `cb6448d8672a3c391ef07c14f15290c91e63176b`; [post-merge CI #43845851063](https://github.com/july-rust/SParamView-Public/actions/runs/43845851063) must be checked independently. See [statistics limitations](COM_Statistics_012_09.md).
+
+All changes above are confined to `integration/v1.4.0` and are **non-releasing**. IEEE COM dB remains unavailable until published final 802.3ck-2022 Table 120F-8 is fully and independently verified, IEEE-compliant receiver/jitter/ISI/XTALK/CTLE/DFE/FFE optimization is integrated, both Test1/Test2 are evaluated, and **at least three distinct same-PHY independent goldens** agree for both package cases. The strict qualification gate stays fail-closed; `012_09 != 100% COMPLETE`.
+
 ## 012_09 latest physically grounded S-parameter network expansion
 
 The independent [physical four-port, Redheffer and balanced package API](COM_Physical_Channel_012_09.md)
@@ -31,8 +41,9 @@ scattering directions with independent analytic identities. The final
 | Requirement | Status |
 |---|---|
 | Final IEEE 802.3ck-2022 Table 120F-8 numeric audit | BLOCKED: no approved checked parameter artifact |
-| Full package network including reflection, 2-port cascade | NOT IMPLEMENTED |
-| IEEE-specific pulse/ISI/noise and EQ optimization | NOT IMPLEMENTED |
+| Physical S4P mixed-mode extraction, passive package/network reflection and 2-port cascade | **IMPLEMENTED** as independent circuit subsystem; not yet connected to official COM solver |
+| Independent finite-state PAM4/Gaussian tail quantile | **IMPLEMENTED** as exploratory statistics kernel; NOT IEEE 93A COM PDF |
+| IEEE-specific pulse/ISI/noise/jitter model and EQ optimization | **NOT IMPLEMENTED** as validated normative chain |
 | Normative COM numerator/denominator and dB | NOT IMPLEMENTED |
 | Both Test1/Test2 C2C package results | NOT EVALUATED |
 | 3 independent same-PHY 802.3ck goldens | NOT AVAILABLE |
