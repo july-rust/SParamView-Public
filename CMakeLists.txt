@@ -101,7 +101,8 @@ install(TARGETS si_com_statistics_tests RUNTIME DESTINATION tests)
 # 012_09: two package cases end-to-end S4P->Tx/board/Rx physics oracle.
 add_executable(si_com_physical_channel_tests tests/channel_analysis/com_physical_channel_tests.cpp)
 target_link_libraries(si_com_physical_channel_tests PRIVATE si_channel_analysis)
-add_test(NAME channel_com_physical_test_cases COMMAND si_com_physical_channel_tests)
+add_test(NAME channel_com_physical_test_cases COMMAND si_com_physical_channel_tests
+         "${CMAKE_BINARY_DIR}/com-physical-source")
 set_tests_properties(channel_com_physical_test_cases PROPERTIES TIMEOUT 90)
 install(TARGETS si_com_physical_channel_tests RUNTIME DESTINATION tests)
 add_executable(si_hardening_tests tests/hardening_tests.cpp)
