@@ -863,11 +863,23 @@ QString AnalysisWindow::selectionIdentity() const {
     for(auto *spin:{icnBaud_,icnVpp_,icnRise_,icnRx_})
       identity+=QStringLiteral("|")+QString::number(spin->value(),'g',17);
   }
+  if(feature_==Feature::Eye) {
+    identity+=QStringLiteral("|EYE|")+QString::number(eyeProfile_->currentIndex())+
+      QLatin1Char('|')+QString::number(eyeMode_->currentIndex())+
+      QLatin1Char('|')+QString::number(eyePattern_->currentIndex())+
+      QLatin1Char('|')+QString::number(eyeBitRate_->value(),'g',17)+
+      QLatin1Char('|')+QString::number(eyeReference_->value(),'g',17)+
+      QLatin1Char('|')+eyeFft_->currentText()+QLatin1Char('|')+
+      eyeSamples_->currentText()+QLatin1Char('|')+eyeBits_->text();
+    for(auto *edit:eyeElectrical_)
+      identity+=QLatin1Char('|')+edit->text().trimmed();
+  }
   return identity;
 }
 void AnalysisWindow::invalidateRequest() {
   clearIld();
   clearIcn();
+  clearEye();
   const bool hadWork = scheduler_ && scheduler_->running(feature_);
   ++requestGeneration_;
   if (scheduler_) scheduler_->cancel(feature_);
@@ -881,6 +893,7 @@ void AnalysisWindow::invalidateRequest() {
 void AnalysisWindow::setContext(const AnalysisContext &context) {
   clearIld();
   clearIcn();
+  clearEye();
   const bool hadWork = scheduler_ && scheduler_->running(feature_);
   const bool hadResult = status_ == si::channel::Status::Valid ||
                          status_ == si::channel::Status::Warning;
@@ -908,7 +921,8 @@ void AnalysisWindow::setContext(const AnalysisContext &context) {
   setStatus(hadWork || hadResult ? si::channel::Status::Stale
            : si::channel::Status::NotEvaluated,
            (feature_ == Feature::Ild && ildProvider_) ||
-            (feature_ == Feature::Icn && icnProvider_) ?
+            (feature_ == Feature::Icn && icnProvider_) ||
+             (feature_ == Feature::Eye && eyeProvider_) ?
              QStringLiteral("Context updated; select channels and run the verified engine") :
              QStringLiteral("Context updated; analysis engine not installed"));
 }
@@ -951,6 +965,9 @@ bool AnalysisWindow::startWork(AsyncWork work) {
         if (outcome.icn && (outcome.status == si::channel::Status::Valid ||
                             outcome.status == si::channel::Status::Warning))
           guard->showIcn(outcome);
+        if (outcome.eye && (outcome.status == si::channel::Status::Valid ||
+                            outcome.status == si::channel::Status::Warning))
+          guard->showEye(outcome);
       });
   } catch (const std::exception &e) {
     setStatus(si::channel::Status::Error, QString::fromUtf8(e.what()));
@@ -958,6 +975,7 @@ bool AnalysisWindow::startWork(AsyncWork work) {
   }
   clearIld();
   clearIcn();
+  clearEye();
   cancel_->setEnabled(true);
   setStatus(si::channel::Status::NotEvaluated, QStringLiteral("Calculation running"));
   progressPoll_.start();
@@ -1438,6 +1456,12 @@ void AnalysisWindowManager::setIcnSourceProvider(IcnSourceProvider provider) {
     windows_[int(Feature::Icn)]->setIcnSourceProvider(icnProvider_);
   setEngineAvailable(Feature::Icn,bool(icnProvider_));
 }
+void AnalysisWindowManager::setEyeSourceProvider(EyeSourceProvider provider) {
+  eyeProvider_=std::move(provider);
+  if(windows_[int(Feature::Eye)])
+    windows_[int(Feature::Eye)]->setEyeSourceProvider(eyeProvider_);
+  setEngineAvailable(Feature::Eye,bool(eyeProvider_));
+}
 void AnalysisWindowManager::setEngineAvailable(Feature feature, bool available) {
   available_[int(feature)] = available;
   if (auto *action = actions_[int(feature)])
@@ -1454,6 +1478,7 @@ AnalysisWindow *AnalysisWindowManager::openWindow(Feature feature) {
   auto *window = new AnalysisWindow(feature, &scheduler_, owner_);
   if(feature == Feature::Ild) window->setIldSourceProvider(ildProvider_);
   if(feature == Feature::Icn) window->setIcnSourceProvider(icnProvider_);
+  if(feature == Feature::Eye) window->setEyeSourceProvider(eyeProvider_);
   window->setContext(context_);
   windows_[index] = window;
   connect(window, &QObject::destroyed, this, [this, index] {
