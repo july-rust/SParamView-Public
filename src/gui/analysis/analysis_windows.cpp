@@ -630,8 +630,9 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     eyeReference_->setSuffix(QStringLiteral(" GHz"));
     eyePattern_=new QComboBox;
     eyePattern_->setObjectName(QStringLiteral("eyePattern"));
-    eyePattern_->addItems({QStringLiteral("PRBS7"),QStringLiteral("Alternating"),
-                           QStringLiteral("Custom bits")});
+    eyePattern_->addItem(QStringLiteral("PRBS7"),int(si::channel::EyePattern::Prbs7));
+    eyePattern_->addItem(QStringLiteral("Alternating"),int(si::channel::EyePattern::Alternating));
+    eyePattern_->addItem(QStringLiteral("Custom bits"),int(si::channel::EyePattern::CustomBits));
     eyeBits_=new QLineEdit;
     eyeBits_->setObjectName(QStringLiteral("eyeCustomBits"));
     eyeBits_->setPlaceholderText(QStringLiteral("Binary sequence e.g. 00101110"));
@@ -1456,7 +1457,7 @@ void AnalysisWindow::launchEye() {
   EyeSettings settings=eyeProfile(
     static_cast<EyeProfile>(eyeProfile_->currentIndex()));
   settings.mode=static_cast<EyeMode>(eyeMode_->currentIndex());
-  settings.pattern=static_cast<EyePattern>(eyePattern_->currentIndex());
+  settings.pattern=static_cast<EyePattern>(eyePattern_->currentData().toInt());
   settings.bitRateHz=eyeBitRate_->value()*1e9;
   settings.referenceFrequencyHz=eyeReference_->value()*1e9;
   settings.analysisStopHz=toGhz_->value()*1e9;
