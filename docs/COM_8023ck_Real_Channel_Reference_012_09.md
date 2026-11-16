@@ -30,6 +30,22 @@ Source and digest pins are in `scripts/com_3ck_c2c_real_reference.py`:
 
 **Gate:** PR #59 remains open; do not merge under failed required real-channel numerical CI. `012_09` is **PARTIAL/BLOCKED**, not 100% COMPLETE; main/v1.3.5/v1.4.0 release remain untouched.
 
+## Corrected historical crosstalk and non-real FOM evidence (2026-11-17 KST)
+
+Official [IEEE P802.3ck March 2020 Healey contribution, slide 9](https://www.ieee802.org/3/ck/public/20_03/healey_3ck_01a_0320.pdf) reports original impaired R1/R2/R3/R4 channels at 26.6 GHz as **four FEXT and zero NEXT**. The original 2019 source ZIP has exactly **one distinct THRU, one distinct FEXT and one distinct NEXT** S4P in each of the four folder groups; this was independently SHA enumerated in [CI #43967233407](https://github.com/july-rust/SParamView-Public/actions/runs/43967233407). The exploratory reproduction now uses [THRU, FEXT×4] as four **identically sourced FEXT instances** with **no NEXT**; this is *not* four distinct independently validated aggressor source files, and it remains only a historical scenario, not an approved final normative reference.
+
+[Measured original 10/16/18 dB run #43967988188](https://github.com/july-rust/SParamView-Public/actions/runs/43967988188) confirms the corrected four-FEXT input still fails in the independently maintained SiCoPR reference port. Exact source SHA and unchanged port ordering [1,3,2,4] were recorded, with three low-frequency Sdd21 samples and their complex phase. The **first failing** optimizer candidates have:
+
+| Source-labelled channel | Cursor pulse V | A_s V = R_LM×cursor/(L−1) | Noise RMS V | Outcome |
+|---|---:|---:|---:|---|
+| 10 dB | −0.01668115780953329 | −0.005282366639685542 | 0.023224940957299857 | complex-valued FOM, blocked |
+| 16 dB | −0.009393144102180277 | −0.0029744956323570874 | 0.01836084884522299 | complex-valued FOM, blocked |
+| 18 dB | −0.007645951598680516 | −0.00242121800624883 | 0.017117494787446317 | complex-valued FOM, blocked |
+
+Source: CI log metadata, not C++ COM results. The reference port reproduces the MATLAB-style complex logarithm when A_s/noise is negative and then fails when optimizer history casts this complex FOM to a float. **The immediate numerical cause is a negative sampled cursor**, but whether it is due to the CDR timing rule, physical channel suitability or the historical-to-4.17 configuration translation has not been independently resolved. Low-frequency real Sdd21 is positive in the observed sample; flipping receiver-pair polarity on that evidence would be unsupported.
+
+**Reject invalid numerical conclusions:** never replace A_s by |A_s|, silently discard negative candidates, change port polarity, swap FEXT/NEXT, or relabel a complex FOM as a real IEEE COM without independently agreeing with the official version-matched reference. `calculateCom()` on the native C++ path still returns NOT_EVALUATED. Three verified same-PHY paired final IEEE goldens do not exist. Keep PR #59 unmerged and IEEE/normative COM disabled.
+
 ## Actual CI numerical failure (2026-11-16)
 
 - [Initial 3-channel reference run #43869557024](https://github.com/july-rust/SParamView-Public/actions/runs/43869557024): each 10/16/18 dB job failed at the offline test because integer-valued `19.0` was serialized to CSV as `19`. The test now compares numeric values; this is test representation, **not** an IEEE model correction.
