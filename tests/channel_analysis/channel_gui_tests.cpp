@@ -463,7 +463,8 @@ int main(int argc, char **argv) {
     check(alternateFirst>=0 &&
           alternatingData.mid(alternateFirst+header.size(),5).startsWith("0,0,"),
           "Alternating pattern must start low (different from PRBS7)");
-    eyePattern->setCurrentIndex(0);
+    // Keep a successful Alternating result active before source change;
+    // otherwise changing the pattern itself invalidates the result to NOT EVALUATED.
     numericContext.sources[0].sha256=QStringLiteral("source-hash-changed");
     manager.setContext(numericContext);
     check(eye->status()==S::Stale && !eyeCsv->isEnabled() &&
