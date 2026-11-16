@@ -194,6 +194,17 @@ class ReferenceManifestTests(unittest.TestCase):
                 "parameter_values_qualified": True,
                 "normative_source_url": "https://standards.ieee.org/ieee/802.3ck/7322/"
             })
+            candidate["reference"].update({
+                "release": "4.17.0",
+                "source_commit": "47459695a169fdf1fd10c541a5b19c69a5ae9285",
+                "source_content_sha256":
+                    "cdcd739ac13c9cc3ca59733fd938a015f040429655b5dbf5543c897789cfed9b"
+            })
+            candidate["license"].update({
+                "distribution_strategy": "QA_ONLY_REFERENCE_EXTERNAL",
+                "bundled_third_party_sources": False,
+                "bundled_third_party_channel_files": False
+            })
             with self.assertRaisesRegex(preflight.QualificationError, "final_parameter_audit"):
                 preflight.qualify_normative(candidate, root)
 
