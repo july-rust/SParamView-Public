@@ -33,7 +33,7 @@ struct EyeSettings {
   EyeProfile profile = EyeProfile::Custom;
   EyeMode mode = EyeMode::Unspecified;
   EyePattern pattern = EyePattern::Prbs7;
-  // Independent quantities: baud (UI), reference marker, measured analysis cap.
+  // NRZ referenceFrequencyHz == bitRateHz/2; analysisStopHz is independent.
   double bitRateHz = std::numeric_limits<double>::quiet_NaN();
   double referenceFrequencyHz = std::numeric_limits<double>::quiet_NaN();
   double analysisStopHz = std::numeric_limits<double>::quiet_NaN();
@@ -42,10 +42,12 @@ struct EyeSettings {
   size_t samplesPerUI = 32;    // radix-2, minimum 8, integer symbol edges
   std::vector<uint8_t> customBits;
 };
-// Only MIPI example supplies bit rate (4.5 Gb/s), reference Nyquist marker
+// Only MIPI example supplies bit rate (4.5 Gb/s), NRZ Nyquist reference
 // (2.25 GHz), and analysis cap (10 GHz). All profile electrical fields remain
 // unspecified. Other profiles intentionally require explicit rates/bands.
 EyeSettings eyeProfile(EyeProfile profile);
+// Adjusting the NRZ reference MUST also change symbol rate and UI.
+EyeSettings eyeWithReferenceFrequency(EyeSettings settings, double referenceHz);
 const char *eyeProfileName(EyeProfile profile);
 
 struct EyeData {
