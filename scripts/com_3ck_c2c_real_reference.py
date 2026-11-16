@@ -262,6 +262,12 @@ def strict_ooxml_com_settings(raw: bytes) -> tuple[list[list[str]],dict]:
                 if key in found:
                     raise ValueError("Ambiguous repeated COM parameter " + key)
                 if (r, c+1) in formulas:
+                    print("STRICT_COM_FORMULA_BLOCK:",
+                          json.dumps({"parameter":key, "row":r, "label_column":c,
+                                      "row_cells":cells[:8],
+                                      "formula_columns":sorted(col for rr,col in formulas
+                                                               if rr==r)},
+                                     ensure_ascii=False),flush=True)
                     raise ValueError("Formula-derived COM parameter is not qualified: " + key)
                 if c >= len(cells) or not cells[c].strip():
                     raise ValueError("Blank Strict OOXML COM parameter: " + key)
