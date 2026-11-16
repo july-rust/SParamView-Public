@@ -13,7 +13,7 @@ bool finite(Complex value) {
   return std::isfinite(value.real()) && std::isfinite(value.imag());
 }
 void check(const ComTwoPort &v) {
-  require(finite(v.a) && finite(v.b) && finite(v.c) && finite(v.d),
+  require(finite(v.a()) && finite(v.b()) && finite(v.c()) && finite(v.d()),
           "Nonfinite COM two-port network");
 }
 }
@@ -28,10 +28,10 @@ ComTwoPort cascadeTwoPort(const ComTwoPort &left,
                           const ComTwoPort &right) {
   check(left); check(right);
   const ComTwoPort r{
-    left.a*right.a + left.b*right.c,
-    left.a*right.b + left.b*right.d,
-    left.c*right.a + left.d*right.c,
-    left.c*right.b + left.d*right.d
+    left.a()*right.a() + left.b()*right.c(),
+    left.a()*right.b() + left.b()*right.d(),
+    left.c()*right.a() + left.d()*right.c(),
+    left.c()*right.b() + left.d()*right.d()
   };
   check(r);
   return r;
@@ -40,12 +40,12 @@ ComTwoPort seriesImpedance(Complex impedanceOhm) {
   require(finite(impedanceOhm), "Invalid series impedance");
   // For a passive package the physical caller must choose Re(Z)>=0.
   require(impedanceOhm.real() >= 0, "Negative series resistance");
-  return {{1,0}, impedanceOhm, {0,0}, {1,0}};
+  return ComTwoPort{{1,0}, impedanceOhm, {0,0}, {1,0}};
 }
 ComTwoPort shuntAdmittance(Complex admittanceSiemens) {
   require(finite(admittanceSiemens), "Invalid shunt admittance");
   require(admittanceSiemens.real() >= 0, "Negative shunt conductance");
-  return {{1,0}, {0,0}, admittanceSiemens, {1,0}};
+  return ComTwoPort{{1,0}, {0,0}, admittanceSiemens, {1,0}};
 }
 ComTwoPort lossyUniformLine(double frequencyHz, double lengthMm,
                            double attenuationNpPerMm,
@@ -80,32 +80,19 @@ ComTwoPortS twoPortScattering(const ComTwoPort &network,
   check(network);
   require(std::isfinite(referenceOhm) && referenceOhm > 0,
           "Invalid scattering reference impedance");
-  const Complex bz = network.b / referenceOhm;
-  const Complex cz = network.c * referenceOhm;
-  const Complex denominator=network.a+bz+cz+network.d;
+  const Complex bz = network.b() / referenceOhm;
+  const Complex cz = network.c() * referenceOhm;
+  const Complex denominator=network.a()+bz+cz+network.d();
   require(finite(denominator) && std::abs(denominator) >= 1e-180,
           "Singular COM two-port conversion");
-  // All network constructors and cascades in this module are reciprocal:
-  // determinant(A,B,C,D) == 1 analytically. Computing AD-BC for a
-  // high-loss line subtracts enormous near-equal numbers and can yield
-  // an arbitrary result (even enormous reverse gain). Do not perform
-  // that ill-conditioned subtraction. For moderate ABCD values still
-  // reject an externally supplied non-reciprocal matrix.
-  const double detTermScale=std::abs(network.a)*std::abs(network.d)+
-                            std::abs(network.b)*std::abs(network.c);
-  if (detTermScale <= 1e8) {
-    const Complex determinant=network.a*network.d -
-                              network.b*network.c;
-    require(finite(determinant) &&
-            std::abs(determinant-Complex{1,0}) <=
-              1e-10*std::max(1.0,detTermScale),
-            "Non-reciprocal or invalid COM two-port matrix");
-  }
+  // This closed type can only originate from primitive reciprocal networks
+  // or their cascades. det(ABCD) == 1 exactly by construction, even when
+  // numerical AD-BC subtraction is ill-conditioned in a high-loss line.
   ComTwoPortS out;
-  out.s11=(network.a+bz-cz-network.d)/denominator;
+  out.s11=(network.a()+bz-cz-network.d())/denominator;
   out.s21=Complex{2,0}/denominator;
-  out.s12=out.s21; // analytical reciprocity, exact even for 100 Np
-  out.s22=(-network.a+bz-cz+network.d)/denominator;
+  out.s12=out.s21; // exact reciprocal S12 = S21, even at 100 Np
+  out.s22=(-network.a()+bz-cz+network.d())/denominator;
   require(finite(out.s11) && finite(out.s21) &&
           finite(out.s12) && finite(out.s22),
           "Nonfinite converted two-port scattering parameter");
