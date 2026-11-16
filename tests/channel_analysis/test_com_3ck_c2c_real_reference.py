@@ -97,9 +97,12 @@ class HistoricalC2CReferencePreflight(unittest.TestCase):
             with output.open(newline="",encoding="utf-8") as stream:
                 rows=list(reader(stream))
             self.assertEqual(len(rows),len(ref.CONFIG_LABELS))
-            self.assertIn(["f_b",
-                str(float(sorted(ref.CONFIG_LABELS).index("f_b")+1))],
-                rows)
+            # openpyxl may deserialize a whole-valued 19.0 as integer 19.
+            # CSV preserves the numeric value, not float string formatting.
+            f_b_rows = [row for row in rows if len(row) == 2 and row[0] == "f_b"]
+            self.assertEqual(len(f_b_rows), 1)
+            self.assertEqual(float(f_b_rows[0][1]),
+                             float(sorted(ref.CONFIG_LABELS).index("f_b") + 1))
             # Two plausible settings sheets cannot be silently conflated.
             clone=book.create_sheet("Ambiguous")
             for idx,label in enumerate(sorted(ref.CONFIG_LABELS),start=1):
