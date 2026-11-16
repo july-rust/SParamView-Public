@@ -60,6 +60,22 @@ def csv_to_octave_mat(csv_path: Path, result: Path) -> dict:
                 raise ValueError("COM source contains unexpanded formula")
             else:
                 grid[ri,ci] = raw
+    # Only visualization and output controls may be overridden. This is
+    # consistent with the external Octave reference tool's own converter.
+    visualization_overrides = []
+    for keyword in ("DISPLAY_WINDOW","SAVE_FIGURES"):
+        hits = [(row,col) for row in range(len(rows))
+                for col in range(len(rows[row]))
+                if rows[row][col].strip().casefold()==keyword.casefold()]
+        if len(hits) > 1:
+            raise ValueError("Ambiguous COM display setting: "+keyword)
+        if hits and hits[0][1]+1 < width:
+            ri,ci=hits[0]
+            original=grid[ri,ci+1]
+            grid[ri,ci+1]=0.0
+            visualization_overrides.append({
+                "keyword":keyword, "source_value":str(original),
+                "override_value":0.0})
     scipy.io.savemat(str(result), {"parameter":grid},
                      format="5", do_compression=False, oned_as="row")
     saved = scipy.io.loadmat(str(result))["parameter"]
@@ -68,7 +84,8 @@ def csv_to_octave_mat(csv_path: Path, result: Path) -> dict:
     return {"rows":len(rows),"columns":width,"numeric_cells":numeric_count,
             "source_csv_sha256":sha(csv_path.read_bytes()),
             "mat_sha256":sha(result.read_bytes()),
-            "conversion":"EXACT_SCIPY_OBJECT_MATLAB_CELL_FROM_VERIFIED_CSV"}
+            "conversion":"EXACT_SCIPY_OBJECT_MATLAB_CELL_FROM_VERIFIED_CSV",
+            "non_numerical_display_overrides":visualization_overrides}
 
 
 def octave_case(channel: str, external_repo: Path, output: Path) -> int:
@@ -95,7 +112,8 @@ def octave_case(channel: str, external_repo: Path, output: Path) -> int:
         args=",".join([quote(mat.name),str(num_fext),str(num_next)]+
                       [quote(p.name) for p in ordered])
         statement=(
-            "more off; addpath("+quote(external_repo/"octave")+"); "
+            "more off; set(0,'defaultfigurevisible','off'); "
+            "graphics_toolkit('gnuplot'); addpath("+quote(external_repo/"octave")+"); "
             "r="+entry+"("+args+"); "
             "save('-v7',"+quote(artifact.name)+",'r'); exit(0);"
         )
