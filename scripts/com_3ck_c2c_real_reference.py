@@ -521,9 +521,31 @@ def audit_physical_thru_orientation(thru: Path) -> dict:
                         "real":float(dd.real),"imag":float(dd.imag),
                         "magnitude":float(abs(dd)),
                         "phase_degrees":float(np.angle(dd,deg=True))})
+    # Compare the three physical differential-pair partitions as measured.
+    # None is selected automatically; a true port map must be independently
+    # established from the source's documentation, not magnitude alone.
+    partitions={"tx13_rx24":[0,1,2,3],
+                "tx12_rx34":[0,2,1,3],
+                "tx14_rx23":[0,3,2,1]}
+    partition_samples=[]
+    for target_ghz in (0.01,0.1,1.0,10.0,26.5625):
+        idx=int(np.argmin(np.abs(freq-target_ghz*1e9)))
+        base=network[idx]
+        measured={}
+        for label,indices in partitions.items():
+            s=base[np.ix_(indices,indices)]
+            dd=0.5*(s[2,0]-s[2,1]-s[3,0]+s[3,1])
+            measured[label]={
+                "abs_sdd21":float(abs(dd)),
+                "re_sdd21":float(dd.real),
+                "im_sdd21":float(dd.imag),
+                "angle_deg":float(np.angle(dd,deg=True))}
+        partition_samples.append({"frequency_hz":float(freq[idx]),
+                                  "possible_port_pairings":measured})
     receipt={"source_sha256":sha(thru.read_bytes()),
              "port_order":[int(v) for v in order],
              "first_frequency_sdd21_samples":entries,
+             "possible_pairing_sdd21_read_only":partition_samples,
              "rx_reversed_pair_would_flip_sign":True}
     print("HISTORICAL_C2C_THRU_POLARITY_AUDIT:",
           json.dumps(receipt,ensure_ascii=False),flush=True)
