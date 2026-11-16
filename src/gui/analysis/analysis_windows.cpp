@@ -1384,6 +1384,268 @@ bool AnalysisWindow::saveIcnPng(const QString &name) {
   if(!okay) setStatus(si::channel::Status::Error,QStringLiteral("ICN PNG write failed"));
   return okay;
 }
+
+void AnalysisWindow::selectEyeProfile() {
+  if(feature_!=Feature::Eye || !eyeProfile_)return;
+  const auto profile=static_cast<si::channel::EyeProfile>(eyeProfile_->currentIndex());
+  const auto s=si::channel::eyeProfile(profile);
+  {
+    QSignalBlocker b1(eyeBitRate_),b2(eyeReference_),b3(toGhz_),b4(eyeMode_);
+    QSignalBlocker b5(eyePattern_),b6(eyeBits_);
+    eyeBitRate_->setValue(std::isfinite(s.bitRateHz)?s.bitRateHz/1e9:0);
+    eyeReference_->setValue(std::isfinite(s.referenceFrequencyHz)?
+                            s.referenceFrequencyHz/1e9:0);
+    toGhz_->setValue(std::isfinite(s.analysisStopHz)?s.analysisStopHz/1e9:0);
+    eyeMode_->setCurrentIndex(s.mode==si::channel::EyeMode::Differential?2:0);
+    eyePattern_->setCurrentIndex(0);
+    eyeBits_->clear();
+    eyeBits_->setEnabled(false);
+    for(auto *edit:eyeElectrical_) {
+      QSignalBlocker electricalBlock(edit);
+      edit->clear(); // PHY labels NEVER infer voltage / actual termination.
+    }
+  }
+  invalidateRequest();
+}
+void AnalysisWindow::setEyeSourceProvider(EyeSourceProvider provider) {
+  eyeProvider_=std::move(provider);
+  if(feature_==Feature::Eye) {
+    run_->setEnabled(bool(eyeProvider_));
+    run_->setToolTip(eyeProvider_?QStringLiteral(
+      "Run phase-preserving simulated NRZ Eye with explicit electrical conditions")
+      :QStringLiteral("Verified Eye source provider unavailable"));
+  }
+}
+void AnalysisWindow::clearEye() {
+  eyeResult_.reset();
+  if(eyeGraph_) static_cast<EyePlotWidget *>(eyeGraph_)->setData({},0);
+  if(eyeMetrics_) eyeMetrics_->setText(QStringLiteral(
+    "Simulated Channel Eye — Not Measured / Not PHY Compliance"));
+  if(feature_==Feature::Eye && csv_ && png_) {
+    csv_->setEnabled(false); png_->setEnabled(false);
+  }
+}
+void AnalysisWindow::launchEye() {
+  using namespace si::channel;
+  if(feature_!=Feature::Eye || !eyeProvider_)return;
+  clearEye();
+  const int idx=source_->currentIndex(), selected=victim_->currentIndex();
+  if(idx<0 || idx>=context_.sources.size() || selected<0) {
+    setStatus(Status::InvalidSource,QStringLiteral("Select a verified Touchstone revision and channel"));
+    return;
+  }
+  const auto &source=context_.sources[idx];
+  if(!source.mappingConfirmed || selected>=source.channelIds.size()) {
+    setStatus(Status::InvalidSource,QStringLiteral("Confirmed physical port mapping required"));
+    return;
+  }
+  const auto input=eyeProvider_(idx);
+  if(!input || !input->cache || input->expectedSha!=source.sha256.toStdString() ||
+     input->revision!=source.revision.toStdString()) {
+    setStatus(Status::InvalidSource,QStringLiteral("Source SHA/revision changed; refresh analysis"));
+    return;
+  }
+  if(eyeMode_->currentIndex()==0 || eyeBitRate_->value()<=0 ||
+     eyeReference_->value()<=0 || toGhz_->value()<=0) {
+    setStatus(Status::NotEvaluated,QStringLiteral(
+      "Explicit signal mode, bit rate, reference frequency and analysis cap required"));
+    return;
+  }
+  EyeSettings settings=eyeProfile(
+    static_cast<EyeProfile>(eyeProfile_->currentIndex()));
+  settings.mode=static_cast<EyeMode>(eyeMode_->currentIndex());
+  settings.pattern=static_cast<EyePattern>(eyePattern_->currentIndex());
+  settings.bitRateHz=eyeBitRate_->value()*1e9;
+  settings.referenceFrequencyHz=eyeReference_->value()*1e9;
+  settings.analysisStopHz=toGhz_->value()*1e9;
+  settings.fftLength=size_t(eyeFft_->currentText().toULongLong());
+  settings.samplesPerUI=size_t(eyeSamples_->currentText().toULongLong());
+  if(settings.pattern==EyePattern::CustomBits) {
+    const QByteArray bits=eyeBits_->text().trimmed().toLatin1();
+    settings.customBits.reserve(size_t(bits.size()));
+    for(const char ch:bits) {
+      if(ch!='0' && ch!='1') {
+        setStatus(Status::NotEvaluated,QStringLiteral("Custom pattern must contain only 0 and 1"));
+        return;
+      }
+      settings.customBits.push_back(uint8_t(ch-'0'));
+    }
+  }
+  std::array<double,7> electrical{};
+  for(size_t i=0;i<electrical.size();++i) {
+    const QString raw=eyeElectrical_[i]->text().trimmed();
+    if(raw.isEmpty()) {
+      setStatus(Status::NotEvaluated,QStringLiteral(
+        "All TX/RX incident voltages, source/termination and RX range are required"));
+      return;
+    }
+    bool ok=false;
+    electrical[i]=raw.toDouble(&ok);
+    if(!ok || !std::isfinite(electrical[i])) {
+      setStatus(Status::Error,QStringLiteral("Invalid finite TX/RX electrical input"));
+      return;
+    }
+  }
+  settings.electrical={electrical[0]*1e-3,electrical[1]*1e-3,
+    electrical[2],electrical[3],electrical[4]*1e-3,
+    electrical[5]*1e-3,electrical[6]*1e-3};
+  const std::string victimId=source.channelIds[selected].toStdString();
+  const bool reverse=direction_->currentIndex()==1;
+  const std::string settingsIdentity=selectionIdentity().toStdString();
+  if(startWork([input=*input,victimId,reverse,settings,settingsIdentity]
+       (const std::atomic_bool &cancel,std::atomic_int &progress)->WorkOutcome {
+    if(cancel.load()) throw si::Cancelled();
+    progress.store(5);
+    auto snapshot=SourceSnapshot::capture(input.cache,input.mapping,
+        input.revision,input.workspaceGeneration,input.mappingGeneration);
+    if(snapshot.identity().sha256!=input.expectedSha)
+      throw si::Error("Eye source SHA changed since selection");
+    if(snapshot.channel(victimId).differential() !=
+       (settings.mode==EyeMode::Differential))
+      throw si::Error("Eye single-ended/differential mode disagrees with mapped channel");
+    if(cancel.load()) throw si::Cancelled();
+    progress.store(35);
+    const auto trace=extract(snapshot,victimId,si::Metric::IL,reverse);
+    if(cancel.load()) throw si::Cancelled();
+    progress.store(60);
+    const auto &id=snapshot.identity();
+    Provenance provenance{id.sha256,id.revision,id.mappingIdentity,
+      "Phase-preserving deterministic NRZ Eye","012_07-v1",
+      settingsIdentity,id.workspaceGeneration,id.mappingGeneration};
+    auto result=calculateEye(trace,settings,provenance,&cancel);
+    if(cancel.load()) throw si::Cancelled();
+    WorkOutcome outcome;
+    outcome.status=result.status;
+    QStringList diagnostics;
+    for(const auto &d:result.diagnostics)
+      diagnostics<<QString::fromStdString(d.code);
+    outcome.diagnostic=QStringLiteral(
+      "Simulated only — Not measured, no BER or PHY compliance; ")+
+      diagnostics.join(QStringLiteral(", "));
+    if(result.usable())
+      outcome.eye=std::make_shared<EyeData>(std::move(*result.value));
+    outcome.provenance=std::move(result.provenance);
+    progress.store(100);
+    return outcome;
+  })) eyeSettings_=settings;
+}
+void AnalysisWindow::showEye(const WorkOutcome &outcome) {
+  if(!outcome.eye || !eyeGraph_)return;
+  eyeResult_=outcome.eye;
+  eyeProvenance_=outcome.provenance;
+  auto *plot=static_cast<EyePlotWidget *>(eyeGraph_);
+  plot->setData(eyeResult_,eyeSettings_.electrical.rxThresholdV);
+  plot->setView(eyeView_->currentIndex());
+  const auto &d=*eyeResult_;
+  eyeMetrics_->setText(QStringLiteral(
+    "Simulated Channel Eye — Not Measured / Not PHY Compliance\n"
+    "Height %1 mV | Width %2 ps (%3 UI) | Sample %4 UI | Delay %5 ps\n"
+    "Low maximum %6 mV | High minimum %7 mV | Received [%8, %9] mV\n"
+    "Bit rate %10 Gbps | Reference %11 GHz | Analysis cap %12 GHz")
+    .arg(d.eyeHeightV*1000,0,'g',7).arg(d.eyeWidthSeconds*1e12,0,'g',7)
+    .arg(d.eyeWidthUI,0,'g',7).arg(d.samplingPhaseUI,0,'g',7)
+    .arg(d.estimatedDelaySeconds*1e12,0,'g',7)
+    .arg(d.maximumLowV*1000,0,'g',7).arg(d.minimumHighV*1000,0,'g',7)
+    .arg(d.minimumReceivedV*1000,0,'g',7).arg(d.maximumReceivedV*1000,0,'g',7)
+    .arg(d.bitRateHz/1e9,0,'g',7).arg(d.referenceFrequencyHz/1e9,0,'g',7)
+    .arg(d.analysisStopHz/1e9,0,'g',7));
+  csv_->setEnabled(true);png_->setEnabled(true);
+  setStatus(outcome.status,outcome.diagnostic);
+}
+void AnalysisWindow::exportEyeCsv() {
+  if(!eyeResult_)return;
+  const QString name=QFileDialog::getSaveFileName(this,
+      QStringLiteral("Export simulated Eye numerical data"),QStringLiteral("Eye.csv"),
+      QStringLiteral("CSV (*.csv)"));
+  if(!name.isEmpty())saveEyeCsv(name);
+}
+bool AnalysisWindow::saveEyeCsv(const QString &name) {
+  using S=si::channel::Status;
+  if(!eyeResult_ || name.isEmpty() ||
+    (status_!=S::Warning && status_!=S::Valid))return false;
+  QSaveFile file(name);
+  if(!file.open(QIODevice::WriteOnly|QIODevice::Text)) {
+    setStatus(S::Error,QStringLiteral("Cannot open Eye CSV"));return false;
+  }
+  QTextStream out(&file);
+  const auto &d=*eyeResult_;
+  auto safe=[](const std::string &s) {
+    QString v=QString::fromStdString(s);
+    v.replace(QLatin1Char('\r'),QLatin1Char(' '));
+    v.replace(QLatin1Char('\n'),QLatin1Char(' '));
+    v.replace(QStringLiteral("\""),QStringLiteral("\"\""));
+    const QString trimmed=v.trimmed();
+    if(!trimmed.isEmpty() && QStringLiteral("=+-@").contains(trimmed.front()))
+      v.prepend(QLatin1Char('\''));
+    return QStringLiteral("\"")+v+QStringLiteral("\"");
+  };
+  const auto n=[](double v){return QString::number(v,'g',17);};
+  out<<"# warning,\"Simulated Channel Eye — Not Measured / Not PHY Compliance\"\n"
+     <<"# source_sha256,"<<safe(eyeProvenance_.sourceSha256)<<"\n"
+     <<"# revision,"<<safe(eyeProvenance_.revision)<<"\n"
+     <<"# mapping_identity,"<<safe(eyeProvenance_.mappingIdentity)<<"\n"
+     <<"# algorithm,"<<safe(eyeProvenance_.algorithm)<<"\n"
+     <<"# version,"<<safe(eyeProvenance_.version)<<"\n"
+     <<"# settings_identity,"<<safe(eyeProvenance_.settingsIdentity)<<"\n"
+     <<"# transfer_parameter,"<<safe(d.transferParameter)<<"\n"
+     <<"# profile,"<<safe(d.profileName)<<"\n"
+     <<"# bit_rate_gbps,"<<n(d.bitRateHz/1e9)<<"\n"
+     <<"# reference_frequency_ghz,"<<n(d.referenceFrequencyHz/1e9)<<"\n"
+     <<"# analysis_stop_ghz,"<<n(d.analysisStopHz/1e9)<<"\n"
+     <<"# fft_length,"<<eyeSettings_.fftLength<<"\n"
+     <<"# samples_per_ui,"<<eyeSettings_.samplesPerUI<<"\n"
+     <<"# pattern,"<<int(eyeSettings_.pattern)<<"\n"
+     <<"# mode,"<<int(eyeSettings_.mode)<<"\n"
+     <<"# tx_low_incident_mv,"<<n(eyeSettings_.electrical.txLowV*1000)<<"\n"
+     <<"# tx_high_incident_mv,"<<n(eyeSettings_.electrical.txHighV*1000)<<"\n"
+     <<"# tx_source_ohm,"<<n(eyeSettings_.electrical.txSourceOhm)<<"\n"
+     <<"# rx_termination_ohm,"<<n(eyeSettings_.electrical.rxTerminationOhm)<<"\n"
+     <<"# rx_threshold_mv,"<<n(eyeSettings_.electrical.rxThresholdV*1000)<<"\n"
+     <<"# rx_input_min_mv,"<<n(eyeSettings_.electrical.rxInputMinimumV*1000)<<"\n"
+     <<"# rx_input_max_mv,"<<n(eyeSettings_.electrical.rxInputMaximumV*1000)<<"\n"
+     <<"# eye_height_mv,"<<n(d.eyeHeightV*1000)<<"\n"
+     <<"# eye_width_ui,"<<n(d.eyeWidthUI)<<"\n"
+     <<"# eye_width_ps,"<<n(d.eyeWidthSeconds*1e12)<<"\n"
+     <<"# sampling_phase_ui,"<<n(d.samplingPhaseUI)<<"\n"
+     <<"# estimated_delay_ps,"<<n(d.estimatedDelaySeconds*1e12)<<"\n"
+     <<"# high_min_mv,"<<n(d.minimumHighV*1000)<<"\n"
+     <<"# low_max_mv,"<<n(d.maximumLowV*1000)<<"\n"
+     <<"# min_received_mv,"<<n(d.minimumReceivedV*1000)<<"\n"
+     <<"# max_received_mv,"<<n(d.maximumReceivedV*1000)<<"\n"
+     <<"# band_limited,"<<(d.bandLimited?"true":"false")<<"\n"
+     <<"# status,SIMULATED_ONLY\n"
+     <<"Time_ps,TX_mV,RX_mV,Impulse_Unit,Unit_Pulse\n";
+  for(size_t i=0;i<d.timeSeconds.size();++i)
+    out<<n(d.timeSeconds[i]*1e12)<<","<<n(d.transmittedV[i]*1000)
+       <<","<<n(d.receivedV[i]*1000)<<","<<n(d.impulse.values[i])
+       <<","<<n(d.unitPulse.values[i])<<"\n";
+  out<<"Overlay_Index,Phase_UI,Received_mV\n";
+  for(size_t k=0;k<d.overlayV.size();++k)
+    for(size_t i=0;i<d.overlayV[k].size();++i)
+      out<<k<<","<<n(d.overlayPhaseUI[i])<<","<<n(d.overlayV[k][i]*1000)<<"\n";
+  out.flush();
+  const bool okay=out.status()==QTextStream::Ok && file.commit();
+  if(!okay)setStatus(S::Error,QStringLiteral("Eye CSV write/commit failed"));
+  return okay;
+}
+void AnalysisWindow::exportEyePng() {
+  if(!eyeResult_)return;
+  const QString name=QFileDialog::getSaveFileName(this,
+      QStringLiteral("Export simulated Eye graph"),QStringLiteral("Eye.png"),
+      QStringLiteral("PNG (*.png)"));
+  if(!name.isEmpty())saveEyePng(name);
+}
+bool AnalysisWindow::saveEyePng(const QString &name) {
+  using S=si::channel::Status;
+  if(!eyeResult_ || !eyeGraph_ || name.isEmpty() ||
+     (status_!=S::Warning && status_!=S::Valid))return false;
+  QSaveFile file(name);
+  const bool okay=file.open(QIODevice::WriteOnly) &&
+       eyeGraph_->grab().save(&file,"PNG") && file.commit();
+  if(!okay)setStatus(S::Error,QStringLiteral("Eye PNG write/commit failed"));
+  return okay;
+}
+
 void AnalysisWindow::closeEvent(QCloseEvent *event) {
   if (scheduler_ && scheduler_->running(feature_)) cancelWork();
   progressPoll_.stop();
