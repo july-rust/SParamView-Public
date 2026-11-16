@@ -87,7 +87,7 @@
 ### 012_07 — Eye Diagram 수치 엔진
 - **실행:** 위상을 보존한 S21/Sdd21의 impulse/pulse response 계산, NRZ pattern 및 bit rate와 컨볼루션, 수신 파형·UI·eye height/width 생성. DC 외삽·재표본화·최고 주파수·인과성/대역 한계와 정량 오차 관리.
 - **산출:** eye.cpp, 수치 API, 테스트 파형 및 eye_tests. [012_07 수치·전압 조건 계약](Channel_Analysis_Eye_012_07.md).
-- **구현 범위:** MIPI D-PHY HS 4.5 Gb/s·기준 마커 2.25 GHz·분석 상한 10 GHz 예시, DDR2/3/4/5·LVDS·SLVS·SLVS-EC·Custom 프로파일, 비확정 TX/RX 조건 fail-closed. Eye Qt 통합은 012_08.
+- **구현 범위:** MIPI D-PHY HS 4.5 Gb/s·NRZ 기준 주파수 2.25 GHz(변경 시 Bit Rate/UI 연동)·독립 분석 상한 10 GHz 예시, DDR2/3/4/5·LVDS·SLVS·SLVS-EC·Custom 프로파일, 비확정 TX/RX 조건 fail-closed. Eye Qt 통합은 012_08.
 - **검증 상태:** PR/CI 실행 증거 확인 전 `IN PROGRESS / NOT VERIFIED`; v1.4.0 배포 금지.
 - **완료:** 이상 채널/대역제한/반사 채널의 독립 참조 파형 일치. 실제 BER과 PHY 적합성은 계산되지 않았다고 명시.
 
