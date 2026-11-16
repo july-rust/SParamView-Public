@@ -62,6 +62,8 @@ jobs:
         run: |
           python -m unittest discover -s tests/channel_analysis \
             -p test_com_3ck_c2c_real_reference.py -v
+      - name: Audit original 2019 C2C role inventory — IEEE published 4 FEXT / 0 NEXT
+        run: python scripts/com_3ck_c2c_real_reference.py --audit-roles
       - name: Compute actual COM from 2019 THRU + FEXT + NEXT and August 2022 C2C workbook
         shell: bash
         run: |
