@@ -1,5 +1,7 @@
 #include "si/channel_analysis/com_physical_channel.hpp"
 #include <atomic>
+#include <filesystem>
+#include <fstream>
 #include <cmath>
 #include <iostream>
 #include <numbers>
@@ -53,8 +55,76 @@ ComPhysicalChannelInput example() {
   x.receiver.attenuationGHzPerMm=0.0001;
   return x;
 }
+void sourceSnapshotCircuitTest(const std::filesystem::path& root) {
+  namespace fs=std::filesystem;
+  fs::create_directories(root);
+  const auto sourceFile=root/"confirmed-physical-4port.s4p";
+  {
+    std::ofstream output(sourceFile);
+    require(bool(output),"cannot create test physical 4-port Touchstone");
+    output<<"# GHz S RI R 50\n";
+    for(int f=0;f<=5;++f) {
+      output<<f;
+      // Touchstone S4P row uses column-major response/stimulus ordering.
+      for(int stimulus=0;stimulus<4;++stimulus) {
+        for(int response=0;response<4;++response) {
+          const double thru=
+              ((stimulus==0 && response==2) ||
+               (stimulus==2 && response==0) ||
+               (stimulus==1 && response==3) ||
+               (stimulus==3 && response==1)) ? 0.8 : 0.0;
+          output<<" "<<thru<<" 0";
+        }
+      }
+      output<<"\n";
+    }
+  }
+  auto cache=Cache::open(sourceFile,root/"cache",nullptr,true);
+  require(cache->meta().sha256.size()==64,
+          "real S4P source must be SHA-verified");
+  Channel mapping;
+  mapping.id="physical-victim";
+  mapping.name="PHYSICAL-VICTIM";
+  mapping.nearP=0; mapping.nearN=1;
+  mapping.farP=2; mapping.farN=3;
+  const auto snapshot=SourceSnapshot::capture(
+      cache,{mapping},"physical-revision-1",1,1);
+  ComPackageCircuit p;
+  p.primaryLineSingleEndedOhm=50;
+  p.secondaryLineSingleEndedOhm=50;
+  const auto actual=calculateComPhysicalFromSource(
+      snapshot,"physical-victim",p,p);
+  require(actual.usable() && actual.status==Status::Warning,
+          "actual SHA-verified S4P physical result must be diagnostic");
+  require(actual.provenance.sourceSha256==cache->meta().sha256 &&
+          actual.provenance.revision=="physical-revision-1" &&
+          actual.provenance.mappingGeneration==1,
+          "physical result must carry real source and mapping identity");
+  require(actual.value->frequencyHz.size()==6,
+          "physical S4P cache must load all measured frequency samples");
+  for(const auto& response:actual.value->test1.loadedSdd) {
+    near(response.s21,{0.8,0},1e-12,
+         "actual Touchstone S4P analytical thru");
+    near(response.s11,{0,0},1e-12,
+         "actual Touchstone S4P reflection");
+  }
+  for(const auto& response:actual.value->test2.loadedSdd)
+    near(response.s21,{0.8,0},1e-12,
+         "actual Touchstone 2nd physical package case");
+  rejected([&]{
+      (void)calculateComPhysicalFromSource(snapshot,"wrong-id",p,p);
+    },"reject unconfirmed physical channel identity");
+  Control cancelled;
+  cancelled.cancelled.store(true);
+  bool cancelledCaught=false;
+  try {
+    (void)calculateComPhysicalFromSource(
+      snapshot,"physical-victim",p,p,0,&cancelled);
+  }catch(const Cancelled&) {cancelledCaught=true;}
+  require(cancelledCaught,"source snapshot extraction must cancel");
 }
-int main() {
+}
+int main(int argc,char **argv) {
   try {
     const auto x=example();
     const auto result=calculateComPhysicalTestCases(x);
@@ -150,6 +220,8 @@ int main() {
     try{(void)calculateComPhysicalTestCases(x,{},&cancelled);}
     catch(const Cancelled&){threw=true;}
     require(threw,"propagate cancellation");
+    require(argc==2,"physical test requires sandbox output directory");
+    sourceSnapshotCircuitTest(std::filesystem::path(argv[1]));
     std::cout<<"012_09 two Test1/Test2 S4P physical channel network "
                 "analytic oracles PASS; normative IEEE COM NOT_EVALUATED\n";
     return 0;
