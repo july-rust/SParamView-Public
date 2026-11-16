@@ -88,13 +88,16 @@ def octave_case(channel: str, external_repo: Path, output: Path) -> int:
             raise ValueError("Historical C2C 4xFEXT/0xNEXT contract broken")
         artifact=root/"octave_result.mat"
         # Paths are generated locally in ASCII-named temporary directories.
-        quote=lambda p: "'" + str(p.resolve()).replace("'","''") + "'"
-        args=",".join([quote(mat),str(num_fext),str(num_next)]+
-                      [quote(p) for p in ordered])
+        # The upstream reference builds the MAT config path with a literal
+        # backslash on Unix when passed an absolute filename. Give only
+        # basenames in the runner's working directory; no source is altered.
+        quote=lambda s: "'" + str(s).replace("'","''") + "'"
+        args=",".join([quote(mat.name),str(num_fext),str(num_next)]+
+                      [quote(p.name) for p in ordered])
         statement=(
             "more off; addpath("+quote(external_repo/"octave")+"); "
             "r="+entry+"("+args+"); "
-            "save('-v7',"+quote(artifact)+",'r'); exit(0);"
+            "save('-v7',"+quote(artifact.name)+",'r'); exit(0);"
         )
         command=["octave-cli","--no-gui","--no-window-system",
                  "--quiet","--eval",statement]
