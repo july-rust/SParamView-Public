@@ -63,10 +63,8 @@ int main() {
       check(std::abs(heavy.s11)<1e-12,
             "high-loss matched line should not reflect");
     }
-    ComTwoPort nonReciprocal;
-    nonReciprocal.a={2.0,0.0};
-    rejects([&]{(void)twoPortScattering(nonReciprocal,z);},
-            "reject simple hand-constructed nonreciprocal matrix");
+    // The ABCD type is no longer externally writable, so a caller
+    // cannot inject a mathematically nonreciprocal matrix.
     const auto doubleTl=twoPortScattering(cascadeTwoPort(tl,tl),z);
     near(doubleTl.s21,expected*expected,1e-13,"line twice cascaded");
     near(doubleTl.s11,{0,0},1e-13,"cascaded line no reflection");
@@ -91,9 +89,8 @@ int main() {
     rejects([&]{(void)lossyUniformLine(hz,length,loss,-1,z);},"negative delay");
     rejects([&]{(void)lossyUniformLine(hz,40000,loss,delay,z);},"exponential overflow");
     rejects([&]{(void)twoPortScattering({},0);},"invalid ref Z");
-    ComTwoPort corrupted;
-    corrupted.a={NAN,0};
-    rejects([&]{(void)twoPortScattering(corrupted,50);},"invalid ABCD");
+    rejects([&]{(void)seriesImpedance({NAN,0});},
+            "invalid primitive cannot enter a reciprocal network");
     std::cout<<"012_09 independent reciprocal two-port analytic golden PASS; "
                 "NOT IEEE COM validation\n";
     return 0;
