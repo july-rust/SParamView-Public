@@ -3,7 +3,7 @@
 **기준일:** 2026-11-15 (KST)
 **공식 기준:** v1.3.5 (tag/release 불변)
 **목표:** ILD·ICN·Eye Diagram·COM을 각각 독립적인 C++20 수치 엔진, Qt6 창, 테스트로 구현하고 **v1.4.0 한 번에 릴리스**
-**상태:** 012_01 COMPLETE / 012_02 COMPLETE (REFERENCE_READY) / 012_03 CORE VERIFIED (PR #37; 최종 병합 상태는 PR 참조) / 012_04 GUI/워커 COMPLETE (PR #38; CI 43708927772) / 012_05 COMPLETE (ILD 엔진/GUI PR #40; CI 43766947020) / 012_06 COMPLETE (Generic ICN PR #42; CI 43775680490) / 012_07~14 미착수 / Eye/COM 미구현 / v1.4.0 미출시
+**상태:** 012_01 COMPLETE / 012_02 COMPLETE (REFERENCE_READY) / 012_03 CORE VERIFIED (PR #37; 최종 병합 상태는 PR 참조) / 012_04 GUI/워커 COMPLETE (PR #38; CI 43708927772) / 012_05 COMPLETE (ILD 엔진/GUI PR #40; CI 43766947020) / 012_06 COMPLETE (Generic ICN PR #42; CI 43775680490) / 012_07 Eye 수치 엔진 PR 검증 중 / 012_08~14 미착수 / Eye GUI·COM 미구현 / v1.4.0 미출시
 **작업 번호:** 012_01 ~ 012_14. 단계별 PR, CI, 증거와 완료 조건을 연결한다.
 
 > 이 문서는 향후 실행할 개발 명령의 기준이며, 문서 작성만으로 기능이나 공식 표준 적합성을 검증했다고 주장하지 않는다.
@@ -86,7 +86,9 @@
 
 ### 012_07 — Eye Diagram 수치 엔진
 - **실행:** 위상을 보존한 S21/Sdd21의 impulse/pulse response 계산, NRZ pattern 및 bit rate와 컨볼루션, 수신 파형·UI·eye height/width 생성. DC 외삽·재표본화·최고 주파수·인과성/대역 한계와 정량 오차 관리.
-- **산출:** eye.cpp, 수치 API, 테스트 파형 및 eye_tests.
+- **산출:** eye.cpp, 수치 API, 테스트 파형 및 eye_tests. [012_07 수치·전압 조건 계약](Channel_Analysis_Eye_012_07.md).
+- **구현 범위:** MIPI D-PHY HS 4.5 Gb/s·NRZ 기준 주파수 2.25 GHz(변경 시 Bit Rate/UI 연동)·독립 분석 상한 10 GHz 예시, DDR2/3/4/5·LVDS·SLVS·SLVS-EC·Custom 프로파일, 비확정 TX/RX 조건 fail-closed. Eye Qt 통합은 012_08.
+- **검증 상태:** PR/CI 실행 증거 확인 전 `IN PROGRESS / NOT VERIFIED`; v1.4.0 배포 금지.
 - **완료:** 이상 채널/대역제한/반사 채널의 독립 참조 파형 일치. 실제 BER과 PHY 적합성은 계산되지 않았다고 명시.
 
 ### 012_08 — Eye Diagram 독립 창 완성
@@ -156,7 +158,8 @@
 | 012_04 GUI/워커 | **COMPLETE (프레임워크)** | [병합 PR #38](https://github.com/july-rust/SParamView-Public/pull/38) · [CI PASS](https://github.com/july-rust/SParamView-Public/actions/runs/43708927772); 미완성 엔진 메뉴 비활성화 |
 | 012_05 ILD 엔진·GUI | **COMPLETE** (선언 범위: 일반 ILD 계산·GUI·자동 CI) | [병합 PR #40](https://github.com/july-rust/SParamView-Public/pull/40) · [CI 43766947020](https://github.com/july-rust/SParamView-Public/actions/runs/43766947020) · 통합 SHA `90a59ada15a9c17aa787ffb317fcafefb4285c75` |
 | 012_06 ICN 엔진·GUI | **COMPLETE (Generic 수치/자동화 범위)** | [병합 PR #42](https://github.com/july-rust/SParamView-Public/pull/42) · [3개 플랫폼 CI PASS](https://github.com/july-rust/SParamView-Public/actions/runs/43775680490) · 통합 SHA `1bcf54008d3031c5b8ef634e4d2bef1479eee96a` |
-| 012_07~012_14 Eye/COM·릴리스 | NOT STARTED | Eye/COM 미구현; v1.3.5 릴리스 유지 · v1.4.0 미출시 |
+| 012_07 Eye numerical engine | IN PROGRESS / NOT VERIFIED | C++20 Eye PR·수치 테스트 작성; CI·병합 확인 필요; GUI는 012_08 | 
+| 012_08~012_14 Eye GUI/COM·릴리스 | NOT STARTED | Eye GUI/COM 미구현; v1.3.5 릴리스 유지 · v1.4.0 미출시 |
 | 계획 문서 | PLANNED | 본 문서 및 링크된 상위 로드맵 |
 
 ## 7. 출처
