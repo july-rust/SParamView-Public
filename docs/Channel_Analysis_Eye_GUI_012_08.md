@@ -1,6 +1,7 @@
 # SParamView v1.4.0 — 012_08 Eye GUI Integration Contract
 
 **Branch:** `integration/v1.4.0` via [PR #47](https://github.com/july-rust/SParamView-Public/pull/47).
+**Feature evidence:** [PR #47](https://github.com/july-rust/SParamView-Public/pull/47) squash-merged `17bcec471aef0061102293c9ea738b961475c3de`; full head CI [#43811255898](https://github.com/july-rust/SParamView-Public/actions/runs/43811255898) **SUCCESS** across Linux Core/ASan/UBSan/static analysis, Windows x64 CTest+packaging, Windows ARM64 build and native ARM64 packaged-binary qualification, and macOS Apple Silicon arm64 CTest+GUI. All Codex PR review threads resolved. Post-merge integration CI: [#43812686401](https://github.com/july-rust/SParamView-Public/actions/runs/43812686401) **SUCCESS** on merged SHA `17bcec47`.
 **Scope:** Native Qt6 independent simulated-NRZ Eye window, verified SHA-backed source, async numerical engine, plot/CSV/PNG. **Not official v1.4.0 release**; v1.3.5 remains unchanged.
 
 ## Execution and provenance
@@ -39,7 +40,7 @@ The CSV records SHA, revision, physical mapping, algorithm/version, complete num
 - Qt offscreen regression: source-based launch, voltage missing/not-evaluated, mismatched reference termination fail-closed, reference/rate coupling, graph/metrics, real CSV/PNG readback, SHA mutation → STALE.
 - The actual user-operated physical Windows/macOS GUI, additional native visual quality and performance checks remain the separate **012_12** final release gate.
 - No physical MIPI/DDR/LVDS/SLVS eye-mask, BER or COM qualification occurs in 012_08; do not claim standards PASS.
-- `012_08 COMPLETE` only after the final PR head CI and protected squash merge **plus post-merge integration qualification**. Until then, mark as **IN PROGRESS**.
+- `012_08 COMPLETE` only after the final PR head CI and protected squash merge **plus post-merge integration qualification**. The feature PR and the exact merged-SHA integration CI both passed; **012_08 = 100% COMPLETE for the documented simulated Eye GUI/core integration scope**. The independent native physical Windows/macOS GUI acceptance (012_12), COM engines (012_09+) and the official v1.4.0 release gate (012_14) remain separate.
 
 ## Sources
 

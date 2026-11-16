@@ -626,7 +626,7 @@ This is an **exploratory IID NRZ, uncorrelated-aggressor calculation**, NOT IEEE
 
 ## Development branch only — 012_08 Simulated Channel Eye (planned v1.4.0)
 
-> This feature is **not** in the official v1.3.5 release. Implementation and qualification are tracked in [PR #47](https://github.com/july-rust/SParamView-Public/pull/47).
+> This feature is **not** in the official v1.3.5 release. Implementation and qualified PR CI passed; [PR #47](https://github.com/july-rust/SParamView-Public/pull/47) was squash-merged into `integration/v1.4.0`. Post-merge integration CI [#43812686401](https://github.com/july-rust/SParamView-Public/actions/runs/43812686401) succeeded, completing the 012_08 simulated Eye GUI stage. The physical 012_12 GUI and official release remain separate acceptance gates.
 
 Open a SHA-qualified Touchstone revision with confirmed physical channel mapping; select **Analysis → Eye Diagram** to open a separate non-modal window. Choose a profile: MIPI D-PHY v2.1 HS provides an illustrative **4.5 Gb/s per lane / 2.25 GHz coupled NRZ reference / independently adjustable 10 GHz analysis cap**. DDR2/3/4/5, LVDS, SLVS, SLVS-EC and Custom require explicit rate, cap and electrical conditions. Switching profiles clears physical electrical fields.
 

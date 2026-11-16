@@ -1,8 +1,8 @@
 # SParamView Revision History
 
-## v1.4.0 development / 012_08 (unreleased — PR #47 in progress)
+## v1.4.0 development / 012_08 (unreleased — Eye GUI stage COMPLETE)
 
-Added the proposed independent simulated Eye Qt window with SHA-verified complex Touchstone THROUGH extraction, coupled NRZ rate/reference and independent analysis cap, explicit TX/RX voltage and matched termination gates, PRBS7/alternating/custom patterns, 2-UI overlay and time-domain visualizations, sampling/height/width metrics, atomic CSV/PNG and async cancellation/STALE protections. **Not released or certified; required CI, native 012_12 GUI and final 012_14 release gates remain.** [Detailed contract](Channel_Analysis_Eye_GUI_012_08.md).
+Added the proposed independent simulated Eye Qt window with SHA-verified complex Touchstone THROUGH extraction, coupled NRZ rate/reference and independent analysis cap, explicit TX/RX voltage and matched termination gates, PRBS7/alternating/custom patterns, 2-UI overlay and time-domain visualizations, sampling/height/width metrics, atomic CSV/PNG and async cancellation/STALE protections. **Not released or PHY certified.** PR #47 full CI #43811255898 succeeded, squash merge `17bcec47` landed on `integration/v1.4.0`, post-merge CI #43812686401 **SUCCESS**, physical 012_12 GUI and 012_14 release gates remain. [Detailed contract](Channel_Analysis_Eye_GUI_012_08.md).
 
 
 **Current official release: [v1.3.5](https://github.com/july-rust/SParamView-Public/releases/tag/v1.3.5)** — versioned Mapping CSV and fail-closed GUI/cache startup hardening, building on v1.3.3 Touchstone input validation; retains the v1.3.2 cache separation and filename display. This preserves v1.3.1 cross-process cache safety. The [v1.3.0 release](https://github.com/july-rust/SParamView-Public/releases/tag/v1.3.0) was published on 2026-10-29 11:43 KST and remains preserved.
