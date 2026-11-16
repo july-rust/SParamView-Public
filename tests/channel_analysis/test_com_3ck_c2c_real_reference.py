@@ -122,6 +122,23 @@ class HistoricalC2CReferencePreflight(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,"Cannot uniquely"):
                 ref.canonical_config_csv(source,directory/"empty.csv")
 
+    def test_hidden_settings_sheet_must_not_be_silently_selected(self):
+        import openpyxl
+        book = openpyxl.Workbook()
+        book.active.title = "Visible_About"
+        book.active.append(["README, not an approved COM configuration"])
+        hidden = book.create_sheet("Hidden_Parameters")
+        for idx, label in enumerate(sorted(ref.CONFIG_LABELS), start=1):
+            hidden.append([label, float(idx)])
+        hidden.sheet_state = "hidden"
+        with tempfile.TemporaryDirectory() as tmp:
+            source = pathlib.Path(tmp) / "historical.xlsx"
+            result = pathlib.Path(tmp) / "candidate.csv"
+            book.save(source)
+            with self.assertRaisesRegex(ValueError, "Cannot uniquely"):
+                ref.canonical_config_csv(source, result)
+            self.assertFalse(result.exists())
+
     def test_bad_channel_label_must_fail_closed(self):
         with tempfile.TemporaryDirectory() as tmp:
             with self.assertRaisesRegex(ValueError,"Unknown C2C"):
