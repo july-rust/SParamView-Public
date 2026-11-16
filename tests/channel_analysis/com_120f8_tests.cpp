@@ -170,9 +170,12 @@ try {
   closeComplex(calculated.value->conditionedThru[0],
                {0.06309573444801933,0.},
                "actual native source->FFE->receiver DC oracle");
+  // The 5 FIR slots run pre(-3),pre(-2),pre(-1),cursor,post(+1).
+  // The cursor in slot index 3 therefore adds a real 3-UI group delay.
+  // Do NOT silently discard phase to force agreement with an RX-only oracle.
   closeComplex(calculated.value->conditionedThru[1000],
-               {0.42516619243164677,0.041868363616010984},
-               "actual native source->FFE->receiver 10 GHz oracle");
+               {-0.4070665094492606,0.1296769368218637},
+               "native FFE 3-UI delay plus receiver 10 GHz phase oracle");
   channel.rxFilter.parameter="Sdd21";
   channel.rxFilter.frequencyHz=grid;
   channel.rxFilter.transfer.assign(grid.size(),{1.,0.});
