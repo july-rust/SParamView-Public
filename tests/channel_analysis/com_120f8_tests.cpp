@@ -17,7 +17,7 @@ void close(double a,double b,const char* why) {
 }
 template<class F> void reject(F call,const char* why) {
   bool caught=false;
-  try{call();}catch(const Error&){caught=true;}
+  try{call();}catch(const si::Error&){caught=true;}
   demand(caught,why);
 }
 }
