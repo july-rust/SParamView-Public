@@ -8,6 +8,7 @@ Do not copy third-party ZIP/workbook/S4P into repo or uploaded artifacts.
 """
 import argparse
 import contextlib
+import csv
 import hashlib
 import io
 import json
@@ -114,6 +115,74 @@ def prepare(channel: str, base: Path) -> tuple[Path,list[Path],list[dict]]:
         })
     return workbook,files,provenance
 
+# Historical IEEE workbook has no usable active sheet in some openpyxl
+# versions; the original bytes remain pinned. Convert only a uniquely
+# selected parameters worksheet to the same CSV input supported natively
+# by the independently maintained COM reference implementation.
+CONFIG_LABELS = {
+    "f_b", "f_min", "Delta_f", "C_d", "L_s", "C_b", "C_p",
+    "Z_c", "Z_c2", "z_p", "z_p2", "R_0", "R_d", "f_z",
+    "g_DC", "SNR_TX", "DER_0", "A_v", "A_fe", "A_ne",
+    "sigma_RJ", "eta_0", "A_DD", "c(0)", "c(-1)",
+}
+CONFIG_NORMAL = {x.casefold():x for x in CONFIG_LABELS}
+
+def canonical_config_csv(original: Path, result_csv: Path) -> dict:
+    import openpyxl
+    workbook=openpyxl.load_workbook(original, read_only=True, data_only=True)
+    try:
+        observations=[]
+        for sheet in workbook.worksheets:
+            if sheet.sheet_state != "visible":
+                continue
+            if sheet.max_row and sheet.max_row > 10000:
+                raise ValueError("Unbounded historical COM workbook row count")
+            if sheet.max_column and sheet.max_column > 512:
+                raise ValueError("Unbounded historical COM workbook column count")
+            rows=[]
+            observed=set()
+            for row in sheet.iter_rows(values_only=True):
+                cells=list(row)
+                rows.append(cells)
+                for cell in cells:
+                    if isinstance(cell,str):
+                        label=cell.strip().casefold()
+                        if label in CONFIG_NORMAL:
+                            observed.add(CONFIG_NORMAL[label])
+            observations.append((sheet.title,len(observed),rows,
+                                 sorted(observed)))
+        summary=[{"sheet":name,"parameter_count":count,
+                  "rows":len(rows),"recognized_labels":labels}
+                 for name,count,rows,labels in observations]
+        print("HISTORICAL_2022_C2C_WORKSHEET_INVENTORY:",
+              json.dumps(summary,ensure_ascii=False),flush=True)
+        qualified=[x for x in observations if x[1]>=12]
+        if len(qualified)!=1:
+            # We cannot interpret a multi-sheet reference as a single COM
+            # profile without an independently validated sheet selector.
+            raise ValueError(
+                "Cannot uniquely identify 2022 120F C2C settings worksheet: "
+                +json.dumps(summary,ensure_ascii=False))
+        name,count,rows,labels=qualified[0]
+        with result_csv.open("w",newline="",encoding="utf-8") as stream:
+            writer=csv.writer(stream)
+            for row in rows:
+                writer.writerow(["" if value is None else value
+                                 for value in row])
+        csv_bytes=result_csv.read_bytes()
+        # Same engine parses both .xlsx and .csv parameter rows; unlike
+        # workbook.active this selection is explicit and SHA-audited.
+        return {
+            "source_workbook_sha256":sha(original.read_bytes()),
+            "sheet_name":name,
+            "recognized_numeric_parameter_labels":count,
+            "row_count":len(rows),
+            "csv_sha256":sha(csv_bytes),
+            "conversion":"EXACT_OPENPYXL_DATA_ONLY_CELLS_TO_CSV",
+        }
+    finally:
+        workbook.close()
+
 def run(channel: str, output: Path) -> int:
     import sicopr
     if getattr(sicopr,"COM_MATLAB_VERSION",None) is None:
@@ -122,12 +191,14 @@ def run(channel: str, output: Path) -> int:
     with tempfile.TemporaryDirectory(prefix="ck-golden-") as d:
         base=Path(d)
         config,files,provenance=prepare(channel,base)
+        csv_config=base/"working_c2c_reference_settings.csv"
+        config_transform=canonical_config_csv(config,csv_config)
         errors=io.StringIO()
         original=Path.cwd()
         try:
             os.chdir(base)
             with contextlib.redirect_stdout(errors):
-                result=sicopr._run_com(str(config),1,1,
+                result=sicopr._run_com(str(csv_config),1,1,
                     [str(p) for p in files],export_mat=False)
         finally:
             os.chdir(original)
@@ -156,6 +227,7 @@ def run(channel: str, output: Path) -> int:
       "reference_engine":"SiCoPR 1.2.1 compatible IEEE COM 4p17p0",
       "reference_engine_commit":SICOPR_COMMIT,
       "official_2022_workbook_sha256":CONFIG_SHA,
+      "historical_workbook_settings_conversion":config_transform,
       "official_2022_workbook_zip_sha256":CONFIG_ZIP_SHA,
       "official_2019_c2c_archive_sha256":CHANNEL_ZIP_SHA,
       "input_member_provenance":provenance,
