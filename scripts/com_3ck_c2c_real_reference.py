@@ -314,8 +314,21 @@ def strict_ooxml_com_settings(raw: bytes) -> tuple[list[list[str]],dict]:
                                            abs(evaluated)*Decimal("1e-10")):
                 raise ValueError("COM formula stale/overflow cached result")
             return evaluated
-        found = {}
+        # Recompute every formula in the selected COM_Settings sheet, not
+        # only whitelisted labels: f_p1/f_p2 and other filter settings must
+        # not become blank and poison an otherwise complete COM optimization.
         formula_receipts = []
+        for (row,col), source in sorted(formulas.items()):
+            calculated=numeric((row,col))
+            rows[row-1][col-1]=str(calculated)
+            label=rows[row-1][col-2].strip() if col>=2 else ""
+            formula_receipts.append({
+                "parameter_or_adjacent_label":label[:80], "cell_row":row,
+                "value_column":col, "formula":source["expression"],
+                "source_cached":source["cached"],
+                "recomputed":str(calculated),
+            })
+        found = {}
         for r, cells in enumerate(rows, start=1):
             for c, value in enumerate(cells, start=1):
                 if not isinstance(value, str):
@@ -325,14 +338,6 @@ def strict_ooxml_com_settings(raw: bytes) -> tuple[list[list[str]],dict]:
                     continue
                 if key in found:
                     raise ValueError("Ambiguous repeated COM parameter " + key)
-                if (r, c+1) in formulas:
-                    computed=numeric((r,c+1))
-                    cells[c]=str(computed)
-                    formula_receipts.append({
-                        "parameter":key, "cell_row":r, "value_column":c+1,
-                        "formula":formulas[(r,c+1)]["expression"],
-                        "source_cached":formulas[(r,c+1)]["cached"],
-                        "recomputed":str(computed)})
                 if c >= len(cells) or not cells[c].strip():
                     raise ValueError("Blank Strict OOXML COM parameter: " + key)
                 found[key] = (r,c+1)
@@ -344,7 +349,7 @@ def strict_ooxml_com_settings(raw: bytes) -> tuple[list[list[str]],dict]:
             raise ValueError("Strict OOXML COM_Settings lacks verified literals")
         return rows, {"sheet_name": "COM_Settings", "sheet_xml": path,
                       "recognized_numeric_parameter_labels": len(found),
-                      "row_count": len(rows), "formula_cells_suppressed": len(formulas)-len(formula_receipts),
+                      "row_count": len(rows), "formula_cells_suppressed": 0,
                       "formula_recomputation_receipts":formula_receipts,
                       "conversion": "BYTE_PINNED_STRICT_OOXML_VERIFIED_COM_SETTINGS_ARITHMETIC"}
 
