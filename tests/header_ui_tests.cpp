@@ -79,9 +79,10 @@ int main(int argc, char **argv) {
   }
   for (const auto *action : analysisMenu->actions()) {
     const bool implemented = action->objectName() == QStringLiteral("analysisActionILD") ||
-                             action->objectName() == QStringLiteral("analysisActionICN");
+                             action->objectName() == QStringLiteral("analysisActionICN") ||
+                             action->objectName() == QStringLiteral("analysisActionEye");
     if (action->isEnabled() != implemented) {
-      std::cerr << "012_06 activation contract: only verified ILD and ICN may be enabled\n";
+      std::cerr << "012_08 activation contract: only verified ILD, ICN and Eye may be enabled\n";
       return 11;
     }
   }
