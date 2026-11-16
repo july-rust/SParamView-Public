@@ -1,6 +1,6 @@
 # SParamView v1.4.0 — 012_07 Eye Numerical Engine Contract
 
-**Status:** implementation branch / independent CI qualification pending. **Scope:** 012_07 **Qt-free** C++20 engine and numerical tests only. The independent Qt window, editable settings, plots, CSV/PNG, async worker/source-snapshot integration are **012_08**. This is not a v1.4.0 release.
+**Status:** **012_07 COMPLETE (Qt-free numerical engine and automated qualification only)**. [PR #45](https://github.com/july-rust/SParamView-Public/pull/45) squash-merged to `integration/v1.4.0` at `ae417b64d631da232ee26eaff2291e1eb0b88e5b`; [GitHub Actions #43798693800](https://github.com/july-rust/SParamView-Public/actions/runs/43798693800) core/ASan/UBSan, Windows x64, Windows ARM64 cross-build and native package regression, macOS arm64 and version consistency **all SUCCESS**. **Scope:** 012_07 **Qt-free** C++20 engine and numerical tests only. The independent Qt window, editable settings, plots, CSV/PNG, async worker/source-snapshot integration are **012_08**. This is not a v1.4.0 release.
 
 ## 1. Eye definition and profile selection
 
@@ -33,4 +33,4 @@ The dedicated 012_08 window will expose: profile, direction/mode, bit rate, coup
 
 Registered `channel_eye_numerics` tests: unity matched THRU with exact 0.4 V high-to-low eye, unit-width opening, identity time waveform; integer-sample complex-phase delay oracle (rejects magnitude-only transfer); half-gain and doubled-explicit-swing scaling; reference-frequency-driven bit-rate/UI change; band-limited cap warning; MIPI 4.5/2.25/10 example with explicit electrical inputs; single-ended and reversed THRU; missing voltage, incorrect/missing termination, RX threshold/range, DC and spectral coverage, nonfinite data, reflection mislabeled THRU, invalid FFT/pattern/rate, and cancellation rejection.
 
-**Evidence rule:** test source is not CI success. The stage is `NOT VERIFIED` until actual Linux Core/ASan and Windows x64/ARM64/macOS Actions results are inspected, the PR is merged to `integration/v1.4.0`, and the verified commit is recorded. Do not create/relabel v1.4.0 or alter v1.3.5 release assets.
+**Evidence:** GitHub Actions #43798693800 completed successfully for the final feature head SHA `7aefa39af89fc382f6adf1d199bf1f0904bd1637`; squash merge commit `ae417b64d631da232ee26eaff2291e1eb0b88e5b`. The early failed phase-delay oracle had an unmatched frequency grid; the independent FFT-bin-grid-aligned fixture correction was included and retested on the final head. 012_07 numerical implementation is **COMPLETE**; 012_08 Qt GUI and `SourceSnapshot` hookup, 012_12 physical GUI acceptance, external PHY/BER compliance and v1.4.0 release **remain explicitly unverified/not implemented**. v1.3.5 release assets untouched.
