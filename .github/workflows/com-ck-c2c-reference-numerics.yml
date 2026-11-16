@@ -138,7 +138,7 @@ jobs:
           test "$(git -C _external_qa_sicopr rev-parse HEAD)" = cb7c4be5c63d41e88b6ee7d04fb17e0046ab0f75
           test -f _external_qa_sicopr/LICENSE
           test -f _external_qa_sicopr/octave/com_ieee8023_4p17p0_octave_compat.m
-          python -m pip install --disable-pip-version-check --no-cache-dir numpy scipy openpyxl
+          python -m pip install --disable-pip-version-check --no-cache-dir './_external_qa_sicopr'
           sudo apt-get update -qq
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends octave gnuplot-nox
           octave-cli --version | head -n 1
