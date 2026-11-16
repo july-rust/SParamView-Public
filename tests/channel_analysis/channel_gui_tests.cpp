@@ -337,6 +337,110 @@ int main(int argc, char **argv) {
     check(!icn->saveIcnCsv(ildDir.filePath(QStringLiteral("stale-icn.csv"))) &&
           !icn->saveIcnPng(ildDir.filePath(QStringLiteral("stale-icn.png"))),
           "Stale ICN export was accepted");
+
+    // 012_08: real SHA-qualified s2p -> SourceSnapshot -> phase-preserving
+    // single-ended Eye worker -> graphs + CSV/PNG; no fabricated PHY voltage.
+    numericContext.sources[0].sha256=QString::fromStdString(cache->meta().sha256);
+    manager.setEyeSourceProvider([cache,channel](int index)
+      -> std::optional<IldSourceInput> {
+      if(index!=0)return std::nullopt;
+      return IldSourceInput{cache,{channel},"ILD fixture revision",
+                            cache->meta().sha256,1,1};
+    });
+    manager.setContext(numericContext);
+    auto *eye=manager.openWindow(Feature::Eye);
+    check(manager.action(Feature::Eye)->isEnabled() &&
+          eye->runButton()->isEnabled(),"Verified Eye action unavailable");
+    auto *profile=eye->findChild<QComboBox *>(QStringLiteral("eyeProfile"));
+    auto *mode=eye->findChild<QComboBox *>(QStringLiteral("eyeMode"));
+    auto *baud=eye->findChild<QDoubleSpinBox *>(QStringLiteral("eyeBitRateGbps"));
+    auto *reference=eye->findChild<QDoubleSpinBox *>(QStringLiteral("eyeReferenceGhz"));
+    auto *cap=eye->findChild<QDoubleSpinBox *>(QStringLiteral("analysisStopFrequency"));
+    // Common stop-frequency spin gets an explicit ID in 012_08.
+    if(!cap)cap=eye->findChild<QDoubleSpinBox *>(QStringLiteral("eyeAnalysisCapGhz"));
+    check(profile && mode && baud && reference && cap,
+          "Eye profile/bitrate/reference/cap controls missing");
+    check(std::abs(baud->value()-4.5)<1e-9 &&
+          std::abs(reference->value()-2.25)<1e-9 &&
+          std::abs(cap->value()-10)<1e-9,
+          "MIPI 4.5/2.25/10 example defaults were not installed");
+    eye->runButton()->click();
+    check(eye->status()==S::NotEvaluated,
+          "MIPI preset without verified electrical inputs must fail closed");
+    profile->setCurrentIndex(8); // Custom: single-ended s2p fixture
+    mode->setCurrentIndex(1);
+    baud->setValue(4.5);
+    check(std::abs(reference->value()-2.25)<1e-9,
+          "Reference was not coupled to bit rate");
+    reference->setValue(1.5);
+    check(std::abs(baud->value()-3.0)<1e-9,
+          "Changing NRZ reference did not update bit rate");
+    baud->setValue(4.5);
+    cap->setValue(10);
+    const QStringList electricalNames={
+      QStringLiteral("eyeTxLowMv"),QStringLiteral("eyeTxHighMv"),
+      QStringLiteral("eyeTxSourceOhm"),QStringLiteral("eyeRxTerminationOhm"),
+      QStringLiteral("eyeRxThresholdMv"),QStringLiteral("eyeRxMinimumMv"),
+      QStringLiteral("eyeRxMaximumMv")};
+    const QStringList electricalValues={
+      QStringLiteral("0"),QStringLiteral("400"),
+      QStringLiteral("50"),QStringLiteral("50"),
+      QStringLiteral("180"),QStringLiteral("-500"),
+      QStringLiteral("1000")};
+    for(int i=0;i<electricalNames.size();++i) {
+      auto *field=eye->findChild<QLineEdit *>(electricalNames[i]);
+      check(field!=nullptr,"Missing Eye electrical field");
+      field->setText(electricalValues[i]);
+    }
+    // Wrong termination must not be converted silently into an Eye result.
+    auto *rxTerm=eye->findChild<QLineEdit *>(QStringLiteral("eyeRxTerminationOhm"));
+    rxTerm->setText(QStringLiteral("60"));
+    eye->runButton()->click();
+    drain(manager.scheduler());
+    check(eye->status()==S::Error && !eye->saveEyeCsv(
+        ildDir.filePath(QStringLiteral("bad-eye.csv"))),
+        "Mismatched impedance produced a usable simulated Eye");
+    rxTerm->setText(QStringLiteral("50"));
+    eye->runButton()->click();
+    drain(manager.scheduler());
+    check(eye->status()==S::Warning,
+          "Real single-ended s2p Eye must produce SIMULATED_ONLY WARNING");
+    auto *eyeGraph=eye->findChild<QWidget *>(QStringLiteral("eyeResultGraph"));
+    auto *metrics=eye->findChild<QLabel *>(QStringLiteral("eyeMetrics"));
+    check(eyeGraph && metrics &&
+          metrics->text().contains(QStringLiteral("Height")) &&
+          metrics->text().contains(QStringLiteral("Width")) &&
+          metrics->text().contains(QStringLiteral("Not Measured")),
+          "Eye numerical display and caution missing");
+    auto *eyeCsv=eye->findChild<QPushButton *>(QStringLiteral("analysisCsv"));
+    auto *eyePng=eye->findChild<QPushButton *>(QStringLiteral("analysisPng"));
+    check(eyeCsv && eyeCsv->isEnabled() && eyePng && eyePng->isEnabled(),
+          "Verified simulated Eye exports unavailable");
+    const QString eyeCsvPath=ildDir.filePath(QStringLiteral("eye-result.csv"));
+    const QString eyePngPath=ildDir.filePath(QStringLiteral("eye-result.png"));
+    check(eye->saveEyeCsv(eyeCsvPath) && eye->saveEyePng(eyePngPath),
+          "Eye CSV/PNG export failed");
+    QFile eyeRead(eyeCsvPath);
+    check(eyeRead.open(QIODevice::ReadOnly),"Eye CSV not readable");
+    const QByteArray eyeContent=eyeRead.readAll();
+    check(eyeContent.contains("# source_sha256,") &&
+          eyeContent.contains("# eye_height_mv,") &&
+          eyeContent.contains("# reference_frequency_ghz,") &&
+          eyeContent.contains("Time_ps,TX_mV,RX_mV") &&
+          eyeContent.contains("Overlay_Index,Phase_UI,Received_mV") &&
+          eyeContent.contains("SIMULATED_ONLY"),
+          "Eye CSV missing numerical/provenance data");
+    QImage eyeImage(eyePngPath);
+    check(!eyeImage.isNull() && eyeImage.width()>200 && eyeImage.height()>200,
+          "Eye PNG does not contain a real plot");
+    numericContext.sources[0].sha256=QStringLiteral("source-hash-changed");
+    manager.setContext(numericContext);
+    check(eye->status()==S::Stale && !eyeCsv->isEnabled() &&
+          !eyePng->isEnabled() &&
+          !eye->saveEyeCsv(ildDir.filePath(QStringLiteral("stale-eye.csv"))),
+          "STALE Eye remained exportable");
+    manager.setEyeSourceProvider({});
+
     manager.setIcnSourceProvider({});
     manager.setIldSourceProvider({});
     std::cout << "012_04/012_05/012_06 QT GUI, ILD and ICN workflow PASS\n";
