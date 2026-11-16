@@ -131,6 +131,16 @@ def canonical_config_csv(original: Path, result_csv: Path) -> dict:
     import openpyxl
     workbook=openpyxl.load_workbook(original, read_only=True, data_only=True)
     try:
+        # Preserve evidence when a pinned historical OOXML workbook cannot be
+        # represented as visible worksheets by modern openpyxl. Never fall back
+        # to workbook.active or silently choose a hidden/ambiguous worksheet.
+        sheet_states = [
+            {"title": sheet.title, "state": sheet.sheet_state,
+             "rows": sheet.max_row, "columns": sheet.max_column}
+            for sheet in workbook.worksheets
+        ]
+        print("HISTORICAL_2022_C2C_WORKSHEET_STATES:",
+              json.dumps(sheet_states, ensure_ascii=False), flush=True)
         observations=[]
         for sheet in workbook.worksheets:
             if sheet.sheet_state != "visible":
