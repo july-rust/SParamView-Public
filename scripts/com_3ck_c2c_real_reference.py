@@ -256,8 +256,66 @@ def strict_ooxml_com_settings(raw: bytes) -> tuple[list[list[str]],dict]:
                     if len(value) > 65536:
                         raise ValueError("Oversized Strict OOXML cell")
                     rows[row_number-1][column-1] = value
+        # Recalculate only a tiny, auditable subset of Excel arithmetic:
+        # finite decimal constants, +,-,*,/, unary signs and same-sheet
+        # literal references (e.g. 26.5625*2, B3/2.5). No function calls,
+        # named ranges, external sheets or eval(). Cached results must agree.
+        import ast
+        from decimal import Decimal, InvalidOperation
+        def numeric(address, visiting=None):
+            visiting = set() if visiting is None else visiting
+            if address in visiting or len(visiting) >= 16:
+                raise ValueError("Cycle/excessive depth in COM worksheet formula")
+            rr,cc = address
+            if not 1 <= rr <= len(rows) or not 1 <= cc <= len(rows[rr-1]):
+                raise ValueError("COM formula refers to missing cell")
+            if address not in formulas:
+                literal = rows[rr-1][cc-1]
+                if not re.fullmatch(r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?",
+                                    literal.strip()):
+                    raise ValueError("COM formula references nonnumeric source cell")
+                return Decimal(literal.strip())
+            expression = formulas[address]["expression"].strip()
+            if len(expression)>200 or any(ch in expression for ch in "![]{}:"):
+                raise ValueError("Unsafe COM worksheet formula expression")
+            def value(node):
+                if isinstance(node,ast.Constant) and type(node.value) in (int,float):
+                    return Decimal(str(node.value))
+                if isinstance(node,ast.Name):
+                    match = re.fullmatch(r"([A-Z]{1,3})([1-9]\d*)",node.id)
+                    if not match:
+                        raise ValueError("Unsupported Excel formula name/function")
+                    column=0
+                    for letter in match[1]:
+                        column=column*26+ord(letter)-ord("A")+1
+                    return numeric((int(match[2]),column),visiting|{address})
+                if isinstance(node,ast.UnaryOp) and isinstance(node.op,(ast.UAdd,ast.USub)):
+                    n=value(node.operand)
+                    return n if isinstance(node.op,ast.UAdd) else -n
+                if isinstance(node,ast.BinOp) and isinstance(
+                    node.op,(ast.Add,ast.Sub,ast.Mult,ast.Div)):
+                    a,b=value(node.left),value(node.right)
+                    if isinstance(node.op,ast.Add): return a+b
+                    if isinstance(node.op,ast.Sub): return a-b
+                    if isinstance(node.op,ast.Mult): return a*b
+                    if b==0: raise ValueError("COM worksheet formula division by zero")
+                    return a/b
+                raise ValueError("Unsupported COM Excel formula syntax")
+            # Absolute references use $A$1; strip the $ as an address-only
+            # syntactic marker. Python AST remains the strict expression gate.
+            try:
+                evaluated=value(ast.parse(expression.replace("$",""),mode="eval").body)
+                cached=Decimal(str(formulas[address]["cached"]))
+            except (SyntaxError,InvalidOperation,OverflowError) as exc:
+                raise ValueError("Invalid COM Excel formula/cache") from exc
+            if (not evaluated.is_finite() or not cached.is_finite() or
+                abs(evaluated)>Decimal("1e15") or
+                abs(evaluated-cached) > Decimal("1e-12") +
+                                           abs(evaluated)*Decimal("1e-10")):
+                raise ValueError("COM formula stale/overflow cached result")
+            return evaluated
         found = {}
-        formula_blocks = []
+        formula_receipts = []
         for r, cells in enumerate(rows, start=1):
             for c, value in enumerate(cells, start=1):
                 if not isinstance(value, str):
@@ -268,25 +326,27 @@ def strict_ooxml_com_settings(raw: bytes) -> tuple[list[list[str]],dict]:
                 if key in found:
                     raise ValueError("Ambiguous repeated COM parameter " + key)
                 if (r, c+1) in formulas:
-                    formula_blocks.append({
-                        "parameter":key, "row":r, "label_column":c,
-                        "adjacent_formula":formulas[(r,c+1)]})
-                    continue
+                    computed=numeric((r,c+1))
+                    cells[c]=str(computed)
+                    formula_receipts.append({
+                        "parameter":key, "cell_row":r, "value_column":c+1,
+                        "formula":formulas[(r,c+1)]["expression"],
+                        "source_cached":formulas[(r,c+1)]["cached"],
+                        "recomputed":str(computed)})
                 if c >= len(cells) or not cells[c].strip():
                     raise ValueError("Blank Strict OOXML COM parameter: " + key)
                 found[key] = (r,c+1)
-        if formula_blocks:
-            print("STRICT_COM_FORMULA_BLOCKS:",
-                  json.dumps(formula_blocks,ensure_ascii=False),flush=True)
-            raise ValueError("Formula-derived COM parameters are not qualified: "
-                             + ",".join(x["parameter"] for x in formula_blocks))
+        if formula_receipts:
+            print("STRICT_COM_VERIFIED_ARITHMETIC_FORMULAS:",
+                  json.dumps(formula_receipts,ensure_ascii=False),flush=True)
         required = {"f_b","f_min","Delta_f","DER_0","R_0","c(0)"}
         if len(found) < 12 or not required.issubset(found):
             raise ValueError("Strict OOXML COM_Settings lacks verified literals")
         return rows, {"sheet_name": "COM_Settings", "sheet_xml": path,
                       "recognized_numeric_parameter_labels": len(found),
-                      "row_count": len(rows), "formula_cells_suppressed": len(formulas),
-                      "conversion": "BYTE_PINNED_STRICT_OOXML_EXACT_COM_SETTINGS"}
+                      "row_count": len(rows), "formula_cells_suppressed": len(formulas)-len(formula_receipts),
+                      "formula_recomputation_receipts":formula_receipts,
+                      "conversion": "BYTE_PINNED_STRICT_OOXML_VERIFIED_COM_SETTINGS_ARITHMETIC"}
 
 def canonical_config_csv(original: Path, result_csv: Path) -> dict:
     import openpyxl
