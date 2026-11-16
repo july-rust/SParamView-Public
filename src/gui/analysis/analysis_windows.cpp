@@ -606,6 +606,7 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     form->addRow(QStringLiteral("Stop frequency"), toGhz_);
   } else {
     fromGhz_->setValue(0);
+    toGhz_->setObjectName(QStringLiteral("eyeAnalysisCapGhz"));
     toGhz_->setValue(10);
     eyeProfile_=new QComboBox;
     eyeProfile_->setObjectName(QStringLiteral("eyeProfile"));
