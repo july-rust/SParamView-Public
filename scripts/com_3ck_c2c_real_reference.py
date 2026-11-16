@@ -127,8 +127,167 @@ CONFIG_LABELS = {
 }
 CONFIG_NORMAL = {x.casefold():x for x in CONFIG_LABELS}
 
+def strict_ooxml_com_settings(raw: bytes) -> tuple[list[list[str]],dict]:
+    """Convert only pinned Strict OOXML COM_Settings cells, no guessed sheet.
+
+    The public 2022 source has the Strict (purl.oclc.org) namespace, which
+    openpyxl 3.1 does not recognize. Require an explicit relationship-mapped
+    COM_Settings sheet; preserve cell positions, package block rows, and
+    literal values. For a named parameter, reject formula-derived data.
+    """
+    import posixpath
+    import re
+    import xml.etree.ElementTree as ET
+
+    def local(tag):
+        return tag.rsplit("}", 1)[-1]
+
+    def children(node, tag):
+        return [x for x in node if local(x.tag) == tag]
+
+    def text(cell, strings):
+        kind = cell.get("t", "n")
+        if kind == "inlineStr":
+            return "".join(x.text or "" for x in cell.iter() if local(x.tag) == "t")
+        val = children(cell, "v")
+        if not val:
+            return ""
+        raw_value = val[0].text or ""
+        if kind == "s":
+            if not re.fullmatch(r"\d+", raw_value):
+                raise ValueError("Invalid Strict OOXML shared string reference")
+            index = int(raw_value)
+            if index >= len(strings):
+                raise ValueError("Strict OOXML shared string index out of range")
+            return strings[index]
+        if kind in ("n", "str", "inlineStr", "b", "e"):
+            return raw_value
+        raise ValueError("Unrecognized Strict OOXML cell type")
+
+    if sha(raw) != CONFIG_SHA:
+        raise ValueError("Strict OOXML parser requires byte-pinned IEEE workbook")
+    with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+        entries = archive.infolist()
+        if len(entries) > 2000 or len({i.filename for i in entries}) != len(entries):
+            raise ValueError("Unsafe Strict OOXML ZIP member inventory")
+        for info in entries:
+            parts = info.filename.replace("\\", "/").split("/")
+            if (info.filename.startswith("/") or ".." in parts or
+                info.file_size > 16_000_000 or
+                ((info.external_attr >> 16) & 0o170000) == 0o120000):
+                raise ValueError("Unsafe Strict OOXML ZIP entry")
+        book_xml = ET.fromstring(archive.read("xl/workbook.xml"))
+        if not book_xml.tag.startswith(
+                "{http://purl.oclc.org/ooxml/spreadsheetml/main}"):
+            raise ValueError("Historical workbook is not Strict OOXML")
+        declared = [v for v in book_xml.iter() if local(v.tag) == "sheet"]
+        matches = [v for v in declared if v.get("name") == "COM_Settings"
+                   and v.get("state", "visible") == "visible"]
+        if len(matches) != 1 or sum(v.get("name") == "COM_Settings"
+                                    for v in declared) != 1:
+            raise ValueError("Strict OOXML must identify one visible COM_Settings")
+        relationship_id = next(
+            (v for k, v in matches[0].attrib.items() if k.endswith("}id")), None)
+        if not relationship_id:
+            raise ValueError("Strict OOXML COM_Settings relationship missing")
+        relationships = ET.fromstring(archive.read("xl/_rels/workbook.xml.rels"))
+        candidates = [v for v in relationships.iter()
+                      if local(v.tag) == "Relationship" and
+                      v.get("Id") == relationship_id]
+        if len(candidates) != 1 or candidates[0].get("TargetMode") == "External":
+            raise ValueError("Strict OOXML COM_Settings relationship invalid")
+        target = candidates[0].get("Target", "")
+        if not target or ":" in target or ".." in target.split("/"):
+            raise ValueError("Strict OOXML COM_Settings worksheet path invalid")
+        if target.startswith("/"):
+            path = posixpath.normpath(target.lstrip("/"))
+        else:
+            path = posixpath.normpath(posixpath.join("xl", target))
+        if (not re.fullmatch(r"xl/worksheets/sheet\d+\.xml", path) or
+            path not in archive.namelist()):
+            raise ValueError("Strict OOXML worksheet reference not confirmed")
+        strings = []
+        if "xl/sharedStrings.xml" in archive.namelist():
+            shared_root = ET.fromstring(archive.read("xl/sharedStrings.xml"))
+            for si in shared_root.iter():
+                if local(si.tag) == "si":
+                    strings.append("".join(e.text or "" for e in si.iter()
+                                           if local(e.tag) == "t"))
+            if len(strings) > 50000:
+                raise ValueError("Too many Strict OOXML shared strings")
+        sheet = ET.fromstring(archive.read(path))
+        sheet_data = [v for v in sheet if local(v.tag) == "sheetData"]
+        if len(sheet_data) != 1:
+            raise ValueError("Strict OOXML COM_Settings sheetData missing")
+        rows = []
+        formulas = set()
+        seen_cells = set()
+        for row in sheet_data[0]:
+            if local(row.tag) != "row":
+                continue
+            row_number = int(row.get("r", "0"))
+            if not 1 <= row_number <= 10000:
+                raise ValueError("Strict OOXML parameter row out of range")
+            while len(rows) < row_number:
+                rows.append([])
+            for cell in children(row, "c"):
+                addr = cell.get("r", "")
+                match = re.fullmatch(r"([A-Z]{1,3})([1-9]\d*)", addr)
+                if not match or int(match[2]) != row_number:
+                    raise ValueError("Invalid Strict OOXML cell address")
+                column = 0
+                for letter in match[1]:
+                    column = column * 26 + ord(letter) - ord("A") + 1
+                if column > 512 or addr in seen_cells:
+                    raise ValueError("Excessive/duplicate Strict OOXML cell")
+                seen_cells.add(addr)
+                while len(rows[row_number-1]) < column:
+                    rows[row_number-1].append("")
+                if children(cell, "f"):
+                    formulas.add((row_number, column))
+                    rows[row_number-1][column-1] = ""
+                else:
+                    value = text(cell, strings)
+                    if len(value) > 65536:
+                        raise ValueError("Oversized Strict OOXML cell")
+                    rows[row_number-1][column-1] = value
+        found = {}
+        for r, cells in enumerate(rows, start=1):
+            for c, value in enumerate(cells, start=1):
+                if not isinstance(value, str):
+                    continue
+                key = CONFIG_NORMAL.get(value.strip().casefold())
+                if not key:
+                    continue
+                if key in found:
+                    raise ValueError("Ambiguous repeated COM parameter " + key)
+                if (r, c+1) in formulas:
+                    raise ValueError("Formula-derived COM parameter is not qualified: " + key)
+                if c >= len(cells) or not cells[c].strip():
+                    raise ValueError("Blank Strict OOXML COM parameter: " + key)
+                found[key] = (r,c+1)
+        required = {"f_b","f_min","Delta_f","DER_0","R_0","c(0)"}
+        if len(found) < 12 or not required.issubset(found):
+            raise ValueError("Strict OOXML COM_Settings lacks verified literals")
+        return rows, {"sheet_name": "COM_Settings", "sheet_xml": path,
+                      "recognized_numeric_parameter_labels": len(found),
+                      "row_count": len(rows), "formula_cells_suppressed": len(formulas),
+                      "conversion": "BYTE_PINNED_STRICT_OOXML_EXACT_COM_SETTINGS"}
+
 def canonical_config_csv(original: Path, result_csv: Path) -> dict:
     import openpyxl
+    import xml.etree.ElementTree as ET
+    with zipfile.ZipFile(original) as archive:
+        root = ET.fromstring(archive.read("xl/workbook.xml"))
+    if root.tag.startswith("{http://purl.oclc.org/ooxml/spreadsheetml/main}"):
+        rows, evidence = strict_ooxml_com_settings(original.read_bytes())
+        with result_csv.open("w", newline="", encoding="utf-8") as stream:
+            csv.writer(stream).writerows(rows)
+        evidence["source_workbook_sha256"] = sha(original.read_bytes())
+        evidence["csv_sha256"] = sha(result_csv.read_bytes())
+        print("HISTORICAL_STRICT_OOXML_COM_SETTINGS:",
+              json.dumps(evidence, ensure_ascii=False), flush=True)
+        return evidence
     workbook=openpyxl.load_workbook(original, read_only=True, data_only=True)
     try:
         # Preserve evidence when a pinned historical OOXML workbook cannot be
