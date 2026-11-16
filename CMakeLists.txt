@@ -32,6 +32,7 @@ add_library(si_channel_analysis src/channel_analysis/common.cpp
                                 src/channel_analysis/icn.cpp
                                 src/channel_analysis/eye.cpp
                                 src/channel_analysis/com.cpp
+                                src/channel_analysis/com_120f8.cpp
                                 src/channel_analysis/two_port.cpp
                                 src/channel_analysis/s_network.cpp
                                 src/channel_analysis/package.cpp
@@ -76,6 +77,13 @@ target_link_libraries(si_com_tests PRIVATE si_channel_analysis)
 add_test(NAME channel_com_prequalification COMMAND si_com_tests)
 set_tests_properties(channel_com_prequalification PROPERTIES TIMEOUT 90)
 install(TARGETS si_com_tests RUNTIME DESTINATION tests)
+# 012_09: IEEE 802.3ck-2022 published Table 120F-8 SI parameter
+# contract, final-vs-draft FFE/CTLE, physical-package drift and sample-grid tests.
+add_executable(si_com_120f8_tests tests/channel_analysis/com_120f8_tests.cpp)
+target_link_libraries(si_com_120f8_tests PRIVATE si_channel_analysis)
+add_test(NAME channel_com_120f8_final_parameters COMMAND si_com_120f8_tests)
+set_tests_properties(channel_com_120f8_final_parameters PROPERTIES TIMEOUT 90)
+install(TARGETS si_com_120f8_tests RUNTIME DESTINATION tests)
 # 012_09: independent analytical reciprocal 2-port network acceptance.
 add_executable(si_com_two_port_tests tests/channel_analysis/com_two_port_tests.cpp)
 target_link_libraries(si_com_two_port_tests PRIVATE si_channel_analysis)
