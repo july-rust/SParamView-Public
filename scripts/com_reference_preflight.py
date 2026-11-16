@@ -272,8 +272,25 @@ def qualify_normative(manifest: dict, root: Path) -> dict:
                               f"{case_id}.{test}.reference")
             impl_path = _evidence_file(item.get("cpp_result"),
                                        root, f"{case_id}.{test}.cpp")
+            _require(impl_path != result_path,
+                     f"{case_id}.{test}: C++ result reuses reference artifact path")
+            _require(item["cpp_result"]["sha256"] != item["reference_result"]["sha256"],
+                     f"{case_id}.{test}: C++ and reference artifacts must be distinct bytes")
             implementation = _dict(json.loads(impl_path.read_text(encoding="utf-8")),
                                    f"{case_id}.{test}.cpp")
+            engine = _dict(implementation.get("engine_provenance"),
+                           f"{case_id}.{test}.cpp.engine_provenance")
+            impl_sha = manifest.get("implementation_commit")
+            _require(isinstance(impl_sha, str) and COMMIT.fullmatch(impl_sha) is not None,
+                     "C++ engine implementation commit must be SHA pinned")
+            _require(engine.get("producer") == "SPARAMVIEW_CPP20_COM_ENGINE" and
+                     engine.get("execution_kind") == "REAL_BINARY_OUTPUT" and
+                     engine.get("source_commit") == impl_sha and
+                     str(engine.get("ci_run_url", "")).startswith(
+                         "https://github.com/july-rust/SParamView-Public/actions/runs/") and
+                     isinstance(engine.get("binary_sha256"), str) and
+                     SHA256.fullmatch(engine["binary_sha256"]) is not None,
+                     f"{case_id}.{test}: missing C++ binary/build/run provenance")
             for label, d in (("reference", reference), ("cpp", implementation)):
                 _require(d.get("test") == test and
                          d.get("profile_id") == manifest["profile_id"] and
