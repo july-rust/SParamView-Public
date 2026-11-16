@@ -485,6 +485,21 @@ def inventory_2019_c2c_roles() -> None:
                   json.dumps({"loss_label":condition,"members":records},
                              ensure_ascii=False),flush=True)
 
+def reference_2019_c2c_inputs(files: list[Path]) -> tuple[int, int, list[Path]]:
+    """R1-R4 comparison from IEEE 2020 Healey: 4 FEXT and zero NEXT.
+
+    Exactly one physical FEXT file is published per impairment-group folder.
+    Its identical measured response may represent four independent *instances*
+    in the historical published scenario; no four unique source files exist.
+    Keep NEXT SHA-audited as source provenance but do NOT include it as FEXT.
+    This is an exploratory historical scenario, not final 802.3ck compliance.
+    """
+    if len(files) != 3 or any(not isinstance(p, Path) for p in files):
+        raise ValueError("Expected SHA-pinned THRU, FEXT and optional NEXT provenance")
+    if len({str(p) for p in files}) != 3:
+        raise ValueError("Duplicate source roles in historical C2C corpus")
+    return 4, 0, [files[0], *([files[1]] * 4)]
+
 def run(channel: str, output: Path) -> int:
     import sicopr
     if getattr(sicopr,"COM_MATLAB_VERSION",None) is None:
@@ -533,8 +548,9 @@ def run(channel: str, output: Path) -> int:
         try:
             os.chdir(base)
             with contextlib.redirect_stdout(errors):
-                result=sicopr._run_com(str(csv_config),1,1,
-                    [str(p) for p in files],export_mat=False)
+                n_fext,n_next,ordered=reference_2019_c2c_inputs(files)
+                result=sicopr._run_com(str(csv_config),n_fext,n_next,
+                    [str(p) for p in ordered],export_mat=False)
         finally:
             os.chdir(original)
         records=result if isinstance(result,list) else [result]
@@ -567,8 +583,11 @@ def run(channel: str, output: Path) -> int:
       "official_2019_c2c_archive_sha256":CHANNEL_ZIP_SHA,
       "input_member_provenance":provenance,
       "package_cases":evidence,
-      "input_fext_count":1,
-      "input_next_count":1,
+      "input_fext_count":4,
+      "input_next_count":0,
+      "input_fext_unique_members":1,
+      "input_fext_identity_multiplicity":4,
+      "input_next_file_audited_but_not_injected":True,
       "qualified_final_8023ck_table":False,
       "independent_official_octave_com_execution":False,
       "same_phy_cpp_com_comparison":False,
