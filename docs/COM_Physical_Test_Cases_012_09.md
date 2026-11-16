@@ -31,6 +31,28 @@ The circuit is a physically valid linear analog network implementation
 but is NOT an auditable final IEEE 93A package gamma/port termination
 simulation or COM margin.
 
+## Direct verified Touchstone S4P path
+
+`physicalComInputFromSource(SourceSnapshot, victimChannelId, ...)`
+requires an actual four-port differential mapping with all four physical
+port indices unique. It uses the SHA-verified `SourceSnapshot` and reads
+the original Touchstone `Cache::trace` across **all 16 measured Sij**
+frequency responses. The original per-physical-port real reference
+impedance is retained; it does not reconstruct Sdd11 from Sdd21 or
+guess port ordering. A bounded extraction and cancelable worker are enforced.
+
+`calculateComPhysicalFromSource(...)` connects the complete actual
+source to both physical package cases, propagating the original SHA-256,
+revision and mapping/workspace generations. In GUI operation, the caller
+must still compare SourceSnapshot identity against the live workspace
+before publishing results or persisting cache entries.
+
+An integration regression test generates a synthetic **.s4p Touchstone
+file on disk**, parses it into the real cache, captures and SHA-verifies the
+confirmed mapping, and compares both full package calculations against
+an independently derived 0.8 complex THRU. It also checks source
+provenance, invalid mapping and cancellation.
+
 ## Independent analytical oracles
 
 Matched balanced lines: for physical board transmission B(f) and two
