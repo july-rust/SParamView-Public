@@ -1,6 +1,7 @@
 #include "si/channel_analysis/com_120f8.hpp"
 #include <algorithm>
 #include <cmath>
+#include <numbers>
 #include <utility>
 
 namespace si::channel {
@@ -111,6 +112,25 @@ Result<ComPreparedData> prepareCom120F8ReceiverSpectra(
   }
   auto out=prepareComSpectra(
       input,settings,std::move(provenance),cancelled);
+  // The generic FIR kernel interprets slot k as a k-UI delay, whereas
+  // Annex 120F-8 slots are relative to the main cursor c(0) at index 3:
+  // c(-3),c(-2),c(-1),c(0),c(+1).
+  // Remove the common three-UI placement delay from ALL returned complex
+  // spectra, preserving cursor-relative pre/post timing and cross-talk phase.
+  // Do not shift RX filter source data: only the final FFE coordinate changes.
+  require(out.usable() && out.value.has_value(),
+          "COM 120F-8 prepared spectra unavailable");
+  for(size_t i=0;i<out.value->frequencyHz.size();++i) {
+    if(!(i&1023u) && cancelled &&
+       cancelled->load(std::memory_order_relaxed))throw Cancelled();
+    const double angle=2.*std::numbers::pi*
+        (out.value->frequencyHz[i]/p.symbolRateHz)*3.;
+    const Complex cursorAlignment=std::polar(1.,angle);
+    out.value->txFfeResponse[i]*=cursorAlignment;
+    out.value->conditionedThru[i]*=cursorAlignment;
+    for(auto& a:out.value->aggressors)
+      a.conditionedTransfer[i]*=cursorAlignment;
+  }
   out.provenance.algorithm="com-120f8-ffe-ctle-rx-exploratory";
   out.provenance.version="012_09-final-numeric-component-1";
   return out;
