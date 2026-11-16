@@ -104,7 +104,7 @@ std::vector<double> apply(const std::vector<double> &signal,
 
 const char *eyeProfileName(EyeProfile profile) {
   switch(profile) {
-    case EyeProfile::MipiDphyHs: return "MIPI D-PHY HS (example, not compliance)";
+    case EyeProfile::MipiDphyHs: return "MIPI D-PHY v2.1 HS (example, not compliance)";
     case EyeProfile::Ddr2: return "DDR2 (user-qualified)";
     case EyeProfile::Ddr3: return "DDR3 (user-qualified)";
     case EyeProfile::Ddr4: return "DDR4 (user-qualified)";
@@ -183,6 +183,15 @@ Result<EyeData> calculateEye(const ComplexTrace &trace, const EyeSettings &s,
           e.rxThresholdV<e.rxInputMaximumV,
           "Explicit RX input linear range and threshold required");
   (void)eyeProfileName(s.profile); // reject invalid/unknown enum
+  if(s.profile==EyeProfile::MipiDphyHs) {
+    require(s.mode==EyeMode::Differential && s.bitRateHz<=4.5e9,
+      "MIPI D-PHY v2.1 HS needs differential mode and rate at or below 4.5 Gb/s");
+  }
+  if(s.profile==EyeProfile::Lvds || s.profile==EyeProfile::Slvs ||
+     s.profile==EyeProfile::SlvsEc) {
+    require(s.mode==EyeMode::Differential,
+      "LVDS/SLVS/SLVS-EC profile requires differential signaling");
+  }
   const size_t n=s.fftLength, spp=s.samplesPerUI, bitCount=n/spp;
   const double dt=1.0/sampleRate;
   const auto bits=sequence(s,bitCount);
@@ -253,6 +262,7 @@ Result<EyeData> calculateEye(const ComplexTrace &trace, const EyeSettings &s,
       else maxLow=std::max(maxLow,v);
     }
     phaseHeights[p]=minHigh-maxLow;
+    require(std::isfinite(phaseHeights[p]), "Nonfinite eye height");
     opens[p]=(minHigh>e.rxThresholdV && maxLow<e.rxThresholdV);
     if(phaseHeights[p]>best) {
       best=phaseHeights[p];
