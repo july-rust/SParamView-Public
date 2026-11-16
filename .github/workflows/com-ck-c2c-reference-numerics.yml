@@ -56,7 +56,7 @@ jobs:
           test "$(git -C _external_qa_sicopr rev-parse HEAD)" = \
             cb7c4be5c63d41e88b6ee7d04fb17e0046ab0f75
           test -f _external_qa_sicopr/LICENSE
-          python -m pip install --disable-pip-version-check --no-cache-dir ./_external_qa_sicopr
+          python -m pip install --disable-pip-version-check --no-cache-dir './_external_qa_sicopr[plots]'
           python -m pip show sicopr
       - name: Offline exact archive/fixture identity and fail-closed tests
         run: |
