@@ -43,8 +43,26 @@ class HistoricalArchiveTests(unittest.TestCase):
         sheets,fields=probe.parse_xlsx(mock_book())
         self.assertEqual(len(sheets),1)
         self.assertEqual(set(fields),set(KEYS))
-        self.assertEqual(fields["f_b"][0]["value_cells"][0]["value"],"53.125")
-        self.assertEqual(fields["C_d"][0]["value_cells"][0]["value"],"0.00012")
+        self.assertEqual(fields["f_b"][0]["value_cells"][0]["value"],53.125)
+        self.assertEqual(fields["C_d"][0]["value_cells"][0]["value"],0.00012)
+
+    def test_descriptions_do_not_qualify_numeric_settings(self):
+        # The XML may contain all named fields with only adjacent units,
+        # descriptions, or Excel formulas but no actual numeric values.
+        labels = "".join(
+            f'<row r="{i+1}"><c r="A{i+1}" t="s"><v>{i}</v></c>'
+            f'<c r="B{i+1}" t="inlineStr"><is><t>units only</t></is></c>'
+            f'</row>' for i in range(len(KEYS)))
+        xml = ('<worksheet xmlns="http://schemas.openxmlformats.org/'
+               'spreadsheetml/2006/main"><sheetData>'+labels+
+               '</sheetData></worksheet>')
+        out=io.BytesIO()
+        with zipfile.ZipFile(out,"w") as z:
+            z.writestr("xl/sharedStrings.xml",STRING)
+            z.writestr("xl/worksheets/sheet1.xml",xml)
+        sheets,fields=probe.parse_xlsx(out.getvalue())
+        self.assertEqual(len(sheets),1)
+        self.assertEqual(fields,{})
 
     def test_reject_zip_path_escape(self):
         out=io.BytesIO()
