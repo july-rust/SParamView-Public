@@ -1,6 +1,14 @@
-# 012_09 COM Numerical Prequalification — BLOCKED (not IEEE COM)
+# 012_09 COM Numerical Prequalification — Historical Candidate Verified; Native IEEE COM BLOCKED
 
 **Status:** PARTIAL IMPLEMENTATION / 012_09 NOT COMPLETE. This is an auditable engineering handoff, not a COM-margin qualification.
+
+## 2026-11-17 — Historical IEEE C2C reference numerical path repaired (PR #59)
+
+**Verified historical reference candidate only, not final IEEE/native C++ acceptance.** Physical source port ordering was the root cause of the previously non-real Python COM FOM. The IEEE 2019 source S4P has differential TX pair 1/2 and RX pair 3/4, whereas the default interpreted TX 1/3 and RX 2/4. SHA-verified source transmission at 10 MHz and 26.5625 GHz is used to gate a documented, temporary port-map setting `[1 2 3 4]`. No `abs(A_s)` manipulation, S4P polarity tampering or source workbook mutation was done.
+
+[Verified latest independent 3-channel × 2-package CI #43972559021](https://github.com/july-rust/SParamView-Public/actions/runs/43972559021): the externally maintained Python SiCoPR 4p17p0 and GNU Octave-compatible 4p17p0 reference produce finite real COM/FOM and agree on all six packages, with COM differences at or below 1.2e-13 dB. Historical 10/16/18 dB Test1/Test2 candidate COM pairs: **4.842541/4.697201**, **4.293845/3.999413**, **4.054649/3.582840 dB**. Every original archive/member SHA, `COM_Settings` Strict OOXML relationship, all eight Excel arithmetic formulas, explicit 4-FEXT/0-NEXT historical 2020 source condition, Octave scalar real/imag components, same temporary physical port mapping, and numerical deltas are part of the acceptance gate. Original IEEE and third-party source bytes never enter repo or artifacts. Full results, exact provenance and historical failure audit: [COM_8023ck_Real_Channel_Reference_012_09.md](COM_8023ck_Real_Channel_Reference_012_09.md).
+
+**What does *not* follow:** These are historical **working-group source and workbook candidate** results. Published final IEEE 802.3ck-2022 Table 120F-8 has not been fully independently locked, and the native C++ `calculateCom()` is still deliberately `Status::NotEvaluated`. The full IEEE 93A/120F package/noise/ISI/CTLE/DFE/FFE/XTALK/jitter/equalizer search and native same-final-PHY three-golden agreement are still missing. Thus **012_09 overall remains PARTIAL/BLOCKED**, the normative 3 dB PASS gate is not enabled, and v1.4.0 must not be released on this evidence.
 
 ## 2026-11-16 incremental implementation and independent evidence
 
