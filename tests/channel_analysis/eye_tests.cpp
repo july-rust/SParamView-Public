@@ -31,6 +31,18 @@ ComplexTrace thru(double fmax=16e9, double delaySeconds=0,
   }
   return t;
 }
+ComplexTrace gridAlignedDelay(const EyeSettings &s, double delaySeconds) {
+  ComplexTrace t;
+  t.stimulusOhm=t.responseOhm=100;
+  t.parameter="Sdd21";
+  const double fs=s.bitRateHz*double(s.samplesPerUI);
+  for(size_t k=0;k<=s.fftLength/2;++k) {
+    const double f=fs*double(k)/double(s.fftLength);
+    t.frequencyHz.push_back(f);
+    t.transfer.push_back(std::polar(1.,-2*std::acos(-1.)*f*delaySeconds));
+  }
+  return t;
+}
 EyeSettings exact() {
   EyeSettings s;
   s.profile=EyeProfile::Custom;
@@ -84,7 +96,7 @@ int main() {
             "identity channel discrete Fourier oracle");
     // Exact integer-sample phase delay is an independent analytic DFT golden.
     const double dt=1.0/(s.bitRateHz*double(s.samplesPerUI));
-    auto delayed=calculateEye(thru(16e9,4*dt),s);
+    auto delayed=calculateEye(gridAlignedDelay(s,4*dt),s);
     close(delayed.value->estimatedDelaySeconds,4*dt,1e-15,"integer delay");
     close(delayed.value->eyeHeightV,0.4,1e-10,"delayed ideal eye height");
     for(size_t i=0;i<ideal.value->receivedV.size();++i) {
