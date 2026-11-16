@@ -193,7 +193,7 @@ class HistoricalC2CReferencePreflight(unittest.TestCase):
             base=pathlib.Path(tmp)
             raw=base/"published_config.csv"
             effective=base/"effective.csv"
-            raw.write_text("f_b,53.125\\n.START,Test1\\n.END,\\n",encoding="utf-8")
+            raw.write_text("f_b,53.125\n.START,Test1\n.END,\n",encoding="utf-8")
             sample={
                 "source_sha256":ref.SOURCES["10"][0][1],
                 "possible_pairing_sdd21_read_only":[
@@ -206,7 +206,7 @@ class HistoricalC2CReferencePreflight(unittest.TestCase):
             decision=ref.verified_historical_port_order("10",sample)
             receipt=ref.configured_historical_port_order(raw,effective,decision)
             self.assertEqual(raw.read_text(encoding="utf-8"),
-                             "f_b,53.125\\n.START,Test1\\n.END,\\n")
+                             "f_b,53.125\n.START,Test1\n.END,\n")
             with effective.open(newline="",encoding="utf-8") as stream:
                 rows=list(reader(stream))
             self.assertEqual(rows[1],["Port Order","[1 2 3 4]"])
@@ -231,11 +231,11 @@ class HistoricalC2CReferencePreflight(unittest.TestCase):
             base=pathlib.Path(tmp)
             raw=base/"source.csv"
             effective=base/"effective.csv"
-            raw.write_text("Port Order,[2 4 1 3]\\n",encoding="utf-8")
+            raw.write_text("Port Order,[2 4 1 3]\n",encoding="utf-8")
             with self.assertRaisesRegex(ValueError,"Unexpected explicit"):
                 ref.configured_historical_port_order(
                     raw,effective,{"verified_source_port_order":[1,2,3,4]})
-            raw.write_text("Port Order,[1 3 2 4]\\n",encoding="utf-8")
+            raw.write_text("Port Order,[1 3 2 4]\n",encoding="utf-8")
             receipt=ref.configured_historical_port_order(
                 raw,effective,{"verified_source_port_order":[1,2,3,4]})
             self.assertEqual(receipt["source_port_order"],"[1 3 2 4]")
