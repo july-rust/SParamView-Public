@@ -165,5 +165,36 @@ class ReferenceManifestTests(unittest.TestCase):
             with self.assertRaises(preflight.QualificationError):
                 preflight.qualify(data, root)
 
+
+    def test_012_09_production_gate_rejects_reference_ready(self):
+        root = REPO_ROOT / "tests" / "fixtures" / "channel" / "com_reference"
+        manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+        with self.assertRaisesRegex(preflight.QualificationError, "REFERENCE_READY"):
+            preflight.qualify_normative(manifest, root)
+
+    def test_012_09_production_gate_rejects_synthetic_ieee_claim(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            fake = synthetic_manifest(root)
+            # Synthetic arithmetic verification remains available for testing
+            # the evidence checker but can never pass the production CLI gate.
+            self.assertEqual(len(preflight.qualify(fake, root)["cases"]), 3)
+            with self.assertRaisesRegex(preflight.QualificationError, "final IEEE"):
+                preflight.qualify_normative(fake, root)
+
+    def test_012_09_production_gate_requires_final_table_audit(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            candidate = synthetic_manifest(root)
+            candidate["profile_id"] = "IEEE-802.3ck-2022-100GAUI-1-C2C-120F-QUALIFIED"
+            candidate["standard"].update({
+                "edition": "IEEE Std 802.3ck-2022",
+                "applicable_clause": "120F.4.1",
+                "parameter_table": "120F-8",
+                "parameter_values_qualified": True
+            })
+            with self.assertRaisesRegex(preflight.QualificationError, "final_parameter_audit"):
+                preflight.qualify_normative(candidate, root)
+
 if __name__ == "__main__":
     unittest.main()
