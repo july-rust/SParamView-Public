@@ -1,6 +1,7 @@
 #include "si/channel_analysis/com_120f8.hpp"
 #include <algorithm>
 #include <cmath>
+#include <utility>
 
 namespace si::channel {
 namespace {
@@ -80,6 +81,39 @@ Complex com120F8ReceiverTransfer(double frequencyHz,
                                   double gDcDb,double gDc2Db) {
   return com120F8Ctle(frequencyHz,gDcDb,gDc2Db)*
          com120F8ReceiverNoiseFilter(frequencyHz);
+}
+Result<ComPreparedData> prepareCom120F8ReceiverSpectra(
+    ComInput input,const Com120F8EqualizerChoice& choice,
+    Provenance provenance,const std::atomic_bool* cancelled) {
+  if(cancelled && cancelled->load(std::memory_order_relaxed))
+    throw Cancelled();
+  require(input.rxFilter.frequencyHz.empty() &&
+          input.rxFilter.transfer.empty(),
+          "Final-table receiver model must not override external RX filter");
+  validateCom120F8Equalizer(choice);
+  validateTrace(input.thru);
+  validateCom120F8DirectGrid(input.thru.frequencyHz);
+  const auto p=final8023ck120F8();
+  ComSettings settings;
+  settings.symbolRateHz=p.symbolRateHz;
+  settings.referenceOhm=2*p.referenceOhmSingleEnded;
+  settings.txFfeTaps.assign(choice.txFfe.begin(),choice.txFfe.end());
+  input.rxFilter.parameter="Sdd21";
+  input.rxFilter.stimulusOhm=input.rxFilter.responseOhm=settings.referenceOhm;
+  input.rxFilter.frequencyHz=input.thru.frequencyHz;
+  input.rxFilter.transfer.reserve(input.thru.frequencyHz.size());
+  for(size_t i=0;i<input.thru.frequencyHz.size();++i) {
+    if(!(i&1023u) && cancelled &&
+       cancelled->load(std::memory_order_relaxed))throw Cancelled();
+    input.rxFilter.transfer.push_back(
+      com120F8ReceiverTransfer(input.thru.frequencyHz[i],
+                               choice.ctleDcGainDb,choice.ctleDcGain2Db));
+  }
+  auto out=prepareComSpectra(
+      input,settings,std::move(provenance),cancelled);
+  out.provenance.algorithm="com-120f8-ffe-ctle-rx-exploratory";
+  out.provenance.version="012_09-final-numeric-component-1";
+  return out;
 }
 void validateCom120F8DirectGrid(const std::vector<double>& frequencyHz) {
   const auto p=final8023ck120F8();
