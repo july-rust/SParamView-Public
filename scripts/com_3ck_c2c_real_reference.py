@@ -500,6 +500,35 @@ def reference_2019_c2c_inputs(files: list[Path]) -> tuple[int, int, list[Path]]:
         raise ValueError("Duplicate source roles in historical C2C corpus")
     return 4, 0, [files[0], *([files[1]] * 4)]
 
+def audit_physical_thru_orientation(thru: Path) -> dict:
+    """No waveform mutation: log the actual low-frequency Sdd21 polarity.
+
+    The historical COM default Port Order [1 3 2 4] maps the four S ports
+    to TX+, TX-, RX+, RX-. Swapping only RX pins reverses Sdd21 sign.
+    Record the measured sign, not a guessed polarity correction.
+    """
+    import sicopr
+    import numpy as np
+    network,freq,order=sicopr.read_Nport_touchstone(
+        str(thru), [1,3,2,4], 50.0)
+    if len(freq)==0 or network.shape[1:]!=(4,4):
+        raise ValueError("Unsupported original physical S4P network shape")
+    entries=[]
+    for i in [0, min(1,len(freq)-1),min(10,len(freq)-1)]:
+        s=network[i]
+        dd=0.5*(s[2,0]-s[2,1]-s[3,0]+s[3,1])
+        entries.append({"frequency_hz":float(freq[i]),
+                        "real":float(dd.real),"imag":float(dd.imag),
+                        "magnitude":float(abs(dd)),
+                        "phase_degrees":float(np.angle(dd,deg=True))})
+    receipt={"source_sha256":sha(thru.read_bytes()),
+             "port_order":[int(v) for v in order],
+             "first_frequency_sdd21_samples":entries,
+             "rx_reversed_pair_would_flip_sign":True}
+    print("HISTORICAL_C2C_THRU_POLARITY_AUDIT:",
+          json.dumps(receipt,ensure_ascii=False),flush=True)
+    return receipt
+
 def run(channel: str, output: Path) -> int:
     import sicopr
     if getattr(sicopr,"COM_MATLAB_VERSION",None) is None:
@@ -543,6 +572,7 @@ def run(channel: str, output: Path) -> int:
         config,files,provenance=prepare(channel,base)
         csv_config=base/"working_c2c_reference_settings.csv"
         config_transform=canonical_config_csv(config,csv_config)
+        measured_thru_orientation=audit_physical_thru_orientation(files[0])
         errors=io.StringIO()
         original=Path.cwd()
         try:
@@ -578,6 +608,7 @@ def run(channel: str, output: Path) -> int:
       "reference_engine":"SiCoPR 1.2.1 compatible IEEE COM 4p17p0",
       "reference_engine_commit":SICOPR_COMMIT,
       "official_2022_workbook_sha256":CONFIG_SHA,
+      "physical_thru_orientation_audit":measured_thru_orientation,
       "historical_workbook_settings_conversion":config_transform,
       "official_2022_workbook_zip_sha256":CONFIG_ZIP_SHA,
       "official_2019_c2c_archive_sha256":CHANNEL_ZIP_SHA,
