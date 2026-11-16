@@ -1,6 +1,7 @@
 #include "si/channel_analysis/com_120f8.hpp"
 #include "si/channel_analysis/com_causal_package.hpp"
 #include "si/channel_analysis/package.hpp"
+#include <algorithm>
 #include <cmath>
 #include <iostream>
 #include <limits>
@@ -12,7 +13,7 @@ void demand(bool ok,const char* reason) {
   if(!ok)throw std::runtime_error(reason);
 }
 void close(double a,double b,const char* why) {
-  demand(std::isfinite(a) && std::abs(a-b)<=1e-10*std::max(1.,std::abs(b)),why);
+  demand(std::isfinite(a) && std::abs(a-b)<=1e-10*std::max(1e-18,std::abs(b)),why);
 }
 template<class F> void reject(F call,const char* why) {
   bool caught=false;
@@ -113,9 +114,8 @@ try {
          "CTLE NaN fail-closed");
 
   std::vector<double> grid;
-  grid.reserve(2659);
+  grid.reserve(2658);
   for(int i=0;i<=2657;++i)grid.push_back(1e7*i);
-  grid.push_back(26.57e9);
   validateCom120F8DirectGrid(grid);
   auto badGrid=grid;
   badGrid[1]=50e6;
