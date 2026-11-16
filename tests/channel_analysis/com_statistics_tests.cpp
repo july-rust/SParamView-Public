@@ -39,6 +39,40 @@ int main() {
           "Independent analytical standard normal inverse survival 1e-5");
     close(pure.value->analyticTotalVarianceV2,0.020*0.020,
           1e-15,"Gaussian variance");
+    // Adversarial very small but physically finite voltage units must not
+    // change the dimensionless Gaussian quantile or mis-evaluate tiny p.
+    ComStatisticalNoiseInput nano;
+    nano.gaussianRmsV=1e-10;
+    nano.oneSidedTailProbability=1e-5;
+    const auto scaled=calculatePam4StatisticalNoise(nano);
+    require(scaled.usable(),"1e-10 V Gaussian input must remain usable");
+    close(scaled.value->oneSidedNoiseQuantileV/nano.gaussianRmsV,
+          4.264890793922825,1e-10,
+          "nanovolt Gaussian scale-independent quantile");
+    nano.gaussianRmsV=1e-15;
+    nano.oneSidedTailProbability=1e-12;
+    const auto pico=calculatePam4StatisticalNoise(nano);
+    require(pico.usable(),"very small 1e-15 V Gaussian input must work");
+    require(pico.value->oneSidedNoiseQuantileV/nano.gaussianRmsV>7.0,
+            "1e-12 tail requires >7 Gaussian standard deviations");
+    require(std::abs(pico.value->verifiedTailProbability-
+                     nano.oneSidedTailProbability)/
+                     nano.oneSidedTailProbability < 1e-6,
+            "tiny target p must be verified to relative probability");
+    // Discrete tails must also preserve quantiles under voltage scaling.
+    nano.oneSidedTailProbability=1e-8;
+    nano.pam4TapV={1.5e-15,0.7e-15};
+    const auto microscopic=calculatePam4StatisticalNoise(nano);
+    ComStatisticalNoiseInput unitScaled;
+    unitScaled.gaussianRmsV=0.01;
+    unitScaled.oneSidedTailProbability=1e-8;
+    unitScaled.pam4TapV={0.015,0.007};
+    const auto macroscopic=calculatePam4StatisticalNoise(unitScaled);
+    close(microscopic.value->oneSidedNoiseQuantileV/nano.gaussianRmsV,
+          macroscopic.value->oneSidedNoiseQuantileV/
+              unitScaled.gaussianRmsV,1e-10,
+          "sub-femtovolt PAM4 mixture must preserve normalized quantile");
+
     require(pure.diagnostics[0].code=="NOT_IEEE_COM",
             "must not claim IEEE COM");
     // Independent oracle: a four-component equally weighted Gaussian
