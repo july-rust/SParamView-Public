@@ -64,7 +64,7 @@ jobs:
             -p test_com_3ck_c2c_real_reference.py -v
       - name: Audit original 2019 C2C role inventory — IEEE published 4 FEXT / 0 NEXT
         run: python scripts/com_3ck_c2c_real_reference.py --audit-roles
-      - name: Compute actual COM from 2019 THRU + FEXT + NEXT and August 2022 C2C workbook
+      - name: Compute historical 2019 THRU + four FEXT + zero NEXT and 2022 COM workbook
         shell: bash
         run: |
           set -euo pipefail
@@ -82,6 +82,8 @@ jobs:
           cases=d["package_cases"]
           assert len(cases)==2 and [x["case"] for x in cases]==[1,2]
           assert all(math.isfinite(x["reference_com_db"]) for x in cases)
+          assert d["input_fext_count"] == 4 and d["input_next_count"] == 0
+          assert d["input_fext_unique_members"] == 1
           assert not d["qualified_final_8023ck_table"]
           assert not d["independent_official_octave_com_execution"]
           assert not d["same_phy_cpp_com_comparison"]
