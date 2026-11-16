@@ -49,6 +49,24 @@ int main() {
     near(pass.s21,expected,1e-13,"lossy matched line analytic propagation");
     near(pass.s11,{0,0},1e-13,"matched line no reflection");
     near(pass.s12,pass.s21,1e-13,"reciprocal line");
+    // A reciprocal lossy line may have ABCD entries of order exp(alpha*l).
+    // Computing AD-BC at 20+ Np catastrophically cancels and can produce
+    // physically impossible reverse gain: enforce S12 == S21 analytically.
+    for (double highLoss : {20.0, 100.0}) {
+      const auto heavy=twoPortScattering(
+          lossyUniformLine(0.0,1.0,highLoss,0.0,z),z);
+      const double expectedHeavy=std::exp(-highLoss);
+      check(std::abs(heavy.s21.real()/expectedHeavy-1.0)<1e-12,
+            "high-loss forward transfer analytic relative oracle");
+      near(heavy.s12,heavy.s21,0,
+           "high-loss reciprocal transfer must be identical");
+      check(std::abs(heavy.s11)<1e-12,
+            "high-loss matched line should not reflect");
+    }
+    ComTwoPort nonReciprocal;
+    nonReciprocal.a={2.0,0.0};
+    rejects([&]{(void)twoPortScattering(nonReciprocal,z);},
+            "reject simple hand-constructed nonreciprocal matrix");
     const auto doubleTl=twoPortScattering(cascadeTwoPort(tl,tl),z);
     near(doubleTl.s21,expected*expected,1e-13,"line twice cascaded");
     near(doubleTl.s11,{0,0},1e-13,"cascaded line no reflection");
