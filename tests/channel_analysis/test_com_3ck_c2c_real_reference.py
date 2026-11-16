@@ -73,6 +73,52 @@ class HistoricalC2CReferencePreflight(unittest.TestCase):
                                  ["thru","fext","next"])
                 self.assertTrue(all(len(m["sha256"])==64 for m in metadata))
 
+    def test_workbook_to_native_csv_requires_one_matching_settings_sheet(self):
+        import openpyxl
+        from csv import reader
+        book=openpyxl.Workbook()
+        first=book.active
+        first.title="About"
+        first.append(["This is not a COM settings worksheet"])
+        table=book.create_sheet("Historical_C2C_parameter_sheet")
+        for idx,label in enumerate(sorted(ref.CONFIG_LABELS),start=1):
+            table.append([label,float(idx)])
+        with tempfile.TemporaryDirectory() as tmp:
+            directory=pathlib.Path(tmp)
+            original=directory/"historical_2022.xlsx"
+            output=directory/"settings.csv"
+            book.save(original)
+            evidence=ref.canonical_config_csv(original,output)
+            self.assertEqual(evidence["sheet_name"],table.title)
+            self.assertEqual(evidence["source_workbook_sha256"],
+                             ref.sha(original.read_bytes()))
+            self.assertEqual(evidence["csv_sha256"],
+                             ref.sha(output.read_bytes()))
+            with output.open(newline="",encoding="utf-8") as stream:
+                rows=list(reader(stream))
+            self.assertEqual(len(rows),len(ref.CONFIG_LABELS))
+            self.assertIn(["f_b",
+                str(float(sorted(ref.CONFIG_LABELS).index("f_b")+1))],
+                rows)
+            # Two plausible settings sheets cannot be silently conflated.
+            clone=book.create_sheet("Ambiguous")
+            for idx,label in enumerate(sorted(ref.CONFIG_LABELS),start=1):
+                clone.append([label,float(idx)])
+            book.save(original)
+            with self.assertRaisesRegex(ValueError,"Cannot uniquely"):
+                ref.canonical_config_csv(original,output)
+
+    def test_workbook_with_no_com_settings_is_not_accepted(self):
+        import openpyxl
+        book=openpyxl.Workbook()
+        book.active.append(["This is not a reference parameter"])
+        with tempfile.TemporaryDirectory() as tmp:
+            directory=pathlib.Path(tmp)
+            source=directory/"empty.xlsx"
+            book.save(source)
+            with self.assertRaisesRegex(ValueError,"Cannot uniquely"):
+                ref.canonical_config_csv(source,directory/"empty.csv")
+
     def test_bad_channel_label_must_fail_closed(self):
         with tempfile.TemporaryDirectory() as tmp:
             with self.assertRaisesRegex(ValueError,"Unknown C2C"):
