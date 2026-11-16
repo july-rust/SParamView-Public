@@ -77,6 +77,14 @@ struct Com120F8EqualizerChoice {
 // Bounds and quantization are strict; no rounding of off-grid choices.
 void validateCom120F8Equalizer(const Com120F8EqualizerChoice& choice);
 
+// Annex 93A.1 CTLE transfer as parameterized for final 802.3ck 120F-8.
+// Complex transfer includes phase. The fourth-order receive noise filter
+// is evaluated separately; both remain components, NOT complete COM margin.
+Complex com120F8Ctle(double frequencyHz, double gDcDb, double gDc2Db);
+Complex com120F8ReceiverNoiseFilter(double frequencyHz);
+Complex com120F8ReceiverTransfer(double frequencyHz,
+                                 double gDcDb, double gDc2Db);
+
 // Checks sample identity for a direct grid (starting at/below fmin, maximum
 // step and Nyquist coverage). Interpolation/extrapolation is NOT performed.
 // This is a deliberately strict subset of usable COM inputs, not the complete
