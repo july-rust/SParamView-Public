@@ -136,6 +136,15 @@ int main() {
           example.value->referenceFrequencyHz==2.25e9 &&
           example.value->analysisStopHz==10e9,
           "MIPI configured numerical example");
+    auto tooFastMipi=eyeWithReferenceFrequency(m,3e9);
+    reject([&]{(void)calculateEye(thru(16e9),tooFastMipi);},
+           "MIPI v2.1 must reject a 6 Gb/s named profile");
+    auto wrongMipi=m;
+    wrongMipi.mode=EyeMode::SingleEnded;
+    wrongMipi.electrical.txSourceOhm=50;
+    wrongMipi.electrical.rxTerminationOhm=50;
+    reject([&]{(void)calculateEye(thru(16e9,0,1,false),wrongMipi);},
+           "MIPI HS must reject a single-ended profile");
     // No false standard PASS; the only output is simulated/warning.
     check(example.status==Status::Warning,"no MIPI conformance claim");
     auto reversed=thru();reversed.parameter="Sdd12";
