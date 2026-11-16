@@ -439,9 +439,12 @@ int main(int argc, char **argv) {
           eyeImage.text(QStringLiteral("SettingsIdentity")).contains(QStringLiteral("EYE")) &&
           eyeImage.text(QStringLiteral("SimulationStatus")).contains(QStringLiteral("SIMULATED_ONLY")),
           "Eye PNG lost original source SHA, numerical settings or simulation disclaimer");
+    // Windows QIODevice::Text emits CRLF; validate numerical samples after
+    // normalizing line endings, not against a Unix-only byte sequence.
+    const QByteArray normalizedEye=QByteArray(eyeContent).replace("\r\n","\n");
     const QByteArray header("Time_ps,TX_mV,RX_mV,Impulse_Unit,Unit_Pulse\n");
-    const qsizetype firstSampleAt=eyeContent.indexOf(header);
-    check(firstSampleAt>=0 && eyeContent.mid(firstSampleAt+header.size(),6).startsWith("0,400,"),
+    const qsizetype firstSampleAt=normalizedEye.indexOf(header);
+    check(firstSampleAt>=0 && normalizedEye.mid(firstSampleAt+header.size(),6).startsWith("0,400,"),
           "PRBS7 default must start high in deterministic PRBS7 fixture");
     auto *eyePattern=eye->findChild<QComboBox *>(QStringLiteral("eyePattern"));
     check(eyePattern && eyePattern->currentIndex()==0 &&
@@ -458,7 +461,7 @@ int main(int argc, char **argv) {
     check(eye->saveEyeCsv(alternatingCsv),"Alternating Eye CSV export failed");
     QFile alternatingRead(alternatingCsv);
     check(alternatingRead.open(QIODevice::ReadOnly),"Alternating Eye CSV cannot be read");
-    const QByteArray alternatingData=alternatingRead.readAll();
+    const QByteArray alternatingData=QByteArray(alternatingRead.readAll()).replace("\r\n","\n");
     const qsizetype alternateFirst=alternatingData.indexOf(header);
     check(alternateFirst>=0 &&
           alternatingData.mid(alternateFirst+header.size(),5).startsWith("0,0,"),
