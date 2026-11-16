@@ -13,7 +13,7 @@ namespace si::channel {
 enum class EyeProfile {
   MipiDphyHs, Ddr2, Ddr3, Ddr4, Ddr5, Lvds, Slvs, SlvsEc, Custom
 };
-enum class EyeMode { SingleEnded, Differential };
+enum class EyeMode { Unspecified, SingleEnded, Differential };
 enum class EyePattern { Alternating, Prbs7, CustomBits };
 
 // All electrical fields default to NaN: no invented PHY voltage, termination,
@@ -31,7 +31,7 @@ struct EyeElectrical {
 };
 struct EyeSettings {
   EyeProfile profile = EyeProfile::Custom;
-  EyeMode mode = EyeMode::Differential;
+  EyeMode mode = EyeMode::Unspecified;
   EyePattern pattern = EyePattern::Prbs7;
   // Independent quantities: baud (UI), reference marker, measured analysis cap.
   double bitRateHz = std::numeric_limits<double>::quiet_NaN();
