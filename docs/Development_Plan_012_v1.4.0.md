@@ -3,7 +3,7 @@
 **기준일:** 2026-11-16 (KST)
 **공식 기준:** v1.3.5 (tag/release 불변)
 **목표:** ILD·ICN·Eye Diagram·COM을 각각 독립적인 C++20 수치 엔진, Qt6 창, 테스트로 구현하고 **v1.4.0 한 번에 릴리스**
-**상태:** 012_01 COMPLETE / 012_02 COMPLETE (REFERENCE_READY) / 012_03 CORE VERIFIED (PR #37; 최종 병합 상태는 PR 참조) / 012_04 GUI/워커 COMPLETE (PR #38; CI 43708927772) / 012_05 COMPLETE (ILD 엔진/GUI PR #40; CI 43766947020) / 012_06 COMPLETE (Generic ICN PR #42; CI 43775680490) / 012_07 COMPLETE (Eye 수치 엔진 PR #45; CI 43798693800) / 012_08 FEATURE MERGED (최종 통합 CI 확인 후 100% COMPLETE) / 012_09~14 미착수 / COM 미구현 / v1.4.0 미출시
+**상태:** 012_01 COMPLETE / 012_02 COMPLETE (REFERENCE_READY) / 012_03 CORE VERIFIED (PR #37; 최종 병합 상태는 PR 참조) / 012_04 GUI/워커 COMPLETE (PR #38; CI 43708927772) / 012_05 COMPLETE (ILD 엔진/GUI PR #40; CI 43766947020) / 012_06 COMPLETE (Generic ICN PR #42; CI 43775680490) / 012_07 COMPLETE (Eye 수치 엔진 PR #45; CI 43798693800) / 012_08 COMPLETE (PR #47 및 통합 CI #43812686401 검증 성공) / 012_09~14 미착수 / COM 미구현 / v1.4.0 미출시
 **작업 번호:** 012_01 ~ 012_14. 단계별 PR, CI, 증거와 완료 조건을 연결한다.
 
 > 이 문서는 향후 실행할 개발 명령의 기준이며, 문서 작성만으로 기능이나 공식 표준 적합성을 검증했다고 주장하지 않는다.
@@ -92,7 +92,7 @@
 - **완료:** 이상 채널/대역제한/반사 채널의 독립 참조 파형 일치. 실제 BER과 PHY 적합성은 계산되지 않았다고 명시.
 
 ### 012_08 — Eye Diagram 독립 창 완성
-- **검증·병합 기록:** [PR #47](https://github.com/july-rust/SParamView-Public/pull/47) squash-merged `17bcec471aef0061102293c9ea738b961475c3de`; full head CI [#43811255898](https://github.com/july-rust/SParamView-Public/actions/runs/43811255898) **SUCCESS** across Linux Core/ASan/UBSan/static analysis, Windows x64 CTest+packaging, Windows ARM64 build and native ARM64 packaged-binary qualification, and macOS Apple Silicon arm64 CTest+GUI. All Codex PR review threads resolved. Post-merge integration CI: [#43812686401](https://github.com/july-rust/SParamView-Public/actions/runs/43812686401) (check conclusion before final 100% COMPLETE). [GUI 계약](Channel_Analysis_Eye_GUI_012_08.md). 기능 PR은 병합 완료; 별도 최종 실물 GUI 테스트는 012_12.
+- **검증·병합 기록:** [PR #47](https://github.com/july-rust/SParamView-Public/pull/47) squash-merged `17bcec471aef0061102293c9ea738b961475c3de`; full head CI [#43811255898](https://github.com/july-rust/SParamView-Public/actions/runs/43811255898) **SUCCESS** across Linux Core/ASan/UBSan/static analysis, Windows x64 CTest+packaging, Windows ARM64 build and native ARM64 packaged-binary qualification, and macOS Apple Silicon arm64 CTest+GUI. All Codex PR review threads resolved. Post-merge integration CI: [#43812686401](https://github.com/july-rust/SParamView-Public/actions/runs/43812686401) **SUCCESS**, verified on merged SHA `17bcec47`. **012_08 is 100% COMPLETE within Eye GUI/SourceSnapshot scope.** [GUI 계약](Channel_Analysis_Eye_GUI_012_08.md). 기능 PR은 병합 완료; 별도 최종 실물 GUI 테스트는 012_12.
 
 - **실행:** EyeWindow의 bit rate, pattern, TX 조건, overlay graph, sampling point, Eye Height/Width, 줌/커서, CSV/PNG 및 비동기 Cancel 구현.
 - **산출:** 실제 작동하는 Simulated Channel Eye GUI와 Qt 자동화 검증.
@@ -161,7 +161,7 @@
 | 012_05 ILD 엔진·GUI | **COMPLETE** (선언 범위: 일반 ILD 계산·GUI·자동 CI) | [병합 PR #40](https://github.com/july-rust/SParamView-Public/pull/40) · [CI 43766947020](https://github.com/july-rust/SParamView-Public/actions/runs/43766947020) · 통합 SHA `90a59ada15a9c17aa787ffb317fcafefb4285c75` |
 | 012_06 ICN 엔진·GUI | **COMPLETE (Generic 수치/자동화 범위)** | [병합 PR #42](https://github.com/july-rust/SParamView-Public/pull/42) · [3개 플랫폼 CI PASS](https://github.com/july-rust/SParamView-Public/actions/runs/43775680490) · 통합 SHA `1bcf54008d3031c5b8ef634e4d2bef1479eee96a` |
 | 012_07 Eye numerical engine | **COMPLETE (NUMERICAL ONLY)** | [PR #45](https://github.com/july-rust/SParamView-Public/pull/45) 병합 `ae417b64`; [전체 CI #43798693800](https://github.com/july-rust/SParamView-Public/actions/runs/43798693800) 필수 플랫폼/Native ARM64 PASS; GUI는 012_08 | 
-| 012_08 Eye GUI & SourceSnapshot | MERGED / POST-MERGE CI GATE | PR #47 squash merged `17bcec47`; PR CI #43811255898 SUCCESS; post-merge integration CI #43812686401 pending verification; native physical GUI is 012_12 |
+| 012_08 Eye GUI & SourceSnapshot | **COMPLETE (GUI / Core integration / automatic CI)** | PR #47 squash merged `17bcec47`; PR CI #43811255898 and post-merge integration CI #43812686401 **SUCCESS**; physical GUI acceptance belongs to 012_12 |
 | 012_09~012_14 COM·통합·릴리스 | NOT STARTED | COM 미구현; v1.3.5 릴리스 유지 · v1.4.0 미출시 |
 | 계획 문서 | PLANNED | 본 문서 및 링크된 상위 로드맵 |
 
