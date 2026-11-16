@@ -43,6 +43,20 @@ class VerifiedHistoricalOctaveGrid(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,"unexpanded formula"):
                 mod.csv_to_octave_mat(source,base/"bad.mat")
 
+    def test_octave_complex_scalar_must_retain_imaginary_part(self):
+        import numpy as np
+        real,imag = mod.finite_scalar_parts(np.array([complex(-12.86,27.287527)]),
+                                           "FOM")
+        self.assertAlmostEqual(real,-12.86)
+        self.assertAlmostEqual(imag,27.287527)
+        self.assertGreater(abs(imag),1e-12)
+        self.assertEqual(mod.finite_scalar_parts(np.array([3.5]),"COM_dB"),
+                         (3.5,0.0))
+        with self.assertRaisesRegex(ValueError,"Nonfinite"):
+            mod.finite_scalar_parts(np.array([float("nan")]),"COM_dB")
+        with self.assertRaisesRegex(ValueError,"type/shape"):
+            mod.finite_scalar_parts(np.array([2.0,3.0]),"FOM")
+
     def test_reject_nonfinite_numeric(self):
         with tempfile.TemporaryDirectory() as d:
             base=pathlib.Path(d)
