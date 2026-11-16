@@ -191,7 +191,8 @@ class ReferenceManifestTests(unittest.TestCase):
                 "edition": "IEEE Std 802.3ck-2022",
                 "applicable_clause": "120F.4.1",
                 "parameter_table": "120F-8",
-                "parameter_values_qualified": True
+                "parameter_values_qualified": True,
+                "normative_source_url": "https://standards.ieee.org/ieee/802.3ck/7322/"
             })
             with self.assertRaisesRegex(preflight.QualificationError, "final_parameter_audit"):
                 preflight.qualify_normative(candidate, root)
