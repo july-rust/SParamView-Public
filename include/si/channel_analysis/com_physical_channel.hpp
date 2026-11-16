@@ -34,6 +34,26 @@ struct ComPhysicalChannelData {
   const char* model = "EXPLORATORY_S4P_TX_BOARD_RX_PHYSICAL_CASCADE";
 };
 
+// Construct the complete physical 4x4 board S matrix directly from a
+// SHA-verified SourceSnapshot and a *confirmed differential* 4-port channel.
+// Retrieves all 16 complex physical Sij via Cache::trace (never inferred from
+// only Sdd21 or from mislabeled port names). Enforces a strict data budget and
+// fails closed on incomplete mapping, reference or revision.
+ComPhysicalChannelInput physicalComInputFromSource(
+    const SourceSnapshot &source, std::string_view victimChannelId,
+    ComPackageCircuit transmitter, ComPackageCircuit receiver,
+    double maxAllowedModeConversion = 0,
+    Control *control = nullptr);
+
+// End-to-end convenience: source SHA and mapping generation are copied to
+// provenance. The caller must still reject STALE if its live identity changed.
+// Output is a diagnostic Sdd network, NEVER a normative COM margin.
+Result<ComPhysicalChannelData> calculateComPhysicalFromSource(
+    const SourceSnapshot &source, std::string_view victimChannelId,
+    ComPackageCircuit transmitter, ComPackageCircuit receiver,
+    double maxAllowedModeConversion = 0,
+    Control *control = nullptr);
+
 // Use the only two distinct nominal TX/RX primary line lengths from the
 // 802.3ck 120F C2C working profile; every other package component must be
 // supplied EXPLICITLY, not silently inferred. Input primaryLineMm MUST be
