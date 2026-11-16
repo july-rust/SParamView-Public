@@ -1,71 +1,59 @@
-# 012_09 — Real IEEE public C2C channel reference COM prequalification
+# 012_09 — Historical IEEE C2C real-channel numerical reference qualification
 
-**Status:** BLOCKED after actual CI numerical attempt. Zero usable C2C COM dB golden outputs. No final 802.3ck compliance certification or SParamView native C++ COM dB.
+**Current status (2026-11-17 KST): HISTORICAL NUMERICAL REFERENCE CANDIDATE — COMPLETE; normative IEEE and native SParamView C++ COM — NOT COMPLETE.**
 
-## Reason
+The original 2019 IEEE 802.3ck public channel data and August 2022 historical C2C workbook have now been independently evaluated by both the pinned SiCoPR COM 4p17p0 Python port and a separate GNU Octave-compatible 4p17p0 reference implementation. Six real candidate package-case pairs agree numerically. These are **not** three qualified published-final 802.3ck goldens, and **not** native C++ results.
 
-The IEEE 802.3ck task force supplied four distinct real-world C2C impairment groups with matched THRU, NEXT and FEXT S4P files. GitHub [read-only corpus audit #43866966952](https://github.com/july-rust/SParamView-Public/actions/runs/43866966952) downloaded the public archive and verified **12 S4P files** with unique SHA-256 hashes, in 10/16/18/20 dB source-labelled groups.
+## Actual independently calculated results
 
-Official public 2022 COM 3.90 tool archive includes a historical 802.3ck SA 120F C2C workbook dated 2022-08-17. The intended reference path would run the **same pinned historical profile and real inputs** through a BSD-3-Clause COM implementation. Actual execution is currently **blocked at original-workbook interpretation**, before any numerical COM value is produced; no sheet selection, numeric margin, or package result is inferred.
+Executed [full CI #43972559021](https://github.com/july-rust/SParamView-Public/actions/runs/43972559021): **three Python physical-channel jobs + three GNU Octave jobs all SUCCESS**, including metadata SHA, physical port mapping, no-complex-FOM and Test1/Test2 comparison gates.
 
-## Executable reproducibility
+| IEEE source loss label | Test1 candidate COM (dB) | Test2 candidate COM (dB) | Largest same-input Python/Octave COM difference (dB) |
+|---|---:|---:|---:|
+| 10 dB | 4.842540704356086 | 4.697201007609771 | 5.60e-14 |
+| 16 dB | 4.293845073865506 | 3.9994128151173114 | 1.17e-13 |
+| 18 dB | 4.054649183385672 | 3.582840211206002 | 2.66e-15 |
 
-Source and digest pins are in `scripts/com_3ck_c2c_real_reference.py`:
+Independent **FOM** values also agree (largest observed absolute difference under 3e-13 dB). The programmatic tolerance for both candidate COM and FOM is 1e-4 dB; it is used only for this historical reproducibility test, not as a general IEEE tolerance. All six Octave outputs were explicitly checked for zero imaginary components, with no silent complex-to-real casting.
 
-- Official C2C ZIP: `https://www.ieee802.org/3/ck/public/tools/c2c/rabinovich_3ck_informal_08162019.zip`, SHA256 `670fe10711b5c530320f770d22a717387b161f2721a2203b27e84ebf7ac597e2`
-- Official COM 3.90 ZIP: `https://www.ieee802.org/3/df/public/tools/COM/mellitz_3df_02_2211.zip`, SHA256 `895857fbfb602c8ec10b221ab40a23d4b39244b4b57101dd27abc4b2a1a2fddc`
-- Exact archived C2C workbook SHA256 `e676b3fb3cb3048f80c98deaa8faca1d03c13daa216c6259de26885e715ca925`
-- External SiCoPR 1.2.1 source pin `https://github.com/tbermen/SiCoPR/tree/cb7c4be5c63d41e88b6ee7d04fb17e0046ab0f75`, selected IEEE COM `4p17p0`
-- Three scheduled independent *source-labelled* physical channel groups 10/16/18 dB, each with verified THRU/FEXT/NEXT unique SHA, and expected **two package-case outputs**. The fourth 20 dB input is SHA-pinned, reserved for additional diversity.
+Exact executable paths: `scripts/com_3ck_c2c_real_reference.py`, `scripts/com_3ck_c2c_octave_check.py`, `scripts/com_3ck_c2c_compare_numerics.py`. The test suite includes negative cases for source identity, incomplete package pairs, mismatched port map, unsupported/duplicated settings, non-real FOM, incorrect independent values and formula injection.
 
-`python -m unittest discover -s tests/channel_analysis -p test_com_3ck_c2c_real_reference.py -v` verifies input identity and safe source handling before live calculation. The reference runner uses ephemeral temp directories; only SHA/provenance and numerical margin/FOM/timing outputs are uploaded as GitHub JSON artifacts. No IEEE/SiCoPR source code, workbook, or channel bytes are included in the SParamView source or release.
+## Root cause of previous complex-FOM failure: physical source port mapping
 
-## Current direct numerical evidence (2026-11-17 KST)
+The historical source S4P files have physical differential TX ports **1/2** and RX ports **3/4**, while the reference tool's generic/default `Port Order=[1 3 2 4]` interprets differential TX as 1/3 and RX as 2/4. On the original channel files the default produced very weak LF differential transmission and negative sampled cursor amplitudes, then complex log FOM values which the SiCoPR optimizer could not convert to float.
 
-- Original IEEE ZIP and workbook are byte-verified as pinned, and the declared visible **COM_Settings** mapping in **Strict OOXML** is now read exactly, without choosing from unrelated worksheets.
-- **All eight** arithmetic formulas in COM_Settings are recomputed with a restricted, no-eval same-sheet decimal calculator, and compared against source cached results; unexpected functions, stale caches, external references and ambiguous selectors fail closed. The converted, ephemeral historical settings CSV SHA-256 is `2926eedd529853fd36a1d76d25d953981df062703ade0394ef95607905f18e98`. The original IEEE XLSX never enters the repository.
-- Source-level [real-channel reference attempt #43961574725](https://github.com/july-rust/SParamView-Public/actions/runs/43961574725): 11/11 synthetic/security/configuration tests pass, and all three real THRU/FEXT/NEXT groups actually reach **COM FOM optimization**, but the pinned external reference port raises `TypeError: float() argument must be a string or a real number, not 'complex'` after a `RuntimeWarning: invalid value encountered in log10`. Thus 10/16/18 dB reference computations **all fail**. The cause is not yet isolated to invalid channel conditions vs independent reference port arithmetic; never mark a computed golden.
-- A clean error boundary catches non-real reference results and returns a blocked exit code. No COM dB, FOM, Test1/Test2 numerical golden or normative PASS/FAIL is fabricated.
-- **The native SParamView C++ `calculateCom` remains NOT_EVALUATED**. Verified original source parsing and exploratory package S-parameter physics do not imply a complete 93A/120F signal/noise/ISI/jitter/CTLE/DFE/FFE optimization engine, approved final 120F-8 profile, or C++ vs independently corroborated numerical comparison.
+The original source data was measured under all three alternative four-port differential pair partitions and a fail-closed SHA/physics-based port mapping contract was added:
 
-**Gate:** PR #59 remains open; do not merge under failed required real-channel numerical CI. `012_09` is **PARTIAL/BLOCKED**, not 100% COMPLETE; main/v1.3.5/v1.4.0 release remain untouched.
+| Channel | 10 MHz `|Sdd21|` with default [1,3,2,4] | 10 MHz `|Sdd21|` with [1,2,3,4] | 26.56 GHz `|Sdd21|` with [1,2,3,4] |
+|---|---:|---:|---:|
+| 10 dB | 0.00546 | 0.98617 | 0.30917 |
+| 16 dB | 0.00860 | 0.97695 | 0.16225 |
+| 18 dB | 0.00986 | 0.97314 | 0.12332 |
 
-## Corrected historical crosstalk and non-real FOM evidence (2026-11-17 KST)
+The source SHA, low-frequency transmission, and 26.5625 GHz channel-loss label are all checked before an **explicit temporary CSV `Port Order=[1 2 3 4]`** is allowed. This mapping override is recorded and provided identically to Python and Octave. It does **not** rewrite any official source XLSX or S4P file, does **not** change source numerical parameters beyond the explicit port map, and is **not** assumed to be a published final-table normative profile.
 
-Official [IEEE P802.3ck March 2020 Healey contribution, slide 9](https://www.ieee802.org/3/ck/public/20_03/healey_3ck_01a_0320.pdf) reports original impaired R1/R2/R3/R4 channels at 26.6 GHz as **four FEXT and zero NEXT**. The original 2019 source ZIP has exactly **one distinct THRU, one distinct FEXT and one distinct NEXT** S4P in each of the four folder groups; this was independently SHA enumerated in [CI #43967233407](https://github.com/july-rust/SParamView-Public/actions/runs/43967233407). The exploratory reproduction now uses [THRU, FEXT×4] as four **identically sourced FEXT instances** with **no NEXT**; this is *not* four distinct independently validated aggressor source files, and it remains only a historical scenario, not an approved final normative reference.
+An earlier 1-FEXT/1-NEXT input mix also differed from the historical [IEEE 2020 P802.3ck 4-FEXT / 0-NEXT contribution, slide 9](https://www.ieee802.org/3/ck/public/20_03/healey_3ck_01a_0320.pdf). The published 2019 source ZIP contains one THRU, one FEXT and one NEXT per loss group. The tested historical stimulus therefore uses **four instances of the single SHA-pinned FEXT** and zero NEXT. This does not claim four independent distinct aggressor files.
 
-[Measured original 10/16/18 dB run #43967988188](https://github.com/july-rust/SParamView-Public/actions/runs/43967988188) confirms the corrected four-FEXT input still fails in the independently maintained SiCoPR reference port. Exact source SHA and unchanged port ordering [1,3,2,4] were recorded, with three low-frequency Sdd21 samples and their complex phase. The **first failing** optimizer candidates have:
+## Exact pinned source provenance and redistribution
 
-| Source-labelled channel | Cursor pulse V | A_s V = R_LM×cursor/(L−1) | Noise RMS V | Outcome |
-|---|---:|---:|---:|---|
-| 10 dB | −0.01668115780953329 | −0.005282366639685542 | 0.023224940957299857 | complex-valued FOM, blocked |
-| 16 dB | −0.009393144102180277 | −0.0029744956323570874 | 0.01836084884522299 | complex-valued FOM, blocked |
-| 18 dB | −0.007645951598680516 | −0.00242121800624883 | 0.017117494787446317 | complex-valued FOM, blocked |
+- [IEEE 2019 public C2C archive](https://www.ieee802.org/3/ck/public/tools/c2c/rabinovich_3ck_informal_08162019.zip), archive SHA-256 `670fe10711b5c530320f770d22a717387b161f2721a2203b27e84ebf7ac597e2`; each actual THRU/FEXT/NEXT member is individually SHA-verified. The 20 dB channel is SHA-pinned but not part of the required 3-case automatic run.
+- [IEEE 2022 historical COM archive](https://www.ieee802.org/3/df/public/tools/COM/mellitz_3df_02_2211.zip), ZIP SHA-256 `895857fbfb602c8ec10b221ab40a23d4b39244b4b57101dd27abc4b2a1a2fddc`; exact Strict OOXML C2C workbook SHA-256 `e676b3fb3cb3048f80c98deaa8faca1d03c13daa216c6259de26885e715ca925`.
+- Source workbook's sole explicit `COM_Settings` sheet is determined through its Strict OOXML relationship. All **eight** spreadsheet arithmetic formulas are recomputed with a bounded non-`eval` parser and checked against the workbook's cached numeric values; original temporary canonical CSV SHA-256 `2926eedd529853fd36a1d76d25d953981df062703ade0394ef95607905f18e98`.
+- [SiCoPR BSD-3 source commit](https://github.com/tbermen/SiCoPR/tree/cb7c4be5c63d41e88b6ee7d04fb17e0046ab0f75) is pinned in both Python and GNU Octave CI. Octave path uses the original COM 4p17p0-derived compatibility implementation, which is a **historical independent numerical crosscheck**, not IEEE normative endorsement.
+- Official IEEE ZIP/S4P/XLSX and external COM source **never enter this repo or release assets**. Workflows use disposable runner storage; artifacts contain numerical results, verified SHA/port metadata and source-free comparisons only.
 
-Source: CI log metadata, not C++ COM results. The reference port reproduces the MATLAB-style complex logarithm when A_s/noise is negative and then fails when optimizer history casts this complex FOM to a float. **The immediate numerical cause is a negative sampled cursor**, but whether it is due to the CDR timing rule, physical channel suitability or the historical-to-4.17 configuration translation has not been independently resolved. Low-frequency real Sdd21 is positive in the observed sample; flipping receiver-pair polarity on that evidence would be unsupported.
+## Acceptance distinction and remaining blocking work
 
-**Reject invalid numerical conclusions:** never replace A_s by |A_s|, silently discard negative candidates, change port polarity, swap FEXT/NEXT, or relabel a complex FOM as a real IEEE COM without independently agreeing with the official version-matched reference. `calculateCom()` on the native C++ path still returns NOT_EVALUATED. Three verified same-PHY paired final IEEE goldens do not exist. Keep PR #59 unmerged and IEEE/normative COM disabled.
+**This PR's historical numerical reference candidate acceptance:** real SHA-pinned source, 3 channel families, both package cases, exactly matched source/port/filter settings, 6 real and finite COM/FOM outputs, independent Python vs Octave COM/FOM agreement, fail-closed negatives and required CI. **Completed in run #43972559021**.
 
-## Actual CI numerical failure (2026-11-16)
+**Not complete for `012_09` / v1.4.0:** final approved IEEE Std 802.3ck-2022 Table 120F-8 complete numeric verification, final Test1/Test2 normative parameter lock, native **C++20** IEEE 93A/120F CTLE/TX-FFE/DFE/ISI/XTALK/jitter/noise/equalizer optimization and COM calculation, and at least 3 **same final approved PHY** independent pairs agreeing with **native C++**. The existing C++ `calculateCom()` intentionally still returns `NotEvaluated`. No numerical PHY PASS/FAIL, no native GUI COM activation, and no v1.4.0 release can be based on this historical candidate.
 
-- [Initial 3-channel reference run #43869557024](https://github.com/july-rust/SParamView-Public/actions/runs/43869557024): each 10/16/18 dB job failed at the offline test because integer-valued `19.0` was serialized to CSV as `19`. The test now compares numeric values; this is test representation, **not** an IEEE model correction.
-- [Retest #43876986341](https://github.com/july-rust/SParamView-Public/actions/runs/43876986341): all seven offline tests passed on sampled jobs, then the live calculation **failed** during conversion of the exact 2022 historical XLSX: `Cannot uniquely identify 2022 120F C2C settings worksheet: []`. No COM numeric result or metadata golden was uploaded.
-- [Historical IEEE workbook OOXML source audit #43834905502](https://github.com/july-rust/SParamView-Public/actions/runs/43834905502): four worksheet XML files were detected. Candidate parameter values differ across sheets (e.g., `c(0)` 0.54 vs 0.60; `DER_0` 1e-5 vs 1e-4), and there is **no independently approved worksheet-selection/profile contract**. All settings were previously classified non-normative.
-- The follow-up branch includes explicit worksheet-state diagnostics and a new regression proving hidden-only settings do not silently become a qualified configuration. These do **not** make the actual COM run pass.
+## Failure history and correction evidence
 
-**Disposition:** BLOCKED, do not merge this numerical-acceptance PR until real latest-head three-case jobs compute finite Test1 and Test2 margins and all cross-platform checks pass. It is unsafe to pick one candidate worksheet, merge values, manufacture results, or weaken the gate to obtain a green workflow. Even successful historical candidate calculations would not qualify the **final** published IEEE 802.3ck-2022 Table 120F-8 or the independent C++ COM engine.
+- [First test failure #43869557024](https://github.com/july-rust/SParamView-Public/actions/runs/43869557024): CSV number `19` vs `19.0` test-string artifact, fixed by numeric comparison.
+- [Strict OOXML workbook diagnostic #43959294070](https://github.com/july-rust/SParamView-Public/actions/runs/43959294070): `openpyxl` omitted original Strict OOXML sheets; explicit `COM_Settings` relationship and arithmetic verifier implemented.
+- [Negative cursor/FOM failure #43967988188](https://github.com/july-rust/SParamView-Public/actions/runs/43967988188): wrong physical port mapping caused negative `A_s` and complex FOM. A diagnostic `|A_s|` trick was **never** used.
+- [Octave pre-correction #43969982723](https://github.com/july-rust/SParamView-Public/actions/runs/43969982723): its first script mistakenly truncated complex FOM to a real scalar, identified by `ComplexWarning`. This was fixed with strict real/imag inspection and fail-closed. Correction of the physical source port map then produced real FOM values agreeing with SiCoPR.
+- [All source-corrected reference cases #43971752685](https://github.com/july-rust/SParamView-Public/actions/runs/43971752685): 3 Python cases and Octave 10 dB success.
+- [Fully crosschecked 3×2 independent reference #43972559021](https://github.com/july-rust/SParamView-Public/actions/runs/43972559021): all six cases passed.
 
-## Hard stops
-
-1. Every input file SHA, archive SHA and source-code commit must match or the run fails.
-2. The independently maintained Python port must actually produce **two finite COM and FOM values** from each channel; no estimates, placeholder numbers or 'PASS by no exception' reports.
-3. The 2022-08-17 configuration is a historical IEEE-hosted engineering source, not independently locked against every published IEEE Std 802.3ck-2022 120F-8 parameter.
-4. SiCoPR is a validated independent Python port of COM 4p17p0, **not an execution of the official Octave/MATLAB reference for these exact C2C cases**. Until official reference and C++ results agree numerically, this is only a candidate numerical oracle.
-5. The C++ `calculateCom()` must remain fail-closed: NOT_EVALUATED, with no finite COM dB, no PHY PASS/FAIL, and no v1.4.0 release.
-
-## Reference links
-
-- [IEEE official 802.3ck public channels](https://www.ieee802.org/3/ck/public/tools/)
-- [IEEE 2022 reference COM 3.90 archive](https://www.ieee802.org/3/df/public/tools/index.html)
-- [SiCoPR implementation and published cross-version correlation report](https://pypi.org/project/sicopr/)
-- [802.3ck COM golden preflight requirements](Channel_Analysis_COM_012_09.md)
