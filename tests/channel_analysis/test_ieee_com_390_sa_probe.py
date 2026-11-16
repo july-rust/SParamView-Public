@@ -64,6 +64,24 @@ class HistoricalArchiveTests(unittest.TestCase):
         self.assertEqual(len(sheets),1)
         self.assertEqual(fields,{})
 
+    def test_formula_cached_numbers_are_not_literals(self):
+        # 12 recognized keys each followed by a cached formula value.
+        # No direct literal settings exist in this synthetic workbook.
+        rows = "".join(
+            f'<row r="{i+1}"><c r="A{i+1}" t="s"><v>{i}</v></c>'
+            f'<c r="B{i+1}"><f>100+{i}</f><v>{i+100}</v></c>'
+            f'</row>' for i in range(len(KEYS)))
+        xml = ('<worksheet xmlns="http://schemas.openxmlformats.org/'
+               'spreadsheetml/2006/main"><sheetData>'+rows+
+               '</sheetData></worksheet>')
+        out=io.BytesIO()
+        with zipfile.ZipFile(out,"w") as z:
+            z.writestr("xl/sharedStrings.xml",STRING)
+            z.writestr("xl/worksheets/sheet1.xml",xml)
+        sheets,found=probe.parse_xlsx(out.getvalue())
+        self.assertEqual(len(sheets),1)
+        self.assertEqual(found,{})
+
     def test_reject_zip_path_escape(self):
         out=io.BytesIO()
         with zipfile.ZipFile(out,"w") as z:
