@@ -539,7 +539,7 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
   setAttribute(Qt::WA_DeleteOnClose);
   setObjectName(QStringLiteral("channelAnalysisWindow") + labelFor(feature));
   setWindowTitle(QStringLiteral("SParamView · ") + labelFor(feature));
-  resize(940, 640);
+  resize(feature_==Feature::Eye?1120:940, feature_==Feature::Eye?840:640);
   auto *outer = new QVBoxLayout(this);
   auto *header = new QLabel(QStringLiteral("<b>") + labelFor(feature_) +
        QStringLiteral("</b> — Channel Analysis"));
@@ -601,8 +601,82 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     form->addRow(QStringLiteral("Aggressor"), aggressor_);
   else aggressor_->hide();
   form->addRow(QStringLiteral("Direction"), direction_);
-  form->addRow(QStringLiteral("Start frequency"), fromGhz_);
-  form->addRow(QStringLiteral("Stop frequency"), toGhz_);
+  if(feature_!=Feature::Eye) {
+    form->addRow(QStringLiteral("Start frequency"), fromGhz_);
+    form->addRow(QStringLiteral("Stop frequency"), toGhz_);
+  } else {
+    fromGhz_->setValue(0);
+    toGhz_->setValue(10);
+    eyeProfile_=new QComboBox;
+    eyeProfile_->setObjectName(QStringLiteral("eyeProfile"));
+    for(int i=0;i<=int(si::channel::EyeProfile::Custom);++i)
+      eyeProfile_->addItem(QString::fromUtf8(
+        si::channel::eyeProfileName(static_cast<si::channel::EyeProfile>(i))));
+    eyeMode_=new QComboBox;
+    eyeMode_->setObjectName(QStringLiteral("eyeMode"));
+    eyeMode_->addItems({QStringLiteral("Required: choose mode"),
+                        QStringLiteral("Single-ended"),QStringLiteral("Differential")});
+    eyeBitRate_=new QDoubleSpinBox;
+    eyeBitRate_->setObjectName(QStringLiteral("eyeBitRateGbps"));
+    eyeReference_=new QDoubleSpinBox;
+    eyeReference_->setObjectName(QStringLiteral("eyeReferenceGhz"));
+    for(auto *spin:{eyeBitRate_,eyeReference_}) {
+      spin->setRange(0,1000);
+      spin->setDecimals(9);
+      spin->setSpecialValueText(QStringLiteral("Required"));
+    }
+    eyeBitRate_->setSuffix(QStringLiteral(" Gbps"));
+    eyeReference_->setSuffix(QStringLiteral(" GHz"));
+    eyePattern_=new QComboBox;
+    eyePattern_->setObjectName(QStringLiteral("eyePattern"));
+    eyePattern_->addItems({QStringLiteral("PRBS7"),QStringLiteral("Alternating"),
+                           QStringLiteral("Custom bits")});
+    eyeBits_=new QLineEdit;
+    eyeBits_->setObjectName(QStringLiteral("eyeCustomBits"));
+    eyeBits_->setPlaceholderText(QStringLiteral("Binary sequence e.g. 00101110"));
+    eyeBits_->setMaxLength(65536);
+    eyeBits_->setEnabled(false);
+    eyeFft_=new QComboBox;
+    eyeFft_->setObjectName(QStringLiteral("eyeFftLength"));
+    for(int n=1024;n<=65536;n*=2)eyeFft_->addItem(QString::number(n));
+    eyeFft_->setCurrentText(QStringLiteral("8192"));
+    eyeSamples_=new QComboBox;
+    eyeSamples_->setObjectName(QStringLiteral("eyeSamplesPerUi"));
+    for(int n=8;n<=128;n*=2)eyeSamples_->addItem(QString::number(n));
+    eyeSamples_->setCurrentText(QStringLiteral("32"));
+    eyeView_=new QComboBox;
+    eyeView_->setObjectName(QStringLiteral("eyePlotView"));
+    eyeView_->addItems({QStringLiteral("Eye overlay (2 UI)"),
+                        QStringLiteral("TX / RX waveform"),
+                        QStringLiteral("Impulse / Unit pulse")});
+    const QStringList fields={
+      QStringLiteral("TX incident low (mV)"),QStringLiteral("TX incident high (mV)"),
+      QStringLiteral("TX source (ohm)"),QStringLiteral("RX termination (ohm)"),
+      QStringLiteral("RX threshold (mV)"),QStringLiteral("RX input minimum (mV)"),
+      QStringLiteral("RX input maximum (mV)")};
+    const QStringList names={
+      QStringLiteral("eyeTxLowMv"),QStringLiteral("eyeTxHighMv"),
+      QStringLiteral("eyeTxSourceOhm"),QStringLiteral("eyeRxTerminationOhm"),
+      QStringLiteral("eyeRxThresholdMv"),QStringLiteral("eyeRxMinimumMv"),
+      QStringLiteral("eyeRxMaximumMv")};
+    form->addRow(QStringLiteral("PHY profile (example, not compliance)"),eyeProfile_);
+    form->addRow(QStringLiteral("Transfer mode"),eyeMode_);
+    form->addRow(QStringLiteral("NRZ bit rate"),eyeBitRate_);
+    form->addRow(QStringLiteral("NRZ Nyquist reference (coupled)"),eyeReference_);
+    form->addRow(QStringLiteral("Independent analysis cap"),toGhz_);
+    form->addRow(QStringLiteral("Pattern"),eyePattern_);
+    form->addRow(QStringLiteral("Custom pattern"),eyeBits_);
+    form->addRow(QStringLiteral("FFT samples"),eyeFft_);
+    form->addRow(QStringLiteral("Samples per UI"),eyeSamples_);
+    for(int i=0;i<7;++i) {
+      eyeElectrical_[size_t(i)]=new QLineEdit;
+      eyeElectrical_[size_t(i)]->setObjectName(names[i]);
+      eyeElectrical_[size_t(i)]->setPlaceholderText(
+        QStringLiteral("Required — physical reference-plane value"));
+      form->addRow(fields[i],eyeElectrical_[size_t(i)]);
+    }
+    form->addRow(QStringLiteral("Graph view"),eyeView_);
+  }
   if(feature_==Feature::Icn) {
     form->addRow(QStringLiteral("NEXT / FEXT paths (check multiple)"),icnAggressors_);
     form->addRow(QStringLiteral("Aggressor correlation"),icnIndependent_);
@@ -611,7 +685,17 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     form->addRow(QStringLiteral("Gaussian rise time"),icnRise_);
     form->addRow(QStringLiteral("RX 3 dB bandwidth"),icnRx_);
   }
-  outer->addLayout(form);
+  if(feature_==Feature::Eye) {
+    auto *panel=new QWidget;
+    panel->setLayout(form);
+    auto *scroll=new QScrollArea;
+    scroll->setObjectName(QStringLiteral("eyeSettingsScroll"));
+    scroll->setWidgetResizable(true);
+    scroll->setWidget(panel);
+    scroll->setMinimumHeight(220);
+    scroll->setMaximumHeight(340);
+    outer->addWidget(scroll);
+  } else outer->addLayout(form);
   auto *controls = new QHBoxLayout;
   run_ = new QPushButton(QStringLiteral("Run"));
   run_->setObjectName(QStringLiteral("analysisRun"));
@@ -650,6 +734,14 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     icnContributions_->setObjectName(QStringLiteral("icnContributions"));
     icnContributions_->setWordWrap(true);
     outer->addWidget(icnContributions_);
+  } else if(feature_==Feature::Eye) {
+    graphPlaceholder_->hide();
+    eyeGraph_=new EyePlotWidget(this);
+    outer->addWidget(eyeGraph_,2);
+    eyeMetrics_=new QLabel(QStringLiteral("Simulated Channel Eye — Not Measured / Not PHY Compliance"));
+    eyeMetrics_->setObjectName(QStringLiteral("eyeMetrics"));
+    eyeMetrics_->setWordWrap(true);
+    outer->addWidget(eyeMetrics_);
   }
   auto *exports = new QHBoxLayout;
   csv_ = new QPushButton(QStringLiteral("Export CSV"));
@@ -683,6 +775,39 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     connect(victim_,&QComboBox::currentIndexChanged,this,[this]{
       populateIcnAggressors();
     });
+  }
+  if(feature_==Feature::Eye) {
+    connect(run_,&QPushButton::clicked,this,[this]{launchEye();});
+    connect(csv_,&QPushButton::clicked,this,[this]{exportEyeCsv();});
+    connect(png_,&QPushButton::clicked,this,[this]{exportEyePng();});
+    connect(eyeProfile_,&QComboBox::currentIndexChanged,this,[this]{selectEyeProfile();});
+    connect(eyeMode_,&QComboBox::currentIndexChanged,this,[this]{invalidateRequest();});
+    connect(eyePattern_,&QComboBox::currentIndexChanged,this,[this]{
+      eyeBits_->setEnabled(eyePattern_->currentIndex()==2); invalidateRequest();
+    });
+    connect(eyeBits_,&QLineEdit::textChanged,this,[this]{invalidateRequest();});
+    connect(eyeBitRate_,QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+      this,[this](double rate){
+        if(eyeFrequencySync_)return;
+        eyeFrequencySync_=true;
+        { QSignalBlocker block(eyeReference_); eyeReference_->setValue(rate/2); }
+        eyeFrequencySync_=false;invalidateRequest();
+      });
+    connect(eyeReference_,QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+      this,[this](double ref){
+        if(eyeFrequencySync_)return;
+        eyeFrequencySync_=true;
+        { QSignalBlocker block(eyeBitRate_); eyeBitRate_->setValue(ref*2); }
+        eyeFrequencySync_=false;invalidateRequest();
+      });
+    for(auto *combo:{eyeFft_,eyeSamples_})
+      connect(combo,&QComboBox::currentIndexChanged,this,[this]{invalidateRequest();});
+    connect(eyeView_,&QComboBox::currentIndexChanged,this,[this](int view){
+      if(eyeGraph_) static_cast<EyePlotWidget *>(eyeGraph_)->setView(view);
+    });
+    for(auto *edit:eyeElectrical_)
+      connect(edit,&QLineEdit::textChanged,this,[this]{invalidateRequest();});
+    selectEyeProfile();
   }
   connect(source_, &QComboBox::currentIndexChanged, this, [this] {
     QSignalBlocker block(victim_);
