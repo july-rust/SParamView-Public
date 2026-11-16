@@ -4,7 +4,7 @@
 // This file records parameter values only. It is NOT an Annex 93A COM solver
 // or evidence that a measured channel qualifies for PHY PASS/FAIL.
 // Primary standard: https://ieeexplore.ieee.org/document/9999414
-#include "si/channel_analysis/common.hpp"
+#include "si/channel_analysis/com.hpp"
 #include <array>
 #include <vector>
 
@@ -84,6 +84,16 @@ Complex com120F8Ctle(double frequencyHz, double gDcDb, double gDc2Db);
 Complex com120F8ReceiverNoiseFilter(double frequencyHz);
 Complex com120F8ReceiverTransfer(double frequencyHz,
                                  double gDcDb, double gDc2Db);
+
+// Builds the actual C++ 120F-8 fixed TX FFE + 93A CTLE +
+ // fourth-order receive-filter complex diagnostic on the supplied THRU,
+ // FEXT and NEXT complex traces. The input RX filter must be omitted and is
+ // generated from the final profile, never silently overwritten.
+ // This calls the non-normative preparation engine; NO COM ratio/verdict.
+Result<ComPreparedData> prepareCom120F8ReceiverSpectra(
+    ComInput input, const Com120F8EqualizerChoice& choice,
+    Provenance provenance = {},
+    const std::atomic_bool* cancelled = nullptr);
 
 // Checks sample identity for a direct grid (starting at/below fmin, maximum
 // step and Nyquist coverage). Interpolation/extrapolation is NOT performed.
