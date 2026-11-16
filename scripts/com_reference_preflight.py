@@ -206,6 +206,21 @@ def qualify_normative(manifest: dict, root: Path) -> dict:
     _require(std.get("approval_status") == "PUBLISHED" and
              std.get("parameter_values_qualified") is True,
              "final approved Table 120F-8 parameters have not been independently qualified")
+    _require(str(std.get("normative_source_url", "")).startswith(
+                 "https://standards.ieee.org/ieee/802.3ck/"),
+             "final IEEE 802.3ck normative source URL missing")
+    reference = _dict(manifest["reference"], "reference")
+    _require(reference.get("release") == "4.17.0" and
+             reference.get("source_commit") ==
+             "47459695a169fdf1fd10c541a5b19c69a5ae9285" and
+             reference.get("source_content_sha256") ==
+             "cdcd739ac13c9cc3ca59733fd938a015f040429655b5dbf5543c897789cfed9b",
+             "pinned COM 4.17 official reference identity changed")
+    license_info = _dict(manifest["license"], "license")
+    _require(license_info.get("distribution_strategy") == "QA_ONLY_REFERENCE_EXTERNAL" and
+             license_info.get("bundled_third_party_sources") is False and
+             license_info.get("bundled_third_party_channel_files") is False,
+             "COM QA reference/data are not authorized for binary redistribution")
     _require(manifest["profile_id"] ==
              "IEEE-802.3ck-2022-100GAUI-1-C2C-120F-QUALIFIED",
              "candidate/draft PHY profile must not satisfy normative qualification")
