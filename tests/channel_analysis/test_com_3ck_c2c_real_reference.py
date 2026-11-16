@@ -111,6 +111,68 @@ class HistoricalC2CReferencePreflight(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,"Cannot uniquely"):
                 ref.canonical_config_csv(original,output)
 
+    def _strict_com_workbook(self, formula=False, duplicate_sheet=False,
+                             hostile_target=False):
+        # Minimal Strict OOXML fixture with explicit workbook relations.
+        strict = "http://purl.oclc.org/ooxml/spreadsheetml/main"
+        document_r = "http://purl.oclc.org/ooxml/officeDocument/relationships"
+        labels = sorted(ref.CONFIG_LABELS)
+        rows = []
+        for i, label in enumerate(labels, start=1):
+            a = '<c r="A{0}" t="inlineStr"><is><t>{1}</t></is></c>'.format(i,label)
+            b = ('<c r="B1"><f>9+1</f><v>10</v></c>' if formula and i==1
+                 else '<c r="B{0}"><v>{0}</v></c>'.format(i))
+            rows.append('<row r="{0}">{1}{2}</row>'.format(i,a,b))
+        sheet = ('<worksheet xmlns="{0}"><sheetData>{1}</sheetData>'
+                 '</worksheet>').format(strict,''.join(rows))
+        extra = ('<sheet name="COM_Settings" sheetId="2" r:id="rId2"/>'
+                 if duplicate_sheet else '')
+        book = ('<workbook xmlns="{0}" xmlns:r="{1}"><sheets>'
+                '<sheet name="COM_Settings" sheetId="1" r:id="rId1"/>'
+                '{2}</sheets></workbook>').format(strict,document_r,extra)
+        target = '../untrusted.xml' if hostile_target else 'worksheets/sheet1.xml'
+        rels = ('<Relationships xmlns="http://schemas.openxmlformats.org/'
+                'package/2006/relationships"><Relationship Id="rId1"'
+                ' Type="worksheet" Target="{0}"/></Relationships>').format(target)
+        return zipped(("xl/workbook.xml",book),
+                      ("xl/_rels/workbook.xml.rels",rels),
+                      ("xl/worksheets/sheet1.xml",sheet))
+
+    def test_strict_ooxml_exact_com_settings_numeric_csv(self):
+        from csv import reader
+        raw = self._strict_com_workbook()
+        with patch.object(ref,"CONFIG_SHA",ref.sha(raw)):
+            rows, evidence = ref.strict_ooxml_com_settings(raw)
+            self.assertEqual(evidence["sheet_name"],"COM_Settings")
+            self.assertEqual(evidence["recognized_numeric_parameter_labels"],
+                             len(ref.CONFIG_LABELS))
+            self.assertEqual(len(rows),len(ref.CONFIG_LABELS))
+            with tempfile.TemporaryDirectory() as tmp:
+                original = pathlib.Path(tmp)/"source.xlsx"
+                csv_path = pathlib.Path(tmp)/"output.csv"
+                original.write_bytes(raw)
+                converted = ref.canonical_config_csv(original,csv_path)
+                self.assertEqual(converted["csv_sha256"],
+                                 ref.sha(csv_path.read_bytes()))
+                with csv_path.open(newline="",encoding="utf-8") as stream:
+                    parsed = list(reader(stream))
+                self.assertEqual(parsed[0],[sorted(ref.CONFIG_LABELS)[0],"1"])
+
+    def test_strict_ooxml_rejects_formula_and_duplicate_sheet(self):
+        for name, flags, error in [
+            ("formula",{"formula":True},"Formula-derived"),
+            ("duplicate",{"duplicate_sheet":True},"one visible"),
+            ("path",{"hostile_target":True},"worksheet path invalid"),
+        ]:
+            with self.subTest(name=name):
+                raw = self._strict_com_workbook(**flags)
+                with patch.object(ref,"CONFIG_SHA",ref.sha(raw)):
+                    with self.assertRaisesRegex(ValueError,error):
+                        ref.strict_ooxml_com_settings(raw)
+        raw = self._strict_com_workbook()
+        with self.assertRaisesRegex(ValueError,"byte-pinned"):
+            ref.strict_ooxml_com_settings(raw)
+
     def test_workbook_with_no_com_settings_is_not_accepted(self):
         import openpyxl
         book=openpyxl.Workbook()
