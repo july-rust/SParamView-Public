@@ -47,6 +47,31 @@ Unit dimensions: `a1` sqrt(ns)/mm, `a2` ns/mm, `tau` ns/mm, `gamma0` /mm; `Zc` a
 
 These public numbers agree across an Ansys public C2C COM 3.40 settings page, an IEEE task-force historical parameter comparison and a Samtec tutorial. They are not an independent byte-verified full IEEE Std 802.3ck-2022 Table120F-8. In particular, no COM output is represented as compliance.
 
+## End-to-end S4P and actual SourceSnapshot integration
+
+The new `com_causal_channel.hpp/cpp` API connects this corrected
+causal package model to the **full 4×4 complex board S-parameter matrix**:
+`calculateHistoricalCausalC2cCases()` handles a directly provided
+measured S4P frequency grid, while
+`calculateHistoricalCausalC2cFromSource()` reads **all 16 physical Sij**
+from a SHA-verified `SourceSnapshot` using confirmed differential
+4-port mapping. The source revision, SHA, workspace and mapping generation
+are retained, and the caller must still check that the live workspace
+identity has not changed before displaying results.
+
+Both Test1 (Tx/Rx 13/11 mm) and Test2 (31/29 mm) use the causal
+historical C2C package parameters, differential 87.5/92.5 Ω lines,
+and a full Redheffer TX–board–RX multi-reflection cascade. The result
+returns four complex Sdd parameters per frequency for both cases,
+`Status::Warning`, and `NOT_IEEE_COM`, and enforces a 50 Ω physical
+port reference for this profile. It deliberately does NOT produce
+an IEEE-compliant COM dB estimate.
+
+Tests `channel_com_causal_s4p_pipeline` include frequency-domain
+physical network assembly checks, 50 Ω reference/mode/passivity failure,
+cancellation, and a real synthetic on-disk Touchstone S4P → Cache →
+pinned SourceSnapshot → both loaded C2C package cases round-trip.
+
 ## Regression evidence required
 
 CTest `channel_com_causal_package` checks each of seven DC-to-53.125 GHz frequencies against the independently derived real/imaginary gamma formula, matched e^(-gamma*l) complex transfer and unmatched ABCD-scattering oracle; protects the a1 phase and a2 log dispersion from regressions; checks differential 87.5-Ω (not 175-Ω) and both package orientations; high-loss stability, nonfinite values, invalid direction, and loss/noise fail-closed.
