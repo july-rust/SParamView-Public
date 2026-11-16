@@ -423,7 +423,8 @@ int main(int argc, char **argv) {
     QFile eyeRead(eyeCsvPath);
     check(eyeRead.open(QIODevice::ReadOnly),"Eye CSV not readable");
     const QByteArray eyeContent=eyeRead.readAll();
-    check(eyeContent.contains("# source_sha256,") &&
+    check(eyeContent.contains("# source_filename,") &&
+          eyeContent.contains("# source_sha256,") &&
           eyeContent.contains("# eye_height_mv,") &&
           eyeContent.contains("# reference_frequency_ghz,") &&
           eyeContent.contains("Time_ps,TX_mV,RX_mV") &&
