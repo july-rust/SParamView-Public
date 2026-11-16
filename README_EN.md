@@ -20,7 +20,7 @@ SParamView is a desktop application for Touchstone-based S-parameter analysis an
 
 Quick TDR is a band-limited estimate affected by frequency span, spacing, extrapolation, windowing, and termination. It should not be interpreted as an instrument-equivalent measurement.
 
-**Unreleased v1.4.0 development (012_06):** Exploratory Generic ICN (multi-aggressor NEXT/FEXT integration with explicit NRZ TX/RX model and independent Qt analysis window) is under qualification in [PR #42](https://github.com/july-rust/SParamView-Public/pull/42). It is **not in v1.3.5** and is **not IEEE/SNIA/MIPI conformance**. [Numerical/GUI contract](docs/Channel_Analysis_ICN_012_06.md).
+**Unreleased v1.4.0 development (012_06):** Exploratory Generic ICN (multi-aggressor NEXT/FEXT integration with explicit NRZ TX/RX model and independent Qt analysis window) passed three-platform automated CI and was merged to the unreleased integration branch in [PR #42](https://github.com/july-rust/SParamView-Public/pull/42). It is **not in v1.3.5** and is **not IEEE/SNIA/MIPI conformance**. [Numerical/GUI contract](docs/Channel_Analysis_ICN_012_06.md).
 
 ## User guide
 

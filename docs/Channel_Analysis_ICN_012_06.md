@@ -3,7 +3,7 @@
 **Baseline:** official v1.3.5 remains unchanged.  
 **Target:** `integration/v1.4.0` (unreleased development).  
 **Work:** 012_06; PR [#42](https://github.com/july-rust/SParamView-Public/pull/42).  
-**Qualification:** CI and protected squash merge must be verified; no automatic claim of COMPLETE.  
+**Qualification:** **COMPLETE (Generic exploratory ICN/automated Qt scope):** [PR #42](https://github.com/july-rust/SParamView-Public/pull/42) merged `1bcf54008d3031c5b8ef634e4d2bef1479eee96a` to `integration/v1.4.0`, [CI 43775680490](https://github.com/july-rust/SParamView-Public/actions/runs/43775680490) Core Release & ASan/UBSan 34/34 each, Windows x64 53/53, macOS arm64 49/49, Windows ARM64 cross-build and native packaged gate PASS. Physical interactive GUI still requires 012_12.  
 **Conformance:** **NO IEEE 802.3 / SNIA SFF-TA-1002 / COM / MIPI conformance or PASS/FAIL**.
 
 ## Inputs and physical source checks
@@ -40,7 +40,7 @@ Only TX/RX assumptions above support the displayed mV RMS figure. In particular,
 
 ## Independent GUI
 
-Select `Analysis → ICN` (top-level nonmodal window). Choose validated source, victim and NEXT/FEXT paths; configure frequency range, baud, mVpp, 10–90 rise time, RX bandwidth; Run or Cancel.
+Select `Analysis → ICN` (top-level nonmodal window). Choose validated source, victim and NEXT/FEXT paths; configure frequency range, baud, mVpp, 10–90 rise time, RX bandwidth; Run or Cancel. Multiple paths require the explicit **uncorrelated RSS** checkbox; leaving it unchecked returns NOT EVALUATED.
 
 The independent Qt worker captures the immutable cache and SHA-validated snapshot without accessing GUI objects. Channel/revision/port mapping/settings changes cancel work or discard stale completion. A closed ICN window must not affect ILD, Eye/COM placeholders, or the main window.
 
