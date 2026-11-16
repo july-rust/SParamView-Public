@@ -1,4 +1,5 @@
 #include "si/channel_analysis/two_port.hpp"
+#include <algorithm>
 #include <cmath>
 #include <limits>
 #include <numbers>
