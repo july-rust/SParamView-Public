@@ -20,6 +20,16 @@ Source and digest pins are in `scripts/com_3ck_c2c_real_reference.py`:
 
 `python -m unittest discover -s tests/channel_analysis -p test_com_3ck_c2c_real_reference.py -v` verifies input identity and safe source handling before live calculation. The reference runner uses ephemeral temp directories; only SHA/provenance and numerical margin/FOM/timing outputs are uploaded as GitHub JSON artifacts. No IEEE/SiCoPR source code, workbook, or channel bytes are included in the SParamView source or release.
 
+## Current direct numerical evidence (2026-11-17 KST)
+
+- Original IEEE ZIP and workbook are byte-verified as pinned, and the declared visible **COM_Settings** mapping in **Strict OOXML** is now read exactly, without choosing from unrelated worksheets.
+- **All eight** arithmetic formulas in COM_Settings are recomputed with a restricted, no-eval same-sheet decimal calculator, and compared against source cached results; unexpected functions, stale caches, external references and ambiguous selectors fail closed. The converted, ephemeral historical settings CSV SHA-256 is `2926eedd529853fd36a1d76d25d953981df062703ade0394ef95607905f18e98`. The original IEEE XLSX never enters the repository.
+- Source-level [real-channel reference attempt #43961574725](https://github.com/july-rust/SParamView-Public/actions/runs/43961574725): 11/11 synthetic/security/configuration tests pass, and all three real THRU/FEXT/NEXT groups actually reach **COM FOM optimization**, but the pinned external reference port raises `TypeError: float() argument must be a string or a real number, not 'complex'` after a `RuntimeWarning: invalid value encountered in log10`. Thus 10/16/18 dB reference computations **all fail**. The cause is not yet isolated to invalid channel conditions vs independent reference port arithmetic; never mark a computed golden.
+- A clean error boundary catches non-real reference results and returns a blocked exit code. No COM dB, FOM, Test1/Test2 numerical golden or normative PASS/FAIL is fabricated.
+- **The native SParamView C++ `calculateCom` remains NOT_EVALUATED**. Verified original source parsing and exploratory package S-parameter physics do not imply a complete 93A/120F signal/noise/ISI/jitter/CTLE/DFE/FFE optimization engine, approved final 120F-8 profile, or C++ vs independently corroborated numerical comparison.
+
+**Gate:** PR #59 remains open; do not merge under failed required real-channel numerical CI. `012_09` is **PARTIAL/BLOCKED**, not 100% COMPLETE; main/v1.3.5/v1.4.0 release remain untouched.
+
 ## Actual CI numerical failure (2026-11-16)
 
 - [Initial 3-channel reference run #43869557024](https://github.com/july-rust/SParamView-Public/actions/runs/43869557024): each 10/16/18 dB job failed at the offline test because integer-valued `19.0` was serialized to CSV as `19`. The test now compares numeric values; this is test representation, **not** an IEEE model correction.
