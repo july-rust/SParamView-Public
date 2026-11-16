@@ -33,9 +33,12 @@ def inspect(data: bytes) -> dict:
         names = set()
         for entry in entries:
             name = entry.filename.replace("\\", "/")
-            if name.startswith("/") or any(
-                part in ("..", "") for part in name.split("/")
-            ) or (entry.external_attr >> 16) & 0o170000 == 0o120000:
+            parts=name.split("/")
+            if entry.is_dir() and parts and parts[-1]=="":
+                parts=parts[:-1]
+            if (name.startswith("/") or any(
+                part in ("..", "") for part in parts
+            ) or ((entry.external_attr >> 16) & 0o170000) == 0o120000):
                 raise ValueError("Unsafe archive member")
             if name in names:
                 raise ValueError("Duplicate ZIP entry")
