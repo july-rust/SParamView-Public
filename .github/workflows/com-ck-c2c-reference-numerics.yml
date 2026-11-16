@@ -4,13 +4,17 @@ on:
     branches: [integration/v1.4.0]
     paths:
       - 'scripts/com_3ck_c2c_real_reference.py'
+      - 'scripts/com_3ck_c2c_octave_check.py'
       - 'tests/channel_analysis/test_com_3ck_c2c_real_reference.py'
+      - 'tests/channel_analysis/test_com_3ck_c2c_octave_check.py'
       - '.github/workflows/com-ck-c2c-reference-numerics.yml'
   push:
     branches: [integration/v1.4.0]
     paths:
       - 'scripts/com_3ck_c2c_real_reference.py'
+      - 'scripts/com_3ck_c2c_octave_check.py'
       - 'tests/channel_analysis/test_com_3ck_c2c_real_reference.py'
+      - 'tests/channel_analysis/test_com_3ck_c2c_octave_check.py'
       - '.github/workflows/com-ck-c2c-reference-numerics.yml'
   workflow_dispatch:
     inputs:
