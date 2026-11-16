@@ -23,6 +23,12 @@ template<class F> void rejects(F fn, const char *label) {
 int main() {
   try {
     const double pi=std::numbers::pi;
+    const auto test1=com8023ckC2cPackageLengths(ComPackageCase::Test1);
+    const auto test2=com8023ckC2cPackageLengths(ComPackageCase::Test2);
+    check(test1.txMm==13 && test1.rxMm==11,"802.3ck C2C Test1 package");
+    check(test2.txMm==31 && test2.rxMm==29,"802.3ck C2C Test2 package");
+    rejects([&]{(void)com8023ckC2cPackageLengths(static_cast<ComPackageCase>(42));},
+            "invalid package test must fail closed");
     const auto identity=twoPortScattering({},50);
     near(identity.s11,{0,0},1e-14,"identity no reflection");
     near(identity.s21,{1,0},1e-14,"identity no attenuation");
