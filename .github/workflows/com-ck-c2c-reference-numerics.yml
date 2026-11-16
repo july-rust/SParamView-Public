@@ -1,0 +1,98 @@
+name: IEEE 3ck real-channel COM numerical reference prequalification (012_09)
+on:
+  pull_request:
+    branches: [integration/v1.4.0]
+    paths:
+      - 'scripts/com_3ck_c2c_real_reference.py'
+      - 'tests/channel_analysis/test_com_3ck_c2c_real_reference.py'
+      - '.github/workflows/com-ck-c2c-reference-numerics.yml'
+  push:
+    branches: [integration/v1.4.0]
+    paths:
+      - 'scripts/com_3ck_c2c_real_reference.py'
+      - 'tests/channel_analysis/test_com_3ck_c2c_real_reference.py'
+      - '.github/workflows/com-ck-c2c-reference-numerics.yml'
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: Historical 2019 C2C loss-label for manual run
+        required: false
+        default: '10'
+        type: choice
+        options: ['10', '16', '18', '20']
+jobs:
+  real-ieee-c2c-reference:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        condition: ['10', '16', '18']
+    env:
+      OPENBLAS_NUM_THREADS: '1'
+      OMP_NUM_THREADS: '1'
+      MKL_NUM_THREADS: '1'
+      MPLBACKEND: 'Agg'
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - name: Checkout SParamView metadata scripts (no vendor S4P)
+        uses: actions/checkout@v5
+      - name: Checkout exact independently maintained BSD-3 COM implementation
+        uses: actions/checkout@v5
+        with:
+          repository: tbermen/SiCoPR
+          ref: cb7c4be5c63d41e88b6ee7d04fb17e0046ab0f75
+          path: _external_qa_sicopr
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Validate external engine provenance, install in ephemeral runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C _external_qa_sicopr rev-parse HEAD)" = \
+            cb7c4be5c63d41e88b6ee7d04fb17e0046ab0f75
+          test -f _external_qa_sicopr/LICENSE
+          python -m pip install --disable-pip-version-check --no-cache-dir ./_external_qa_sicopr
+          python -m pip show sicopr
+      - name: Offline exact archive/fixture identity and fail-closed tests
+        run: |
+          python -m unittest discover -s tests/channel_analysis \
+            -p test_com_3ck_c2c_real_reference.py -v
+      - name: Compute actual COM from 2019 THRU + FEXT + NEXT and August 2022 C2C workbook
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/com_3ck_c2c_real_reference.py \
+            --channel "${{ matrix.condition }}" \
+            --output "ieee-c2c-com-reference-${{ matrix.condition }}db.json"
+      - name: Confirm two finite cases but never automatically qualify 2022 final or C++
+        shell: bash
+        run: |
+          python - "${{ matrix.condition }}" <<'PY'
+          import json,math,sys
+          loss=sys.argv[1]
+          with open(f"ieee-c2c-com-reference-{loss}db.json",encoding="utf-8") as f:
+              d=json.load(f)
+          cases=d["package_cases"]
+          assert len(cases)==2 and [x["case"] for x in cases]==[1,2]
+          assert all(math.isfinite(x["reference_com_db"]) for x in cases)
+          assert not d["qualified_final_8023ck_table"]
+          assert not d["independent_official_octave_com_execution"]
+          assert not d["same_phy_cpp_com_comparison"]
+          assert d["normative_ieee_com_pass_fail"] is None
+          assert not d["third_party_bytes_uploaded"]
+          print("Historical same-workbook C2C numerical reference",loss,
+                [(x["case"],x["reference_com_db"]) for x in cases],
+                "— NOT normative IEEE/C++ qualified")
+          PY
+      - name: Preserve numerical metadata only — no COM source, workbook or S4P
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ieee-3ck-c2c-historical-reference-${{ matrix.condition }}db
+          path: ieee-c2c-com-reference-${{ matrix.condition }}db.json
+          if-no-files-found: warn
