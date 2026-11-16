@@ -31,7 +31,8 @@ add_library(si_channel_analysis src/channel_analysis/common.cpp
                                 src/channel_analysis/ild.cpp
                                 src/channel_analysis/icn.cpp
                                 src/channel_analysis/eye.cpp
-                                src/channel_analysis/com.cpp)
+                                src/channel_analysis/com.cpp
+                                src/channel_analysis/two_port.cpp)
 target_include_directories(si_channel_analysis PUBLIC include)
 target_link_libraries(si_channel_analysis PUBLIC si_core)
 if(MSVC)
@@ -69,6 +70,12 @@ target_link_libraries(si_com_tests PRIVATE si_channel_analysis)
 add_test(NAME channel_com_prequalification COMMAND si_com_tests)
 set_tests_properties(channel_com_prequalification PROPERTIES TIMEOUT 90)
 install(TARGETS si_com_tests RUNTIME DESTINATION tests)
+# 012_09: independent analytical reciprocal 2-port network acceptance.
+add_executable(si_com_two_port_tests tests/channel_analysis/com_two_port_tests.cpp)
+target_link_libraries(si_com_two_port_tests PRIVATE si_channel_analysis)
+add_test(NAME channel_com_two_port_physics COMMAND si_com_two_port_tests)
+set_tests_properties(channel_com_two_port_physics PROPERTIES TIMEOUT 90)
+install(TARGETS si_com_two_port_tests RUNTIME DESTINATION tests)
 add_executable(si_hardening_tests tests/hardening_tests.cpp)
 target_link_libraries(si_hardening_tests PRIVATE si_core)
 install(TARGETS si_hardening_tests RUNTIME DESTINATION tests)

@@ -2,6 +2,14 @@
 
 **Status:** PARTIAL IMPLEMENTATION / 012_09 NOT COMPLETE. This is an auditable engineering handoff, not a COM-margin qualification.
 
+## Additional independently tested two-port physics
+
+See [012_09 complex two-port/ABCD verification](COM_Two_Port_Numerics_012_09.md).
+Implemented passivity-gated series/shunt/line/network cascade and both
+scattering directions with independent analytic identities. The final
+802.3ck C2C nominal Test1 package lengths (TX/RX 13/11 mm) and Test2
+(31/29 mm) are distinct typed selectors, **not** certified full package COM.
+
 ## Implemented
 
 - Independent Qt-free C++20 com.hpp/com.cpp with matched-wave, phase-preserving spectral preparation for explicit TX FIR FFE, complex RX filter, THRU and distinct NEXT/FEXT aggressors.
