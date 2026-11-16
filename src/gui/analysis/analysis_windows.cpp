@@ -276,6 +276,158 @@ protected:
 private:
   std::shared_ptr<const si::channel::IcnData> data_;
 };
+
+class EyePlotWidget final : public QWidget {
+public:
+  explicit EyePlotWidget(QWidget *parent=nullptr) : QWidget(parent) {
+    setObjectName(QStringLiteral("eyeResultGraph"));
+    setMinimumHeight(330);
+    setMouseTracking(true);
+  }
+  void setData(std::shared_ptr<const si::channel::EyeData> data, double thresholdV) {
+    data_=std::move(data); thresholdV_=thresholdV;
+    zoom_=1; shift_=0; cursor_=-1; update();
+  }
+  void setView(int view) { view_=std::clamp(view,0,2); zoom_=1;shift_=0;update(); }
+protected:
+  void wheelEvent(QWheelEvent *e) override {
+    if(!data_ || !e->angleDelta().y()) { QWidget::wheelEvent(e);return; }
+    const double before=zoom_;
+    zoom_=std::clamp(zoom_*(e->angleDelta().y()>0?1.25:0.8),1.0,32.0);
+    const double portion=std::clamp((e->position().x()-75)/std::max(1.,double(width()-100)),0.,1.);
+    shift_=std::clamp(shift_+portion*(1/before-1/zoom_),0.,1.-1/zoom_);
+    update();e->accept();
+  }
+  void mousePressEvent(QMouseEvent *e) override {
+    if(e->button()==Qt::LeftButton) { dragging_=true; lastX_=e->position().x();e->accept(); }
+    else QWidget::mousePressEvent(e);
+  }
+  void mouseMoveEvent(QMouseEvent *e) override {
+    if(dragging_) {
+      shift_=std::clamp(shift_-(e->position().x()-lastX_)/
+          std::max(1.,double(width()-100))/zoom_,0.,1.-1/zoom_);
+      lastX_=e->position().x();
+    }
+    cursor_=std::clamp((e->position().x()-75)/std::max(1.,double(width()-100)),0.,1.);
+    if(data_) {
+      const double xFraction=shift_+cursor_/zoom_;
+      const double xValue=view_==0?2*xFraction
+                         :data_->timeSeconds.empty()?0:
+                           xFraction*data_->timeSeconds.back()*1e12;
+      setToolTip(QStringLiteral("Cursor: %1 %2; simulated only")
+        .arg(xValue,0,'g',8).arg(view_==0?QStringLiteral("UI"):QStringLiteral("ps")));
+    }
+    lastX_=e->position().x();update();e->accept();
+  }
+  void mouseReleaseEvent(QMouseEvent *e) override {
+    dragging_=false; QWidget::mouseReleaseEvent(e);
+  }
+  void mouseDoubleClickEvent(QMouseEvent *e) override {
+    zoom_=1;shift_=0;update();e->accept();
+  }
+  void leaveEvent(QEvent *e) override { cursor_=-1;update();QWidget::leaveEvent(e); }
+  void paintEvent(QPaintEvent *) override {
+    QPainter p(this);
+    p.fillRect(rect(),palette().base());
+    p.setRenderHint(QPainter::Antialiasing);
+    p.setPen(palette().text().color());
+    const QString title=QStringLiteral("Simulated Channel Eye — Not Measured / Not PHY Compliance");
+    p.drawText(QRectF(8,3,width()-16,24),Qt::AlignCenter,title);
+    if(!data_) {
+      p.drawText(rect(),Qt::AlignCenter,QStringLiteral("Enter verified electrical conditions and Run Eye"));
+      return;
+    }
+    const auto &d=*data_;
+    QRectF area(75,37,std::max(50,width()-100),std::max(50,height()-89));
+    double low=std::numeric_limits<double>::infinity();
+    double high=-std::numeric_limits<double>::infinity();
+    auto include=[&](double v) {if(std::isfinite(v)){low=std::min(low,v);high=std::max(high,v);}};
+    if(view_==0) {
+      for(const auto &t:d.overlayV) for(double v:t) include(v*1000);
+      include(thresholdV_*1000); include(d.minimumHighV*1000);include(d.maximumLowV*1000);
+    } else if(view_==1) {
+      for(double v:d.transmittedV)include(v*1000);
+      for(double v:d.receivedV)include(v*1000);
+    } else {
+      for(double v:d.impulse.values) include(v);
+      for(double v:d.unitPulse.values)include(v);
+    }
+    if(!std::isfinite(low)||!std::isfinite(high))return;
+    const double margin=std::max((high-low)*0.10,0.001);
+    low-=margin;high+=margin;
+    p.setPen(palette().mid().color());p.drawRect(area);
+    p.setPen(palette().text().color());
+    p.drawText(QRectF(2,area.top(),69,20),Qt::AlignRight,QString::number(high,'g',6));
+    p.drawText(QRectF(2,area.bottom()-20,69,20),Qt::AlignRight,QString::number(low,'g',6));
+    p.drawText(QRectF(4,22,70,16),Qt::AlignRight,
+      view_==2?QStringLiteral("relative"):QStringLiteral("mV"));
+    const double fullX=view_==0?2.0 : (d.timeSeconds.empty()?0:d.timeSeconds.back()*1e12);
+    const double x0=fullX*shift_, x1=fullX*(shift_+1/zoom_);
+    if(x1<=x0) return;
+    auto xp=[&](double x){return area.left()+(x-x0)/(x1-x0)*area.width();};
+    auto yp=[&](double y){return area.bottom()-(y-low)/(high-low)*area.height();};
+    p.drawText(QRectF(area.left(),area.bottom()+5,area.width(),20),Qt::AlignLeft,
+      QString::number(x0,'g',7)+(view_==0?QStringLiteral(" UI"):QStringLiteral(" ps")));
+    p.drawText(QRectF(area.left(),area.bottom()+5,area.width(),20),Qt::AlignRight,
+      QString::number(x1,'g',7)+(view_==0?QStringLiteral(" UI"):QStringLiteral(" ps")));
+    p.drawText(QRectF(area.left(),height()-23,area.width(),20),Qt::AlignCenter,
+      view_==0?QStringLiteral("UI (2 symbols)"):QStringLiteral("Time (ps)"));
+    p.save(); p.setClipRect(area);
+    auto series=[&](const std::vector<double> &v,double xStep,double scale,QColor color) {
+      if(v.size()<2)return;
+      const size_t stride=std::max<size_t>(1,v.size()/3500);
+      QPainterPath path;bool first=true;
+      auto vertex=[&](size_t index) {
+        double x=xp(double(index)*xStep), y=yp(v[index]*scale);
+        if(first){path.moveTo(x,y);first=false;}else path.lineTo(x,y);
+      };
+      for(size_t i=0;i<v.size();i+=stride) {
+        size_t mini=i,maxi=i;
+        for(size_t j=i+1;j<std::min(v.size(),i+stride);++j) {
+          if(v[j]<v[mini])mini=j;
+          if(v[j]>v[maxi])maxi=j;
+        }
+        if(mini<=maxi){vertex(mini);if(maxi!=mini)vertex(maxi);}
+        else {vertex(maxi);vertex(mini);}
+      }
+      vertex(v.size()-1);
+      p.setPen(QPen(color,1.3));p.drawPath(path);
+    };
+    if(view_==0) {
+      if(d.overlayPhaseUI.size()>1) {
+        const double step=d.overlayPhaseUI[1]-d.overlayPhaseUI[0];
+        for(const auto &v:d.overlayV)series(v,step,1000,QColor(38,126,197,95));
+      }
+      p.setPen(QPen(QColor("#c75b44"),1.5,Qt::DashLine));
+      p.drawLine(QPointF(area.left(),yp(thresholdV_*1000)),
+                 QPointF(area.right(),yp(thresholdV_*1000)));
+      p.setPen(QPen(QColor("#128b76"),1.2,Qt::DashLine));
+      for(double y:{d.minimumHighV,d.maximumLowV})
+        p.drawLine(QPointF(area.left(),yp(y*1000)),QPointF(area.right(),yp(y*1000)));
+      p.setPen(QPen(QColor("#aa6b24"),1.4,Qt::DashLine));
+      for(double x:{d.samplingPhaseUI,d.samplingPhaseUI+1.0})
+        p.drawLine(QPointF(xp(x),area.top()),QPointF(xp(x),area.bottom()));
+    } else if(view_==1) {
+      series(d.transmittedV,d.timeStepSeconds*1e12,1000,QColor("#d47a24"));
+      series(d.receivedV,d.timeStepSeconds*1e12,1000,QColor("#246cad"));
+    } else {
+      series(d.impulse.values,d.timeStepSeconds*1e12,1,QColor("#246cad"));
+      series(d.unitPulse.values,d.timeStepSeconds*1e12,1,QColor("#d47a24"));
+    }
+    if(cursor_>=0) {
+      p.setPen(QPen(palette().text().color(),1,Qt::DotLine));
+      const double xx=area.left()+cursor_*area.width();
+      p.drawLine(QPointF(xx,area.top()),QPointF(xx,area.bottom()));
+    }
+    p.restore();
+  }
+private:
+  std::shared_ptr<const si::channel::EyeData> data_;
+  double thresholdV_=0,zoom_=1,shift_=0,cursor_=-1,lastX_=0;
+  int view_=0;
+  bool dragging_=false;
+};
+
 }
 struct AsyncScheduler::Ticket {
   Feature feature;
@@ -387,7 +539,7 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
   setAttribute(Qt::WA_DeleteOnClose);
   setObjectName(QStringLiteral("channelAnalysisWindow") + labelFor(feature));
   setWindowTitle(QStringLiteral("SParamView · ") + labelFor(feature));
-  resize(940, 640);
+  resize(feature_==Feature::Eye?1120:940, feature_==Feature::Eye?840:640);
   auto *outer = new QVBoxLayout(this);
   auto *header = new QLabel(QStringLiteral("<b>") + labelFor(feature_) +
        QStringLiteral("</b> — Channel Analysis"));
@@ -449,8 +601,84 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     form->addRow(QStringLiteral("Aggressor"), aggressor_);
   else aggressor_->hide();
   form->addRow(QStringLiteral("Direction"), direction_);
-  form->addRow(QStringLiteral("Start frequency"), fromGhz_);
-  form->addRow(QStringLiteral("Stop frequency"), toGhz_);
+  if(feature_!=Feature::Eye) {
+    form->addRow(QStringLiteral("Start frequency"), fromGhz_);
+    form->addRow(QStringLiteral("Stop frequency"), toGhz_);
+  } else {
+    fromGhz_->setValue(0);
+    toGhz_->setObjectName(QStringLiteral("eyeAnalysisCapGhz"));
+    toGhz_->setValue(10);
+    eyeProfile_=new QComboBox;
+    eyeProfile_->setObjectName(QStringLiteral("eyeProfile"));
+    for(int i=0;i<=int(si::channel::EyeProfile::Custom);++i)
+      eyeProfile_->addItem(QString::fromUtf8(
+        si::channel::eyeProfileName(static_cast<si::channel::EyeProfile>(i))));
+    eyeMode_=new QComboBox;
+    eyeMode_->setObjectName(QStringLiteral("eyeMode"));
+    eyeMode_->addItems({QStringLiteral("Required: choose mode"),
+                        QStringLiteral("Single-ended"),QStringLiteral("Differential")});
+    eyeBitRate_=new QDoubleSpinBox;
+    eyeBitRate_->setObjectName(QStringLiteral("eyeBitRateGbps"));
+    eyeReference_=new QDoubleSpinBox;
+    eyeReference_->setObjectName(QStringLiteral("eyeReferenceGhz"));
+    for(auto *spin:{eyeBitRate_,eyeReference_}) {
+      spin->setRange(0,1000);
+      spin->setDecimals(9);
+      spin->setSpecialValueText(QStringLiteral("Required"));
+    }
+    eyeBitRate_->setSuffix(QStringLiteral(" Gbps"));
+    eyeReference_->setSuffix(QStringLiteral(" GHz"));
+    eyePattern_=new QComboBox;
+    eyePattern_->setObjectName(QStringLiteral("eyePattern"));
+    eyePattern_->addItem(QStringLiteral("PRBS7"),int(si::channel::EyePattern::Prbs7));
+    eyePattern_->addItem(QStringLiteral("Alternating"),int(si::channel::EyePattern::Alternating));
+    eyePattern_->addItem(QStringLiteral("Custom bits"),int(si::channel::EyePattern::CustomBits));
+    eyeBits_=new QLineEdit;
+    eyeBits_->setObjectName(QStringLiteral("eyeCustomBits"));
+    eyeBits_->setPlaceholderText(QStringLiteral("Binary sequence e.g. 00101110"));
+    eyeBits_->setMaxLength(65536);
+    eyeBits_->setEnabled(false);
+    eyeFft_=new QComboBox;
+    eyeFft_->setObjectName(QStringLiteral("eyeFftLength"));
+    for(int n=1024;n<=65536;n*=2)eyeFft_->addItem(QString::number(n));
+    eyeFft_->setCurrentText(QStringLiteral("8192"));
+    eyeSamples_=new QComboBox;
+    eyeSamples_->setObjectName(QStringLiteral("eyeSamplesPerUi"));
+    for(int n=8;n<=128;n*=2)eyeSamples_->addItem(QString::number(n));
+    eyeSamples_->setCurrentText(QStringLiteral("32"));
+    eyeView_=new QComboBox;
+    eyeView_->setObjectName(QStringLiteral("eyePlotView"));
+    eyeView_->addItems({QStringLiteral("Eye overlay (2 UI)"),
+                        QStringLiteral("TX / RX waveform"),
+                        QStringLiteral("Impulse / Unit pulse")});
+    const QStringList fields={
+      QStringLiteral("TX incident low (mV)"),QStringLiteral("TX incident high (mV)"),
+      QStringLiteral("TX source (ohm)"),QStringLiteral("RX termination (ohm)"),
+      QStringLiteral("RX threshold (mV)"),QStringLiteral("RX input minimum (mV)"),
+      QStringLiteral("RX input maximum (mV)")};
+    const QStringList names={
+      QStringLiteral("eyeTxLowMv"),QStringLiteral("eyeTxHighMv"),
+      QStringLiteral("eyeTxSourceOhm"),QStringLiteral("eyeRxTerminationOhm"),
+      QStringLiteral("eyeRxThresholdMv"),QStringLiteral("eyeRxMinimumMv"),
+      QStringLiteral("eyeRxMaximumMv")};
+    form->addRow(QStringLiteral("PHY profile (example, not compliance)"),eyeProfile_);
+    form->addRow(QStringLiteral("Transfer mode"),eyeMode_);
+    form->addRow(QStringLiteral("NRZ bit rate"),eyeBitRate_);
+    form->addRow(QStringLiteral("NRZ Nyquist reference (coupled)"),eyeReference_);
+    form->addRow(QStringLiteral("Independent analysis cap"),toGhz_);
+    form->addRow(QStringLiteral("Pattern"),eyePattern_);
+    form->addRow(QStringLiteral("Custom pattern"),eyeBits_);
+    form->addRow(QStringLiteral("FFT samples"),eyeFft_);
+    form->addRow(QStringLiteral("Samples per UI"),eyeSamples_);
+    for(int i=0;i<7;++i) {
+      eyeElectrical_[size_t(i)]=new QLineEdit;
+      eyeElectrical_[size_t(i)]->setObjectName(names[i]);
+      eyeElectrical_[size_t(i)]->setPlaceholderText(
+        QStringLiteral("Required — physical reference-plane value"));
+      form->addRow(fields[i],eyeElectrical_[size_t(i)]);
+    }
+    form->addRow(QStringLiteral("Graph view"),eyeView_);
+  }
   if(feature_==Feature::Icn) {
     form->addRow(QStringLiteral("NEXT / FEXT paths (check multiple)"),icnAggressors_);
     form->addRow(QStringLiteral("Aggressor correlation"),icnIndependent_);
@@ -459,7 +687,17 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     form->addRow(QStringLiteral("Gaussian rise time"),icnRise_);
     form->addRow(QStringLiteral("RX 3 dB bandwidth"),icnRx_);
   }
-  outer->addLayout(form);
+  if(feature_==Feature::Eye) {
+    auto *panel=new QWidget;
+    panel->setLayout(form);
+    auto *scroll=new QScrollArea;
+    scroll->setObjectName(QStringLiteral("eyeSettingsScroll"));
+    scroll->setWidgetResizable(true);
+    scroll->setWidget(panel);
+    scroll->setMinimumHeight(220);
+    scroll->setMaximumHeight(340);
+    outer->addWidget(scroll);
+  } else outer->addLayout(form);
   auto *controls = new QHBoxLayout;
   run_ = new QPushButton(QStringLiteral("Run"));
   run_->setObjectName(QStringLiteral("analysisRun"));
@@ -498,6 +736,14 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     icnContributions_->setObjectName(QStringLiteral("icnContributions"));
     icnContributions_->setWordWrap(true);
     outer->addWidget(icnContributions_);
+  } else if(feature_==Feature::Eye) {
+    graphPlaceholder_->hide();
+    eyeGraph_=new EyePlotWidget(this);
+    outer->addWidget(eyeGraph_,2);
+    eyeMetrics_=new QLabel(QStringLiteral("Simulated Channel Eye — Not Measured / Not PHY Compliance"));
+    eyeMetrics_->setObjectName(QStringLiteral("eyeMetrics"));
+    eyeMetrics_->setWordWrap(true);
+    outer->addWidget(eyeMetrics_);
   }
   auto *exports = new QHBoxLayout;
   csv_ = new QPushButton(QStringLiteral("Export CSV"));
@@ -531,6 +777,39 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     connect(victim_,&QComboBox::currentIndexChanged,this,[this]{
       populateIcnAggressors();
     });
+  }
+  if(feature_==Feature::Eye) {
+    connect(run_,&QPushButton::clicked,this,[this]{launchEye();});
+    connect(csv_,&QPushButton::clicked,this,[this]{exportEyeCsv();});
+    connect(png_,&QPushButton::clicked,this,[this]{exportEyePng();});
+    connect(eyeProfile_,&QComboBox::currentIndexChanged,this,[this]{selectEyeProfile();});
+    connect(eyeMode_,&QComboBox::currentIndexChanged,this,[this]{invalidateRequest();});
+    connect(eyePattern_,&QComboBox::currentIndexChanged,this,[this]{
+      eyeBits_->setEnabled(eyePattern_->currentIndex()==2); invalidateRequest();
+    });
+    connect(eyeBits_,&QLineEdit::textChanged,this,[this]{invalidateRequest();});
+    connect(eyeBitRate_,QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+      this,[this](double rate){
+        if(eyeFrequencySync_)return;
+        eyeFrequencySync_=true;
+        { QSignalBlocker block(eyeReference_); eyeReference_->setValue(rate/2); }
+        eyeFrequencySync_=false;invalidateRequest();
+      });
+    connect(eyeReference_,QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+      this,[this](double ref){
+        if(eyeFrequencySync_)return;
+        eyeFrequencySync_=true;
+        { QSignalBlocker block(eyeBitRate_); eyeBitRate_->setValue(ref*2); }
+        eyeFrequencySync_=false;invalidateRequest();
+      });
+    for(auto *combo:{eyeFft_,eyeSamples_})
+      connect(combo,&QComboBox::currentIndexChanged,this,[this]{invalidateRequest();});
+    connect(eyeView_,&QComboBox::currentIndexChanged,this,[this](int view){
+      if(eyeGraph_) static_cast<EyePlotWidget *>(eyeGraph_)->setView(view);
+    });
+    for(auto *edit:eyeElectrical_)
+      connect(edit,&QLineEdit::textChanged,this,[this]{invalidateRequest();});
+    selectEyeProfile();
   }
   connect(source_, &QComboBox::currentIndexChanged, this, [this] {
     QSignalBlocker block(victim_);
@@ -586,11 +865,23 @@ QString AnalysisWindow::selectionIdentity() const {
     for(auto *spin:{icnBaud_,icnVpp_,icnRise_,icnRx_})
       identity+=QStringLiteral("|")+QString::number(spin->value(),'g',17);
   }
+  if(feature_==Feature::Eye) {
+    identity+=QStringLiteral("|EYE|")+QString::number(eyeProfile_->currentIndex())+
+      QLatin1Char('|')+QString::number(eyeMode_->currentIndex())+
+      QLatin1Char('|')+QString::number(eyePattern_->currentIndex())+
+      QLatin1Char('|')+QString::number(eyeBitRate_->value(),'g',17)+
+      QLatin1Char('|')+QString::number(eyeReference_->value(),'g',17)+
+      QLatin1Char('|')+eyeFft_->currentText()+QLatin1Char('|')+
+      eyeSamples_->currentText()+QLatin1Char('|')+eyeBits_->text();
+    for(auto *edit:eyeElectrical_)
+      identity+=QLatin1Char('|')+edit->text().trimmed();
+  }
   return identity;
 }
 void AnalysisWindow::invalidateRequest() {
   clearIld();
   clearIcn();
+  clearEye();
   const bool hadWork = scheduler_ && scheduler_->running(feature_);
   ++requestGeneration_;
   if (scheduler_) scheduler_->cancel(feature_);
@@ -604,6 +895,7 @@ void AnalysisWindow::invalidateRequest() {
 void AnalysisWindow::setContext(const AnalysisContext &context) {
   clearIld();
   clearIcn();
+  clearEye();
   const bool hadWork = scheduler_ && scheduler_->running(feature_);
   const bool hadResult = status_ == si::channel::Status::Valid ||
                          status_ == si::channel::Status::Warning;
@@ -631,7 +923,8 @@ void AnalysisWindow::setContext(const AnalysisContext &context) {
   setStatus(hadWork || hadResult ? si::channel::Status::Stale
            : si::channel::Status::NotEvaluated,
            (feature_ == Feature::Ild && ildProvider_) ||
-            (feature_ == Feature::Icn && icnProvider_) ?
+            (feature_ == Feature::Icn && icnProvider_) ||
+             (feature_ == Feature::Eye && eyeProvider_) ?
              QStringLiteral("Context updated; select channels and run the verified engine") :
              QStringLiteral("Context updated; analysis engine not installed"));
 }
@@ -674,6 +967,9 @@ bool AnalysisWindow::startWork(AsyncWork work) {
         if (outcome.icn && (outcome.status == si::channel::Status::Valid ||
                             outcome.status == si::channel::Status::Warning))
           guard->showIcn(outcome);
+        if (outcome.eye && (outcome.status == si::channel::Status::Valid ||
+                            outcome.status == si::channel::Status::Warning))
+          guard->showEye(outcome);
       });
   } catch (const std::exception &e) {
     setStatus(si::channel::Status::Error, QString::fromUtf8(e.what()));
@@ -681,6 +977,7 @@ bool AnalysisWindow::startWork(AsyncWork work) {
   }
   clearIld();
   clearIcn();
+  clearEye();
   cancel_->setEnabled(true);
   setStatus(si::channel::Status::NotEvaluated, QStringLiteral("Calculation running"));
   progressPoll_.start();
@@ -1089,6 +1386,321 @@ bool AnalysisWindow::saveIcnPng(const QString &name) {
   if(!okay) setStatus(si::channel::Status::Error,QStringLiteral("ICN PNG write failed"));
   return okay;
 }
+
+void AnalysisWindow::selectEyeProfile() {
+  if(feature_!=Feature::Eye || !eyeProfile_)return;
+  const auto profile=static_cast<si::channel::EyeProfile>(eyeProfile_->currentIndex());
+  const auto s=si::channel::eyeProfile(profile);
+  {
+    QSignalBlocker b1(eyeBitRate_),b2(eyeReference_),b3(toGhz_),b4(eyeMode_);
+    QSignalBlocker b5(eyePattern_),b6(eyeBits_);
+    eyeBitRate_->setValue(std::isfinite(s.bitRateHz)?s.bitRateHz/1e9:0);
+    eyeReference_->setValue(std::isfinite(s.referenceFrequencyHz)?
+                            s.referenceFrequencyHz/1e9:0);
+    toGhz_->setValue(std::isfinite(s.analysisStopHz)?s.analysisStopHz/1e9:0);
+    eyeMode_->setCurrentIndex(s.mode==si::channel::EyeMode::Differential?2:0);
+    eyePattern_->setCurrentIndex(0);
+    eyeBits_->clear();
+    eyeBits_->setEnabled(false);
+    for(auto *edit:eyeElectrical_) {
+      QSignalBlocker electricalBlock(edit);
+      edit->clear(); // PHY labels NEVER infer voltage / actual termination.
+    }
+  }
+  invalidateRequest();
+}
+void AnalysisWindow::setEyeSourceProvider(EyeSourceProvider provider) {
+  eyeProvider_=std::move(provider);
+  if(feature_==Feature::Eye) {
+    run_->setEnabled(bool(eyeProvider_));
+    run_->setToolTip(eyeProvider_?QStringLiteral(
+      "Run phase-preserving simulated NRZ Eye with explicit electrical conditions")
+      :QStringLiteral("Verified Eye source provider unavailable"));
+  }
+}
+void AnalysisWindow::clearEye() {
+  eyeResult_.reset();
+  eyeSourceFilename_.clear();
+  if(eyeGraph_) static_cast<EyePlotWidget *>(eyeGraph_)->setData({},0);
+  if(eyeMetrics_) eyeMetrics_->setText(QStringLiteral(
+    "Simulated Channel Eye — Not Measured / Not PHY Compliance"));
+  if(feature_==Feature::Eye && csv_ && png_) {
+    csv_->setEnabled(false); png_->setEnabled(false);
+  }
+}
+void AnalysisWindow::launchEye() {
+  using namespace si::channel;
+  if(feature_!=Feature::Eye || !eyeProvider_)return;
+  clearEye();
+  const int idx=source_->currentIndex(), selected=victim_->currentIndex();
+  if(idx<0 || idx>=context_.sources.size() || selected<0) {
+    setStatus(Status::InvalidSource,QStringLiteral("Select a verified Touchstone revision and channel"));
+    return;
+  }
+  const auto &source=context_.sources[idx];
+  if(!source.mappingConfirmed || selected>=source.channelIds.size()) {
+    setStatus(Status::InvalidSource,QStringLiteral("Confirmed physical port mapping required"));
+    return;
+  }
+  const auto input=eyeProvider_(idx);
+  if(!input || !input->cache || input->expectedSha!=source.sha256.toStdString() ||
+     input->revision!=source.revision.toStdString()) {
+    setStatus(Status::InvalidSource,QStringLiteral("Source SHA/revision changed; refresh analysis"));
+    return;
+  }
+  if(eyeMode_->currentIndex()==0 || eyeBitRate_->value()<=0 ||
+     eyeReference_->value()<=0 || toGhz_->value()<=0) {
+    setStatus(Status::NotEvaluated,QStringLiteral(
+      "Explicit signal mode, bit rate, reference frequency and analysis cap required"));
+    return;
+  }
+  EyeSettings settings=eyeProfile(
+    static_cast<EyeProfile>(eyeProfile_->currentIndex()));
+  settings.mode=static_cast<EyeMode>(eyeMode_->currentIndex());
+  settings.pattern=static_cast<EyePattern>(eyePattern_->currentData().toInt());
+  settings.bitRateHz=eyeBitRate_->value()*1e9;
+  settings.referenceFrequencyHz=eyeReference_->value()*1e9;
+  settings.analysisStopHz=toGhz_->value()*1e9;
+  settings.fftLength=size_t(eyeFft_->currentText().toULongLong());
+  settings.samplesPerUI=size_t(eyeSamples_->currentText().toULongLong());
+  if(settings.pattern==EyePattern::CustomBits) {
+    const QByteArray bits=eyeBits_->text().trimmed().toLatin1();
+    settings.customBits.reserve(size_t(bits.size()));
+    for(const char ch:bits) {
+      if(ch!='0' && ch!='1') {
+        setStatus(Status::NotEvaluated,QStringLiteral("Custom pattern must contain only 0 and 1"));
+        return;
+      }
+      settings.customBits.push_back(uint8_t(ch-'0'));
+    }
+  }
+  std::array<double,7> electrical{};
+  for(size_t i=0;i<electrical.size();++i) {
+    const QString raw=eyeElectrical_[i]->text().trimmed();
+    if(raw.isEmpty()) {
+      setStatus(Status::NotEvaluated,QStringLiteral(
+        "All TX/RX incident voltages, source/termination and RX range are required"));
+      return;
+    }
+    bool ok=false;
+    electrical[i]=raw.toDouble(&ok);
+    if(!ok || !std::isfinite(electrical[i])) {
+      setStatus(Status::Error,QStringLiteral("Invalid finite TX/RX electrical input"));
+      return;
+    }
+  }
+  settings.electrical={electrical[0]*1e-3,electrical[1]*1e-3,
+    electrical[2],electrical[3],electrical[4]*1e-3,
+    electrical[5]*1e-3,electrical[6]*1e-3};
+  const QString sourceFile=QFileInfo(QString::fromUtf8(input->cache->meta().source.c_str())).fileName();
+  const std::string victimId=source.channelIds[selected].toStdString();
+  const bool reverse=direction_->currentIndex()==1;
+  const std::string settingsIdentity=selectionIdentity().toStdString();
+  if(startWork([input=*input,victimId,reverse,settings,settingsIdentity,sourceFile]
+       (const std::atomic_bool &cancel,std::atomic_int &progress)->WorkOutcome {
+    if(cancel.load()) throw si::Cancelled();
+    progress.store(5);
+    auto snapshot=SourceSnapshot::capture(input.cache,input.mapping,
+        input.revision,input.workspaceGeneration,input.mappingGeneration);
+    if(snapshot.identity().sha256!=input.expectedSha)
+      throw si::Error("Eye source SHA changed since selection");
+    if(snapshot.channel(victimId).differential() !=
+       (settings.mode==EyeMode::Differential))
+      throw si::Error("Eye single-ended/differential mode disagrees with mapped channel");
+    if(cancel.load()) throw si::Cancelled();
+    progress.store(35);
+    const auto trace=extract(snapshot,victimId,si::Metric::IL,reverse);
+    if(cancel.load()) throw si::Cancelled();
+    progress.store(60);
+    const auto &id=snapshot.identity();
+    Provenance provenance{id.sha256,id.revision,id.mappingIdentity,
+      "Phase-preserving deterministic NRZ Eye","012_07-v1",
+      settingsIdentity,id.workspaceGeneration,id.mappingGeneration};
+    auto result=calculateEye(trace,settings,provenance,&cancel);
+    if(cancel.load()) throw si::Cancelled();
+    WorkOutcome outcome;
+    outcome.status=result.status;
+    QStringList diagnostics;
+    for(const auto &d:result.diagnostics)
+      diagnostics<<QString::fromStdString(d.code);
+    outcome.diagnostic=QStringLiteral(
+      "Simulated only — Not measured, no BER or PHY compliance; ")+
+      diagnostics.join(QStringLiteral(", "));
+    if(result.usable())
+      outcome.eye=std::make_shared<EyeData>(std::move(*result.value));
+    outcome.eyeSourceFilename=sourceFile;
+    outcome.provenance=std::move(result.provenance);
+    progress.store(100);
+    return outcome;
+  })) eyeSettings_=settings;
+}
+void AnalysisWindow::showEye(const WorkOutcome &outcome) {
+  if(!outcome.eye || !eyeGraph_)return;
+  eyeResult_=outcome.eye;
+  eyeProvenance_=outcome.provenance;
+  eyeSourceFilename_=outcome.eyeSourceFilename;
+  auto *plot=static_cast<EyePlotWidget *>(eyeGraph_);
+  plot->setData(eyeResult_,eyeSettings_.electrical.rxThresholdV);
+  plot->setView(eyeView_->currentIndex());
+  const auto &d=*eyeResult_;
+  eyeMetrics_->setText(QStringLiteral(
+    "Simulated Channel Eye — Not Measured / Not PHY Compliance\n"
+    "Height %1 mV | Width %2 ps (%3 UI) | Sample %4 UI | Delay %5 ps\n"
+    "Low maximum %6 mV | High minimum %7 mV | Received [%8, %9] mV\n"
+    "Bit rate %10 Gbps | Reference %11 GHz | Analysis cap %12 GHz")
+    .arg(d.eyeHeightV*1000,0,'g',7).arg(d.eyeWidthSeconds*1e12,0,'g',7)
+    .arg(d.eyeWidthUI,0,'g',7).arg(d.samplingPhaseUI,0,'g',7)
+    .arg(d.estimatedDelaySeconds*1e12,0,'g',7)
+    .arg(d.maximumLowV*1000,0,'g',7).arg(d.minimumHighV*1000,0,'g',7)
+    .arg(d.minimumReceivedV*1000,0,'g',7).arg(d.maximumReceivedV*1000,0,'g',7)
+    .arg(d.bitRateHz/1e9,0,'g',7).arg(d.referenceFrequencyHz/1e9,0,'g',7)
+    .arg(d.analysisStopHz/1e9,0,'g',7));
+  csv_->setEnabled(true);png_->setEnabled(true);
+  setStatus(outcome.status,outcome.diagnostic);
+}
+void AnalysisWindow::exportEyeCsv() {
+  if(!eyeResult_)return;
+  const QString name=QFileDialog::getSaveFileName(this,
+      QStringLiteral("Export simulated Eye numerical data"),QStringLiteral("Eye.csv"),
+      QStringLiteral("CSV (*.csv)"));
+  if(!name.isEmpty())saveEyeCsv(name);
+}
+bool AnalysisWindow::saveEyeCsv(const QString &name) {
+  using S=si::channel::Status;
+  if(!eyeResult_ || name.isEmpty() ||
+    (status_!=S::Warning && status_!=S::Valid))return false;
+  QSaveFile file(name);
+  if(!file.open(QIODevice::WriteOnly|QIODevice::Text)) {
+    setStatus(S::Error,QStringLiteral("Cannot open Eye CSV"));return false;
+  }
+  QTextStream out(&file);
+  const auto &d=*eyeResult_;
+  auto safe=[](const std::string &s) {
+    QString v=QString::fromStdString(s);
+    v.replace(QLatin1Char('\r'),QLatin1Char(' '));
+    v.replace(QLatin1Char('\n'),QLatin1Char(' '));
+    v.replace(QStringLiteral("\""),QStringLiteral("\"\""));
+    const QString trimmed=v.trimmed();
+    if(!trimmed.isEmpty() && QStringLiteral("=+-@").contains(trimmed.front()))
+      v.prepend(QLatin1Char('\''));
+    return QStringLiteral("\"")+v+QStringLiteral("\"");
+  };
+  const auto n=[](double v){return QString::number(v,'g',17);};
+  out<<"# warning,\"Simulated Channel Eye — Not Measured / Not PHY Compliance\"\n"
+     <<"# source_filename,"<<safe(eyeSourceFilename_.toStdString())<<"\n"
+     <<"# source_sha256,"<<safe(eyeProvenance_.sourceSha256)<<"\n"
+     <<"# revision,"<<safe(eyeProvenance_.revision)<<"\n"
+     <<"# mapping_identity,"<<safe(eyeProvenance_.mappingIdentity)<<"\n"
+     <<"# algorithm,"<<safe(eyeProvenance_.algorithm)<<"\n"
+     <<"# version,"<<safe(eyeProvenance_.version)<<"\n"
+     <<"# settings_identity,"<<safe(eyeProvenance_.settingsIdentity)<<"\n"
+     <<"# transfer_parameter,"<<safe(d.transferParameter)<<"\n"
+     <<"# profile,"<<safe(d.profileName)<<"\n"
+     <<"# bit_rate_gbps,"<<n(d.bitRateHz/1e9)<<"\n"
+     <<"# reference_frequency_ghz,"<<n(d.referenceFrequencyHz/1e9)<<"\n"
+     <<"# analysis_stop_ghz,"<<n(d.analysisStopHz/1e9)<<"\n"
+     <<"# fft_length,"<<eyeSettings_.fftLength<<"\n"
+     <<"# samples_per_ui,"<<eyeSettings_.samplesPerUI<<"\n"
+     <<"# pattern,"<<int(eyeSettings_.pattern)<<"\n"
+     <<"# mode,"<<int(eyeSettings_.mode)<<"\n"
+     <<"# tx_low_incident_mv,"<<n(eyeSettings_.electrical.txLowV*1000)<<"\n"
+     <<"# tx_high_incident_mv,"<<n(eyeSettings_.electrical.txHighV*1000)<<"\n"
+     <<"# tx_source_ohm,"<<n(eyeSettings_.electrical.txSourceOhm)<<"\n"
+     <<"# rx_termination_ohm,"<<n(eyeSettings_.electrical.rxTerminationOhm)<<"\n"
+     <<"# rx_threshold_mv,"<<n(eyeSettings_.electrical.rxThresholdV*1000)<<"\n"
+     <<"# rx_input_min_mv,"<<n(eyeSettings_.electrical.rxInputMinimumV*1000)<<"\n"
+     <<"# rx_input_max_mv,"<<n(eyeSettings_.electrical.rxInputMaximumV*1000)<<"\n"
+     <<"# eye_height_mv,"<<n(d.eyeHeightV*1000)<<"\n"
+     <<"# eye_width_ui,"<<n(d.eyeWidthUI)<<"\n"
+     <<"# eye_width_ps,"<<n(d.eyeWidthSeconds*1e12)<<"\n"
+     <<"# sampling_phase_ui,"<<n(d.samplingPhaseUI)<<"\n"
+     <<"# estimated_delay_ps,"<<n(d.estimatedDelaySeconds*1e12)<<"\n"
+     <<"# high_min_mv,"<<n(d.minimumHighV*1000)<<"\n"
+     <<"# low_max_mv,"<<n(d.maximumLowV*1000)<<"\n"
+     <<"# min_received_mv,"<<n(d.minimumReceivedV*1000)<<"\n"
+     <<"# max_received_mv,"<<n(d.maximumReceivedV*1000)<<"\n"
+     <<"# band_limited,"<<(d.bandLimited?"true":"false")<<"\n"
+     <<"# status,SIMULATED_ONLY\n"
+     <<"Time_ps,TX_mV,RX_mV,Impulse_Unit,Unit_Pulse\n";
+  for(size_t i=0;i<d.timeSeconds.size();++i)
+    out<<n(d.timeSeconds[i]*1e12)<<","<<n(d.transmittedV[i]*1000)
+       <<","<<n(d.receivedV[i]*1000)<<","<<n(d.impulse.values[i])
+       <<","<<n(d.unitPulse.values[i])<<"\n";
+  out<<"Overlay_Index,Phase_UI,Received_mV\n";
+  for(size_t k=0;k<d.overlayV.size();++k)
+    for(size_t i=0;i<d.overlayV[k].size();++i)
+      out<<k<<","<<n(d.overlayPhaseUI[i])<<","<<n(d.overlayV[k][i]*1000)<<"\n";
+  out.flush();
+  const bool okay=out.status()==QTextStream::Ok && file.commit();
+  if(!okay)setStatus(S::Error,QStringLiteral("Eye CSV write/commit failed"));
+  return okay;
+}
+void AnalysisWindow::exportEyePng() {
+  if(!eyeResult_)return;
+  const QString name=QFileDialog::getSaveFileName(this,
+      QStringLiteral("Export simulated Eye graph"),QStringLiteral("Eye.png"),
+      QStringLiteral("PNG (*.png)"));
+  if(!name.isEmpty())saveEyePng(name);
+}
+bool AnalysisWindow::saveEyePng(const QString &name) {
+  using S=si::channel::Status;
+  if(!eyeResult_ || !eyeGraph_ || name.isEmpty() ||
+     (status_!=S::Warning && status_!=S::Valid))return false;
+  const QImage graph=eyeGraph_->grab().toImage();
+  if(graph.isNull()) {
+    setStatus(S::Error,QStringLiteral("Eye graph cannot be rendered"));
+    return false;
+  }
+  // Visible footer plus PNG tEXt metadata make standalone exports auditable.
+  constexpr int footerHeight=116;
+  QImage output(graph.width(),graph.height()+footerHeight,
+                QImage::Format_ARGB32_Premultiplied);
+  output.fill(palette().base().color());
+  QPainter p(&output);
+  p.drawImage(0,0,graph);
+  p.setPen(palette().text().color());
+  QFont font=p.font();
+  font.setPointSizeF(8);
+  p.setFont(font);
+  const QString caption=QStringLiteral(
+    "Simulated Channel Eye — Not Measured / Not PHY Compliance\n"
+    "File: %1 | Revision: %2 | Channel: %3 | %4\n"
+    "SHA-256: %5\n"
+    "Profile: %6 | Bit rate: %7 Gbps | Reference: %8 GHz | Cap: %9 GHz");
+  const QString labeled=caption.arg(eyeSourceFilename_,
+     QString::fromStdString(eyeProvenance_.revision),
+     victim_->currentText(),
+     direction_->currentIndex()==1?QStringLiteral("Reverse"):QStringLiteral("Forward"),
+     QString::fromStdString(eyeProvenance_.sourceSha256),
+     QString::fromStdString(eyeResult_->profileName),
+     QString::number(eyeResult_->bitRateHz/1e9,'g',7),
+     QString::number(eyeResult_->referenceFrequencyHz/1e9,'g',7),
+     QString::number(eyeResult_->analysisStopHz/1e9,'g',7));
+  p.drawText(QRect(10,graph.height()+4,output.width()-20,footerHeight-8),
+             Qt::AlignLeft|Qt::TextWordWrap,labeled);
+  p.end();
+  output.setText(QStringLiteral("SourceSHA256"),
+                 QString::fromStdString(eyeProvenance_.sourceSha256));
+  output.setText(QStringLiteral("SourceFile"),eyeSourceFilename_);
+  output.setText(QStringLiteral("Revision"),
+                 QString::fromStdString(eyeProvenance_.revision));
+  output.setText(QStringLiteral("MappingIdentity"),
+                 QString::fromStdString(eyeProvenance_.mappingIdentity));
+  output.setText(QStringLiteral("SettingsIdentity"),
+                 QString::fromStdString(eyeProvenance_.settingsIdentity));
+  output.setText(QStringLiteral("Algorithm"),
+                 QString::fromStdString(eyeProvenance_.algorithm));
+  output.setText(QStringLiteral("AlgorithmVersion"),
+                 QString::fromStdString(eyeProvenance_.version));
+  output.setText(QStringLiteral("SimulationStatus"),
+                 QStringLiteral("SIMULATED_ONLY / NOT_PHY_COMPLIANCE"));
+  QSaveFile file(name);
+  const bool okay=file.open(QIODevice::WriteOnly) &&
+                  output.save(&file,"PNG") && file.commit();
+  if(!okay)setStatus(S::Error,QStringLiteral("Eye PNG write/commit failed"));
+  return okay;
+}
+
 void AnalysisWindow::closeEvent(QCloseEvent *event) {
   if (scheduler_ && scheduler_->running(feature_)) cancelWork();
   progressPoll_.stop();
@@ -1161,6 +1773,12 @@ void AnalysisWindowManager::setIcnSourceProvider(IcnSourceProvider provider) {
     windows_[int(Feature::Icn)]->setIcnSourceProvider(icnProvider_);
   setEngineAvailable(Feature::Icn,bool(icnProvider_));
 }
+void AnalysisWindowManager::setEyeSourceProvider(EyeSourceProvider provider) {
+  eyeProvider_=std::move(provider);
+  if(windows_[int(Feature::Eye)])
+    windows_[int(Feature::Eye)]->setEyeSourceProvider(eyeProvider_);
+  setEngineAvailable(Feature::Eye,bool(eyeProvider_));
+}
 void AnalysisWindowManager::setEngineAvailable(Feature feature, bool available) {
   available_[int(feature)] = available;
   if (auto *action = actions_[int(feature)])
@@ -1177,6 +1795,7 @@ AnalysisWindow *AnalysisWindowManager::openWindow(Feature feature) {
   auto *window = new AnalysisWindow(feature, &scheduler_, owner_);
   if(feature == Feature::Ild) window->setIldSourceProvider(ildProvider_);
   if(feature == Feature::Icn) window->setIcnSourceProvider(icnProvider_);
+  if(feature == Feature::Eye) window->setEyeSourceProvider(eyeProvider_);
   window->setContext(context_);
   windows_[index] = window;
   connect(window, &QObject::destroyed, this, [this, index] {

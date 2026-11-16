@@ -631,3 +631,17 @@ v1.2.1에서 도입된 과거 기능은 [v1.2.1 릴리스 노트](Release_1.2.1.
 그래프는 NEXT/FEXT 파워 합계, TX/RX 가중 PSD, NEXT/FEXT 누적 RMS 잡음량을 보여줍니다. CSV에는 원본 SHA, 리비전, 매핑, 계산 모델, 누화원별 기여도와 주파수별 원시 값이 저장되며 PNG에는 실제 계산 그래프가 저장됩니다. DC 누락 또는 측정 대역 초과는 **BAND LIMITED**로 표시하고 외삽을 하지 않습니다. 입력·매핑·원본이 바뀌면 이전 결과는 STALE로 무효화됩니다.
 
 **주의:** 이 수치는 비상관 누화원을 가정한 범용 IID NRZ 모델이며 **IEEE 802.3 ICN, SNIA ccICN, COM, MIPI PHY 합격 판정이 아닙니다.** [012_06 수치 계약](Channel_Analysis_ICN_012_06.md)을 참조하십시오. 최종 물리 GUI 검증은 012_12, 공식 v1.4.0 릴리스는 012_14입니다.
+
+
+## 개발 중 — 012_08 Simulated Channel Eye (v1.4.0 통합 브랜치 전용)
+
+> 이 내용은 정식 v1.3.5에 포함되지 않습니다. [012_08 PR #47](https://github.com/july-rust/SParamView-Public/pull/47)에서 검증 중이며, 최종 출시 전에는 실제 구현·CI 상태를 확인하십시오.
+
+1. 확정된 Touchstone 원본과 물리 포트 매핑을 연 뒤 **Analysis → Eye Diagram**을 선택합니다. 독립 창이 열립니다.
+2. 프로파일을 지정합니다. MIPI D-PHY v2.1 HS 예시의 **4.5 Gbps, 기준 2.25 GHz, 분석 상한 10 GHz**는 주파수 설정만 제공합니다. 기준 주파수를 바꾸면 비트율도 연동됩니다. 분석 상한은 독립적으로 조정됩니다.
+3. 신호 모드(S21/S12 또는 차동 Sdd21/Sdd12), TX 입사 Low/High 전압(mV), TX 소스·RX 종단(Ω), RX Threshold 및 허용 입력 전압 범위(mV)를 **직접 입력**합니다. 실제 TX 핀 전압과 S-파라미터 기준면의 입사파 전압을 구분하십시오. 검증되지 않은 표준 전압이나 종단값은 자동 입력되지 않습니다.
+4. PRBS7, 교대 패턴 또는 0/1 커스텀 패턴을 선택합니다. 필요한 경우 FFT 길이, UI당 샘플을 조정합니다.
+5. **Run**을 실행하면 실제 파일 SHA 및 포트 매핑을 다시 검증하고, 비동기 계산을 수행합니다. Eye Overlay, TX/RX 파형, Impulse/Unit Pulse 뷰로 전환해 확인합니다. 그래프 휠 확대, 드래그 이동, 더블클릭 초기화 및 커서를 지원합니다.
+6. Eye Height(mV), Width(ps/UI), 샘플링 위상, 전압 최소·최대, 지연시간을 확인합니다. **Export CSV/PNG**는 현재 유효한 결과에서만 가능합니다.
+
+**해석 제한:** 결과는 *Simulated Channel Eye — Not Measured / Not PHY Compliance*로 표시됩니다. 실제 오실로스코프 Eye, BER, MIPI/DDR/LVDS/SLVS PHY 합격 판정이 아닙니다. DC 실측점, 선택한 상한까지의 원본 주파수 커버리지, 정합 임피던스 및 RX 입력 범위가 충족되지 않으면 결과가 거부됩니다. 입력/매핑 변경 시 STALE로 무효화됩니다. [상세 GUI·계산 계약](Channel_Analysis_Eye_GUI_012_08.md).

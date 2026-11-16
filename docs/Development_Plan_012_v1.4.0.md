@@ -3,7 +3,7 @@
 **기준일:** 2026-11-15 (KST)
 **공식 기준:** v1.3.5 (tag/release 불변)
 **목표:** ILD·ICN·Eye Diagram·COM을 각각 독립적인 C++20 수치 엔진, Qt6 창, 테스트로 구현하고 **v1.4.0 한 번에 릴리스**
-**상태:** 012_01 COMPLETE / 012_02 COMPLETE (REFERENCE_READY) / 012_03 CORE VERIFIED (PR #37; 최종 병합 상태는 PR 참조) / 012_04 GUI/워커 COMPLETE (PR #38; CI 43708927772) / 012_05 COMPLETE (ILD 엔진/GUI PR #40; CI 43766947020) / 012_06 COMPLETE (Generic ICN PR #42; CI 43775680490) / 012_07 COMPLETE (Eye 수치 엔진 PR #45; CI 43798693800) / 012_08~14 미착수 / Eye GUI·COM 미구현 / v1.4.0 미출시
+**상태:** 012_01 COMPLETE / 012_02 COMPLETE (REFERENCE_READY) / 012_03 CORE VERIFIED (PR #37; 최종 병합 상태는 PR 참조) / 012_04 GUI/워커 COMPLETE (PR #38; CI 43708927772) / 012_05 COMPLETE (ILD 엔진/GUI PR #40; CI 43766947020) / 012_06 COMPLETE (Generic ICN PR #42; CI 43775680490) / 012_07 COMPLETE (Eye 수치 엔진 PR #45; CI 43798693800) / 012_08 Eye GUI PR #47 검증 중 / 012_09~14 미착수 / COM 미구현 / v1.4.0 미출시
 **작업 번호:** 012_01 ~ 012_14. 단계별 PR, CI, 증거와 완료 조건을 연결한다.
 
 > 이 문서는 향후 실행할 개발 명령의 기준이며, 문서 작성만으로 기능이나 공식 표준 적합성을 검증했다고 주장하지 않는다.
@@ -92,6 +92,8 @@
 - **완료:** 이상 채널/대역제한/반사 채널의 독립 참조 파형 일치. 실제 BER과 PHY 적합성은 계산되지 않았다고 명시.
 
 ### 012_08 — Eye Diagram 독립 창 완성
+- **구현 PR (CI/병합 검증 전):** [#47](https://github.com/july-rust/SParamView-Public/pull/47). 검증된 SourceSnapshot/복소 THROUGH, TX/RX 전기 조건, 4.5 Gbps/2.25 GHz/10 GHz 예시, GUI 3종 그래프, CSV/PNG, STALE 및 Qt 실데이터 테스트를 구현한다. [GUI 계약](Channel_Analysis_Eye_GUI_012_08.md). **현재 상태 IN PROGRESS; CI·병합 확인 없이 COMPLETE 금지.**
+
 - **실행:** EyeWindow의 bit rate, pattern, TX 조건, overlay graph, sampling point, Eye Height/Width, 줌/커서, CSV/PNG 및 비동기 Cancel 구현.
 - **산출:** 실제 작동하는 Simulated Channel Eye GUI와 Qt 자동화 검증.
 - **완료:** 그래프·숫자 동일 데이터 일치, 큰 데이터 처리/창 종료 안정성, 측정된 Eye와 혼동되지 않는 라벨 확인.

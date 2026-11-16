@@ -622,3 +622,16 @@ Implemented and automated-CI-verified (still unreleased) in [PR #42](https://git
 The window displays summed NEXT/FEXT transfer power, weighted noise PSD and cumulative NEXT/FEXT RMS with a total RMS summary. CSV saves source SHA, reference mapping, model, individual aggressor contributions and full per-frequency numerical data; PNG saves the actual rendered graph. The program rejects invalid/missing TX voltage and stale exports. If measured frequency limits omit DC or a requested band, results are marked **BAND LIMITED**; no missing spectrum is invented.
 
 This is an **exploratory IID NRZ, uncorrelated-aggressor calculation**, NOT IEEE 802.3 ICN, SNIA ccICN, COM, lab-measured noise or PHY PASS/FAIL. See [ICN 012_06 contract](Channel_Analysis_ICN_012_06.md). Physical Windows/macOS GUI acceptance is scheduled for 012_12, and official v1.4.0 release for 012_14.
+
+
+## Development branch only — 012_08 Simulated Channel Eye (planned v1.4.0)
+
+> This feature is **not** in the official v1.3.5 release. Implementation and qualification are tracked in [PR #47](https://github.com/july-rust/SParamView-Public/pull/47).
+
+Open a SHA-qualified Touchstone revision with confirmed physical channel mapping; select **Analysis → Eye Diagram** to open a separate non-modal window. Choose a profile: MIPI D-PHY v2.1 HS provides an illustrative **4.5 Gb/s per lane / 2.25 GHz coupled NRZ reference / independently adjustable 10 GHz analysis cap**. DDR2/3/4/5, LVDS, SLVS, SLVS-EC and Custom require explicit rate, cap and electrical conditions. Switching profiles clears physical electrical fields.
+
+Choose confirmed S21/S12 or Sdd21/Sdd12 mode, a PRBS7/alternating/custom bit pattern, radix-2 FFT and samples/UI. **Enter all TX incident low/high voltages (mV), matched TX source/RX load impedances (ohm), RX decision threshold and linear RX input range (mV)**. These are voltages **at the S-parameter reference plane**, not automatically inferred driver VOD or PHY-specific thresholds. No fabricated PHY presets.
+
+Use **Run** for the asynchronous, phase-preserving periodic NRZ simulation; **Cancel** safely invalidates the running work. Inspect the 2-UI overlay with sampling/threshold guides, time-domain TX/RX waveform, and impulse/unit-pulse view; mouse-wheel zoom, drag-pan, hover coordinates and double-click reset are supported. Eye height (mV), width (ps/UI), phase/delay and high/low extrema are numeric outputs. CSV/PNG include source provenance and measured data from the same modeled result; STALE/invalid exports are prohibited.
+
+**Not a measured eye, statistical BER, physical receiver model, or MIPI/DDR/LVDS/SLVS PHY compliance.** Measured DC and actual Touchstone coverage through the requested cap are mandatory; unqualified terminations and receiver-range violations fail closed. Refer to the [012_08 GUI contract](Channel_Analysis_Eye_GUI_012_08.md); physical Windows/macOS acceptance is still the later 012_12 gate.

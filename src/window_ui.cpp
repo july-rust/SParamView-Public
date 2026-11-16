@@ -339,6 +339,7 @@ MainWindow::MainWindow() {
   };
   analysisWindows->setIldSourceProvider(channelSourceProvider);
   analysisWindows->setIcnSourceProvider(channelSourceProvider);
+  analysisWindows->setEyeSourceProvider(channelSourceProvider);
   auto rules = menuBar()->addMenu("Limit");
   rules->addAction("Save Preset...", this, [this] { preset(true); });
   rules->addAction("Load Preset...", this, [this] { preset(false); });
