@@ -187,6 +187,101 @@ def qualify(manifest: dict, root: Path) -> dict:
             "limitations": "Not a certification of IEEE conformance or source independence",
             "cases": details}
 
+
+def qualify_normative(manifest: dict, root: Path) -> dict:
+    """012_09 production gate (not a substitute for independent standards audit).
+
+    Keep the existing qualify() as the synthetic manifest arithmetic/integrity
+    unit-test helper. The *CLI* must never accept those synthetic fixtures as
+    proof of IEEE 802.3ck-2022 Test 1 / Test 2 COM conformance.
+    """
+    schema_check(manifest)
+    _require(manifest["status"] == "LOCKED",
+             "official 802.3ck profile still REFERENCE_READY/BLOCKED")
+    std = _dict(manifest["standard"], "standard")
+    _require(std.get("edition") == "IEEE Std 802.3ck-2022" and
+             std.get("applicable_clause") == "120F.4.1" and
+             str(std.get("parameter_table", "")).startswith("120F-8"),
+             "must use final IEEE 802.3ck-2022 Annex 120F.4.1 / Table 120F-8")
+    _require(std.get("approval_status") == "PUBLISHED" and
+             std.get("parameter_values_qualified") is True,
+             "final approved Table 120F-8 parameters have not been independently qualified")
+    _require(manifest["profile_id"] ==
+             "IEEE-802.3ck-2022-100GAUI-1-C2C-120F-QUALIFIED",
+             "candidate/draft PHY profile must not satisfy normative qualification")
+    audit = _dict(std.get("final_parameter_audit"), "standard.final_parameter_audit")
+    audit_path = _evidence_file(audit.get("evidence"), root, "final_parameter_audit.evidence")
+    report = _dict(json.loads(audit_path.read_text(encoding="utf-8")),
+                   "final_parameter_audit.report")
+    _require(report.get("edition") == std["edition"] and
+             report.get("clause") == std["applicable_clause"] and
+             report.get("table") == "120F-8",
+             "parameter audit is not the final approved PHY table")
+    _require(report.get("review_status") == "INDEPENDENT_REVIEWED",
+             "approved standard parameter table has no independent review receipt")
+    required_groups = {"timing", "package_test1", "package_test2", "tx",
+                       "rx", "noise_jitter", "optimization", "exceptions"}
+    entries = report.get("groups")
+    _require(isinstance(entries, list) and
+             required_groups <= {x.get("name") for x in entries if isinstance(x, dict)},
+             "missing audited PHY parameter groups or package test variations")
+    for row in entries:
+        _require(isinstance(row, dict) and row.get("source_locator") and
+                 row.get("verified") is True,
+                 "unverified/missing approved standard parameter source locator")
+    _require(len(manifest["cases"]) >= 3,
+             "at least three independent same-PHY golden channels required")
+    base = qualify(manifest, root)
+    seen_channels = set()
+    for case in manifest["cases"]:
+        case_id = case["id"]
+        thru = [x for x in case["input_files"] if x.get("kind") == "thru"]
+        _require(len(thru) == 1, f"{case_id}: exactly one THRU source required")
+        fingerprint = thru[0]["sha256"]
+        _require(fingerprint not in seen_channels,
+                 f"{case_id}: duplicated THRU source cannot count as independent case")
+        seen_channels.add(fingerprint)
+        runs = case.get("package_runs")
+        _require(isinstance(runs, list) and len(runs) == 2,
+                 f"{case_id}: both normative Test 1 and Test 2 runs required")
+        observed = set()
+        for run in runs:
+            item = _dict(run, f"{case_id}.package_run")
+            test = item.get("test")
+            _require(test in ("Test1", "Test2") and test not in observed,
+                     f"{case_id}: invalid/duplicate package test case")
+            observed.add(test)
+            result_path = _evidence_file(item.get("reference_result"),
+                                         root, f"{case_id}.{test}.reference")
+            reference = _dict(json.loads(result_path.read_text(encoding="utf-8")),
+                              f"{case_id}.{test}.reference")
+            impl_path = _evidence_file(item.get("cpp_result"),
+                                       root, f"{case_id}.{test}.cpp")
+            implementation = _dict(json.loads(impl_path.read_text(encoding="utf-8")),
+                                   f"{case_id}.{test}.cpp")
+            for label, d in (("reference", reference), ("cpp", implementation)):
+                _require(d.get("test") == test and
+                         d.get("profile_id") == manifest["profile_id"] and
+                         d.get("source_sha256") == fingerprint,
+                         f"{case_id}.{test}.{label}: source/profile/test mismatch")
+            _require(reference.get("reference_commit") ==
+                     manifest["reference"]["source_commit"],
+                     f"{case_id}.{test}: official reference version mismatch")
+            expected = _finite(reference.get("com_db"), f"{case_id}.{test}.reference.com_db")
+            actual = _finite(implementation.get("com_db"), f"{case_id}.{test}.cpp.com_db")
+            tol = _finite(item.get("tolerance_db"), f"{case_id}.{test}.tolerance_db")
+            _require(0 <= tol <= 0.1,
+                     f"{case_id}.{test}: invalid/unreasonably loose numeric tolerance")
+            _require(abs(actual - expected) <= tol,
+                     f"{case_id}.{test}: independent reference disagreement")
+        _require(observed == {"Test1", "Test2"},
+                 f"{case_id}: incomplete package tests")
+    return {"status": "PROFILE_AND_ENGINE_EVIDENCE_VALIDATED",
+            "cases": len(manifest["cases"]),
+            "package_runs": 2 * len(manifest["cases"]),
+            "limitations": "Machine-checked SHA/results are not a substitute for "
+                           "reviewing the actual IEEE standard and external oracle."}
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", required=True, type=Path)
@@ -201,7 +296,7 @@ def main() -> int:
         elif args.mode == "reference-ready":
             print(json.dumps(reference_ready(manifest), indent=2))
         else:
-            print(json.dumps(qualify(manifest, args.root), indent=2))
+            print(json.dumps(qualify_normative(manifest, args.root), indent=2))
         return 0
     except (QualificationError, OSError, ValueError, json.JSONDecodeError) as exc:
         print(f"BLOCKED/FAIL: {exc}")
