@@ -3,6 +3,7 @@
 #include "si/channel_analysis/common.hpp"
 #include "si/channel_analysis/ild.hpp"
 #include "si/channel_analysis/icn.hpp"
+#include "si/channel_analysis/eye.hpp"
 #include <QtConcurrent>
 #include <QTemporaryDir>
 #include <vector>
@@ -32,6 +33,7 @@ struct WorkOutcome {
   QString diagnostic;
   std::shared_ptr<const si::channel::IldData> ild;
   std::shared_ptr<const si::channel::IcnData> icn;
+  std::shared_ptr<const si::channel::EyeData> eye;
   si::channel::Provenance provenance;
 };
 struct IldSourceInput {
@@ -42,6 +44,7 @@ struct IldSourceInput {
 };
 using IldSourceProvider = std::function<std::optional<IldSourceInput>(int)>;
 using IcnSourceProvider = IldSourceProvider;
+using EyeSourceProvider = IldSourceProvider;
 // Work MUST NOT touch a QObject or GUI object. Capture immutable value types and
 // a verified SourceSnapshot by value when numerical engines are added.
 using AsyncWork = std::function<WorkOutcome(const std::atomic_bool &,
@@ -80,6 +83,9 @@ public:
   bool startWork(AsyncWork work);
   void setIldSourceProvider(IldSourceProvider provider);
   void setIcnSourceProvider(IcnSourceProvider provider);
+  void setEyeSourceProvider(EyeSourceProvider provider);
+  bool saveEyeCsv(const QString &filename);
+  bool saveEyePng(const QString &filename);
   bool saveIcnCsv(const QString &filename);
   bool saveIcnPng(const QString &filename);
   bool saveIldCsv(const QString &filename);
@@ -107,6 +113,12 @@ private:
   void exportIcnPng();
   void clearIcn();
   void populateIcnAggressors();
+  void launchEye();
+  void showEye(const WorkOutcome &outcome);
+  void clearEye();
+  void exportEyeCsv();
+  void exportEyePng();
+  void selectEyeProfile();
   Feature feature_;
   AsyncScheduler *scheduler_ = nullptr;
   AnalysisContext context_;
@@ -119,6 +131,18 @@ private:
   QDoubleSpinBox *icnBaud_ = nullptr, *icnVpp_ = nullptr,
                  *icnRise_ = nullptr, *icnRx_ = nullptr;
   QDoubleSpinBox *fromGhz_ = nullptr, *toGhz_ = nullptr;
+  QDoubleSpinBox *eyeBitRate_ = nullptr, *eyeReference_ = nullptr;
+  QComboBox *eyeProfile_ = nullptr, *eyeMode_ = nullptr, *eyePattern_ = nullptr;
+  QComboBox *eyeFft_ = nullptr, *eyeSamples_ = nullptr, *eyeView_ = nullptr;
+  QLineEdit *eyeBits_ = nullptr;
+  std::array<QLineEdit *,7> eyeElectrical_{};
+  bool eyeFrequencySync_ = false;
+  QLabel *eyeMetrics_ = nullptr;
+  QWidget *eyeGraph_ = nullptr;
+  EyeSourceProvider eyeProvider_;
+  std::shared_ptr<const si::channel::EyeData> eyeResult_;
+  si::channel::EyeSettings eyeSettings_;
+  si::channel::Provenance eyeProvenance_;
   QLabel *statusLabel_ = nullptr, *graphPlaceholder_ = nullptr;
   QLabel *icnContributions_ = nullptr;
   QWidget *ildGraph_ = nullptr, *icnGraph_ = nullptr;
@@ -146,6 +170,7 @@ public:
   void setEngineAvailable(Feature feature, bool available);
   void setIldSourceProvider(IldSourceProvider provider);
   void setIcnSourceProvider(IcnSourceProvider provider);
+  void setEyeSourceProvider(EyeSourceProvider provider);
   AnalysisWindow *openWindow(Feature feature);
   QAction *action(Feature feature) const { return actions_.at(int(feature)); }
   AnalysisWindow *existingWindow(Feature feature) const {
@@ -166,6 +191,7 @@ private:
   AnalysisContext context_;
   IldSourceProvider ildProvider_;
   IcnSourceProvider icnProvider_;
+  EyeSourceProvider eyeProvider_;
   quint64 contextGeneration_ = 0;
 };
 } // namespace si::gui
