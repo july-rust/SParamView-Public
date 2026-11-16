@@ -187,6 +187,17 @@ class HistoricalC2CReferencePreflight(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,"byte-pinned"):
             ref.strict_ooxml_com_settings(raw)
 
+    def test_historical_ieee_four_fext_zero_next_reference_roles(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            files = [root/"thru.s4p",root/"fext.s4p",root/"next.s4p"]
+            n_fext,n_next,ordered = ref.reference_2019_c2c_inputs(files)
+            self.assertEqual((n_fext,n_next),(4,0))
+            self.assertEqual(ordered,[files[0]]+[files[1]]*4)
+            self.assertNotIn(files[2],ordered)
+            with self.assertRaisesRegex(ValueError,"Expected SHA-pinned"):
+                ref.reference_2019_c2c_inputs(files[:2])
+
     def test_workbook_with_no_com_settings_is_not_accepted(self):
         import openpyxl
         book=openpyxl.Workbook()
