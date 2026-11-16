@@ -88,6 +88,21 @@ def csv_to_octave_mat(csv_path: Path, result: Path) -> dict:
             "non_numerical_display_overrides":visualization_overrides}
 
 
+def finite_scalar_parts(value, field: str) -> tuple[float,float]:
+    """Extract real AND imaginary parts; never cast complex FOM to float.
+
+    NumPy silently drops the imaginary component via float(complex ndarray)
+    with only ComplexWarning. Such data MUST NOT qualify a COM Golden.
+    """
+    arr=np.asarray(value)
+    if arr.size!=1 or arr.dtype.kind not in "biufc":
+        raise ValueError("Invalid Octave scalar type/shape: "+field)
+    sample=complex(arr.ravel()[0])
+    if not (math.isfinite(sample.real) and math.isfinite(sample.imag)):
+        raise ValueError("Nonfinite Octave scalar: "+field)
+    return float(sample.real),float(sample.imag)
+
+
 def octave_case(channel: str, external_repo: Path, output: Path) -> int:
     code = external_repo / "octave" / "com_ieee8023_4p17p0_octave_compat.m"
     if not code.is_file():
@@ -139,17 +154,24 @@ def octave_case(channel: str, external_repo: Path, output: Path) -> int:
         cases=np.asarray(observed,dtype=object).ravel()
         if len(cases)!=2:
             raise ValueError("Octave source did not return two package cases")
-        margins=[]
+        observed_cases=[]
+        complex_result=False
         for index,item in enumerate(cases,start=1):
-            margin=float(np.asarray(item.COM_dB).ravel()[0])
-            fom=float(np.asarray(item.FOM).ravel()[0])
-            if not (math.isfinite(margin) and math.isfinite(fom)):
-                raise ValueError("Nonfinite independent Octave COM or FOM")
-            margins.append({"package_case":index,
-                            "octave_com_db":margin,
-                            "octave_fom_db":fom})
+            margin_real,margin_imag=finite_scalar_parts(
+                item.COM_dB, "COM_dB")
+            fom_real,fom_imag=finite_scalar_parts(item.FOM,"FOM")
+            complex_result |= abs(margin_imag)>1e-12 or abs(fom_imag)>1e-12
+            observed_cases.append({
+                "package_case":index,
+                "observed_com_real_component_db":margin_real,
+                "observed_com_imag_component":margin_imag,
+                "observed_fom_real_component_db":fom_real,
+                "observed_fom_imag_component":fom_imag,
+                "valid_real_com_and_fom":
+                    abs(margin_imag)<=1e-12 and abs(fom_imag)<=1e-12})
         receipt={
-            "status":"HISTORICAL_OCTAVE_4P17P0_INDEPENDENT_CANDIDATE_ONLY",
+            "status":("HISTORICAL_OCTAVE_NONREAL_FOM_BLOCKED" if complex_result
+                      else "HISTORICAL_OCTAVE_4P17P0_INDEPENDENT_CANDIDATE_ONLY"),
             "channel_loss_label":channel,
             "engine_commit":SICOPR_COMMIT,
             "official_historical_workbook_sha256":CONFIG_SHA,
@@ -160,12 +182,22 @@ def octave_case(channel: str, external_repo: Path, output: Path) -> int:
             "aggressor_fext_count":4,
             "aggressor_next_count":0,
             "aggressor_distinct_fext_source_files":1,
-            "package_cases":margins,
+            "package_cases":observed_cases,
+            "independent_real_numerical_goldens":(0 if complex_result else len(observed_cases)),
+            "nonreal_fom_or_com_detected":bool(complex_result),
             "normative_final_8023ck_qualified":False,
             "sparamview_cpp_com_evaluated":False,
             "licensed_thirdparty_files_uploaded":False
         }
         output.write_text(json.dumps(receipt,indent=2)+"\n",encoding="utf-8")
+        if complex_result:
+            print("HISTORICAL_OCTAVE_NONREAL_REFERENCE_BLOCKED:",
+                  json.dumps({
+                      "channel":channel,
+                      "observed_complex_cases":observed_cases,
+                      "qualification":"NO_REAL_REFERENCE_GOLDEN",
+                  },ensure_ascii=False),file=sys.stderr,flush=True)
+            return 2
         print("HISTORICAL_OCTAVE_C2C_RESULT:",json.dumps(receipt))
         return 0
 
