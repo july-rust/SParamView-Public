@@ -460,6 +460,39 @@ def run(channel: str, output: Path) -> int:
     if getattr(sicopr,"COM_MATLAB_VERSION",None) is None:
         raise ValueError("Expected pinned SiCoPR 4p17p0 version selector absent")
     sicopr.COM_MATLAB_VERSION="4p17p0"
+    # Read-only diagnostic hook: never changes the independent COM code's
+    # numerical values or the optimizer's candidate selection. It records a
+    # bounded explanation of any non-real FOM for the exact pinned input.
+    original_fom = sicopr.OptFom_Calc_FOM
+    observed_nonreal = [0]
+    def audited_fom(chdata, do_C2M, THIS, param, OP, sbr, **kwargs):
+        answer = original_fom(chdata, do_C2M, THIS, param, OP, sbr,
+                              **kwargs)
+        candidate = answer[0]
+        if isinstance(candidate, complex) and observed_nonreal[0] < 4:
+            observed_nonreal[0] += 1
+            import numpy as np
+            cursor = int(getattr(THIS, "cursor_i", -1))
+            samples = np.asarray(sbr, dtype=float).ravel()
+            record = {
+                "event": "INDEPENDENT_REFERENCE_NONREAL_FOM",
+                "nonreal_sample_number": observed_nonreal[0],
+                "source_signal_amplitude": str(getattr(THIS, "A_s", None)),
+                "source_noise_rms": str(getattr(THIS, "total_noise_rms", None)),
+                "fom_real": candidate.real,
+                "fom_imag": candidate.imag,
+                "sampling_cursor_index": cursor,
+                "cursor_pulse_value": (float(samples[cursor]) if
+                     0 <= cursor < len(samples) else None),
+                "source_port_order": str(getattr(param, "snpPortsOrder", None)),
+                "source_tx_taps": str(getattr(THIS, "txffe", None))[:160],
+                "do_C2M": bool(do_C2M),
+            }
+            print("HISTORICAL_C2C_NONREAL_FOM_DIAGNOSTIC:",
+                  json.dumps(record, ensure_ascii=False, allow_nan=False),
+                  flush=True)
+        return answer
+    sicopr.OptFom_Calc_FOM = audited_fom
     with tempfile.TemporaryDirectory(prefix="ck-golden-") as d:
         base=Path(d)
         config,files,provenance=prepare(channel,base)
