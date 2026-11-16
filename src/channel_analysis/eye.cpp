@@ -129,6 +129,13 @@ EyeSettings eyeProfile(EyeProfile profile) {
   // In particular DO NOT assign a fabricated MIPI VOD, termination or RX threshold.
   return s;
 }
+EyeSettings eyeWithReferenceFrequency(EyeSettings s, double referenceHz) {
+  require(positive(referenceHz) && positive(2.0*referenceHz),
+          "Invalid NRZ reference frequency");
+  s.referenceFrequencyHz=referenceHz;
+  s.bitRateHz=2.0*referenceHz;
+  return s;
+}
 Result<EyeData> calculateEye(const ComplexTrace &trace, const EyeSettings &s,
                              Provenance provenance,
                              const std::atomic_bool *cancelled) {
@@ -143,6 +150,7 @@ Result<EyeData> calculateEye(const ComplexTrace &trace, const EyeSettings &s,
   require(positive(s.bitRateHz) && positive(s.analysisStopHz) &&
           positive(s.referenceFrequencyHz) &&
           s.referenceFrequencyHz <= s.analysisStopHz &&
+          near(s.referenceFrequencyHz,s.bitRateHz/2.0) &&
           s.analysisStopHz >= s.bitRateHz/2,
           "Invalid independent eye bit rate, reference marker or analysis cap");
   require(std::has_single_bit(s.fftLength) &&
