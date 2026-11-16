@@ -156,10 +156,17 @@ def parse_xlsx(data: bytes) -> tuple[list[str], dict]:
             root = ET.fromstring(z.read(sheet))
             for row in descendants(root,"row"):
                 cells: dict[int,str] = {}
+                formula_columns: set[int] = set()
                 for cell in direct_children(row,"c"):
+                    col=_column(cell.attrib["r"])
+                    # OOXML <f> marks a formula, even when <v> contains a
+                    # cached numeric result. Never accept it as a *literal*
+                    # IEEE reference parameter setting (may be stale).
+                    if direct_children(cell,"f"):
+                        formula_columns.add(col)
                     val = _text(cell, shared).strip()
                     if val:
-                        cells[_column(cell.attrib["r"])] = val
+                        cells[col] = val
                 for col, val in cells.items():
                     symbol = identify_parameter(val)
                     if not symbol:
@@ -168,6 +175,8 @@ def parse_xlsx(data: bytes) -> tuple[list[str], dict]:
                     # Only immediately adjacent value cells are candidates;
                     # columns farther away contain unrelated settings/flags.
                     for d in (1, 2):
+                        if col+d in formula_columns:
+                            continue
                         raw=cells.get(col+d, "").strip()
                         if not raw:
                             continue
