@@ -61,7 +61,7 @@ jobs:
       - name: Offline exact archive/fixture identity and fail-closed tests
         run: |
           python -m unittest discover -s tests/channel_analysis \
-            -p test_com_3ck_c2c_real_reference.py -v
+            -p 'test_com_3ck_c2c_*.py' -v
       - name: Audit original 2019 C2C role inventory — IEEE published 4 FEXT / 0 NEXT
         run: python scripts/com_3ck_c2c_real_reference.py --audit-roles
       - name: Compute historical 2019 THRU + four FEXT + zero NEXT and 2022 COM workbook
@@ -99,4 +99,60 @@ jobs:
         with:
           name: ieee-3ck-c2c-historical-reference-${{ matrix.condition }}db
           path: ieee-c2c-com-reference-${{ matrix.condition }}db.json
+          if-no-files-found: warn
+
+  historical-octave-independent-crosscheck:
+    # This compares the same historical source to a separate COM 4.17 Octave
+    # implementation. It never qualifies final 802.3ck or native C++ COM.
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    permissions:
+      contents: read
+    env:
+      OPENBLAS_NUM_THREADS: '1'
+      OMP_NUM_THREADS: '1'
+      MKL_NUM_THREADS: '1'
+      MPLBACKEND: Agg
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - name: Checkout SParamView metadata and tests only
+        uses: actions/checkout@v5
+      - name: Checkout fixed third-party BSD-3 COM reference with Octave source
+        uses: actions/checkout@v5
+        with:
+          repository: tbermen/SiCoPR
+          ref: cb7c4be5c63d41e88b6ee7d04fb17e0046ab0f75
+          path: _external_qa_sicopr
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Verify engine SHA and install ephemeral GNU Octave environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C _external_qa_sicopr rev-parse HEAD)" = cb7c4be5c63d41e88b6ee7d04fb17e0046ab0f75
+          test -f _external_qa_sicopr/LICENSE
+          test -f _external_qa_sicopr/octave/com_ieee8023_4p17p0_octave_compat.m
+          python -m pip install --disable-pip-version-check --no-cache-dir numpy scipy openpyxl
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends octave
+          octave-cli --version | head -n 1
+      - name: Offline strict-typed MATLAB COM cell conversion regression tests
+        run: |
+          python -m unittest discover -s tests/channel_analysis \
+            -p test_com_3ck_c2c_octave_check.py -v
+      - name: Run independent 4p17p0 Octave historical C2C 10dB package reference
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/com_3ck_c2c_octave_check.py \
+            --channel 10 --external _external_qa_sicopr \
+            --output octave-historical-c2c-reference-10db.json
+      - name: Keep metadata only; never upload IEEE/third-party source
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: historical-ck-c2c-octave-reference-metadata
+          path: octave-historical-c2c-reference-10db.json
           if-no-files-found: warn
