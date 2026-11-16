@@ -1269,7 +1269,6 @@ void AnalysisWindow::launchIcn() {
     outcome.status=result.status;
     outcome.diagnostic=QStringLiteral("Generic NRZ band-limited ICN; not IEEE/SNIA compliance");
     outcome.icn=std::make_shared<si::channel::IcnData>(std::move(*result.value));
-    outcome.eyeSourceFilename=sourceFile;
     outcome.provenance=std::move(result.provenance);
     return outcome;
   });
@@ -1528,6 +1527,7 @@ void AnalysisWindow::launchEye() {
       diagnostics.join(QStringLiteral(", "));
     if(result.usable())
       outcome.eye=std::make_shared<EyeData>(std::move(*result.value));
+    outcome.eyeSourceFilename=sourceFile;
     outcome.provenance=std::move(result.provenance);
     progress.store(100);
     return outcome;
