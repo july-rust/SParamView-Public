@@ -134,6 +134,8 @@ Result<EyeData> calculateEye(const ComplexTrace &trace, const EyeSettings &s,
                              const std::atomic_bool *cancelled) {
   check(cancelled);
   validateTrace(trace);
+  require(s.mode==EyeMode::SingleEnded || s.mode==EyeMode::Differential,
+          "Single-ended or differential channel mode must be explicitly selected");
   const bool differential=s.mode==EyeMode::Differential;
   require((differential && (trace.parameter=="Sdd21" || trace.parameter=="Sdd12")) ||
           (!differential && (trace.parameter=="S21" || trace.parameter=="S12")),
