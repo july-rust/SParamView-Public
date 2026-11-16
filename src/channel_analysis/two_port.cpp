@@ -84,13 +84,26 @@ ComTwoPortS twoPortScattering(const ComTwoPort &network,
   const Complex denominator=network.a+bz+cz+network.d;
   require(finite(denominator) && std::abs(denominator) >= 1e-180,
           "Singular COM two-port conversion");
-  const Complex determinant=network.a*network.d -
-                            network.b*network.c;
-  require(finite(determinant), "Nonfinite two-port determinant");
+  // All network constructors and cascades in this module are reciprocal:
+  // determinant(A,B,C,D) == 1 analytically. Computing AD-BC for a
+  // high-loss line subtracts enormous near-equal numbers and can yield
+  // an arbitrary result (even enormous reverse gain). Do not perform
+  // that ill-conditioned subtraction. For moderate ABCD values still
+  // reject an externally supplied non-reciprocal matrix.
+  const double detTermScale=std::abs(network.a)*std::abs(network.d)+
+                            std::abs(network.b)*std::abs(network.c);
+  if (detTermScale <= 1e8) {
+    const Complex determinant=network.a*network.d -
+                              network.b*network.c;
+    require(finite(determinant) &&
+            std::abs(determinant-Complex{1,0}) <=
+              1e-10*std::max(1.0,detTermScale),
+            "Non-reciprocal or invalid COM two-port matrix");
+  }
   ComTwoPortS out;
   out.s11=(network.a+bz-cz-network.d)/denominator;
   out.s21=Complex{2,0}/denominator;
-  out.s12=Complex{2,0}*determinant/denominator;
+  out.s12=out.s21; // analytical reciprocity, exact even for 100 Np
   out.s22=(-network.a+bz-cz+network.d)/denominator;
   require(finite(out.s11) && finite(out.s21) &&
           finite(out.s12) && finite(out.s22),
