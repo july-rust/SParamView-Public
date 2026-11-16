@@ -34,7 +34,8 @@ add_library(si_channel_analysis src/channel_analysis/common.cpp
                                 src/channel_analysis/com.cpp
                                 src/channel_analysis/two_port.cpp
                                 src/channel_analysis/s_network.cpp
-                                src/channel_analysis/package.cpp)
+                                src/channel_analysis/package.cpp
+                                src/channel_analysis/com_pipeline.cpp)
 target_include_directories(si_channel_analysis PUBLIC include)
 target_link_libraries(si_channel_analysis PUBLIC si_core)
 if(MSVC)
@@ -90,6 +91,12 @@ target_link_libraries(si_com_package_tests PRIVATE si_channel_analysis)
 add_test(NAME channel_com_package_physics COMMAND si_com_package_tests)
 set_tests_properties(channel_com_package_physics PROPERTIES TIMEOUT 90)
 install(TARGETS si_com_package_tests RUNTIME DESTINATION tests)
+# 012_09: S4P full-wave -> package Test1/Test2 complex physical THRU.
+add_executable(si_com_pipeline_tests tests/channel_analysis/com_pipeline_tests.cpp)
+target_link_libraries(si_com_pipeline_tests PRIVATE si_channel_analysis)
+add_test(NAME channel_com_physical_pipeline COMMAND si_com_pipeline_tests)
+set_tests_properties(channel_com_physical_pipeline PROPERTIES TIMEOUT 90)
+install(TARGETS si_com_pipeline_tests RUNTIME DESTINATION tests)
 add_executable(si_hardening_tests tests/hardening_tests.cpp)
 target_link_libraries(si_hardening_tests PRIVATE si_core)
 install(TARGETS si_hardening_tests RUNTIME DESTINATION tests)
