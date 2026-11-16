@@ -22,7 +22,9 @@ import scipy.io
 
 from com_3ck_c2c_real_reference import (
     CHANNEL_ZIP_SHA, CONFIG_SHA, SICOPR_COMMIT,
-    canonical_config_csv, prepare, reference_2019_c2c_inputs, sha
+    canonical_config_csv, prepare, reference_2019_c2c_inputs, sha,
+    audit_physical_thru_orientation, verified_historical_port_order,
+    configured_historical_port_order
 )
 
 NUMERIC = re.compile(r"[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?\Z")
@@ -113,8 +115,13 @@ def octave_case(channel: str, external_repo: Path, output: Path) -> int:
         workbook,files,provenance = prepare(channel,root)
         csv_path=root/"config_strict_verified.csv"
         config_meta=canonical_config_csv(workbook,csv_path)
+        orientation=audit_physical_thru_orientation(files[0])
+        decision=verified_historical_port_order(channel,orientation)
+        mapped_csv=root/"effective_portmapped.csv"
+        map_receipt=configured_historical_port_order(
+            csv_path,mapped_csv,decision)
         mat=root/"c2c.mat"
-        mat_meta=csv_to_octave_mat(csv_path,mat)
+        mat_meta=csv_to_octave_mat(mapped_csv,mat)
         num_fext,num_next,ordered=reference_2019_c2c_inputs(files)
         if (num_fext,num_next)!=(4,0) or len(ordered)!=5:
             raise ValueError("Historical C2C 4xFEXT/0xNEXT contract broken")
@@ -179,6 +186,7 @@ def octave_case(channel: str, external_repo: Path, output: Path) -> int:
             "original_s4p_provenance":provenance,
             "validated_config":config_meta,
             "validated_mat_converter":mat_meta,
+            "temporary_source_verified_port_order":map_receipt,
             "aggressor_fext_count":4,
             "aggressor_next_count":0,
             "aggressor_distinct_fext_source_files":1,
