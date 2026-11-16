@@ -34,7 +34,7 @@ NORM_FIELDS = {f.lower(): f for f in FIELD_NAMES}
 
 def identify_parameter(value: str) -> str | None:
     """Match label only, including param.NAME and label [unit] variants."""
-    compact=re.sub(r"\\s+", " ",value).strip()
+    compact=re.sub(r"\s+", " ",value).strip()
     if len(compact)>96:
         return None
     if compact.lower().startswith("param."):
@@ -44,7 +44,7 @@ def identify_parameter(value: str) -> str | None:
             if compact=="L":
                 return name
             continue
-        pattern=r"^"+re.escape(name)+r"(?=$|[\\s(\\[:=;])"
+        pattern=r"^"+re.escape(name)+r"(?=$|[\s(\[:=;])"
         if re.search(pattern,compact,flags=re.IGNORECASE):
             return name
     return None
@@ -54,14 +54,14 @@ def inspect_workbook_shape(data: bytes) -> dict:
     with zipfile.ZipFile(io.BytesIO(data)) as z:
         safe_zip(z, 15_000_000)
         files=sorted(x for x in z.namelist()
-                     if re.fullmatch(r"xl/worksheets/sheet\\d+\\.xml",x))
+                     if re.fullmatch(r"xl/worksheets/sheet\d+\.xml",x))
         if "xl/sharedStrings.xml" in z.namelist():
             root=ET.fromstring(z.read("xl/sharedStrings.xml"))
             strings=["".join(n.text or "" for n in si.findall(".//m:t",NS))
                      for si in root.findall("m:si",NS)]
         else:
             strings=[]
-        labels=[re.sub(r"\\s+"," ",x).strip()[:60] for x in strings
+        labels=[re.sub(r"\s+"," ",x).strip()[:60] for x in strings
                 if x.strip() and len(x)<=100]
         return {"sheets":files[:24],"shared_strings":len(strings),
                 "sample_short_labels":labels[:35]}
