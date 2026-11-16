@@ -1,12 +1,12 @@
 # 012_09 — Real IEEE public C2C channel reference COM prequalification
 
-**Status:** pending actual numerical execution. No normative final 802.3ck COM qualification or SParamView native C++ COM dB.
+**Status:** BLOCKED after actual CI numerical attempt. Zero usable C2C COM dB golden outputs. No final 802.3ck compliance certification or SParamView native C++ COM dB.
 
 ## Reason
 
 The IEEE 802.3ck task force supplied four distinct real-world C2C impairment groups with matched THRU, NEXT and FEXT S4P files. GitHub [read-only corpus audit #43866966952](https://github.com/july-rust/SParamView-Public/actions/runs/43866966952) downloaded the public archive and verified **12 S4P files** with unique SHA-256 hashes, in 10/16/18/20 dB source-labelled groups.
 
-Official public 2022 COM 3.90 tool archive includes a historical 802.3ck SA 120F C2C workbook dated 2022-08-17. We can feed the **same pinned profile and real inputs** into an independent BSD-3-Clause COM implementation for actual two-package numerical references, instead of inventing COM margins.
+Official public 2022 COM 3.90 tool archive includes a historical 802.3ck SA 120F C2C workbook dated 2022-08-17. The intended reference path would run the **same pinned historical profile and real inputs** through a BSD-3-Clause COM implementation. Actual execution is currently **blocked at original-workbook interpretation**, before any numerical COM value is produced; no sheet selection, numeric margin, or package result is inferred.
 
 ## Executable reproducibility
 
@@ -19,6 +19,15 @@ Source and digest pins are in `scripts/com_3ck_c2c_real_reference.py`:
 - Three scheduled independent *source-labelled* physical channel groups 10/16/18 dB, each with verified THRU/FEXT/NEXT unique SHA, and expected **two package-case outputs**. The fourth 20 dB input is SHA-pinned, reserved for additional diversity.
 
 `python -m unittest discover -s tests/channel_analysis -p test_com_3ck_c2c_real_reference.py -v` verifies input identity and safe source handling before live calculation. The reference runner uses ephemeral temp directories; only SHA/provenance and numerical margin/FOM/timing outputs are uploaded as GitHub JSON artifacts. No IEEE/SiCoPR source code, workbook, or channel bytes are included in the SParamView source or release.
+
+## Actual CI numerical failure (2026-11-16)
+
+- [Initial 3-channel reference run #43869557024](https://github.com/july-rust/SParamView-Public/actions/runs/43869557024): each 10/16/18 dB job failed at the offline test because integer-valued `19.0` was serialized to CSV as `19`. The test now compares numeric values; this is test representation, **not** an IEEE model correction.
+- [Retest #43876986341](https://github.com/july-rust/SParamView-Public/actions/runs/43876986341): all seven offline tests passed on sampled jobs, then the live calculation **failed** during conversion of the exact 2022 historical XLSX: `Cannot uniquely identify 2022 120F C2C settings worksheet: []`. No COM numeric result or metadata golden was uploaded.
+- [Historical IEEE workbook OOXML source audit #43834905502](https://github.com/july-rust/SParamView-Public/actions/runs/43834905502): four worksheet XML files were detected. Candidate parameter values differ across sheets (e.g., `c(0)` 0.54 vs 0.60; `DER_0` 1e-5 vs 1e-4), and there is **no independently approved worksheet-selection/profile contract**. All settings were previously classified non-normative.
+- The follow-up branch includes explicit worksheet-state diagnostics and a new regression proving hidden-only settings do not silently become a qualified configuration. These do **not** make the actual COM run pass.
+
+**Disposition:** BLOCKED, do not merge this numerical-acceptance PR until real latest-head three-case jobs compute finite Test1 and Test2 margins and all cross-platform checks pass. It is unsafe to pick one candidate worksheet, merge values, manufacture results, or weaken the gate to obtain a green workflow. Even successful historical candidate calculations would not qualify the **final** published IEEE 802.3ck-2022 Table 120F-8 or the independent C++ COM engine.
 
 ## Hard stops
 
