@@ -528,7 +528,8 @@ if __name__ == "__main__":
     args=cli.parse_args()
     try:
         raise SystemExit(run(args.channel,args.output))
-    except (OSError, ValueError, zipfile.BadZipFile, RuntimeError) as exc:
+    except (OSError, ValueError, TypeError, ArithmeticError,
+            zipfile.BadZipFile, RuntimeError) as exc:
         print("C2C_REFERENCE_NUMERICAL_BLOCKED: "
               f"{type(exc).__name__}: {exc}",file=sys.stderr)
         raise SystemExit(2)
