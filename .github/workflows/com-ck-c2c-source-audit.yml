@@ -1,0 +1,56 @@
+name: IEEE P802.3ck public C2C channel corpus read-only audit (012_09)
+on:
+  pull_request:
+    branches: [integration/v1.4.0]
+    paths:
+      - 'scripts/ieee_3ck_public_c2c_corpus_audit.py'
+      - 'tests/channel_analysis/test_ieee_3ck_c2c_corpus_audit.py'
+      - '.github/workflows/com-ck-c2c-source-audit.yml'
+  push:
+    branches: [integration/v1.4.0]
+    paths:
+      - 'scripts/ieee_3ck_public_c2c_corpus_audit.py'
+      - 'tests/channel_analysis/test_ieee_3ck_c2c_corpus_audit.py'
+      - '.github/workflows/com-ck-c2c-source-audit.yml'
+  workflow_dispatch:
+jobs:
+  public-channel-corpus-provenance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Offline safe source-inventory parser tests
+        run: |
+          python -m unittest discover -s tests/channel_analysis -p test_ieee_3ck_c2c_corpus_audit.py -v
+      - name: Read-only official IEEE public 2019 C2C input corpus inventory
+        run: |
+          set -o pipefail
+          python scripts/ieee_3ck_public_c2c_corpus_audit.py | tee ieee-3ck-c2c-channel-inventory.json
+      - name: Guarantee no normative COM or reference results are fabricated
+        run: |
+          python - <<'PY'
+          import json
+          with open("ieee-3ck-c2c-channel-inventory.json",encoding="utf-8") as f:
+              report=json.load(f)
+          assert report["source_url"].startswith("https://www.ieee802.org/")
+          assert len(report["archive_sha256"])==64
+          assert report["qualification_status"]=="PUBLIC_CHANNEL_CORPUS_DISCOVERY_ONLY"
+          assert report["normative_8023ck_final_profile_qualified"] is False
+          assert report["qualified_independent_same_phy_cases"]==0
+          assert report["computed_com_goldens"]==0
+          assert report["third_party_bytes_uploaded"] is False
+          print("IEEE 2019 public C2C candidate channel corpus audited; "
+                "COM SAME-PHY GOLDENS STILL 0")
+          PY
+      - name: Preserve SHA and filenames only; never upload third-party S4P bytes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ieee-3ck-2019-public-c2c-inventory-only
+          path: ieee-3ck-c2c-channel-inventory.json
+          if-no-files-found: warn
