@@ -34,6 +34,7 @@ struct WorkOutcome {
   std::shared_ptr<const si::channel::IldData> ild;
   std::shared_ptr<const si::channel::IcnData> icn;
   std::shared_ptr<const si::channel::EyeData> eye;
+  QString eyeSourceFilename;
   si::channel::Provenance provenance;
 };
 struct IldSourceInput {
@@ -143,6 +144,7 @@ private:
   std::shared_ptr<const si::channel::EyeData> eyeResult_;
   si::channel::EyeSettings eyeSettings_;
   si::channel::Provenance eyeProvenance_;
+  QString eyeSourceFilename_;
   QLabel *statusLabel_ = nullptr, *graphPlaceholder_ = nullptr;
   QLabel *icnContributions_ = nullptr;
   QWidget *ildGraph_ = nullptr, *icnGraph_ = nullptr;
