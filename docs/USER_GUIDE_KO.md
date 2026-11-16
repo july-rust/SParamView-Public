@@ -635,7 +635,7 @@ v1.2.1에서 도입된 과거 기능은 [v1.2.1 릴리스 노트](Release_1.2.1.
 
 ## 개발 중 — 012_08 Simulated Channel Eye (v1.4.0 통합 브랜치 전용)
 
-> 이 내용은 정식 v1.3.5에 포함되지 않습니다. [012_08 PR #47](https://github.com/july-rust/SParamView-Public/pull/47)에서 검증 중이며, 최종 출시 전에는 실제 구현·CI 상태를 확인하십시오.
+> 이 내용은 정식 v1.3.5에 포함되지 않습니다. [012_08 PR #47](https://github.com/july-rust/SParamView-Public/pull/47)의 구현과 필수 PR CI가 통과하여 `integration/v1.4.0`에 병합됐습니다. 별도 병합 후 CI 및 012_12 실물 GUI·최종 출시 조건은 계속 확인해야 합니다.
 
 1. 확정된 Touchstone 원본과 물리 포트 매핑을 연 뒤 **Analysis → Eye Diagram**을 선택합니다. 독립 창이 열립니다.
 2. 프로파일을 지정합니다. MIPI D-PHY v2.1 HS 예시의 **4.5 Gbps, 기준 2.25 GHz, 분석 상한 10 GHz**는 주파수 설정만 제공합니다. 기준 주파수를 바꾸면 비트율도 연동됩니다. 분석 상한은 독립적으로 조정됩니다.
