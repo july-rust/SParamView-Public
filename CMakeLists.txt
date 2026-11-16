@@ -261,6 +261,12 @@ endif()
 
 find_package(Python3 COMPONENTS Interpreter QUIET)
 if(Python3_Interpreter_FOUND)
+  # 012_09: signed-profile evidence is not satisfied by synthetic 012_02 oracles.
+  add_test(NAME channel_com_normative_gate
+    COMMAND "${Python3_EXECUTABLE}" -m unittest discover
+            -s "${CMAKE_SOURCE_DIR}/tests/channel_analysis"
+            -p "test_com_reference_preflight.py" -v)
+  set_tests_properties(channel_com_normative_gate PROPERTIES TIMEOUT 45)
   add_test(NAME cli_session_cache_cleanup
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/check_cli_temp_cleanup.py" "$<TARGET_FILE:si_cli>")
   set_tests_properties(cli_session_cache_cleanup PROPERTIES TIMEOUT 45)
