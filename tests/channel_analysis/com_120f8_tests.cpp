@@ -176,6 +176,26 @@ try {
   closeComplex(calculated.value->conditionedThru[1000],
                {0.42516619243164677,0.041868363616010984},
                "actual native cursor-aligned source->FFE->receiver oracle");
+  // A signed pre/post FFE with cursor-relative advance/delay must not
+  // accidentally rotate THRU or a complex FEXT aggressor by 3 UI.
+  Com120F8EqualizerChoice multiEq=flatEq;
+  multiEq.txFfe={-0.04,0.10,-0.28,0.54,-0.10};
+  ComAggressor aggressor{"fext-golden",ComCoupling::Fext,channel.thru};
+  aggressor.transfer.parameter="Sdd41";
+  aggressor.transfer.transfer.assign(grid.size(),{0.,0.1});
+  channel.aggressors.push_back(aggressor);
+  const auto multi=prepareCom120F8ReceiverSpectra(channel,multiEq);
+  demand(multi.usable() && multi.value->aggressors.size()==1,
+         "full signed FIR and FEXT phase calculation");
+  closeComplex(multi.value->txFfeResponse[1000],
+               {0.3615822649725838,-0.08074242672652934},
+               "cursor-aligned pre/post TX FFE independent oracle");
+  closeComplex(multi.value->conditionedThru[1000],
+               {0.1571131081306297,-0.019190092392036742},
+               "signed FFE and RX complex THRU independent oracle");
+  closeComplex(multi.value->aggressors[0].conditionedTransfer[1000],
+               {0.0019190092392036742,0.01571131081306297},
+               "signed FFE and RX complex FEXT independent oracle");
   channel.rxFilter.parameter="Sdd21";
   channel.rxFilter.frequencyHz=grid;
   channel.rxFilter.transfer.assign(grid.size(),{1.,0.});
