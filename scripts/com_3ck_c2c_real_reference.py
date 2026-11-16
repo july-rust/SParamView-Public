@@ -220,7 +220,7 @@ def strict_ooxml_com_settings(raw: bytes) -> tuple[list[list[str]],dict]:
         if len(sheet_data) != 1:
             raise ValueError("Strict OOXML COM_Settings sheetData missing")
         rows = []
-        formulas = set()
+        formulas = {}
         seen_cells = set()
         for row in sheet_data[0]:
             if local(row.tag) != "row":
@@ -244,7 +244,12 @@ def strict_ooxml_com_settings(raw: bytes) -> tuple[list[list[str]],dict]:
                 while len(rows[row_number-1]) < column:
                     rows[row_number-1].append("")
                 if children(cell, "f"):
-                    formulas.add((row_number, column))
+                    formula = children(cell, "f")[0].text or ""
+                    cached = children(cell, "v")
+                    formulas[(row_number, column)] = {
+                        "expression": formula[:240],
+                        "cached": (cached[0].text or "")[:80] if cached else None,
+                    }
                     rows[row_number-1][column-1] = ""
                 else:
                     value = text(cell, strings)
@@ -266,7 +271,8 @@ def strict_ooxml_com_settings(raw: bytes) -> tuple[list[list[str]],dict]:
                           json.dumps({"parameter":key, "row":r, "label_column":c,
                                       "row_cells":cells[:8],
                                       "formula_columns":sorted(col for rr,col in formulas
-                                                               if rr==r)},
+                                                               if rr==r),
+                                      "adjacent_formula":formulas.get((r,c+1))},
                                      ensure_ascii=False),flush=True)
                     raise ValueError("Formula-derived COM parameter is not qualified: " + key)
                 if c >= len(cells) or not cells[c].strip():
