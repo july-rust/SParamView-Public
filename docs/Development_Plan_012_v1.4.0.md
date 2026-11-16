@@ -3,7 +3,7 @@
 **기준일:** 2026-11-16 (KST)
 **공식 기준:** v1.3.5 (tag/release 불변)
 **목표:** ILD·ICN·Eye Diagram·COM을 각각 독립적인 C++20 수치 엔진, Qt6 창, 테스트로 구현하고 **v1.4.0 한 번에 릴리스**
-**상태:** 012_01 COMPLETE / 012_02 COMPLETE (REFERENCE_READY) / 012_03 CORE VERIFIED (PR #37; 최종 병합 상태는 PR 참조) / 012_04 GUI/워커 COMPLETE (PR #38; CI 43708927772) / 012_05 COMPLETE (ILD 엔진/GUI PR #40; CI 43766947020) / 012_06 COMPLETE (Generic ICN PR #42; CI 43775680490) / 012_07 COMPLETE (Eye 수치 엔진 PR #45; CI 43798693800) / 012_08 COMPLETE (PR #47 및 통합 CI #43812686401 검증 성공) / 012_09~14 미착수 / COM 미구현 / v1.4.0 미출시
+**상태:** 012_01 COMPLETE / 012_02 COMPLETE (REFERENCE_READY) / 012_03 CORE VERIFIED (PR #37; 최종 병합 상태는 PR 참조) / 012_04 GUI/워커 COMPLETE (PR #38; CI 43708927772) / 012_05 COMPLETE (ILD 엔진/GUI PR #40; CI 43766947020) / 012_06 COMPLETE (Generic ICN PR #42; CI 43775680490) / 012_07 COMPLETE (Eye 수치 엔진 PR #45; CI 43798693800) / 012_08 COMPLETE (PR #47 및 통합 CI #43812686401 검증 성공) / 012_09 PREQUALIFICATION PARTIAL / IEEE PROFILE BLOCKED (COM margin 미구현), 012_10~14 미착수 / COM 미구현 / v1.4.0 미출시
 **작업 번호:** 012_01 ~ 012_14. 단계별 PR, CI, 증거와 완료 조건을 연결한다.
 
 > 이 문서는 향후 실행할 개발 명령의 기준이며, 문서 작성만으로 기능이나 공식 표준 적합성을 검증했다고 주장하지 않는다.
@@ -99,6 +99,7 @@
 - **완료:** 그래프·숫자 동일 데이터 일치, 큰 데이터 처리/창 종료 안정성, 측정된 Eye와 혼동되지 않는 라벨 확인.
 
 ### 012_09 — COM 수치 엔진 및 **최종 승인 PHY 수치 프로파일 자격 검증**
+- **진행 중, 100% COMPLETE 아님:** [012_09 실제 구현·차단 범위](Channel_Analysis_COM_012_09.md). 복소 THRU/FFE/RX/NEXT/FEXT 전처리 및 수치/Fail-Closed 테스트를 추가했으나, 최종 승인 120F-8 수치·패키지 Test1/Test2·동규격 Golden 3건 및 공식 COM 엔진은 미완이다. 수치 COM 출력은 NOT_EVALUATED. 이 범위의 CI·병합 상태는 기능 PR에서 확인한다.
 - **실행:** 012_02가 고정한 승인 PHY의 **최종 IEEE 802.3ck-2022 Annex 120F.4.1/Table 120F-8 수치와 예외 규칙 전체**를 정식 자료에서 항목별 검증하고, 지정한 Test1/Test2 패키지 설정 각각 COM을 재현한다. 실제 C++ 엔진의 채널·패키지·TX/RX EQ, ISI/누화/잡음 및 최적화를 구현한다.
 - **산출:** com.cpp, 파라미터 출처/버전·테이블 대조, 최소 **3개 이상 같은 정식 802.3ck 프로파일의 독립 COM golden 수치 사례**, 단위/오차/수렴 근거 및 원본 SHA; 독립 참조 차이 보고서.
 - **완료:** 전체 Table 120F-8 값 및 Test1/Test2 실제 재현, 3개 동규격 oracle 각각 허용 오차 통과, profile 불일치·미지원은 NOT_EVALUATED. 단순 P802.3dj 예제의 수치 PASS를 802.3ck PHY 적합성으로 전용하지 않는다. **이 게이트가 실패하면 012_09 미완료·v1.4.0 미출시**.
@@ -162,7 +163,8 @@
 | 012_06 ICN 엔진·GUI | **COMPLETE (Generic 수치/자동화 범위)** | [병합 PR #42](https://github.com/july-rust/SParamView-Public/pull/42) · [3개 플랫폼 CI PASS](https://github.com/july-rust/SParamView-Public/actions/runs/43775680490) · 통합 SHA `1bcf54008d3031c5b8ef634e4d2bef1479eee96a` |
 | 012_07 Eye numerical engine | **COMPLETE (NUMERICAL ONLY)** | [PR #45](https://github.com/july-rust/SParamView-Public/pull/45) 병합 `ae417b64`; [전체 CI #43798693800](https://github.com/july-rust/SParamView-Public/actions/runs/43798693800) 필수 플랫폼/Native ARM64 PASS; GUI는 012_08 | 
 | 012_08 Eye GUI & SourceSnapshot | **COMPLETE (GUI / Core integration / automatic CI)** | PR #47 squash merged `17bcec47`; PR CI #43811255898 and post-merge integration CI #43812686401 **SUCCESS**; physical GUI acceptance belongs to 012_12 |
-| 012_09~012_14 COM·통합·릴리스 | NOT STARTED | COM 미구현; v1.3.5 릴리스 유지 · v1.4.0 미출시 |
+| 012_09 COM 수치 엔진 | PARTIAL / BLOCKED | 전처리 및 fail-closed 구현; [검증 한계](Channel_Analysis_COM_012_09.md). 최종 IEEE 수치/Golden·정식 COM 엔진 미완 |
+| 012_10~012_14 GUI·통합·릴리스 | NOT STARTED | v1.3.5 유지; v1.4.0 미출시 |
 | 계획 문서 | PLANNED | 본 문서 및 링크된 상위 로드맵 |
 
 ## 7. 출처
