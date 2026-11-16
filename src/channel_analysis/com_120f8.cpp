@@ -33,6 +33,54 @@ void validateCom120F8Equalizer(const Com120F8EqualizerChoice& choice) {
   gridValue(choice.ctleDcGain2Db,p.ctleDcGain2Db,
             "Final IEEE 120F-8 CTLE second DC gain outside discrete bounds");
 }
+Complex com120F8Ctle(double frequencyHz,double gDcDb,double gDc2Db) {
+  require(std::isfinite(frequencyHz) && frequencyHz>=0,
+          "IEEE 120F-8 CTLE invalid frequency");
+  const auto p=final8023ck120F8();
+  gridValue(gDcDb,p.ctleDcGainDb,"IEEE CTLE gDC not on final discrete range");
+  gridValue(gDc2Db,p.ctleDcGain2Db,
+            "IEEE CTLE gDC2 not on final discrete range");
+  const Complex j{0,1};
+  const Complex numerator=
+      (std::pow(10.,gDcDb/20.)+j*(frequencyHz/p.ctleZeroFrequencyHz))*
+      (std::pow(10.,gDc2Db/20.)+j*(frequencyHz/p.ctleLowFrequencyPoleZeroHz));
+  const Complex denominator=
+      (Complex{1,0}+j*(frequencyHz/p.ctlePole1FrequencyHz))*
+      (Complex{1,0}+j*(frequencyHz/p.ctlePole2FrequencyHz))*
+      (Complex{1,0}+j*(frequencyHz/p.ctleLowFrequencyPoleZeroHz));
+  require(std::isfinite(std::abs(denominator)) &&
+          std::abs(denominator)>1e-15,
+          "IEEE CTLE denominator numerical singularity");
+  const Complex output=numerator/denominator;
+  require(std::isfinite(output.real()) && std::isfinite(output.imag()),
+          "IEEE CTLE nonfinite complex response");
+  return output;
+}
+Complex com120F8ReceiverNoiseFilter(double frequencyHz) {
+  require(std::isfinite(frequencyHz) && frequencyHz>=0,
+          "IEEE 120F-8 receiver noise filter invalid frequency");
+  const double x=frequencyHz/final8023ck120F8().receiverBandwidthHz;
+  require(std::isfinite(x) && x<=1e6,
+          "IEEE 120F-8 receiver noise filter frequency out of range");
+  // IEEE 802.3ck working-group formula for fourth-order Butterworth
+  // low-pass. The transfer is complex, not an attenuation-only magnitude.
+  const double x2=x*x;
+  const Complex denominator{
+      1-(2+std::sqrt(2.))*x2+x2*x2,
+      std::sqrt(4+2*std::sqrt(2.))*(x-x2*x)};
+  require(std::isfinite(std::abs(denominator)) &&
+          std::abs(denominator)>1e-15,
+          "IEEE receiver noise filter denominator numerical singularity");
+  const Complex output=Complex{1,0}/denominator;
+  require(std::isfinite(output.real()) && std::isfinite(output.imag()),
+          "IEEE receiver noise filter nonfinite complex response");
+  return output;
+}
+Complex com120F8ReceiverTransfer(double frequencyHz,
+                                  double gDcDb,double gDc2Db) {
+  return com120F8Ctle(frequencyHz,gDcDb,gDc2Db)*
+         com120F8ReceiverNoiseFilter(frequencyHz);
+}
 void validateCom120F8DirectGrid(const std::vector<double>& frequencyHz) {
   const auto p=final8023ck120F8();
   require(frequencyHz.size()>=3 && frequencyHz.size()<=65536,
