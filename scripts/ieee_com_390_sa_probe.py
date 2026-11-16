@@ -165,7 +165,9 @@ def parse_xlsx(data: bytes) -> tuple[list[str], dict]:
                     if not symbol:
                         continue
                     near = []
-                    for d in range(1, 9):
+                    # Only immediately adjacent value cells are candidates;
+                    # columns farther away contain unrelated settings/flags.
+                    for d in (1, 2):
                         raw=cells.get(col+d, "").strip()
                         if not raw:
                             continue
