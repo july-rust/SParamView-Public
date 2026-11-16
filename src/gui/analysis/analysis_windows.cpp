@@ -276,6 +276,158 @@ protected:
 private:
   std::shared_ptr<const si::channel::IcnData> data_;
 };
+
+class EyePlotWidget final : public QWidget {
+public:
+  explicit EyePlotWidget(QWidget *parent=nullptr) : QWidget(parent) {
+    setObjectName(QStringLiteral("eyeResultGraph"));
+    setMinimumHeight(330);
+    setMouseTracking(true);
+  }
+  void setData(std::shared_ptr<const si::channel::EyeData> data, double thresholdV) {
+    data_=std::move(data); thresholdV_=thresholdV;
+    zoom_=1; shift_=0; cursor_=-1; update();
+  }
+  void setView(int view) { view_=std::clamp(view,0,2); zoom_=1;shift_=0;update(); }
+protected:
+  void wheelEvent(QWheelEvent *e) override {
+    if(!data_ || !e->angleDelta().y()) { QWidget::wheelEvent(e);return; }
+    const double before=zoom_;
+    zoom_=std::clamp(zoom_*(e->angleDelta().y()>0?1.25:0.8),1.0,32.0);
+    const double portion=std::clamp((e->position().x()-75)/std::max(1.,double(width()-100)),0.,1.);
+    shift_=std::clamp(shift_+portion*(1/before-1/zoom_),0.,1.-1/zoom_);
+    update();e->accept();
+  }
+  void mousePressEvent(QMouseEvent *e) override {
+    if(e->button()==Qt::LeftButton) { dragging_=true; lastX_=e->position().x();e->accept(); }
+    else QWidget::mousePressEvent(e);
+  }
+  void mouseMoveEvent(QMouseEvent *e) override {
+    if(dragging_) {
+      shift_=std::clamp(shift_-(e->position().x()-lastX_)/
+          std::max(1.,double(width()-100))/zoom_,0.,1.-1/zoom_);
+      lastX_=e->position().x();
+    }
+    cursor_=std::clamp((e->position().x()-75)/std::max(1.,double(width()-100)),0.,1.);
+    if(data_) {
+      const double xFraction=shift_+cursor_/zoom_;
+      const double xValue=view_==0?2*xFraction
+                         :data_->timeSeconds.empty()?0:
+                           xFraction*data_->timeSeconds.back()*1e12;
+      setToolTip(QStringLiteral("Cursor: %1 %2; simulated only")
+        .arg(xValue,0,'g',8).arg(view_==0?QStringLiteral("UI"):QStringLiteral("ps")));
+    }
+    lastX_=e->position().x();update();e->accept();
+  }
+  void mouseReleaseEvent(QMouseEvent *e) override {
+    dragging_=false; QWidget::mouseReleaseEvent(e);
+  }
+  void mouseDoubleClickEvent(QMouseEvent *e) override {
+    zoom_=1;shift_=0;update();e->accept();
+  }
+  void leaveEvent(QEvent *e) override { cursor_=-1;update();QWidget::leaveEvent(e); }
+  void paintEvent(QPaintEvent *) override {
+    QPainter p(this);
+    p.fillRect(rect(),palette().base());
+    p.setRenderHint(QPainter::Antialiasing);
+    p.setPen(palette().text().color());
+    const QString title=QStringLiteral("Simulated Channel Eye — Not Measured / Not PHY Compliance");
+    p.drawText(QRectF(8,3,width()-16,24),Qt::AlignCenter,title);
+    if(!data_) {
+      p.drawText(rect(),Qt::AlignCenter,QStringLiteral("Enter verified electrical conditions and Run Eye"));
+      return;
+    }
+    const auto &d=*data_;
+    QRectF area(75,37,std::max(50,width()-100),std::max(50,height()-89));
+    double low=std::numeric_limits<double>::infinity();
+    double high=-std::numeric_limits<double>::infinity();
+    auto include=[&](double v) {if(std::isfinite(v)){low=std::min(low,v);high=std::max(high,v);}};
+    if(view_==0) {
+      for(const auto &t:d.overlayV) for(double v:t) include(v*1000);
+      include(thresholdV_*1000); include(d.minimumHighV*1000);include(d.maximumLowV*1000);
+    } else if(view_==1) {
+      for(double v:d.transmittedV)include(v*1000);
+      for(double v:d.receivedV)include(v*1000);
+    } else {
+      for(double v:d.impulse.values) include(v);
+      for(double v:d.unitPulse.values)include(v);
+    }
+    if(!std::isfinite(low)||!std::isfinite(high))return;
+    const double margin=std::max((high-low)*0.10,0.001);
+    low-=margin;high+=margin;
+    p.setPen(palette().mid().color());p.drawRect(area);
+    p.setPen(palette().text().color());
+    p.drawText(QRectF(2,area.top(),69,20),Qt::AlignRight,QString::number(high,'g',6));
+    p.drawText(QRectF(2,area.bottom()-20,69,20),Qt::AlignRight,QString::number(low,'g',6));
+    p.drawText(QRectF(4,22,70,16),Qt::AlignRight,
+      view_==2?QStringLiteral("relative"):QStringLiteral("mV"));
+    const double fullX=view_==0?2.0 : (d.timeSeconds.empty()?0:d.timeSeconds.back()*1e12);
+    const double x0=fullX*shift_, x1=fullX*(shift_+1/zoom_);
+    if(x1<=x0) return;
+    auto xp=[&](double x){return area.left()+(x-x0)/(x1-x0)*area.width();};
+    auto yp=[&](double y){return area.bottom()-(y-low)/(high-low)*area.height();};
+    p.drawText(QRectF(area.left(),area.bottom()+5,area.width(),20),Qt::AlignLeft,
+      QString::number(x0,'g',7)+(view_==0?QStringLiteral(" UI"):QStringLiteral(" ps")));
+    p.drawText(QRectF(area.left(),area.bottom()+5,area.width(),20),Qt::AlignRight,
+      QString::number(x1,'g',7)+(view_==0?QStringLiteral(" UI"):QStringLiteral(" ps")));
+    p.drawText(QRectF(area.left(),height()-23,area.width(),20),Qt::AlignCenter,
+      view_==0?QStringLiteral("UI (2 symbols)"):QStringLiteral("Time (ps)"));
+    p.save(); p.setClipRect(area);
+    auto series=[&](const std::vector<double> &v,double xStep,double scale,QColor color) {
+      if(v.size()<2)return;
+      const size_t stride=std::max<size_t>(1,v.size()/3500);
+      QPainterPath path;bool first=true;
+      auto vertex=[&](size_t index) {
+        double x=xp(double(index)*xStep), y=yp(v[index]*scale);
+        if(first){path.moveTo(x,y);first=false;}else path.lineTo(x,y);
+      };
+      for(size_t i=0;i<v.size();i+=stride) {
+        size_t mini=i,maxi=i;
+        for(size_t j=i+1;j<std::min(v.size(),i+stride);++j) {
+          if(v[j]<v[mini])mini=j;
+          if(v[j]>v[maxi])maxi=j;
+        }
+        if(mini<=maxi){vertex(mini);if(maxi!=mini)vertex(maxi);}
+        else {vertex(maxi);vertex(mini);}
+      }
+      vertex(v.size()-1);
+      p.setPen(QPen(color,1.3));p.drawPath(path);
+    };
+    if(view_==0) {
+      if(d.overlayPhaseUI.size()>1) {
+        const double step=d.overlayPhaseUI[1]-d.overlayPhaseUI[0];
+        for(const auto &v:d.overlayV)series(v,step,1000,QColor(38,126,197,95));
+      }
+      p.setPen(QPen(QColor("#c75b44"),1.5,Qt::DashLine));
+      p.drawLine(QPointF(area.left(),yp(thresholdV_*1000)),
+                 QPointF(area.right(),yp(thresholdV_*1000)));
+      p.setPen(QPen(QColor("#128b76"),1.2,Qt::DashLine));
+      for(double y:{d.minimumHighV,d.maximumLowV})
+        p.drawLine(QPointF(area.left(),yp(y*1000)),QPointF(area.right(),yp(y*1000)));
+      p.setPen(QPen(QColor("#aa6b24"),1.4,Qt::DashLine));
+      for(double x:{d.samplingPhaseUI,d.samplingPhaseUI+1.0})
+        p.drawLine(QPointF(xp(x),area.top()),QPointF(xp(x),area.bottom()));
+    } else if(view_==1) {
+      series(d.transmittedV,d.timeStepSeconds*1e12,1000,QColor("#d47a24"));
+      series(d.receivedV,d.timeStepSeconds*1e12,1000,QColor("#246cad"));
+    } else {
+      series(d.impulse.values,d.timeStepSeconds*1e12,1,QColor("#246cad"));
+      series(d.unitPulse.values,d.timeStepSeconds*1e12,1,QColor("#d47a24"));
+    }
+    if(cursor_>=0) {
+      p.setPen(QPen(palette().text().color(),1,Qt::DotLine));
+      const double xx=area.left()+cursor_*area.width();
+      p.drawLine(QPointF(xx,area.top()),QPointF(xx,area.bottom()));
+    }
+    p.restore();
+  }
+private:
+  std::shared_ptr<const si::channel::EyeData> data_;
+  double thresholdV_=0,zoom_=1,shift_=0,cursor_=-1,lastX_=0;
+  int view_=0;
+  bool dragging_=false;
+};
+
 }
 struct AsyncScheduler::Ticket {
   Feature feature;
