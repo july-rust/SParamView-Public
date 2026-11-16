@@ -149,6 +149,35 @@ try {
   grid.reserve(2658);
   for(int i=0;i<=2657;++i)grid.push_back(1e7*i);
   validateCom120F8DirectGrid(grid);
+  // Real native C++ execution: 120F-8 fixed FFE -> complex 93A CTLE
+  // -> Butterworth RX. This is an EXPLORATORY transfer, not IEEE COM dB.
+  ComInput channel;
+  channel.thru.parameter="Sdd21";
+  channel.thru.stimulusOhm=channel.thru.responseOhm=100.;
+  channel.thru.frequencyHz=grid;
+  channel.thru.transfer.assign(grid.size(),{1.,0.});
+  Com120F8EqualizerChoice flatEq;
+  flatEq.ctleDcGainDb=-20.;
+  flatEq.ctleDcGain2Db=-4.;
+  const auto calculated=prepareCom120F8ReceiverSpectra(channel,flatEq);
+  demand(calculated.usable() &&
+         calculated.status==Status::Warning &&
+         calculated.value.has_value(),
+         "actual C++ FFE/CTLE/RX diagnostic must run and warn");
+  demand(calculated.provenance.algorithm==
+         "com-120f8-ffe-ctle-rx-exploratory",
+         "transfer must never be disguised as normative margin");
+  closeComplex(calculated.value->conditionedThru[0],
+               {0.06309573444801933,0.},
+               "actual native source->FFE->receiver DC oracle");
+  closeComplex(calculated.value->conditionedThru[1000],
+               {0.42516619243164677,0.041868363616010984},
+               "actual native source->FFE->receiver 10 GHz oracle");
+  channel.rxFilter.parameter="Sdd21";
+  channel.rxFilter.frequencyHz=grid;
+  channel.rxFilter.transfer.assign(grid.size(),{1.,0.});
+  reject([&]{(void)prepareCom120F8ReceiverSpectra(channel,flatEq);},
+         "external RX filter override must fail closed");
   auto badGrid=grid;
   badGrid[1]=50e6;
   reject([&]{validateCom120F8DirectGrid(badGrid);},
