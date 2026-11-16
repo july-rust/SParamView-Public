@@ -1646,9 +1646,57 @@ bool AnalysisWindow::saveEyePng(const QString &name) {
   using S=si::channel::Status;
   if(!eyeResult_ || !eyeGraph_ || name.isEmpty() ||
      (status_!=S::Warning && status_!=S::Valid))return false;
+  const QImage graph=eyeGraph_->grab().toImage();
+  if(graph.isNull()) {
+    setStatus(S::Error,QStringLiteral("Eye graph cannot be rendered"));
+    return false;
+  }
+  // Visible footer plus PNG tEXt metadata make standalone exports auditable.
+  constexpr int footerHeight=116;
+  QImage output(graph.width(),graph.height()+footerHeight,
+                QImage::Format_ARGB32_Premultiplied);
+  output.fill(palette().base().color());
+  QPainter p(&output);
+  p.drawImage(0,0,graph);
+  p.setPen(palette().text().color());
+  QFont font=p.font();
+  font.setPointSizeF(8);
+  p.setFont(font);
+  const QString caption=QStringLiteral(
+    "Simulated Channel Eye — Not Measured / Not PHY Compliance\n"
+    "File: %1 | Revision: %2 | Channel: %3 | %4\n"
+    "SHA-256: %5\n"
+    "Profile: %6 | Bit rate: %7 Gbps | Reference: %8 GHz | Cap: %9 GHz");
+  const QString labeled=caption.arg(eyeSourceFilename_,
+     QString::fromStdString(eyeProvenance_.revision),
+     victim_->currentText(),
+     direction_->currentIndex()==1?QStringLiteral("Reverse"):QStringLiteral("Forward"),
+     QString::fromStdString(eyeProvenance_.sourceSha256),
+     QString::fromStdString(eyeResult_->profileName),
+     QString::number(eyeResult_->bitRateHz/1e9,'g',7),
+     QString::number(eyeResult_->referenceFrequencyHz/1e9,'g',7),
+     QString::number(eyeResult_->analysisStopHz/1e9,'g',7));
+  p.drawText(QRect(10,graph.height()+4,output.width()-20,footerHeight-8),
+             Qt::AlignLeft|Qt::TextWordWrap,labeled);
+  p.end();
+  output.setText(QStringLiteral("SourceSHA256"),
+                 QString::fromStdString(eyeProvenance_.sourceSha256));
+  output.setText(QStringLiteral("SourceFile"),eyeSourceFilename_);
+  output.setText(QStringLiteral("Revision"),
+                 QString::fromStdString(eyeProvenance_.revision));
+  output.setText(QStringLiteral("MappingIdentity"),
+                 QString::fromStdString(eyeProvenance_.mappingIdentity));
+  output.setText(QStringLiteral("SettingsIdentity"),
+                 QString::fromStdString(eyeProvenance_.settingsIdentity));
+  output.setText(QStringLiteral("Algorithm"),
+                 QString::fromStdString(eyeProvenance_.algorithm));
+  output.setText(QStringLiteral("AlgorithmVersion"),
+                 QString::fromStdString(eyeProvenance_.version));
+  output.setText(QStringLiteral("SimulationStatus"),
+                 QStringLiteral("SIMULATED_ONLY / NOT_PHY_COMPLIANCE"));
   QSaveFile file(name);
   const bool okay=file.open(QIODevice::WriteOnly) &&
-       eyeGraph_->grab().save(&file,"PNG") && file.commit();
+                  output.save(&file,"PNG") && file.commit();
   if(!okay)setStatus(S::Error,QStringLiteral("Eye PNG write/commit failed"));
   return okay;
 }
