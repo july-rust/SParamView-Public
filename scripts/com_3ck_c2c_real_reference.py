@@ -257,6 +257,7 @@ def strict_ooxml_com_settings(raw: bytes) -> tuple[list[list[str]],dict]:
                         raise ValueError("Oversized Strict OOXML cell")
                     rows[row_number-1][column-1] = value
         found = {}
+        formula_blocks = []
         for r, cells in enumerate(rows, start=1):
             for c, value in enumerate(cells, start=1):
                 if not isinstance(value, str):
@@ -267,17 +268,18 @@ def strict_ooxml_com_settings(raw: bytes) -> tuple[list[list[str]],dict]:
                 if key in found:
                     raise ValueError("Ambiguous repeated COM parameter " + key)
                 if (r, c+1) in formulas:
-                    print("STRICT_COM_FORMULA_BLOCK:",
-                          json.dumps({"parameter":key, "row":r, "label_column":c,
-                                      "row_cells":cells[:8],
-                                      "formula_columns":sorted(col for rr,col in formulas
-                                                               if rr==r),
-                                      "adjacent_formula":formulas.get((r,c+1))},
-                                     ensure_ascii=False),flush=True)
-                    raise ValueError("Formula-derived COM parameter is not qualified: " + key)
+                    formula_blocks.append({
+                        "parameter":key, "row":r, "label_column":c,
+                        "adjacent_formula":formulas[(r,c+1)]})
+                    continue
                 if c >= len(cells) or not cells[c].strip():
                     raise ValueError("Blank Strict OOXML COM parameter: " + key)
                 found[key] = (r,c+1)
+        if formula_blocks:
+            print("STRICT_COM_FORMULA_BLOCKS:",
+                  json.dumps(formula_blocks,ensure_ascii=False),flush=True)
+            raise ValueError("Formula-derived COM parameters are not qualified: "
+                             + ",".join(x["parameter"] for x in formula_blocks))
         required = {"f_b","f_min","Delta_f","DER_0","R_0","c(0)"}
         if len(found) < 12 or not required.issubset(found):
             raise ValueError("Strict OOXML COM_Settings lacks verified literals")
