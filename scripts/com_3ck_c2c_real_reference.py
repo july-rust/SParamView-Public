@@ -455,6 +455,36 @@ def canonical_config_csv(original: Path, result_csv: Path) -> dict:
     finally:
         workbook.close()
 
+def inventory_2019_c2c_roles() -> None:
+    """Read-only audit of every source-labelled C2C role, no S4P redistribution.
+
+    The March 2020 IEEE task-force paper 'healey_3ck_01a_0320', page 9,
+    evaluated the 2019 Rabinovich impaired C2C groups with 4 FEXT/0 NEXT.
+    Our exploratory 1 FEXT/1 NEXT mix must NOT be called that IEEE golden.
+    """
+    source = download(CHANNEL_URL, CHANNEL_ZIP_SHA)
+    with zipfile.ZipFile(io.BytesIO(source)) as archive:
+        for condition in sorted(SOURCES):
+            prefix = "Impaired_C2C_" + condition + "dB_P1_to_P2/"
+            names = sorted(n for n in archive.namelist()
+                           if n.startswith(prefix) and n.lower().endswith(".s4p"))
+            if not names or len(names) > 50:
+                raise ValueError("Missing/excessive C2C historical members: " + condition)
+            records = []
+            for name in names:
+                entry = archive.getinfo(name)
+                if entry.file_size > 10_000_000:
+                    raise ValueError("Oversized historical C2C source member")
+                role = ("fext" if "fext" in name.lower() else
+                        "next" if "next" in name.lower() else
+                        "thru" if "thru" in name.lower() else "unknown")
+                data = archive.read(name)
+                records.append({"name":name, "role":role,
+                                "sha256":sha(data), "size":len(data)})
+            print("IEEE_2019_C2C_SOURCE_ROLE_INVENTORY:",
+                  json.dumps({"loss_label":condition,"members":records},
+                             ensure_ascii=False),flush=True)
+
 def run(channel: str, output: Path) -> int:
     import sicopr
     if getattr(sicopr,"COM_MATLAB_VERSION",None) is None:
@@ -490,7 +520,7 @@ def run(channel: str, output: Path) -> int:
             }
             print("HISTORICAL_C2C_NONREAL_FOM_DIAGNOSTIC:",
                   json.dumps(record, ensure_ascii=False, allow_nan=False),
-                  flush=True)
+                  file=sys.stderr, flush=True)
         return answer
     sicopr.OptFom_Calc_FOM = audited_fom
     with tempfile.TemporaryDirectory(prefix="ck-golden-") as d:
@@ -557,9 +587,16 @@ def run(channel: str, output: Path) -> int:
 if __name__ == "__main__":
     cli=argparse.ArgumentParser()
     cli.add_argument("--channel",choices=sorted(SOURCES),default="10")
-    cli.add_argument("--output",type=Path,required=True)
+    cli.add_argument("--output",type=Path)
+    cli.add_argument("--audit-roles",action="store_true",
+                     help="Metadata-only audit of official 2019 C2C archive roles")
     args=cli.parse_args()
     try:
+        if args.audit_roles:
+            inventory_2019_c2c_roles()
+            raise SystemExit(0)
+        if args.output is None:
+            cli.error("--output required unless --audit-roles")
         raise SystemExit(run(args.channel,args.output))
     except (OSError, ValueError, TypeError, ArithmeticError,
             zipfile.BadZipFile, RuntimeError) as exc:
