@@ -2,6 +2,14 @@
 
 **Status:** PARTIAL IMPLEMENTATION / 012_09 NOT COMPLETE. This is an auditable engineering handoff, not a COM-margin qualification.
 
+## 012_09 latest physically grounded S-parameter network expansion
+
+The independent [physical four-port, Redheffer and balanced package API](COM_Physical_Channel_012_09.md)
+adds exact complex mixed-mode extraction with complete physical port
+reference/passivity checks; passive S-parameter cascade with multiple internal
+reflections; and explicitly parameterized TX/RX package die-to-board networks.
+This is physical circuit computation, NOT the still-absent standard COM dB.
+
 ## Additional independently tested two-port physics
 
 See [012_09 complex two-port/ABCD verification](COM_Two_Port_Numerics_012_09.md).
