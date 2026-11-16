@@ -32,6 +32,41 @@ FIELD_NAMES = (
 )
 NORM_FIELDS = {f.lower(): f for f in FIELD_NAMES}
 
+def identify_parameter(value: str) -> str | None:
+    """Match label only, including param.NAME and label [unit] variants."""
+    compact=re.sub(r"\\s+", " ",value).strip()
+    if len(compact)>96:
+        return None
+    if compact.lower().startswith("param."):
+        compact=compact[6:]
+    for name in FIELD_NAMES:
+        if name=="L":
+            if compact=="L":
+                return name
+            continue
+        pattern=r"^"+re.escape(name)+r"(?=$|[\\s(\\[:=;])"
+        if re.search(pattern,compact,flags=re.IGNORECASE):
+            return name
+    return None
+
+def inspect_workbook_shape(data: bytes) -> dict:
+    """Only short display labels for malformed/unrecognized XLSX diagnostics."""
+    with zipfile.ZipFile(io.BytesIO(data)) as z:
+        safe_zip(z, 15_000_000)
+        files=sorted(x for x in z.namelist()
+                     if re.fullmatch(r"xl/worksheets/sheet\\d+\\.xml",x))
+        if "xl/sharedStrings.xml" in z.namelist():
+            root=ET.fromstring(z.read("xl/sharedStrings.xml"))
+            strings=["".join(n.text or "" for n in si.findall(".//m:t",NS))
+                     for si in root.findall("m:si",NS)]
+        else:
+            strings=[]
+        labels=[re.sub(r"\\s+"," ",x).strip()[:60] for x in strings
+                if x.strip() and len(x)<=100]
+        return {"sheets":files[:24],"shared_strings":len(strings),
+                "sample_short_labels":labels[:35]}
+
+
 def safe_zip(z: zipfile.ZipFile, limit: int) -> None:
     files = z.infolist()
     if len(files) > 2000:
@@ -87,7 +122,7 @@ def parse_xlsx(data: bytes) -> tuple[list[str], dict]:
                     if val:
                         cells[_column(cell.attrib["r"])] = val
                 for col, val in cells.items():
-                    symbol = NORM_FIELDS.get(val.strip().lower())
+                    symbol = identify_parameter(val)
                     if not symbol:
                         continue
                     near = [
@@ -124,7 +159,10 @@ def run() -> int:
             raise ValueError("C2C workbook exceeds read-only limit")
     sheets,evidence=parse_xlsx(workbook)
     if len(evidence)<12:
-        raise ValueError(f"insufficient named C2C fields extracted ({len(evidence)})")
+        preview=inspect_workbook_shape(workbook)
+        raise ValueError(
+            f"insufficient named C2C fields extracted ({len(evidence)}); "
+            f"workbook_shape={json.dumps(preview,ensure_ascii=False)}")
     report={
         "source_url":URL,
         "source_date":"2022-11 (historical IEEE working-group tool)",
