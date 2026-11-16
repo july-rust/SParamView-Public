@@ -434,6 +434,36 @@ int main(int argc, char **argv) {
     QImage eyeImage(eyePngPath);
     check(!eyeImage.isNull() && eyeImage.width()>200 && eyeImage.height()>200,
           "Eye PNG does not contain a real plot");
+    check(eyeImage.text(QStringLiteral("SourceSHA256")) ==
+          QString::fromStdString(cache->meta().sha256) &&
+          eyeImage.text(QStringLiteral("SettingsIdentity")).contains(QStringLiteral("EYE")) &&
+          eyeImage.text(QStringLiteral("SimulationStatus")).contains(QStringLiteral("SIMULATED_ONLY")),
+          "Eye PNG lost original source SHA, numerical settings or simulation disclaimer");
+    const QByteArray header("Time_ps,TX_mV,RX_mV,Impulse_Unit,Unit_Pulse\n");
+    const qsizetype firstSampleAt=eyeContent.indexOf(header);
+    check(firstSampleAt>=0 && eyeContent.mid(firstSampleAt+header.size(),6).startsWith("0,400,"),
+          "PRBS7 default must start high in deterministic PRBS7 fixture");
+    auto *eyePattern=eye->findChild<QComboBox *>(QStringLiteral("eyePattern"));
+    check(eyePattern && eyePattern->currentIndex()==0 &&
+          eyePattern->currentData().toInt()==int(si::channel::EyePattern::Prbs7),
+          "GUI PRBS7 selection must bind PRBS7, not Alternating");
+    eyePattern->setCurrentIndex(1);
+    check(eyePattern->currentData().toInt()==int(si::channel::EyePattern::Alternating),
+          "GUI Alternating selection must bind Alternating, not PRBS7");
+    eye->runButton()->click();
+    drain(manager.scheduler());
+    check(eye->status()==S::Warning,
+          "Alternating Eye simulation did not produce a qualified warning");
+    const QString alternatingCsv=ildDir.filePath(QStringLiteral("eye-alternating.csv"));
+    check(eye->saveEyeCsv(alternatingCsv),"Alternating Eye CSV export failed");
+    QFile alternatingRead(alternatingCsv);
+    check(alternatingRead.open(QIODevice::ReadOnly),"Alternating Eye CSV cannot be read");
+    const QByteArray alternatingData=alternatingRead.readAll();
+    const qsizetype alternateFirst=alternatingData.indexOf(header);
+    check(alternateFirst>=0 &&
+          alternatingData.mid(alternateFirst+header.size(),5).startsWith("0,0,"),
+          "Alternating pattern must start low (different from PRBS7)");
+    eyePattern->setCurrentIndex(0);
     numericContext.sources[0].sha256=QStringLiteral("source-hash-changed");
     manager.setContext(numericContext);
     check(eye->status()==S::Stale && !eyeCsv->isEnabled() &&
