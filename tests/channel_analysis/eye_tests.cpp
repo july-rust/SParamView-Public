@@ -112,13 +112,15 @@ int main() {
     higher.electrical.rxInputMaximumV=1;
     auto doubled=calculateEye(thru(),higher);
     close(doubled.value->eyeHeightV,0.8,1e-10,"explicit TX amplitude scaling");
-    // The reference frequency is a marker, NOT a substitute for the bit rate.
-    auto moved=s; moved.referenceFrequencyHz=7e9;
-    auto reff=calculateEye(thru(),moved);
-    close(reff.value->unitIntervalSeconds,ideal.value->unitIntervalSeconds,
-          1e-18,"frequency marker must not change UI");
-    close(reff.value->eyeHeightV,ideal.value->eyeHeightV,1e-10,
-          "reference marker must not alter voltage");
+    // User-selectable reference frequency MUST update bit rate/UI, not just a label.
+    const auto moved=eyeWithReferenceFrequency(s,3e9);
+    const auto reff=calculateEye(thru(),moved);
+    close(reff.value->bitRateHz,6e9,1,"NRZ new 6 Gb/s for 3 GHz reference");
+    close(reff.value->unitIntervalSeconds,1.0/6e9,1e-18,
+          "reference adjustment must change actual waveform UI");
+    auto mismatched=s; mismatched.referenceFrequencyHz=7e9;
+    reject([&]{(void)calculateEye(thru(),mismatched);},
+           "incoherent NRZ reference vs data rate must be rejected");
     // 10 GHz capped simulation: no extrapolation, explicit brick-wall warning.
     auto capped=s;capped.analysisStopHz=10e9;
     auto band=calculateEye(thru(),capped);
