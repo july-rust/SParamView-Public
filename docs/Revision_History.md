@@ -1,5 +1,10 @@
 # SParamView Revision History
 
+## v1.4.0 development / 012_08 (unreleased — PR #47 in progress)
+
+Added the proposed independent simulated Eye Qt window with SHA-verified complex Touchstone THROUGH extraction, coupled NRZ rate/reference and independent analysis cap, explicit TX/RX voltage and matched termination gates, PRBS7/alternating/custom patterns, 2-UI overlay and time-domain visualizations, sampling/height/width metrics, atomic CSV/PNG and async cancellation/STALE protections. **Not released or certified; required CI, native 012_12 GUI and final 012_14 release gates remain.** [Detailed contract](Channel_Analysis_Eye_GUI_012_08.md).
+
+
 **Current official release: [v1.3.5](https://github.com/july-rust/SParamView-Public/releases/tag/v1.3.5)** — versioned Mapping CSV and fail-closed GUI/cache startup hardening, building on v1.3.3 Touchstone input validation; retains the v1.3.2 cache separation and filename display. This preserves v1.3.1 cross-process cache safety. The [v1.3.0 release](https://github.com/july-rust/SParamView-Public/releases/tag/v1.3.0) was published on 2026-10-29 11:43 KST and remains preserved.
 
 **Unreleased v1.4.0 integration work (2026-11-16):** 012_05 generic ILD numerical engine, independent GUI plots, background SHA-qualified source calculation and CSV/PNG export **passed CI and squash-merged** in [PR #40](https://github.com/july-rust/SParamView-Public/pull/40) ([three-platform CI](https://github.com/july-rust/SParamView-Public/actions/runs/43766947020); integration SHA `90a59ada15a9c17aa787ffb317fcafefb4285c75`). This is *not* an official release, IEEE weighted FOM_ILD implementation or lab/PHY certification. [012_05 technical contract](Channel_Analysis_ILD_012_05.md). Existing official v1.3.5 assets remain unchanged.
