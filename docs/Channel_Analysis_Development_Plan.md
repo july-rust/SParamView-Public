@@ -3,9 +3,9 @@
 **Implementation work breakdown:** [012_01~012_14 complete v1.4.0 development, verification and release plan](Development_Plan_012_v1.4.0.md). This is the controlling numbered implementation checklist; the present page retains the feature/architecture overview.
 
 **Updated:** 2026-11-15 (KST)  
-**Status:** PLANNED / **NOT IMPLEMENTED**  
+**Status:** PARTIAL IMPLEMENTATION / ILD + ICN numerical & automated GUI scope, Eye numerical 012_07 COMPLETE; Eye GUI and COM pending  
 **Frozen baseline:** Official **v1.3.5** tag, its release assets and numerical results remain unchanged.  
-**Target single integrated release:** **v1.4.0**, only after the independent ILD, ICN, Eye Diagram and COM analyzers **all** meet their defined release-scope acceptance gates. No intermediate public feature releases.
+**Verified stages:** [012_05 ILD](Channel_Analysis_ILD_012_05.md), [012_06 ICN](Channel_Analysis_ICN_012_06.md), [012_07 Eye numerical](Channel_Analysis_Eye_012_07.md) ([PR #45](https://github.com/july-rust/SParamView-Public/pull/45), [CI #43798693800](https://github.com/july-rust/SParamView-Public/actions/runs/43798693800)). Eye Qt independent GUI/source integration remains 012_08; COM and release gates remain pending.\n\n**Target single integrated release:** **v1.4.0**, only after the independent ILD, ICN, Eye Diagram and COM analyzers **all** meet their defined release-scope acceptance gates. No intermediate public feature releases.
 
 This plan supersedes the previous v1.3.3-baseline plan. Do not interpret a menu mock-up, commit, CI build or documentation as a completed feature or a published release.
 
