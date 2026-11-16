@@ -140,7 +140,7 @@ jobs:
           test -f _external_qa_sicopr/octave/com_ieee8023_4p17p0_octave_compat.m
           python -m pip install --disable-pip-version-check --no-cache-dir numpy scipy openpyxl
           sudo apt-get update -qq
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends octave
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends octave gnuplot-nox
           octave-cli --version | head -n 1
       - name: Offline strict-typed MATLAB COM cell conversion regression tests
         run: |
