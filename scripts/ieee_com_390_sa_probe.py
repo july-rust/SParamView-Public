@@ -153,7 +153,7 @@ def parse_xlsx(data: bytes) -> tuple[list[str], dict]:
                         # parameter setting. Treat only finite literal values
                         # as positive evidence; never coerce unknown text.
                         if re.fullmatch(
-                            r"[+-]?(?:[0-9]+(?:\\.[0-9]*)?|\\.[0-9]+)(?:[eE][+-]?[0-9]+)?",
+                            r"[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?",
                             raw
                         ):
                             value=float(raw)
