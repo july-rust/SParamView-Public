@@ -15,11 +15,29 @@ struct ComPackageLengths {
 };
 ComPackageLengths com8023ckC2cPackageLengths(ComPackageCase test);
 
-struct ComTwoPort {
-  // Voltage/current ABCD convention:
-  // [V1; I1] = [A B; C D] [V2; -I2] for currents entering both ports.
-  Complex a{1.0, 0.0}, b{0.0, 0.0};
-  Complex c{0.0, 0.0}, d{1.0, 0.0};
+struct ComTwoPortS;
+// Closed, reciprocal-only ABCD: values can be constructed only through the
+// analytically reciprocal series/shunt/line and cascade operations. No public
+// mutable matrix coefficients or caller-supplied nonreciprocal matrices.
+class ComTwoPort final {
+public:
+  ComTwoPort() = default; // identity
+  Complex a() const { return a_; }
+  Complex b() const { return b_; }
+  Complex c() const { return c_; }
+  Complex d() const { return d_; }
+private:
+  // Voltage/current convention:
+  // [V1; I1] = [A B; C D] [V2; -I2], I1/I2 enter each port.
+  Complex a_{1.0, 0.0}, b_{0.0, 0.0};
+  Complex c_{0.0, 0.0}, d_{1.0, 0.0};
+  ComTwoPort(Complex a, Complex b, Complex c, Complex d)
+    : a_(a), b_(b), c_(c), d_(d) {}
+  friend ComTwoPort cascadeTwoPort(const ComTwoPort &, const ComTwoPort &);
+  friend ComTwoPort seriesImpedance(Complex);
+  friend ComTwoPort shuntAdmittance(Complex);
+  friend ComTwoPort lossyUniformLine(double, double, double, double, double);
+  friend ComTwoPortS twoPortScattering(const ComTwoPort &, double);
 };
 
 struct ComTwoPortS {
