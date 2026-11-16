@@ -58,17 +58,27 @@ def inspect_workbook_shape(data: bytes) -> dict:
                      if re.fullmatch(r"xl/worksheets/sheet\d+\.xml",x))
         if "xl/sharedStrings.xml" in z.namelist():
             root=ET.fromstring(z.read("xl/sharedStrings.xml"))
-            strings=["".join(n.text or "" for n in si.findall(".//m:t",NS))
-                     for si in root.findall("m:si",NS)]
+            strings=["".join(n.text or "" for n in descendants(si,"t"))
+                     for si in descendants(root,"si")]
         else:
             strings=[]
         labels=[re.sub(r"\s+"," ",x).strip()[:60] for x in strings
                 if x.strip() and len(x)<=100]
         types: dict[str,int] = {}
+        sheet_shapes: list[dict] = []
         worksheet_values: list[dict] = []
         for file in files[:2]:
-            root=ET.fromstring(z.read(file))
-            for cell in root.findall(".//m:sheetData/m:row/m:c",NS):
+            payload=z.read(file)
+            root=ET.fromstring(payload)
+            sheet_shapes.append({
+                "sheet":file,
+                "xml_bytes":len(payload),
+                "root_tag":root.tag[:110],
+                "row_element_count":len(descendants(root,"row")),
+                "cell_element_count":len(descendants(root,"c")),
+                "top_level_local_tags":[localname(x) for x in list(root)[:12]]
+            })
+            for cell in descendants(root,"c"):
                 typ=cell.get("t","n")
                 types[typ]=types.get(typ,0)+1
                 if len(worksheet_values)>=45:
@@ -81,7 +91,7 @@ def inspect_workbook_shape(data: bytes) -> dict:
                         "display_label":re.sub(r"\s+"," ",raw).strip()[:60]
                     })
         return {"sheets":files[:24],"shared_strings":len(strings),
-                "worksheet_cell_types":types,
+                "sheet_shapes":sheet_shapes,"worksheet_cell_types":types,
                 "sample_short_labels":labels[:35],
                 "worksheet_cell_text_samples":worksheet_values}
 
@@ -96,19 +106,29 @@ def safe_zip(z: zipfile.ZipFile, limit: int) -> None:
            any(part == ".." for part in normalized.split("/")):
             raise ValueError("unsafe or excessive archive member")
 
+def localname(node: ET.Element) -> str:
+    # OOXML files may use transitional or strict XML namespaces.
+    return node.tag.split("}")[-1]
+
+def descendants(node: ET.Element, name: str) -> list[ET.Element]:
+    return [v for v in node.iter() if localname(v)==name]
+
+def direct_children(node: ET.Element, name: str) -> list[ET.Element]:
+    return [v for v in node if localname(v)==name]
+
 def _text(cell: ET.Element, shared: list[str]) -> str:
-    t = cell.attrib.get("t")
+    t=cell.attrib.get("t")
     if t == "inlineStr":
-        return "".join(x.text or "" for x in cell.findall(".//m:t", NS))
-    value = cell.find("m:v", NS)
-    if value is None:
+        return "".join(x.text or "" for x in descendants(cell,"t"))
+    vals=direct_children(cell,"v")
+    if not vals:
         return ""
-    if t == "s":
-        index = int(value.text or "")
-        if index < 0 or index >= len(shared):
+    if t=="s":
+        index=int(vals[0].text or "")
+        if index<0 or index>=len(shared):
             raise ValueError("out-of-range shared string")
         return shared[index]
-    return value.text or ""
+    return vals[0].text or ""
 
 def _column(address: str) -> int:
     letters = re.match(r"^[A-Z]+", address)
@@ -125,8 +145,8 @@ def parse_xlsx(data: bytes) -> tuple[list[str], dict]:
         shared: list[str] = []
         if "xl/sharedStrings.xml" in z.namelist():
             root = ET.fromstring(z.read("xl/sharedStrings.xml"))
-            shared = ["".join(n.text or "" for n in si.findall(".//m:t",NS))
-                      for si in root.findall("m:si", NS)]
+            shared = ["".join(n.text or "" for n in descendants(si,"t"))
+                      for si in descendants(root,"si")]
         files = sorted(n for n in z.namelist()
                        if re.fullmatch(r"xl/worksheets/sheet\d+\.xml", n))
         if not files:
@@ -134,9 +154,9 @@ def parse_xlsx(data: bytes) -> tuple[list[str], dict]:
         evidence: dict[str, list[dict]] = {}
         for sheet in files:
             root = ET.fromstring(z.read(sheet))
-            for row in root.findall(".//m:sheetData/m:row", NS):
+            for row in descendants(root,"row"):
                 cells: dict[int,str] = {}
-                for cell in row.findall("m:c", NS):
+                for cell in direct_children(row,"c"):
                     val = _text(cell, shared).strip()
                     if val:
                         cells[_column(cell.attrib["r"])] = val
