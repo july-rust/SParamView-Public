@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import math
 import re
 import sys
 import xml.etree.ElementTree as ET
@@ -63,8 +64,26 @@ def inspect_workbook_shape(data: bytes) -> dict:
             strings=[]
         labels=[re.sub(r"\s+"," ",x).strip()[:60] for x in strings
                 if x.strip() and len(x)<=100]
+        types: dict[str,int] = {}
+        worksheet_values: list[dict] = []
+        for file in files[:2]:
+            root=ET.fromstring(z.read(file))
+            for cell in root.findall(".//m:sheetData/m:row/m:c",NS):
+                typ=cell.get("t","n")
+                types[typ]=types.get(typ,0)+1
+                if len(worksheet_values)>=45:
+                    continue
+                raw=_text(cell,strings)
+                if raw.strip() and len(raw)<=96:
+                    worksheet_values.append({
+                        "address":cell.get("r",""),
+                        "kind":typ,
+                        "display_label":re.sub(r"\s+"," ",raw).strip()[:60]
+                    })
         return {"sheets":files[:24],"shared_strings":len(strings),
-                "sample_short_labels":labels[:35]}
+                "worksheet_cell_types":types,
+                "sample_short_labels":labels[:35],
+                "worksheet_cell_text_samples":worksheet_values}
 
 
 def safe_zip(z: zipfile.ZipFile, limit: int) -> None:
@@ -125,10 +144,22 @@ def parse_xlsx(data: bytes) -> tuple[list[str], dict]:
                     symbol = identify_parameter(val)
                     if not symbol:
                         continue
-                    near = [
-                        {"offset": d, "value": cells[col + d][:100]}
-                        for d in (1, 2, 3, 4) if cells.get(col + d)
-                    ]
+                    near = []
+                    for d in range(1, 9):
+                        raw=cells.get(col+d, "").strip()
+                        if not raw:
+                            continue
+                        # An adjacent unit, hint, or formula is not a numeric
+                        # parameter setting. Treat only finite literal values
+                        # as positive evidence; never coerce unknown text.
+                        if re.fullmatch(
+                            r"[+-]?(?:[0-9]+(?:\\.[0-9]*)?|\\.[0-9]+)(?:[eE][+-]?[0-9]+)?",
+                            raw
+                        ):
+                            value=float(raw)
+                            if math.isfinite(value):
+                                near.append({"offset":d,"value":value,
+                                             "literal":raw[:80]})
                     if not near:
                         continue
                     evidence.setdefault(symbol,[]).append({
