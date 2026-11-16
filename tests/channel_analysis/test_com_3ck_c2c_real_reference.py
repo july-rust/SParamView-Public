@@ -120,8 +120,12 @@ class HistoricalC2CReferencePreflight(unittest.TestCase):
         rows = []
         for i, label in enumerate(labels, start=1):
             a = '<c r="A{0}" t="inlineStr"><is><t>{1}</t></is></c>'.format(i,label)
-            b = ('<c r="B1"><f>9+1</f><v>10</v></c>' if formula and i==1
-                 else '<c r="B{0}"><v>{0}</v></c>'.format(i))
+            if formula and i==1:
+                expression = "SUM(9,1)" if formula=="unsupported" else "9+1"
+                cached = "11" if formula=="stale" else "10"
+                b = '<c r="B1"><f>{0}</f><v>{1}</v></c>'.format(expression,cached)
+            else:
+                b = '<c r="B{0}"><v>{0}</v></c>'.format(i)
             rows.append('<row r="{0}">{1}{2}</row>'.format(i,a,b))
         sheet = ('<worksheet xmlns="{0}"><sheetData>{1}</sheetData>'
                  '</worksheet>').format(strict,''.join(rows))
@@ -158,9 +162,19 @@ class HistoricalC2CReferencePreflight(unittest.TestCase):
                     parsed = list(reader(stream))
                 self.assertEqual(parsed[0],[sorted(ref.CONFIG_LABELS)[0],"1"])
 
+    def test_strict_ooxml_recalculates_exact_formula(self):
+        raw = self._strict_com_workbook(formula="good")
+        with patch.object(ref,"CONFIG_SHA",ref.sha(raw)):
+            rows, evidence = ref.strict_ooxml_com_settings(raw)
+            self.assertEqual(rows[0][1],"10")
+            self.assertEqual(len(evidence["formula_recomputation_receipts"]),1)
+            self.assertEqual(evidence["formula_recomputation_receipts"][0]["recomputed"],
+                             "10")
+
     def test_strict_ooxml_rejects_formula_and_duplicate_sheet(self):
         for name, flags, error in [
-            ("formula",{"formula":True},"Formula-derived"),
+            ("unsupported",{"formula":"unsupported"},"Unsupported"),
+            ("stale",{"formula":"stale"},"stale/overflow"),
             ("duplicate",{"duplicate_sheet":True},"one visible"),
             ("path",{"hostile_target":True},"worksheet path invalid"),
         ]:
