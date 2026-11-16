@@ -161,7 +161,8 @@
 | 012_05 ILD 엔진·GUI | **COMPLETE** (선언 범위: 일반 ILD 계산·GUI·자동 CI) | [병합 PR #40](https://github.com/july-rust/SParamView-Public/pull/40) · [CI 43766947020](https://github.com/july-rust/SParamView-Public/actions/runs/43766947020) · 통합 SHA `90a59ada15a9c17aa787ffb317fcafefb4285c75` |
 | 012_06 ICN 엔진·GUI | **COMPLETE (Generic 수치/자동화 범위)** | [병합 PR #42](https://github.com/july-rust/SParamView-Public/pull/42) · [3개 플랫폼 CI PASS](https://github.com/july-rust/SParamView-Public/actions/runs/43775680490) · 통합 SHA `1bcf54008d3031c5b8ef634e4d2bef1479eee96a` |
 | 012_07 Eye numerical engine | **COMPLETE (NUMERICAL ONLY)** | [PR #45](https://github.com/july-rust/SParamView-Public/pull/45) 병합 `ae417b64`; [전체 CI #43798693800](https://github.com/july-rust/SParamView-Public/actions/runs/43798693800) 필수 플랫폼/Native ARM64 PASS; GUI는 012_08 | 
-| 012_08 Eye GUI & SourceSnapshot | MERGED / POST-MERGE CI GATE | PR #47 squash merged `17bcec47`; PR CI #43811255898 SUCCESS; post-merge integration CI #43812686401 pending verification; native physical GUI is 012_12 |\n| 012_09~012_14 COM·통합·릴리스 | NOT STARTED | COM 미구현; v1.3.5 릴리스 유지 · v1.4.0 미출시 |
+| 012_08 Eye GUI & SourceSnapshot | MERGED / POST-MERGE CI GATE | PR #47 squash merged `17bcec47`; PR CI #43811255898 SUCCESS; post-merge integration CI #43812686401 pending verification; native physical GUI is 012_12 |
+| 012_09~012_14 COM·통합·릴리스 | NOT STARTED | COM 미구현; v1.3.5 릴리스 유지 · v1.4.0 미출시 |
 | 계획 문서 | PLANNED | 본 문서 및 링크된 상위 로드맵 |
 
 ## 7. 출처
