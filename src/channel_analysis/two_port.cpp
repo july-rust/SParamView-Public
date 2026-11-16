@@ -16,6 +16,13 @@ void check(const ComTwoPort &v) {
           "Nonfinite COM two-port network");
 }
 }
+ComPackageLengths com8023ckC2cPackageLengths(ComPackageCase test) {
+  switch (test) {
+    case ComPackageCase::Test1: return {13.0, 11.0};
+    case ComPackageCase::Test2: return {31.0, 29.0};
+  }
+  throw Error("Unsupported IEEE 802.3ck COM package test");
+}
 ComTwoPort cascadeTwoPort(const ComTwoPort &left,
                           const ComTwoPort &right) {
   check(left); check(right);
