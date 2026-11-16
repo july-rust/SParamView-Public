@@ -43,10 +43,11 @@ Result<ComPhysicalChannelData> calculateHistoricalCausalC2cCases(
           input.maxAllowedModeConversion<=1,
           "Causal package mode-conversion limit invalid");
   const double physicalRef=input.boardS4p.front().referenceOhm[0];
-  require(std::isfinite(physicalRef) && physicalRef>0 &&
-          std::isfinite(2*physicalRef),
-          "Missing/overflowing physical C2C reference impedance");
+  require(std::isfinite(physicalRef) &&
+          std::abs(physicalRef-50.0)<=1e-11,
+          "Historical 802.3ck C2C reference requires 50-ohm physical ports");
   ComPhysicalChannelData data;
+  data.model="EXPLORATORY_HISTORICAL_8023CK_CAUSAL_PACKAGE_S4P";
   data.frequencyHz=input.frequencyHz;
   data.referenceOhmDifferential=2*physicalRef;
   data.test1.packageCase=ComPackageCase::Test1;
@@ -108,11 +109,11 @@ Result<ComPhysicalChannelData> calculateHistoricalCausalC2cFromSource(
   // Reuse the *actual* SHA-verified 16-Sij extraction. Package parameters
   // in this temporary extraction object are not used; historical causal
   // package selection is explicit in calculateHistoricalCausalC2cCases.
-  const auto measured=physicalComInputFromSource(
+  auto measured=physicalComInputFromSource(
       source,victimChannelId,{},{},maxAllowedModeConversion,control);
   ComCausalPhysicalInput input;
-  input.frequencyHz=measured.frequencyHz;
-  input.boardS4p=measured.boardS4p;
+  input.frequencyHz=std::move(measured.frequencyHz);
+  input.boardS4p=std::move(measured.boardS4p);
   input.maxAllowedModeConversion=maxAllowedModeConversion;
   return calculateHistoricalCausalC2cCases(
       input,std::move(provenance),control?&control->cancelled:nullptr);
