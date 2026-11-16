@@ -2,10 +2,12 @@
 import csv
 import importlib.util
 import pathlib
+import sys
 import tempfile
 import unittest
 
 SCRIPT=pathlib.Path(__file__).resolve().parents[2]/"scripts/com_3ck_c2c_octave_check.py"
+sys.path.insert(0,str(SCRIPT.parent))
 spec=importlib.util.spec_from_file_location("c2c_octave_check",SCRIPT)
 mod=importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
