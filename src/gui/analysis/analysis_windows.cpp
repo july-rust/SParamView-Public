@@ -1269,6 +1269,7 @@ void AnalysisWindow::launchIcn() {
     outcome.status=result.status;
     outcome.diagnostic=QStringLiteral("Generic NRZ band-limited ICN; not IEEE/SNIA compliance");
     outcome.icn=std::make_shared<si::channel::IcnData>(std::move(*result.value));
+    outcome.eyeSourceFilename=sourceFile;
     outcome.provenance=std::move(result.provenance);
     return outcome;
   });
@@ -1419,6 +1420,7 @@ void AnalysisWindow::setEyeSourceProvider(EyeSourceProvider provider) {
 }
 void AnalysisWindow::clearEye() {
   eyeResult_.reset();
+  eyeSourceFilename_.clear();
   if(eyeGraph_) static_cast<EyePlotWidget *>(eyeGraph_)->setData({},0);
   if(eyeMetrics_) eyeMetrics_->setText(QStringLiteral(
     "Simulated Channel Eye — Not Measured / Not PHY Compliance"));
@@ -1490,10 +1492,11 @@ void AnalysisWindow::launchEye() {
   settings.electrical={electrical[0]*1e-3,electrical[1]*1e-3,
     electrical[2],electrical[3],electrical[4]*1e-3,
     electrical[5]*1e-3,electrical[6]*1e-3};
+  const QString sourceFile=QFileInfo(QString::fromUtf8(input->cache->meta().source.c_str())).fileName();
   const std::string victimId=source.channelIds[selected].toStdString();
   const bool reverse=direction_->currentIndex()==1;
   const std::string settingsIdentity=selectionIdentity().toStdString();
-  if(startWork([input=*input,victimId,reverse,settings,settingsIdentity]
+  if(startWork([input=*input,victimId,reverse,settings,settingsIdentity,sourceFile]
        (const std::atomic_bool &cancel,std::atomic_int &progress)->WorkOutcome {
     if(cancel.load()) throw si::Cancelled();
     progress.store(5);
@@ -1534,6 +1537,7 @@ void AnalysisWindow::showEye(const WorkOutcome &outcome) {
   if(!outcome.eye || !eyeGraph_)return;
   eyeResult_=outcome.eye;
   eyeProvenance_=outcome.provenance;
+  eyeSourceFilename_=outcome.eyeSourceFilename;
   auto *plot=static_cast<EyePlotWidget *>(eyeGraph_);
   plot->setData(eyeResult_,eyeSettings_.electrical.rxThresholdV);
   plot->setView(eyeView_->currentIndex());
@@ -1582,6 +1586,7 @@ bool AnalysisWindow::saveEyeCsv(const QString &name) {
   };
   const auto n=[](double v){return QString::number(v,'g',17);};
   out<<"# warning,\"Simulated Channel Eye — Not Measured / Not PHY Compliance\"\n"
+     <<"# source_filename,"<<safe(eyeSourceFilename_.toStdString())<<"\n"
      <<"# source_sha256,"<<safe(eyeProvenance_.sourceSha256)<<"\n"
      <<"# revision,"<<safe(eyeProvenance_.revision)<<"\n"
      <<"# mapping_identity,"<<safe(eyeProvenance_.mappingIdentity)<<"\n"
