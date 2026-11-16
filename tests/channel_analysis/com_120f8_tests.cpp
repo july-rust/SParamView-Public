@@ -15,6 +15,11 @@ void demand(bool ok,const char* reason) {
 void close(double a,double b,const char* why) {
   demand(std::isfinite(a) && std::abs(a-b)<=1e-10*std::max(1e-18,std::abs(b)),why);
 }
+void closeComplex(si::Complex actual,si::Complex expected,const char* why) {
+  demand(std::isfinite(actual.real()) && std::isfinite(actual.imag()) &&
+         std::abs(actual-expected)<=2e-12*
+             std::max(1.,std::abs(expected)),why);
+}
 template<class F> void reject(F call,const char* why) {
   bool caught=false;
   try{call();}catch(const si::Error&){caught=true;}
@@ -88,6 +93,33 @@ try {
   close(physical.secondaryZcDifferentialOhm,p.secondaryPackageZcOhm,
         "package Zc2 drift");
 
+  // Fixed independent complex oracle values from high-precision evaluation
+  // of IEEE 93A CTLE and the 2019 IEEE-hosted fourth-order receiver filter.
+  // These are component-level, never full numerical COM golden values.
+  closeComplex(com120F8Ctle(0.,-20.,-4.),
+               {0.06309573444801933,0.},"CTLE DC -24dB gain");
+  closeComplex(com120F8Ctle(10e9,-20.,-4.),
+               {0.3096853152707358,0.29430788329414326},
+               "CTLE phase and amplitude at 10 GHz");
+  closeComplex(com120F8Ctle(21.25e9,-11.,-2.),
+               {0.6756332283565186,0.09287083460121599},
+               "CTLE complex oracle at 21.25 GHz");
+  closeComplex(com120F8ReceiverNoiseFilter(0.),{1.,0.},
+               "fourth-order Butterworth DC unity");
+  closeComplex(com120F8ReceiverNoiseFilter(39.84375e9),
+               {-0.7071067811865476,0.},
+               "Butterworth 3 dB receiver corner and phase");
+  closeComplex(com120F8ReceiverTransfer(10e9,-20.,-4.),
+               {0.42516619243164677,0.041868363616010984},
+               "end-to-end complex CTLE and noise-filter product");
+  closeComplex(com120F8ReceiverTransfer(26.5625e9,0.,0.),
+               {-0.6188991934903375,-0.622029941071934},
+               "Nyquist 26.5625 GHz phase-preserving complex filter");
+  reject([&]{(void)com120F8Ctle(1e9,-20.5,0.);},
+         "off-grid CTLE gain rejected by C++ complex solver");
+  reject([&]{(void)com120F8ReceiverNoiseFilter(
+      std::numeric_limits<double>::infinity());},
+      "infinite-frequency Butterworth must fail closed");
   validateCom120F8Equalizer({});
   Com120F8EqualizerChoice eq;
   eq.txFfe={-0.04,0.10,-0.28,0.54,-0.10};
