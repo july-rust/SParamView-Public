@@ -71,14 +71,25 @@ Result<ComStatisticalNoiseData> calculatePam4StatisticalNoise(
   }
   require(!shifts.empty() && shifts.size()<=maxStateCount,
           "Invalid exact PAM4 probability state count");
+  // Work in units of Gaussian RMS. A fixed absolute voltage convergence
+  // floor wrongly rejects valid nV/pV-scale inputs and can accept a false
+  // quantile at 1e-12 tails. Normalize *before* root finding.
+  for(double &shift:shifts) {
+    shift /= sigma;
+    require(std::isfinite(shift) && std::abs(shift) < 1e10,
+            "PAM4/Gaussian voltage dynamic range cannot be resolved");
+  }
+  const double scaledShiftMax=shiftMax/sigma;
+  require(std::isfinite(scaledShiftMax) && scaledShiftMax < 1e10,
+          "Unresolvable PAM4/Gaussian relative voltage scale");
   const double invStates=1.0/double(shifts.size());
-  auto tail=[&](double q) -> double {
+  auto tail=[&](double normalizedQ) -> double {
     // Kahan compensated sum avoids large state-dependent rounding error,
     // especially when the one-sided tail is in the 1e-12..1e-5 range.
     double sum=0,correction=0;
     for(size_t i=0;i<shifts.size();++i) {
       if(!(i&4095u))check(cancelled);
-      const double term=gaussianTail(q-shifts[i],sigma);
+      const double term=gaussianTail(normalizedQ-shifts[i],1.0);
       require(std::isfinite(term) && term>=0 && term<=1,
               "Nonfinite Gaussian tail contribution");
       const double adjusted=term-correction;
@@ -94,21 +105,22 @@ Result<ComStatisticalNoiseData> calculatePam4StatisticalNoise(
   // Symmetric mixture and p<=0.1 means the positive one-sided quantile
   // is nonnegative; the high bound covers erfc tail at >=12 sigma past
   // the largest finite PAM4 interference shift.
-  double low=0,high=shiftMax+12*sigma;
-  require(tail(low)>p && tail(high)<p,
+  double low=0,high=scaledShiftMax+12.;
+  require(std::isfinite(high) && tail(low)>p && tail(high)<p,
           "Noise quantile root is not bracketed");
-  for(int iter=0;iter<110;++iter) {
+  for(int iter=0;iter<120;++iter) {
     check(cancelled);
     const double center=low+(high-low)*0.5;
+    if(center==low || center==high)break;
     const double prob=tail(center);
     if(prob>p)low=center;
     else high=center;
-    if(high-low<=1e-14*std::max(1.,high))break;
   }
-  const double threshold=low+(high-low)*0.5;
-  const double actual=tail(threshold);
+  const double normalizedThreshold=low+(high-low)*0.5;
+  const double actual=tail(normalizedThreshold);
+  const double threshold=normalizedThreshold*sigma;
   require(std::isfinite(threshold) && threshold>=0 &&
-          std::abs(actual-p)<=2e-12+1e-7*p,
+          std::isfinite(actual) && std::abs(actual-p)<=p*1e-6,
           "Unreliable discrete Gaussian noise quantile root");
   ComStatisticalNoiseData data;
   data.oneSidedNoiseQuantileV=threshold;
