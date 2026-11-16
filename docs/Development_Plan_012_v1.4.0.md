@@ -3,7 +3,7 @@
 **기준일:** 2026-11-16 (KST)
 **공식 기준:** v1.3.5 (tag/release 불변)
 **목표:** ILD·ICN·Eye Diagram·COM을 각각 독립적인 C++20 수치 엔진, Qt6 창, 테스트로 구현하고 **v1.4.0 한 번에 릴리스**
-**상태:** 012_01 COMPLETE / 012_02 COMPLETE (REFERENCE_READY) / 012_03 CORE VERIFIED (PR #37; 최종 병합 상태는 PR 참조) / 012_04 GUI/워커 COMPLETE (PR #38; CI 43708927772) / 012_05 COMPLETE (ILD 엔진/GUI PR #40; CI 43766947020) / 012_06 COMPLETE (Generic ICN PR #42; CI 43775680490) / 012_07 COMPLETE (Eye 수치 엔진 PR #45; CI 43798693800) / 012_08 COMPLETE (PR #47 및 통합 CI #43812686401 검증 성공) / 012_09 PREQUALIFICATION PARTIAL / IEEE PROFILE BLOCKED (COM margin 미구현), 012_10~14 미착수 / COM 미구현 / v1.4.0 미출시
+**상태:** 012_01 COMPLETE / 012_02 COMPLETE (REFERENCE_READY) / 012_03 CORE VERIFIED (PR #37; 최종 병합 상태는 PR 참조) / 012_04 GUI/워커 COMPLETE (PR #38; CI 43708927772) / 012_05 COMPLETE (ILD 엔진/GUI PR #40; CI 43766947020) / 012_06 COMPLETE (Generic ICN PR #42; CI 43775680490) / 012_07 COMPLETE (Eye 수치 엔진 PR #45; CI 43798693800) / 012_08 COMPLETE (PR #47 및 통합 CI #43812686401 검증 성공) / 012_09 PARTIAL / BLOCKED (PR #49~#53 C++ 물리/통계 구성요소 및 IEEE 2022 참조자료 감사, 정식 IEEE COM dB·최종 PHY 및 Golden 미완성), 012_10~14 미착수 / 규격 COM 미구현 / v1.4.0 미출시
 **작업 번호:** 012_01 ~ 012_14. 단계별 PR, CI, 증거와 완료 조건을 연결한다.
 
 > 이 문서는 향후 실행할 개발 명령의 기준이며, 문서 작성만으로 기능이나 공식 표준 적합성을 검증했다고 주장하지 않는다.
@@ -99,6 +99,10 @@
 - **완료:** 그래프·숫자 동일 데이터 일치, 큰 데이터 처리/창 종료 안정성, 측정된 Eye와 혼동되지 않는 라벨 확인.
 
 ### 012_09 — COM 수치 엔진 및 **최종 승인 PHY 수치 프로파일 자격 검증**
+
+- **2026-11-16 실제 구현 추가:** [PR #49](https://github.com/july-rust/SParamView-Public/pull/49) COM 전처리와 normative fail-closed gate, [PR #50](https://github.com/july-rust/SParamView-Public/pull/50) 복소 2포트/ABCD, [PR #51](https://github.com/july-rust/SParamView-Public/pull/51) S4P 차동 추출·Redheffer 다중 반사·TX/RX 패키지 물리 모델, [PR #52](https://github.com/july-rust/SParamView-Public/pull/52) 2022 IEEE C2C 원본 SHA 및 안전한 XLSX 자료 감사, [PR #53](https://github.com/july-rust/SParamView-Public/pull/53) 독립 PAM4/Gaussian 통계 잡음 정량 모델. **#49~#53 모두 `integration/v1.4.0`에 squash-merge 완료.**
+- **기록:** PR #53의 최신 헤드 [CI #43837614094](https://github.com/july-rust/SParamView-Public/actions/runs/43837614094) 전체 PASS, Linux Release/Sanitizer 각 **41/41**; 병합 SHA `cb6448d8672a3c391ef07c14f15290c91e63176b`; 병합 후 [CI #43845851063](https://github.com/july-rust/SParamView-Public/actions/runs/43845851063) 별도 확인 필요. 독립 2022 IEEE 자료 감사 [CI #43835564179](https://github.com/july-rust/SParamView-Public/actions/runs/43835564179) 성공. 자세한 수치 계약은 [COM 단계 증거 문서](Channel_Analysis_COM_012_09.md).
+- **남은 차단:** 2022년 historical sponsor-ballot workbook은 **최종 승인 IEEE 802.3ck-2022의 Table 120F-8와 동치임이 입증되지 않았다**. 전체 IEEE 93A/120F 수치 엔진 및 Test1·Test2 정식 결과, 3건 이상 **같은 정식 PHY** 독립 Golden 비교는 여전히 미완성. `COM dB`, 정식 PASS/FAIL, `012_09=100% COMPLETE`, `v1.4.0` 릴리스 금지.
 - **진행 중, 100% COMPLETE 아님:** [012_09 실제 구현·차단 범위](Channel_Analysis_COM_012_09.md). 복소 THRU/FFE/RX/NEXT/FEXT 전처리 및 수치/Fail-Closed 테스트를 추가했으나, 최종 승인 120F-8 수치·패키지 Test1/Test2·동규격 Golden 3건 및 공식 COM 엔진은 미완이다. 수치 COM 출력은 NOT_EVALUATED. 이 범위의 CI·병합 상태는 기능 PR에서 확인한다.
 - **실행:** 012_02가 고정한 승인 PHY의 **최종 IEEE 802.3ck-2022 Annex 120F.4.1/Table 120F-8 수치와 예외 규칙 전체**를 정식 자료에서 항목별 검증하고, 지정한 Test1/Test2 패키지 설정 각각 COM을 재현한다. 실제 C++ 엔진의 채널·패키지·TX/RX EQ, ISI/누화/잡음 및 최적화를 구현한다.
 - **산출:** com.cpp, 파라미터 출처/버전·테이블 대조, 최소 **3개 이상 같은 정식 802.3ck 프로파일의 독립 COM golden 수치 사례**, 단위/오차/수렴 근거 및 원본 SHA; 독립 참조 차이 보고서.
