@@ -439,6 +439,88 @@ int main(int argc, char **argv) {
           !eyePng->isEnabled() &&
           !eye->saveEyeCsv(ildDir.filePath(QStringLiteral("stale-eye.csv"))),
           "STALE Eye remained exportable");
+
+    // Real MIPI-profile UI with four physical ports and a differential THRU.
+    // This is only an analytical s4p fixture, NOT a PHY-conformance oracle.
+    const auto diffPath=si::pathFromUtf8(
+      (ildDir.path()+QStringLiteral("/eye-diff.s4p")).toStdString());
+    {
+      std::ofstream out(diffPath);
+      out<<"# GHz S RI R 50\n";
+      for(int f=0;f<=12;++f) {
+        out<<f;
+        for(int sourcePort=0;sourcePort<4;++sourcePort)
+          for(int responsePort=0;responsePort<4;++responsePort) {
+            double v=0;
+            if((sourcePort==0&&responsePort==2) ||
+               (sourcePort==2&&responsePort==0) ||
+               (sourcePort==1&&responsePort==3) ||
+               (sourcePort==3&&responsePort==1))v=0.4;
+            if((sourcePort==0&&responsePort==3) ||
+               (sourcePort==3&&responsePort==0) ||
+               (sourcePort==1&&responsePort==2) ||
+               (sourcePort==2&&responsePort==1))v=-0.4;
+            out<<" "<<v<<" 0";
+          }
+        out<<"\n";
+      }
+    }
+    auto diffCache=si::Cache::open(diffPath,
+      si::pathFromUtf8((ildDir.path()+QStringLiteral("/eye-diff-cache")).toStdString()),
+      nullptr,true);
+    si::Channel diffLane;
+    diffLane.id="lane0";diffLane.name="Differential Lane 0";
+    diffLane.nearP=0;diffLane.nearN=1;diffLane.farP=2;diffLane.farN=3;
+    AnalysisContext diffContext;
+    diffContext.activeSource=0;
+    SourceItem diffSource;
+    diffSource.revision=QStringLiteral("D-PHY fixture revision");
+    diffSource.sha256=QString::fromStdString(diffCache->meta().sha256);
+    diffSource.mappingDigest=QStringLiteral("differential-physical-map");
+    diffSource.mappingConfirmed=true;
+    diffSource.channels={QStringLiteral("Differential Lane 0")};
+    diffSource.channelIds={QStringLiteral("lane0")};
+    diffContext.sources.append(diffSource);
+    manager.setEyeSourceProvider([diffCache,diffLane](int index)
+        ->std::optional<IldSourceInput> {
+      if(index!=0)return std::nullopt;
+      return IldSourceInput{diffCache,{diffLane},"D-PHY fixture revision",
+                            diffCache->meta().sha256,1,1};
+    });
+    manager.setContext(diffContext);
+    profile->setCurrentIndex(0);
+    check(mode->currentIndex()==2 && std::abs(baud->value()-4.5)<1e-9 &&
+          std::abs(reference->value()-2.25)<1e-9 &&
+          std::abs(cap->value()-10)<1e-9,
+          "MIPI differential 4.5/2.25/10 GUI preset changed");
+    const QStringList diffElectrical={
+      QStringLiteral("-200"),QStringLiteral("200"),
+      QStringLiteral("100"),QStringLiteral("100"),
+      QStringLiteral("0"),QStringLiteral("-500"),
+      QStringLiteral("500")};
+    for(int i=0;i<electricalNames.size();++i) {
+      auto *field=eye->findChild<QLineEdit *>(electricalNames[i]);
+      field->setText(diffElectrical[i]);
+    }
+    eye->runButton()->click();
+    drain(manager.scheduler());
+    check(eye->status()==S::Warning,
+          "MIPI labeled, physically differential s4p did not simulate");
+    const QString diffCsvPath=ildDir.filePath(QStringLiteral("eye-diff-result.csv"));
+    check(eye->saveEyeCsv(diffCsvPath),"Differential Eye CSV export failed");
+    QFile diffRead(diffCsvPath);
+    check(diffRead.open(QIODevice::ReadOnly) &&
+          diffRead.readAll().contains("Sdd21"),
+          "Differential Eye did not preserve Sdd21 mode provenance");
+    // Requested upper cap cannot silently exceed the measured source.
+    cap->setValue(15);
+    eye->runButton()->click();
+    drain(manager.scheduler());
+    check(eye->status()==S::Error &&
+          !eye->saveEyeCsv(ildDir.filePath(QStringLiteral("unmeasured-cap.csv"))),
+          "Unmeasured Eye analysis cap did not fail closed");
+    cap->setValue(10);
+
     manager.setEyeSourceProvider({});
 
     manager.setIcnSourceProvider({});
