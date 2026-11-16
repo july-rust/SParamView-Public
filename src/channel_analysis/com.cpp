@@ -71,6 +71,10 @@ Result<ComPreparedData> prepareComSpectra(const ComInput &input,
   ComPreparedData data;
   data.frequencyHz = input.thru.frequencyHz;
   const size_t n = data.frequencyHz.size();
+  // Bound *output* complex spectral cells independently of the shared
+  // validateTrace per-input limit; multi-aggressor arrays can be enormous.
+  require(n <= (size_t{1} << 22) / (size_t{2} + input.aggressors.size()),
+          "COM spectral preparation exceeds bounded memory budget");
   data.txFfeResponse.reserve(n);
   data.conditionedThru.reserve(n);
   for (const auto &aggressor : input.aggressors) {
@@ -118,19 +122,27 @@ Result<ComPreparedData> prepareComSpectra(const ComInput &input,
 Result<ComMarginData> calculateCom(const ComInput &input,
     const ComSettings &settings, Provenance provenance,
     const std::atomic_bool *cancelled) {
-  // Input integrity can be checked and independently debugged now, but
-  // there is NO valid normative 120F-8/Test1+Test2/three-case golden lock.
-  // Forbid plausible-looking COM dB or an implicit 3 dB PASS.
-  const auto prepared = prepareComSpectra(input, settings,
-                                         std::move(provenance), cancelled);
+  (void)input;
+  // A full COM request must stop BEFORE allocating/preparing large spectra
+  // while the normative package/ISI/noise/EQ/oracle qualification is absent.
+  // Clients can separately request explicitly non-normative diagnostics
+  // through prepareComSpectra(), never mistake those for COM dB.
+  check(cancelled);
   Result<ComMarginData> result;
-  result.status = Status::NotEvaluated;
-  result.provenance = prepared.provenance;
+  result.provenance = std::move(provenance);
   result.provenance.algorithm = "com-ieee8023ck-unqualified";
-  result.diagnostics.push_back({Severity::Error, "COM_PROFILE_NOT_QUALIFIED",
-    "Final IEEE 802.3ck-2022 Table 120F-8, Test1/Test2 package/noise/ISI "
-    "implementation, and at least three independent same-PHY golden channels "
-    "are not yet qualified; no COM margin or PASS/FAIL may be returned."});
+  result.provenance.version = "012_09-prequalification";
+  if (settings.profileId != lockedProfile) {
+    result.status = Status::Unsupported;
+    result.diagnostics.push_back({Severity::Error, "COM_PROFILE_UNSUPPORTED",
+      "Requested PHY profile has no qualified IEEE COM implementation."});
+  } else {
+    result.status = Status::NotEvaluated;
+    result.diagnostics.push_back({Severity::Error, "COM_PROFILE_NOT_QUALIFIED",
+      "Final IEEE 802.3ck-2022 Table 120F-8, Test1/Test2 package/noise/ISI "
+      "implementation, and at least three independent same-PHY golden channels "
+      "are not yet qualified; no COM margin or PASS/FAIL may be returned."});
+  }
   return result;
 }
 } // namespace si::channel
