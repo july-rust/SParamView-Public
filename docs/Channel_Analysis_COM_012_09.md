@@ -2,6 +2,14 @@
 
 **Status:** PARTIAL IMPLEMENTATION / 012_09 NOT COMPLETE. This is an auditable engineering handoff, not a COM-margin qualification.
 
+## 2026-11-17 — Numerical defect root-cause and independent crosscheck
+
+- [IEEE task-force March 2020, slide 9](https://www.ieee802.org/3/ck/public/20_03/healey_3ck_01a_0320.pdf) documents the original Rabinovich impaired C2C 10/16/18/20 dB channels with **four FEXT and zero NEXT**. The source ZIP contains one FEXT member per group; PR #59 now uses four instances of that *same, SHA-pinned* source, not four independently sourced signals, and omits NEXT from the actual COM evaluation.
+- The IEEE-hosted 2022 C2C `COM_Settings` is **Strict OOXML**; modern `openpyxl` silently exposed no visible worksheets. PR #59 resolves the unique workbook relationship and checks original byte SHA, exact cells, all eight arithmetic formulas against cached IEEE values, and rejects hostile ZIP paths, formulas with unsupported syntax, bad caches and ambiguous sheets. The synthetic/identity suite is green.
+- [Live real-channel CI #43967988188](https://github.com/july-rust/SParamView-Public/actions/runs/43967988188) found first candidates with **negative sampled cursor**, therefore `A_s=R_LM×cursor/(L−1)<0`, leading to a mathematically complex logarithmic FOM. The independent SiCoPR 4p17p0 port attempts to cast this complex candidate to float and errors. This is **not** corrected by changing FEXT count, and no valid 10/16/18 dB paired numerical goldens are produced.
+- An additional [version-matched GNU Octave crosscheck workflow](https://github.com/july-rust/SParamView-Public/actions/workflows/com-ck-c2c-reference-numerics.yml) uses an external SHA-pinned BSD-3 source checkout and ephemeral MATLAB-cell `.mat` conversion to distinguish a Python port defect from a historical-profile/physical-channel issue. Octave source requires explicit headless graphics and Unix-compatible relative input paths; both were addressed in the diagnostic runner. Only **executed and successful** Octave outputs may be considered independent candidate values.
+- The native C++ `calculateCom()` still deliberately returns `NotEvaluated`. The **complete approved IEEE 802.3ck-2022 Table 120F-8 numeric lock**, TX/RX FFE/CTLE/DFE, ISI/XTALK/jitter/noise optimization and PDF-margin calculation, version-matched independent Test1/Test2 oracle and 3 same-PHY goldens **remain mandatory**. No fake 3 dB PASS, no release and no `012_09=100% COMPLETE`.
+
 ## 2026-11-16 incremental implementation and independent evidence
 
 - **PR #49** prequalification fail-closed core, [initial CI #43822495908](https://github.com/july-rust/SParamView-Public/actions/runs/43822495908), merged `077dfd92bf206c435c358612d9ca302c5c1496c2`.
