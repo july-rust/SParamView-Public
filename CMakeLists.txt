@@ -36,7 +36,8 @@ add_library(si_channel_analysis src/channel_analysis/common.cpp
                                 src/channel_analysis/s_network.cpp
                                 src/channel_analysis/package.cpp
                                 src/channel_analysis/com_statistics.cpp
-                                src/channel_analysis/com_physical_channel.cpp)
+                                src/channel_analysis/com_physical_channel.cpp
+                                src/channel_analysis/com_causal_package.cpp)
 target_include_directories(si_channel_analysis PUBLIC include)
 target_link_libraries(si_channel_analysis PUBLIC si_core)
 if(MSVC)
@@ -105,6 +106,12 @@ add_test(NAME channel_com_physical_test_cases COMMAND si_com_physical_channel_te
          "${CMAKE_BINARY_DIR}/com-physical-source")
 set_tests_properties(channel_com_physical_test_cases PROPERTIES TIMEOUT 90)
 install(TARGETS si_com_physical_channel_tests RUNTIME DESTINATION tests)
+# 012_09: independent IEEE 93A causal propagation S/gamma oracles.
+add_executable(si_com_causal_package_tests tests/channel_analysis/com_causal_package_tests.cpp)
+target_link_libraries(si_com_causal_package_tests PRIVATE si_channel_analysis)
+add_test(NAME channel_com_causal_package COMMAND si_com_causal_package_tests)
+set_tests_properties(channel_com_causal_package PROPERTIES TIMEOUT 90)
+install(TARGETS si_com_causal_package_tests RUNTIME DESTINATION tests)
 add_executable(si_hardening_tests tests/hardening_tests.cpp)
 target_link_libraries(si_hardening_tests PRIVATE si_core)
 install(TARGETS si_hardening_tests RUNTIME DESTINATION tests)
