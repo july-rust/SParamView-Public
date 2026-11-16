@@ -14,6 +14,16 @@ This is a historical sponsor-ballot/reference tool, not the IEEE final standard.
 - [Official 2022 reference archive download](https://www.ieee802.org/3/df/public/tools/COM/mellitz_3df_02_2211.zip)
 - [Approved IEEE Std 802.3ck-2022 catalog](https://standards.ieee.org/ieee/802.3ck/7322/)
 
+## Real executed 2022 reference-source receipt (read-only)
+
+- Real GitHub Actions execution: [2022 SA C2C config audit #43834905502](https://github.com/july-rust/SParamView-Public/actions/runs/43834905502) **SUCCESS**, with standalone offline synthetic unit tests.
+- IEEE archive SHA-256: `895857fbfb602c8ec10b221ab40a23d4b39244b4b57101dd27abc4b2a1a2fddc`.
+- Located 2022 C2C workbook: `config_sheets_100G/config_com_ieee8023_93a=3ck_SA_120F_C2C_08_17_2022.xlsx`.
+- Workbook SHA-256: `e676b3fb3cb3048f80c98deaa8faca1d03c13daa216c6259de26885e715ca925`.
+- The tightened parser found **27** distinct parameter names with finite **nearby adjacent** literal numeric cells. This is provenance evidence, **not** 27 individually verified IEEE normative parameters.
+- Example: `f_b = 53.125` in two workbook sheets; one sheet has `c(0)=0.54`, a second `c(0)=0.60`. Without an approved table/worksheet contract, such values must not be silently conflated, including copied config comments or formula values.
+- No source ZIP/XLSX bytes were stored in the repository or CI artifact. Test-only data is explicitly synthetic.
+
 ## Implemented workflow
 
 `scripts/ieee_com_390_sa_probe.py` fetches the official ZIP read-only with
