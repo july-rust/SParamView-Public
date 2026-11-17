@@ -27,6 +27,8 @@ class Com120F8ReferenceConfigurationContract(unittest.TestCase):
         self.assertIsNone(receipt["normative_com_db"])
         self.assertEqual(receipt["official_com_4p17_runtime"],"NOT_RUN")
         self.assertEqual(receipt["aggressor_package_and_s4p_compliance"],"NOT_QUALIFIED")
+        self.assertTrue(receipt["reference_config_no_com"])
+        self.assertTrue(receipt["next_fext_zero_package_sentinels"])
 
     def test_reference_csv_units_and_package_matrix_orientation(self):
         d=dict(contract.config_rows()[0])
@@ -40,6 +42,9 @@ class Com120F8ReferenceConfigurationContract(unittest.TestCase):
         self.assertEqual(d["package_Z_c"],"[87.5 87.5;92.5 92.5]")
         self.assertEqual(d["Port Order"],"[1 2 3 4]")
         self.assertEqual(d["z_p select"],"[1 2]")
+        self.assertEqual(d["z_p (NEXT)"],"[0 0;0 0]")
+        self.assertEqual(d["z_p (FEXT)"],"[0 0;0 0]")
+        self.assertEqual(d["NO_COM"],"1")
         self.assertEqual(float(d["C_d"].strip("[]").split()[0]),0.00012)
         self.assertEqual(float(d["L_s"].strip("[]").split()[0]),0.12)
         self.assertEqual(float(d["C_p"].strip("[]").split()[0]),0.000087)
