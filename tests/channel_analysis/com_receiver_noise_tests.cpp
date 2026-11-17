@@ -60,6 +60,22 @@ int main() {
     close(d.verifiedTailProbability,1e-5,1e-11,1e-6,
           "Quantile reverse-tail evaluation");
 
+    // Codex P2: exp(-800) underflows before scaling by 1e150, but the
+    // final PDF is a representable ~1.4632702508383151e-198 1/V.
+    // This independent fixed constant checks the entire log-domain density.
+    auto tiny=flat();
+    tiny.oneSidedPsdV2PerHz=1e-300;
+    tiny.frequencyHz={0.,1.};
+    tiny.noiseTransfer={{1.,0.},{1.,0.}};
+    tiny.queryVoltageV={4e-149};
+    const auto thinTail=calculateComReceiverNoise(tiny);
+    require(thinTail.usable() && thinTail.value->hasContinuousDensity,
+            "Small but finite Gaussian RMS is supported");
+    close(thinTail.value->rmsV,1e-150,0,1e-12,
+          "Small Gaussian RMS preserved");
+    close(thinTail.value->pdfPerV[0],1.4632702508383151e-198,
+          0,1e-10,"Representable Gaussian PDF far-tail not underflowed");
+
     in.oneSidedPsdV2PerHz*=4;
     const auto psd4 = calculateComReceiverNoise(in);
     close(psd4.value->varianceV2,4*d.varianceV2,1e-14,1e-12,
