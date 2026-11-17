@@ -6,6 +6,8 @@
 
 > **2026-11-17 새 `012_14` 작업:** [COM NEXT/FEXT 개별 간섭 펄스 엔진](COM_Interference_012_14.md)은 검증된 복소 Aggressor 입력에서만 시간영역 간섭을 계산한다. Test1/Test2 및 출처 식별을 유지하며 최종 IEEE COM/PHY PASS/FAIL, 통계 누화 결합 및 GUI는 제외한다. 이 신규 명령은 아래 역사적 계획의 기존 `012_14`(릴리스)와 다르며 실제 COMPLETE 판정은 PR·CI·병합 후 증거로 확정한다.
 
+> **2026-11-17 새 `012_15` 범위:** [수신기 Gaussian 잡음 독립 수치 엔진](COM_Receiver_Noise_012_15.md). 유한 대역 단측 PSD 적분, RMS, PDF/CDF, 기존 Gaussian-only Quantile을 재사용한다. 지터·통계 누화 결합·COM dB/PHY PASS/FAIL·GUI·릴리스는 제외한다. 실제 완료 판정은 해당 PR 최신 HEAD의 필수 CI 및 병합 증거를 확인한 후 기록한다. 이 신규 번호는 아래 2026-11-16 이전 역사적 012_15 번호 계획과 무관하다.
+
 **기준일:** 2026-11-16 (KST)
 **공식 기준:** v1.3.5 (tag/release 불변)
 **목표:** ILD·ICN·Eye Diagram·COM을 각각 독립적인 C++20 수치 엔진, Qt6 창, 테스트로 구현하고 **v1.4.0 한 번에 릴리스**
