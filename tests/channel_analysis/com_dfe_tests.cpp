@@ -133,6 +133,17 @@ int main() {
     bad=fixture(p);
     bad.symbolPulse.provenance.algorithm="com-120f8-bandlimited-pulse-exploratory";
     reject([&]{calculateComDfe(bad,p);},"Impulse is not symbol pulse");
+    // A copied, heap-allocated c-string with identical content MUST pass.
+    // Pointer-address equality would pass Release by pooling literals but
+    // fail ASan/UBSan or a different compiler/runtime.
+    bad=fixture(p);
+    std::string separateModel =
+      "EXPLORATORY_MEASURED_BAND_RECTANGULAR_SYMBOL_CONVOLUTION";
+    bad.symbolPulse.value->model = separateModel.c_str();
+    demand(calculateComDfe(bad,p).usable(),
+           "Source-model validation compares contents, not addresses");
+    bad=fixture(p); bad.symbolPulse.value->model=nullptr;
+    reject([&]{calculateComDfe(bad,p);},"Null model rejected");
     bad=fixture(p); bad.symbolPulse.value->model="IMPULSE";
     reject([&]{calculateComDfe(bad,p);},"Wrong waveform model");
     bad=fixture(p);
@@ -146,7 +157,12 @@ int main() {
     bad=fixture(p); bad.symbolPulse.value->unitSymbolPulse[3]=0;
     reject([&]{calculateComDfe(bad,p);},"Zero cursor");
     bad=fixture(p); bad.symbolPulse.value->unitSymbolPulse[3]=1e-11;
+    bad.symbolPulse.value->maximumAbsolutePulse=0.4;
     reject([&]{calculateComDfe(bad,p);},"Ill-conditioned cursor");
+    bad=fixture(p);
+    bad.symbolPulse.value->unitSymbolPulse[4]=
+      std::numeric_limits<double>::quiet_NaN();
+    reject([&]{calculateComDfe(bad,p);},"Nonfinite symbol sample");
     bad=fixture(p); bad.symbolPulse.status=Status::NotEvaluated;
     reject([&]{calculateComDfe(bad,p);},"Blocked upstream source");
 
