@@ -407,4 +407,154 @@ Result<Com120F8LoadedTestCaseSpectra> prepareCom120F8LoadedTestCases(
   return result;
 }
 
+
+Result<Com120F8RectangularPulseData> calculateCom120F8RectangularPulse(
+    const ComPreparedData& conditioned,
+    const std::vector<double>& queryTimeSeconds,
+    Provenance provenance,
+    const std::atomic_bool* cancelled) {
+  auto check = [&] {
+    if(cancelled && cancelled->load(std::memory_order_relaxed))
+      throw Cancelled();
+  };
+  check();
+  const auto& f=conditioned.frequencyHz;
+  const auto& h=conditioned.conditionedThru;
+  validateCom120F8DirectGrid(f);
+  const size_t n=f.size();
+  require(h.size()==n && n<=32769,
+          "COM rectangular pulse requires a complete bounded THRU spectrum");
+  require(!queryTimeSeconds.empty() && queryTimeSeconds.size()<=512 &&
+          n<=4000000/queryTimeSeconds.size(),
+          "COM rectangular pulse numerical operation budget exceeded");
+  double largestStep=0.;
+  for(size_t k=0;k<n;++k) {
+    if(!(k&1023u))check();
+    require(std::isfinite(h[k].real()) && std::isfinite(h[k].imag()),
+            "COM rectangular pulse source has nonfinite spectrum");
+    if(k)largestStep=std::max(largestStep,f[k]-f[k-1]);
+  }
+  require(std::abs(h.front().imag()) <=
+            1e-10*std::max(1.,std::abs(h.front().real())),
+          "COM rectangular pulse DC must be real");
+  require(std::isfinite(largestStep) && largestStep>0,
+          "COM rectangular pulse invalid integration step");
+  // A nonuniform positive-frequency grid combined with plain trapezoids
+  // creates spectral comb aliases (false late ISI/postcursors). The COM
+  // engine does not yet qualify a phase-aware nonuniform quadrature or a
+  // controlled resampler, so explicitly reject ALL such grids. The
+  // caller may supply a separately checked uniform-grid source, never
+  // have this numerical primitive silently interpolate/extrapolate it.
+  const double uniformStep=f[1]-f[0];
+  for(size_t k=2;k<n;++k) {
+    const double actual=f[k]-f[k-1];
+    require(std::abs(actual-uniformStep)<=
+              1e-9*uniformStep,
+            "COM rectangular pulse nonuniform frequency grid requires "
+            "independently qualified phase-aware resampling");
+  }
+  for(size_t j=0;j<queryTimeSeconds.size();++j) {
+    const double t=queryTimeSeconds[j];
+    // A quadrature grid aliases oscillatory exp(j*2*pi*f*t) if the
+    // requested absolute time exceeds its inverse-frequency support.
+    // Fail CLOSED instead of silently wrapping an unqualified result.
+    require(std::isfinite(t) && t>=0 && t*largestStep<=0.45,
+            "COM rectangular pulse time exceeds measured-grid delay support");
+    if(j)require(t>queryTimeSeconds[j-1],
+                  "COM rectangular pulse query times must be increasing");
+  }
+  const double ui=1./final8023ck120F8().symbolRateHz;
+  require(std::isfinite(ui) && ui>0,
+          "COM rectangular pulse invalid symbol period");
+  std::vector<double> weights(n),excitation(n);
+  for(size_t k=0;k<n;++k) {
+    if(!(k&1023u))check();
+    // Trapezoidal quadrature on the validated STRICTLY UNIFORM
+    // measured frequency grid. No extrapolated DC or upper stop band.
+    weights[k]=(k==0?(f[1]-f[0])*0.5:
+                k+1==n?(f[n-1]-f[n-2])*0.5:
+                (f[k+1]-f[k-1])*0.5);
+    const double argument=std::numbers::pi*f[k]*ui;
+    const double sinc=(k==0 ? 1. : std::sin(argument)/argument);
+    // X(f) = UI*sinc(pi*f*UI)*exp(-j*pi*f*UI).
+    excitation[k]=ui*sinc;
+    require(std::isfinite(weights[k]) && weights[k]>0 &&
+            std::isfinite(excitation[k]),
+            "COM rectangular pulse integration weights overflow");
+  }
+  Com120F8RectangularPulseData data;
+  data.timeSeconds=queryTimeSeconds;
+  data.symbolPeriodSeconds=ui;
+  data.unitSymbolPulse.reserve(queryTimeSeconds.size());
+  for(size_t j=0;j<queryTimeSeconds.size();++j) {
+    check();
+    const double t=queryTimeSeconds[j];
+    double sum=0.,compensation=0.;
+    for(size_t k=0;k<n;++k) {
+      if(!(k&1023u))check();
+      // Fold X(f)'s half-UI phase into the Fourier exponent to preserve
+      // original THRU/FFE/CTLE delay and signed pre/postcursor polarity.
+      const double angle=2.*std::numbers::pi*f[k]*(t-ui*0.5);
+      const double realValue=(h[k]*std::polar(1.,angle)).real();
+      const double term=2.*weights[k]*excitation[k]*realValue;
+      require(std::isfinite(term),
+              "COM rectangular pulse quadrature term overflow");
+      const double corrected=term-compensation;
+      const double next=sum+corrected;
+      compensation=(next-sum)-corrected;
+      sum=next;
+    }
+    require(std::isfinite(sum),
+            "COM rectangular pulse nonfinite integrated signal");
+    data.maximumAbsolutePulse=std::max(data.maximumAbsolutePulse,
+                                      std::abs(sum));
+    data.unitSymbolPulse.push_back(sum);
+  }
+  Result<Com120F8RectangularPulseData> out;
+  out.status=Status::Warning;
+  out.value=std::move(data);
+  out.provenance=std::move(provenance);
+  out.provenance.algorithm="com-120f8-rectangular-symbol-band-quadrature";
+  out.provenance.version="012_09_03-pulse-1";
+  out.diagnostics.push_back({Severity::Warning,"NOT_IEEE_COM",
+    "Unit-symbol rectangular excitation convolved with the supplied "
+    "complex measured-band transfer; unmeasured high frequencies are "
+    "not inferred. No calibrated voltage, 93A COM equalizer optimum, "
+    "full ISI/DFE/XTALK/jitter/noise, COM dB, or PHY PASS/FAIL."});
+  return out;
+}
+
+Result<Com120F8RectangularPulseCases>
+calculateCom120F8RectangularPulseCases(
+    const Com120F8LoadedTestCaseSpectra& conditioned,
+    const std::vector<double>& queryTimeSeconds,
+    Provenance provenance,const std::atomic_bool* cancelled) {
+  if(cancelled && cancelled->load(std::memory_order_relaxed))
+    throw Cancelled();
+  require(conditioned.model &&
+          std::string_view(conditioned.model)==
+            "EXPLORATORY_C2C_PACKAGE_HT_FFE_CTLE_RX",
+          "COM rectangular pulse: unrecognized Test1/Test2 provenance");
+  require(conditioned.test1.frequencyHz==
+            conditioned.test2.frequencyHz,
+          "COM rectangular pulse: Test1/Test2 frequency grids disagree");
+  const auto one=calculateCom120F8RectangularPulse(
+      conditioned.test1,queryTimeSeconds,provenance,cancelled);
+  const auto two=calculateCom120F8RectangularPulse(
+      conditioned.test2,queryTimeSeconds,provenance,cancelled);
+  require(one.usable() && two.usable(),
+          "COM rectangular pulse: Test1/Test2 result unavailable");
+  Result<Com120F8RectangularPulseCases> out;
+  out.status=Status::Warning;
+  out.value=Com120F8RectangularPulseCases{
+      std::move(*one.value),std::move(*two.value)};
+  out.provenance=std::move(provenance);
+  out.provenance.algorithm="com-120f8-two-package-symbol-pulse-exploratory";
+  out.provenance.version="012_09_03-pulse-1";
+  out.diagnostics.push_back({Severity::Warning,"NOT_IEEE_COM",
+    "Test1/Test2 pulse arrays are band-limited unit-symbol diagnostics. "
+    "No IEEE COM ratio, independent golden correlation or PASS/FAIL."});
+  return out;
+}
+
 } // namespace si::channel

@@ -403,6 +403,134 @@ try {
   demand(physicalAndRx.diagnostics[0].code=="NOT_IEEE_COM",
          "full causal cascade still must not advertise IEEE COM");
 
+
+  // RECTANGULAR_SYMBOL_ANALYTIC_GAUSSIAN: independent closed-form
+  // time-domain convolution of an ideal symbol with Gaussian low-pass
+  // H(f)=exp(-(f/fc)^2)*exp(-j2*pi*f*delay).
+  // Expected pulse(t)=gain/2 * [erf(pi*fc*(t-delay)) -
+  //                            erf(pi*fc*(t-delay-UI))].
+  // This exercises actual complex FFT-independent frequency quadrature,
+  // nonuniform-grid support, true symbol width and physical signal delay.
+  const double fc=6e9, delay=0.42e-9;
+  const double ui=1./final8023ck120F8().symbolRateHz;
+  ComPreparedData gaussian;
+  std::vector<double> queryTimes{
+    delay-ui,delay,delay+ui/2.,delay+ui,delay+2.*ui};
+  for(size_t k=0;k<=4096;++k) {
+    const double f=8e6*static_cast<double>(k);
+    gaussian.frequencyHz.push_back(f);
+    gaussian.conditionedThru.push_back(
+      std::exp(-std::pow(f/fc,2.))*
+      std::polar(0.8,-2.*std::numbers::pi*f*delay));
+  }
+  const auto rectangular=calculateCom120F8RectangularPulse(
+      gaussian,queryTimes);
+  demand(rectangular.usable() &&
+         rectangular.status==Status::Warning &&
+         rectangular.diagnostics[0].code=="NOT_IEEE_COM",
+         "ideal rectangular symbol must remain an exploratory result");
+  demand(rectangular.value->unitSymbolPulse.size()==queryTimes.size(),
+         "every requested time must have a sampled pulse");
+  for(size_t i=0;i<queryTimes.size();++i) {
+    const double t=queryTimes[i]-delay;
+    const double oracle=0.4*(
+      std::erf(std::numbers::pi*fc*t)-
+      std::erf(std::numbers::pi*fc*(t-ui)));
+    demand(std::isfinite(rectangular.value->unitSymbolPulse[i]) &&
+           std::abs(rectangular.value->unitSymbolPulse[i]-oracle)<2e-6,
+           "independent Gaussian/rectangular analytic time-domain oracle");
+  }
+  demand(std::abs(rectangular.value->unitSymbolPulse[1]-
+                  rectangular.value->unitSymbolPulse[3])<2e-6,
+         "Gaussian symbol response symmetric about delay+half-UI");
+  demand(rectangular.value->maximumAbsolutePulse>0.1,
+         "Gaussian symbol has nonzero physical amplitude");
+  auto damagedGaussian=gaussian;
+  damagedGaussian.conditionedThru[23]={std::numeric_limits<double>::infinity(),0.};
+  reject([&]{(void)calculateCom120F8RectangularPulse(
+      damagedGaussian,queryTimes);},
+      "reject nonfinite complex amplitude before inverse integration");
+  damagedGaussian=gaussian;
+  damagedGaussian.frequencyHz.pop_back();
+  reject([&]{(void)calculateCom120F8RectangularPulse(
+      damagedGaussian,queryTimes);},
+      "reject missing THRU frequency grid");
+  auto damagedTimes=queryTimes;
+  damagedTimes[0]=-1e-12;
+  reject([&]{(void)calculateCom120F8RectangularPulse(
+      gaussian,damagedTimes);},
+      "reject negative absolute sample time");
+  damagedTimes=queryTimes;
+  damagedTimes[1]=damagedTimes[0];
+  reject([&]{(void)calculateCom120F8RectangularPulse(
+      gaussian,damagedTimes);},
+      "reject duplicate pulse times");
+  damagedTimes={80e-9};
+  reject([&]{(void)calculateCom120F8RectangularPulse(
+      gaussian,damagedTimes);},
+      "reject time outside spectral delay support");
+  std::atomic_bool pulseStop{true};
+  bool rectangleCancelled=false;
+  try {
+    (void)calculateCom120F8RectangularPulse(
+       gaussian,queryTimes,{},&pulseStop);
+  } catch(const si::Cancelled&) {rectangleCancelled=true;}
+  demand(rectangleCancelled,"rectangular pulse cancellation must propagate");
+
+  // NONUNIFORM_QUADRATURE_ALIAS_REPRO (independent review 2026-11-17):
+  // The 10,10,10,5 MHz repetition produces a false ~2.7% postcursor at
+  // 1/35MHz offset under plain nonuniform trapezoidal integration.
+  // Its max frequency step STILL satisfies 120F-8 (<=10 MHz), and the
+  // time query passes the generic delay-support bound. Fail closed until
+  // a validated phase-aware resampler/integrator is implemented.
+  auto irregular=gaussian;
+  for(size_t k=1;k<irregular.frequencyHz.size();++k) {
+    const double spacing=(k%4==0)?5e6:10e6;
+    irregular.frequencyHz[k]=irregular.frequencyHz[k-1]+spacing;
+    const double fk=irregular.frequencyHz[k];
+    irregular.conditionedThru[k]=
+      std::exp(-std::pow(fk/fc,2.))*
+      std::polar(0.8,-2.*std::numbers::pi*fk*delay);
+  }
+  validateCom120F8DirectGrid(irregular.frequencyHz);
+  const std::vector<double> aliasQuery{delay+ui/2.+1./35e6};
+  demand(aliasQuery.front()*10e6<0.45,
+         "alias repro must pass ordinary delay support gate");
+  reject([&]{(void)calculateCom120F8RectangularPulse(
+      irregular,aliasQuery);},
+      "nonuniform spectral comb false postcursor must fail closed");
+
+  Com120F8LoadedTestCaseSpectra testPair;
+  testPair.test1=gaussian;
+  testPair.test2=gaussian;
+  // Deliberately distinct package-case attenuation and delay.
+  for(size_t k=0;k<testPair.test2.frequencyHz.size();++k) {
+    const double f=testPair.test2.frequencyHz[k];
+    testPair.test2.conditionedThru[k]=
+      std::exp(-std::pow(f/fc,2.))*
+      std::polar(0.5,-2.*std::numbers::pi*f*(delay+ui));
+  }
+  const auto twoPulses=calculateCom120F8RectangularPulseCases(
+      testPair,queryTimes);
+  demand(twoPulses.usable() &&
+         twoPulses.value->test1.unitSymbolPulse.size()==queryTimes.size() &&
+         twoPulses.value->test2.unitSymbolPulse.size()==queryTimes.size() &&
+         twoPulses.diagnostics[0].code=="NOT_IEEE_COM",
+         "two physically distinct package-case pulse responses");
+  demand(twoPulses.value->test1.unitSymbolPulse[2]>
+         twoPulses.value->test2.unitSymbolPulse[2]+0.035,
+         "cannot silently substitute Test2 pulse for Test1");
+  auto invalidPair=testPair;
+  invalidPair.test2.frequencyHz.pop_back();
+  reject([&]{(void)calculateCom120F8RectangularPulseCases(
+      invalidPair,queryTimes);},
+      "reject unaligned Test1/Test2 sample grids");
+  invalidPair=testPair;
+  invalidPair.model="UNVERIFIED_PHY";
+  reject([&]{(void)calculateCom120F8RectangularPulseCases(
+      invalidPair,queryTimes);},
+      "unrecognized physical package provenance must stay fail-closed");
+
   std::cout<<"012_09 published-final 120F-8 numeric contract, TX/CTLE "
               "bounds, source package drift and strict-grid tests PASS; "
               "normative COM solver still NOT_EVALUATED\n";
