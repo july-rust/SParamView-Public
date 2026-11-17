@@ -122,10 +122,14 @@ try {
       "infinite-frequency Butterworth must fail closed");
   validateCom120F8Equalizer({});
   Com120F8EqualizerChoice eq;
-  eq.txFfe={-0.04,0.10,-0.28,0.54,-0.10};
+  eq.txFfe={-0.04,0.10,-0.20,0.56,-0.10};
   eq.ctleDcGainDb=-20.;
   eq.ctleDcGain2Db=-4.;
   validateCom120F8Equalizer(eq);
+  eq.txFfe[2]=-0.28;
+  reject([&]{validateCom120F8Equalizer(eq);},
+         "invalid FFE sum cannot independently set c0=0.56");
+  eq.txFfe[2]=-0.20;
   eq.txFfe[0]=-0.06;
   reject([&]{validateCom120F8Equalizer(eq);},
          "2020 draft c(-3) must not pass 2022 final");
@@ -136,7 +140,7 @@ try {
   eq.txFfe[3]=0.53;
   reject([&]{validateCom120F8Equalizer(eq);},
          "cursor minimum fail-closed");
-  eq.txFfe[3]=0.54;
+  eq.txFfe[3]=0.56;
   eq.ctleDcGainDb=-20.5;
   reject([&]{validateCom120F8Equalizer(eq);},
          "invalid CTLE 1dB gain quantization");
@@ -179,7 +183,7 @@ try {
   // A signed pre/post FFE with cursor-relative advance/delay must not
   // accidentally rotate THRU or a complex FEXT aggressor by 3 UI.
   Com120F8EqualizerChoice multiEq=flatEq;
-  multiEq.txFfe={-0.04,0.10,-0.28,0.54,-0.10};
+  multiEq.txFfe={-0.04,0.10,-0.20,0.56,-0.10};
   ComAggressor aggressor{"fext-golden",ComCoupling::Fext,channel.thru};
   aggressor.transfer.parameter="Sdd41";
   aggressor.transfer.transfer.assign(grid.size(),{0.,0.1});
@@ -188,13 +192,13 @@ try {
   demand(multi.usable() && multi.value->aggressors.size()==1,
          "full signed FIR and FEXT phase calculation");
   closeComplex(multi.value->txFfeResponse[1000],
-               {0.3615822649725838,-0.08074242672652934},
+               {0.41185514897596864,-0.006691413944004826},
                "cursor-aligned pre/post TX FFE independent oracle");
   closeComplex(multi.value->conditionedThru[1000],
-               {0.1571131081306297,-0.019190092392036742},
+               {0.17538704407559405,0.014398738145895667},
                "signed FFE and RX complex THRU independent oracle");
   closeComplex(multi.value->aggressors[0].conditionedTransfer[1000],
-               {0.0019190092392036742,0.01571131081306297},
+               {-0.0014398738145895667,0.017538704407559405},
                "signed FFE and RX complex FEXT independent oracle");
   channel.rxFilter.parameter="Sdd21";
   channel.rxFilter.frequencyHz=grid;
