@@ -3,6 +3,7 @@
 #include <cmath>
 #include <cctype>
 #include <utility>
+#include <string_view>
 
 namespace si::channel {
 namespace {
@@ -62,7 +63,8 @@ Result<ComDfeData> calculateComDfe(const ComDfeInput& input,
           upstream.version == "012_09_03-pulse-1",
           "COM DFE: incompatible source, mapping, settings or algorithm");
   const auto& pulse = *input.symbolPulse.value;
-  require(pulse.model ==
+  require(pulse.model != nullptr &&
+          std::string_view(pulse.model) ==
            "EXPLORATORY_MEASURED_BAND_RECTANGULAR_SYMBOL_CONVOLUTION",
           "COM DFE: cannot substitute an impulse for a symbol response");
   constexpr size_t count = 13;
