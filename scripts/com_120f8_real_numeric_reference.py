@@ -59,6 +59,14 @@ def compute_csv_rows() -> tuple[list[list[str]], dict]:
             row[1] = NEXT_PACKAGE
         elif row[0] == "z_p (FEXT)":
             row[1] = FEXT_PACKAGE
+    # The independent Octave solver defaults to DISPLAY_WINDOW=1 when absent;
+    # that creates a waitbar and fails on headless CI. These are GUI-only
+    # controls, not PHY parameters or numerical solver substitutions.
+    rows.append(["DISPLAY_WINDOW", "0"])
+    rows.append(["SAVE_FIGURES", "0"])
+    require(dict(rows)["DISPLAY_WINDOW"] == "0" and
+            dict(rows)["SAVE_FIGURES"] == "0",
+            "headless reference output controls changed")
     require(dict(rows)["NO_COM"] == "0" and
             dict(rows)["z_p (NEXT)"] != "[0 0;0 0]" and
             dict(rows)["z_p (FEXT)"] != "[0 0;0 0]",
