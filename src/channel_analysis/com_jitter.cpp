@@ -142,7 +142,11 @@ Result<ComJitterData> calculateComJitter(
   require(std::isfinite(dt) && dt > 0 && std::isfinite(dv),
           "Unresolvable voltage slope inputs");
   const double slope = dv/dt;
-  require(std::isfinite(slope), "Receiver voltage slope overflow");
+  require(std::isfinite(slope) && (slope != 0 || dv == 0),
+          "Nonzero receiver voltage slope underflow");
+  require(slope == 0 ||
+              std::abs(slope) >= std::numeric_limits<double>::min(),
+          "Subnormal receiver voltage slope unsupported");
 
   ComJitterData data;
   data.unitIntervalSeconds = 1.0/input.symbolRateBd;
