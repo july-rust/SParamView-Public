@@ -5,6 +5,18 @@
 **Result:** **PARTIAL — 68/68 published-edition text comparison MATCH; official-original authentication BLOCKED**  
 **Production IEEE COM qualification:** **NOT EVALUATED**; no changes to the numerical engine, reference manifest or pass/fail gates.
 
+## 0A. Final-source access recheck and 2026 corrigendum (2026-11-17 KST)
+
+- **IEEE official source identity:** [IEEE SA 802.3ck-2022 catalog](https://standards.ieee.org/ieee/802.3ck/7322/) confirms IEEE GET availability, board approval 2022-09-21 and publication 2022-12-28. IEEE Xplore [DOI 10.1109/IEEESTD.2022.9999414](https://ieeexplore.ieee.org/document/9999414) confirms the approved standard identity, but metadata is not a complete authenticated PDF.
+- **Authorized PDF retrieval attempted (NOT OBTAINED):** Access to the IEEE GET standards listing and direct Xplore document/PDF route from the available automated execution environment returns JavaScript robot-verification or a blocked HTTP response. No final approved **IEEE-hosted PDF** could be downloaded, hashed or visually compared page-by-page. Do not infer that an IEEE GET user with interactive browser access would have the same problem.
+- **Additional official primary-source correction check:** [IEEE 802.3-2022/Cor 2-2026 catalog](https://standards.ieee.org/ieee/802.3-2022_Cor_2/12048/) confirms publication **2026-09-30**, targeting **Clause 166 TDFOM normalization factors**; this corrigendum does **not** list Annex 120F or 93A in its published scope. [IEEE 802.3-2022/Cor 1-2024](https://standards.ieee.org/ieee/802.3-2022_Cor_1/11634/) likewise targets automotive clauses 149 and 165. This catalog-level scope check is **not** a substitute for reviewing the full legally obtained standard and applicable errata.
+- **Secondary text cross-check remains as documented below:** 68/68 *implemented numeric leaves* agree with both 2023 and 2026 IEEE-watermarked reproductions. The two reproductions are **not authorized IEEE distribution channels** and cannot establish byte-for-byte authenticity of the final IEEE GET original or all normative footnotes.
+- **Task status:** `012_11 PARTIAL/BLOCKED`, strictly **not** `100% COMPLETE`. Do not promote `tests/fixtures/channel/com_reference/manifest.json` to `parameter_values_qualified=true`, release v1.4.0, or enable `calculateCom()` PASS/FAIL.
+
+**Minimum external input to close this exact task:** Obtain the complete **official** IEEE Std 802.3ck-2022 PDF via the IEEE GET program using an authorized interactive account and make it accessible to the audit **without checking it into the public repository**. The already-created 68-value regression can then be matched to printed pp. 236–238, including the 120F.4.1 rule and all footnotes. Record the local PDF SHA-256 and source provenance; update this same audit before declaring full completion. No additional task number or new feature scope is required.
+
+---
+
 ## 0. Second-pass review of the published-edition text (2026-11-17)
 
 **New evidence (after the first-pass record below):** TWO separately uploaded text reproductions identify themselves as complete **IEEE Std 802.3ck-2022**, with different IEEE Xplore license stamps and download dates (2023-02-08 and 2026-01-28). The visible publication has the same standard title, amendment number and publication page sequence as the [official IEEE catalog](https://standards.ieee.org/ieee/802.3ck/7322/). Its printed **pages 236, 237, 238** show all of **Table 120F-8** and **120F.4.1**. The two reproductions agree on the visible technical data; the 2020 IEEE ad-hoc draft independently corroborates the first 18 package/grid entries.
