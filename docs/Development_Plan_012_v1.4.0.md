@@ -4,6 +4,8 @@
 
 > **2026-11-17 새 번호 기준 최신 상태 — 012_13 참조 수치 검증:** 기존 2026-11-16 이전 번호 체계의 012_13(릴리스 준비)과 무관하게, 새 [012_13 IEEE 802.3ck-2022 COM Reference Numerical Qualification](COM_120F8_Reference_Numerical_012_13.md)은 **정식 Table 120F-8의 68개 검증 수치를 적용한 실제 3개 IEEE 역사적 채널 × Test1/Test2 = 6개 COM/FOM 참조 후보 계산 및 SiCoPR Python/Octave 독립 수치 비교 성공** ([수치 CI #44070019965](https://github.com/july-rust/SParamView-Public/actions/runs/44070019965), [PR #71](https://github.com/july-rust/SParamView-Public/pull/71)). NEXT/FEXT 패키지는 2020년 P802.3ck 공개 엔지니어링 모델로 별도 명시했으며 **최종 PHY 정식 적합성·C++ COM 구현·정식 PASS/FAIL은 여전히 미완료**다. 과거 번호 계획의 본문은 역사적 기록으로 보존한다.
 
+> **2026-11-17 새 `012_14` 작업:** [COM NEXT/FEXT 개별 간섭 펄스 엔진](COM_Interference_012_14.md)은 검증된 복소 Aggressor 입력에서만 시간영역 간섭을 계산한다. Test1/Test2 및 출처 식별을 유지하며 최종 IEEE COM/PHY PASS/FAIL, 통계 누화 결합 및 GUI는 제외한다. 이 신규 명령은 아래 역사적 계획의 기존 `012_14`(릴리스)와 다르며 실제 COMPLETE 판정은 PR·CI·병합 후 증거로 확정한다.
+
 **기준일:** 2026-11-16 (KST)
 **공식 기준:** v1.3.5 (tag/release 불변)
 **목표:** ILD·ICN·Eye Diagram·COM을 각각 독립적인 C++20 수치 엔진, Qt6 창, 테스트로 구현하고 **v1.4.0 한 번에 릴리스**
