@@ -34,7 +34,7 @@ Provenance source(std::string id = std::string(64,'a')) {
   p.mappingGeneration = 23;
   return p;
 }
-Result<ComReceiverNoiseData> noise(
+si::channel::Result<ComReceiverNoiseData> noise(
     const Provenance& provenance, double psd = 4e-8) {
   ComReceiverNoiseInput in;
   in.oneSidedPsdV2PerHz = psd;
