@@ -56,7 +56,7 @@ def checked_parameters() -> tuple[dict, dict, dict, set]:
     ranges = {key: m.extract_ranges(header, key) for key in m.EXPECTED_RANGES}
     for key, value in scalar.items():
         require(math.isclose(value, m.EXPECTED_SCALARS[key],
-                             rel_tol=1e-13, abs_tol=1e-15),
+                             rel_tol=1e-13, abs_tol=0.0),
                 f"C++ scalar drift: {key}")
     for family, expected in ((arrays, m.EXPECTED_ARRAYS),
                              (ranges, m.EXPECTED_RANGES)):
@@ -64,7 +64,7 @@ def checked_parameters() -> tuple[dict, dict, dict, set]:
             require(len(value) == len(expected[key]), f"Wrong dimension: {key}")
             flat = lambda a: (x for row in a for x in row) if (
                 a and isinstance(a[0], tuple)) else iter(a)
-            require(all(math.isclose(x, y, rel_tol=1e-13, abs_tol=1e-15)
+            require(all(math.isclose(x, y, rel_tol=1e-13, abs_tol=0.0)
                         for x, y in zip(flat(value), flat(expected[key]))),
                     f"C++ vector drift: {key}")
     count = (len(scalar) +
@@ -249,9 +249,29 @@ def qualify_ieee_source_zip(archive: Path, channel: str) -> dict:
 def actual_reference_parse(config: Path, module_dir: Path) -> dict:
     """Only real execution of a pinned independent COM 4.17 loader earns PASS."""
     require(module_dir.is_dir(), "Independent COM port checkout not found")
-    sys.path.insert(0,str(module_dir))
+    import subprocess
+    expected_root = module_dir.resolve(strict=True)
+    expected_module = (expected_root / "sicopr.py")
+    require(expected_module.is_file(),
+            "Independent checkout must contain its own sicopr.py")
+    def git(*args: str) -> str:
+        completed = subprocess.run(
+            ["git", "-C", str(expected_root), *args],
+            text=True, capture_output=True, timeout=15, check=False)
+        require(completed.returncode == 0,
+                "Cannot authenticate pinned independent COM checkout")
+        return completed.stdout.strip()
+    require(git("rev-parse", "--show-toplevel") == str(expected_root) and
+            git("rev-parse", "HEAD") ==
+                "cb7c4be5c63d41e88b6ee7d04fb17e0046ab0f75" and
+            git("status", "--porcelain", "--untracked-files=no") == "",
+            "Independent COM checkout revision or tracked files are unqualified")
+    sys.path.insert(0, str(expected_root))
     try:
         import sicopr
+        require(Path(sicopr.__file__).resolve(strict=True) ==
+                expected_module.resolve(strict=True),
+                "Loaded COM parser did not come from the pinned checkout")
         from types import SimpleNamespace
         require(getattr(sicopr,"COM_MATLAB_VERSION",None) is not None,
                 "4p17p0-compatible parser not found")
