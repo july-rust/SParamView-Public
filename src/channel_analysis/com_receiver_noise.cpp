@@ -54,10 +54,19 @@ Result<ComReceiverNoiseData> calculateComReceiverNoise(
     const auto h = input.noiseTransfer[index];
     require(std::isfinite(h.real()) && std::isfinite(h.imag()),
             "Nonfinite receiver noise transfer");
+    // Exact zero PSD has zero noise regardless of filter gain. Otherwise,
+    // reject silent underflow at either stage instead of inventing a
+    // physically false zero-variance distribution.
+    if (input.oneSidedPsdV2PerHz == 0) return 0.0;
     const double powerGain = std::norm(h);
     require(std::isfinite(powerGain), "Receiver-noise gain overflow");
+    require(powerGain != 0.0 ||
+                (h.real() == 0.0 && h.imag() == 0.0),
+            "Receiver-noise transfer power underflow");
     const double spectral = input.oneSidedPsdV2PerHz*powerGain;
     require(std::isfinite(spectral), "Receiver-noise PSD overflow");
+    require(spectral != 0.0 || powerGain == 0.0,
+            "Receiver-noise weighted PSD underflow");
     return spectral;
   };
   double sum = 0.0, correction = 0.0;
