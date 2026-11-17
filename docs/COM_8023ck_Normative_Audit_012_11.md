@@ -2,8 +2,58 @@
 
 **Date:** 2026-11-17 (KST)  
 **Repository baseline:** `integration/v1.4.0` at `02d261a538003362cea940f8f6fe6ffd64cbfb77` before this audit  
-**Result:** **PARTIAL / BLOCKED — NOT 100% COMPLETE**  
+**Result:** **PARTIAL — 68/68 published-edition text comparison MATCH; official-original authentication BLOCKED**  
 **Production IEEE COM qualification:** **NOT EVALUATED**; no changes to the numerical engine, reference manifest or pass/fail gates.
+
+## 0. Second-pass review of the published-edition text (2026-11-17)
+
+**New evidence (after the first-pass record below):** TWO separately uploaded text reproductions identify themselves as complete **IEEE Std 802.3ck-2022**, with different IEEE Xplore license stamps and download dates (2023-02-08 and 2026-01-28). The visible publication has the same standard title, amendment number and publication page sequence as the [official IEEE catalog](https://standards.ieee.org/ieee/802.3ck/7322/). Its printed **pages 236, 237, 238** show all of **Table 120F-8** and **120F.4.1**. The two reproductions agree on the visible technical data; the 2020 IEEE ad-hoc draft independently corroborates the first 18 package/grid entries.
+
+- [Third-party transcription A — Scribd, with 2023 IEEE Xplore license stamp](https://www.scribd.com/document/937723448/8023ck-2022) — **SECONDARY REPRODUCTION, NOT IEEE distribution**.
+- [Third-party transcription B — StudyLib, with 2026 IEEE Xplore license stamp](https://studylib.net/doc/28325086/8023ck-2022) — **SECONDARY REPRODUCTION, NOT IEEE distribution**.
+- [Official IEEE published standard identity](https://ieeexplore.ieee.org/document/9999414) and [official IEEE GET route](https://standards.ieee.org/ieee/802.3ck/7322/).
+- [Official 2024 base-standard errata sheet](https://standards.ieee.org/wp-content/uploads/2024/02/802.3-2022_errata.pdf): enumerates corrections to 30.12 and 78.4, **not** 120F or 93A. This does not exhaust future/other amendments.
+- Independent published post-release IEEE discussion [802.3dj Nov 2023 DER0 slide](https://www.ieee802.org/3/dj/public/23_11/healey_3dj_01a_2311.pdf) corroborates Table 120F-8's \`DER0=1e-5\`.
+
+**Critical provenance limit:** The two hosted reproductions are not official IEEE distribution endpoints. Although they present complete IEEE Xplore-watermarked approved-edition text with distinct licensed readers, **an authenticated official IEEE GET PDF and byte SHA-256 have NOT been obtained**. Publication-text numerical agreement is much stronger evidence than the earlier draft comparison, but **not the same as formal original-source authentication**. Neither complete original nor transcription bytes are redistributed in the repository.
+
+### Published-edition value comparison: 68/68 code numeric leaves MATCH in both transcriptions
+
+The independently recorded expected **field values** are pinned by [\`test_com_120f8_published_profile.py\`](../tests/channel_analysis/test_com_120f8_published_profile.py) and are compared mechanically to the actual C++ header. Counts below refer to primitive numeric fields, not IEEE table *rows*; multiple values in a range/array are each counted once. The first 18 draft comparisons remain documented under section 2 for chronology.
+
+| C++ contract part | Numeric leaves | Two published-edition transcriptions | C++ comparison | Published pages |
+| --- | ---: | --- | --- | --- |
+| Fixed scalar parameters, incl. grid, package, CTLE filter frequencies, PAM4, amplitudes, noise, jitter, detector target, COM criterion and 7.5 ps transition | **34** | Agreement | **MATCH** | 120F.4.1, pp. 236–238 |
+| FFE noncursor (4 × min/max/step) and two CTLE ranges (2 × min/max/step) | **18** | Agreement | **MATCH** | p. 237 |
+| TX/RX package cases (2 + 2 values) and DFE coefficient limits (6 + 6) | **16** | Agreement | **MATCH** | pp. 236–237 |
+| **Total** | **68** | **No visible disagreement** | **68/68 MATCH** | **pp. 236–238** |
+
+Notes on physical interpretation:
+
+1. \`fb=53.125 GBd\` is symbol rate, **not** 53.125 Gb/s raw binary bit rate; \`M=32\` samples/UI; four PAM levels. Report in Hz/Bd with correct units.
+2. COM \`>=3 dB\` **for both Test 1 and Test 2** is specifically from **120F.4.1**, not a universal limit. The code's 7.5 ps parameter for \`Ht(f)\` is also from that subclause.
+3. Test 1 TX/RX = **13/11 mm**; Test 2 TX/RX = **31/29 mm**. The checked code array order agrees. Do not replace one direction's case with the other.
+4. \`Cd\`/\`Cb\`/\`Cp\` are single-ended capacitances in the original table; their C++ \`FaradSingleEnded\` values are numerically consistent after conversion from nF. \`Zc\` and \`Zc2\` match the published package model. This alone does **not** independently verify all network equations and impedance normalization.
+5. Four FFE pre/post ranges, two CTLE gain ranges, CTLE zero/poles, six DFE min/max values, TX amplitudes, jitter/noise and DER target all agree between the copies and current header.
+6. **Separate procedure caveat:** 120F.3.2.4 receiver-interference-tolerance calibration has *measured transmitter* substitutions for SNRTX, RLM and jitter and selects the **lower** of the two calculated Test 1/2 margins. This is not a license to silently replace the channel-characteristic 120F.4.1 profile defaults with measured calibration values. No receiver-compliance claim was evaluated.
+
+The published-edition source transcriptions do **not** establish that the native C++ solver implements every 93A optimization, ISI, DFE, crosstalk and noise algorithm. They verify numeric *profile candidates only*. The production \`calculateCom()\` remains **NOT EVALUATED**.
+
+### New automated verification
+
+A dedicated regression is registered as CTest \`com_120f8_published_parameter_contract\`, with 68 numeric code assertions and separate fail-closed parser/Test1/Test2 ordering tests. It fails on a changed constant, missing field, altered min/max/step, wrong package case, or an unsupported executable initializer. It uses a restricted arithmetic AST reader and does not execute or download any third-party code or IEEE standards PDF.
+
+**Execution status:** See exact-head PR CI and final merge receipt for the run; no test result is inferred from the presence of the test file.
+
+### Remaining strict final-source gate
+
+The technical *table-content* cross-check has progressed from 18 draft-only to **68 published-edition numeric leaves**. The original 012_11 100%-COMPLETE requirement also calls for direct access to an **authorized/official final original**. Since that was not available, keep **012_11 = PARTIAL (content verified via two untrusted distribution mirrors; authoritative original authentication BLOCKED)**. Do not set \`parameter_values_qualified=true\` merely from secondary reproduction, do not enable IEEE COM PASS/FAIL, and do not relabel historical reference goldens as 802.3ck final.
+
+To close the remaining prerequisite in the **same task**, compare the authorized IEEE GET original's printed pp. 236–238 (including edition and any applicable corrections) to these 68 pins, record provenance and its SHA-256 if the licensed PDF is legitimately available. The numeric-comparison test can then be reused without expanding task scope.
+
+---
+
+## First-pass audit record (before the two published-text reproductions were found)
 
 ## 1. Scope and evidence classes
 

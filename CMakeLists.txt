@@ -326,6 +326,13 @@ if(Python3_Interpreter_FOUND)
             -s "${CMAKE_SOURCE_DIR}/tests/channel_analysis"
             -p "test_com_reference_preflight.py" -v)
   set_tests_properties(channel_com_normative_gate PROPERTIES TIMEOUT 45)
+  # 012_11: verify code constants against two published-edition text crosschecks.
+  # Numeric-profile regression is NOT IEEE COM numerical conformance.
+  add_test(NAME com_120f8_published_parameter_contract
+    COMMAND "${Python3_EXECUTABLE}" -m unittest discover
+            -s "${CMAKE_SOURCE_DIR}/tests/channel_analysis"
+            -p "test_com_120f8_published_profile.py" -v)
+  set_tests_properties(com_120f8_published_parameter_contract PROPERTIES TIMEOUT 30)
   add_test(NAME cli_session_cache_cleanup
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/check_cli_temp_cleanup.py" "$<TARGET_FILE:si_cli>")
   set_tests_properties(cli_session_cache_cleanup PROPERTIES TIMEOUT 45)
