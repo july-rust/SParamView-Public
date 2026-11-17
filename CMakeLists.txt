@@ -333,6 +333,13 @@ if(Python3_Interpreter_FOUND)
             -s "${CMAKE_SOURCE_DIR}/tests/channel_analysis"
             -p "test_com_120f8_published_profile.py" -v)
   set_tests_properties(com_120f8_published_parameter_contract PROPERTIES TIMEOUT 30)
+  # 012_12: final source-verified 120F-8 -> reference-config QA contract.
+  # Static acceptance does not certify IEEE COM or external runtime execution.
+  add_test(NAME com_120f8_reference_config_contract
+    COMMAND "${Python3_EXECUTABLE}" -m unittest discover
+            -s "${CMAKE_SOURCE_DIR}/tests/channel_analysis"
+            -p "test_com_120f8_config_contract.py" -v)
+  set_tests_properties(com_120f8_reference_config_contract PROPERTIES TIMEOUT 30)
   add_test(NAME cli_session_cache_cleanup
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/check_cli_temp_cleanup.py" "$<TARGET_FILE:si_cli>")
   set_tests_properties(cli_session_cache_cleanup PROPERTIES TIMEOUT 45)
