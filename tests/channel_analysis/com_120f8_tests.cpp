@@ -1,5 +1,6 @@
 #include "si/channel_analysis/com_120f8.hpp"
 #include "si/channel_analysis/com_causal_package.hpp"
+#include "si/channel_analysis/com_causal_channel.hpp"
 #include "si/channel_analysis/package.hpp"
 #include <algorithm>
 #include <cmath>
@@ -278,6 +279,115 @@ try {
     pulseCancelled=true;
   }
   demand(pulseCancelled,"pulse diagnostic cancellation must propagate");
+
+
+  // 012_09_03 PHYSICAL_TO_RX_ORACLE: Two explicitly distinct physically
+  // loaded package cases, confirmed differential Zref, identical input
+  // grid, independent complex phase and attenuation. Both cases must be
+  // conditioned through the SAME fixed 120F-8 FFE/CTLE/RX settings.
+  ComPhysicalChannelData loaded;
+  loaded.model="EXPLORATORY_HISTORICAL_8023CK_CAUSAL_PACKAGE_S4P";
+  loaded.referenceOhmDifferential=100.;
+  loaded.frequencyHz=grid;
+  loaded.test1.packageCase=ComPackageCase::Test1;
+  loaded.test2.packageCase=ComPackageCase::Test2;
+  loaded.test1.txPrimaryLineMm=13.;
+  loaded.test1.rxPrimaryLineMm=11.;
+  loaded.test2.txPrimaryLineMm=31.;
+  loaded.test2.rxPrimaryLineMm=29.;
+  loaded.test1.loadedSdd.reserve(grid.size());
+  loaded.test2.loadedSdd.reserve(grid.size());
+  for(double f: grid) {
+    ComTwoPortS t1,t2;
+    t1.s11=t1.s22={0.,0.};
+    t2.s11=t2.s22={0.,0.};
+    t1.s21=t1.s12=std::polar(0.8,-2.*std::numbers::pi*f*20e-12);
+    t2.s21=t2.s12=std::polar(0.5,-2.*std::numbers::pi*f*40e-12);
+    loaded.test1.loadedSdd.push_back(t1);
+    loaded.test2.loadedSdd.push_back(t2);
+  }
+  const auto connected=prepareCom120F8LoadedTestCases(loaded,flatEq);
+  demand(connected.usable() && connected.status==Status::Warning &&
+         connected.value.has_value() &&
+         connected.diagnostics[0].code=="NOT_IEEE_COM",
+         "both loaded physical Test1/Test2 must stay non-normative");
+  demand(connected.value->test1.frequencyHz==grid &&
+         connected.value->test2.frequencyHz==grid,
+         "Test1/Test2 must keep the exact same measured frequency samples");
+  const Complex rxDc=com120F8ReceiverTransfer(0.,-20.,-4.);
+  closeComplex(connected.value->test1.conditionedThru[0],0.8*rxDc,
+               "Test1 independent DC through physical-to-FFE-to-RX");
+  closeComplex(connected.value->test2.conditionedThru[0],0.5*rxDc,
+               "Test2 independent DC through physical-to-FFE-to-RX");
+  const Complex rx10=com120F8ReceiverTransfer(10e9,-20.,-4.);
+  closeComplex(connected.value->test1.conditionedThru[1000],
+               std::polar(0.8,-2.*std::numbers::pi*10e9*20e-12)*rx10,
+               "Test1 independent complex delay and RX at 10 GHz");
+  closeComplex(connected.value->test2.conditionedThru[1000],
+               std::polar(0.5,-2.*std::numbers::pi*10e9*40e-12)*rx10,
+               "Test2 independent complex delay and RX at 10 GHz");
+  demand(std::abs(connected.value->test1.conditionedThru[1000]-
+                  connected.value->test2.conditionedThru[1000])>0.05,
+         "different loaded package cases may not be silently reused");
+  auto broken=loaded;
+  broken.test2.packageCase=ComPackageCase::Test1;
+  reject([&]{(void)prepareCom120F8LoadedTestCases(broken,flatEq);},
+         "cannot pass duplicate Test1 as Test2");
+  broken=loaded;
+  broken.test2.rxPrimaryLineMm=11.;
+  reject([&]{(void)prepareCom120F8LoadedTestCases(broken,flatEq);},
+         "cannot swap Test2 RX package length");
+  broken=loaded;
+  broken.referenceOhmDifferential=50.;
+  reject([&]{(void)prepareCom120F8LoadedTestCases(broken,flatEq);},
+         "cannot reinterpret physical Zref as differential 50 ohms");
+  broken=loaded;
+  broken.test1.loadedSdd[4].s11={1.,0.};
+  reject([&]{(void)prepareCom120F8LoadedTestCases(broken,flatEq);},
+         "active scattering with |S21|<1 must fail full S^H S passivity");
+  broken=loaded;
+  broken.model="UNQUALIFIED_SYNTHETIC_PHY";
+  reject([&]{(void)prepareCom120F8LoadedTestCases(broken,flatEq);},
+         "caller cannot silently relabel an unrecognized physical model");
+  std::atomic_bool stopConnected{true};
+  bool cancelledConnected=false;
+  try{(void)prepareCom120F8LoadedTestCases(loaded,flatEq,{},&stopConnected);}
+  catch(const si::Cancelled&){cancelledConnected=true;}
+  demand(cancelledConnected,"physical-to-RX bridge cancellation");
+
+  // REAL multiport network execution: causal Tx/board/Rx package Test1
+  // and Test2 -> full complex loaded Sdd21 -> native FFE/CTLE/RX.
+  // The board response is an independently defined passive 4-port, not
+  // a preconstructed scalar Sdd21 or a generated normative COM margin.
+  ComCausalPhysicalInput measuredS4p;
+  measuredS4p.frequencyHz=grid;
+  measuredS4p.boardS4p.reserve(grid.size());
+  for(double f:grid) {
+    ComPhysicalFourPort b;
+    b.referenceOhm={50.,50.,50.,50.};
+    const Complex g=std::polar(0.75,-2.*std::numbers::pi*f*12e-12);
+    for(int c=0;c<2;++c) {
+      b.scattering[4*(c+2)+c]=g;
+      b.scattering[4*c+(c+2)]=g;
+    }
+    measuredS4p.boardS4p.push_back(b);
+  }
+  const auto causalCases=calculateHistoricalCausalC2cCases(measuredS4p);
+  demand(causalCases.usable() && causalCases.value.has_value(),
+         "causal four-port independent physical Test1/2 setup");
+  const auto physicalAndRx=prepareCom120F8LoadedTestCases(
+      *causalCases.value,flatEq);
+  demand(physicalAndRx.usable() && physicalAndRx.value.has_value(),
+         "end-to-end causal S4P/package/FFE/CTLE/RX both cases");
+  closeComplex(physicalAndRx.value->test1.conditionedThru[0],
+               0.75*rxDc,"real physical Test1 DC package->receiver");
+  closeComplex(physicalAndRx.value->test2.conditionedThru[0],
+               0.75*rxDc,"real physical Test2 DC package->receiver");
+  demand(std::abs(physicalAndRx.value->test1.conditionedThru[1000]-
+                  physicalAndRx.value->test2.conditionedThru[1000])>1e-5,
+         "real causal physical Test1/Test2 must retain independent phase");
+  demand(physicalAndRx.diagnostics[0].code=="NOT_IEEE_COM",
+         "full causal cascade still must not advertise IEEE COM");
 
   std::cout<<"012_09 published-final 120F-8 numeric contract, TX/CTLE "
               "bounds, source package drift and strict-grid tests PASS; "
