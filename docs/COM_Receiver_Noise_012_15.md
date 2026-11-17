@@ -32,6 +32,8 @@ integrated exactly once:
 \]
 
 Composite trapezoids and compensated accumulation produce V² and V.
+The Gaussian PDF is evaluated in log space so very small positive RMS does
+not silently zero an otherwise representable far-tail density.
 For positive RMS, the Gaussian PDF is in 1/V,
 CDF is dimensionless, and the exact existing **Gaussian-only** branch of
 `calculatePam4StatisticalNoise` yields Q such that P(N > Q) = p.
