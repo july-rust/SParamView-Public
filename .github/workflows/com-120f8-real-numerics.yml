@@ -1,0 +1,98 @@
+name: 012_13 real reference COM numeric correlation (final 120F-8 profile)
+on:
+  pull_request:
+    branches: [integration/v1.4.0]
+    paths:
+      - 'scripts/com_120f8_real_numeric_reference.py'
+      - 'tests/channel_analysis/test_com_120f8_real_numeric_reference.py'
+      - '.github/workflows/com-120f8-real-numerics.yml'
+  push:
+    branches: [integration/v1.4.0]
+    paths:
+      - 'scripts/com_120f8_real_numeric_reference.py'
+      - 'tests/channel_analysis/test_com_120f8_real_numeric_reference.py'
+      - '.github/workflows/com-120f8-real-numerics.yml'
+permissions:
+  contents: read
+jobs:
+  source-contract-offline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Offline source and fail-closed correlation tests
+        run: |
+          python -m unittest discover -s tests/channel_analysis -p 'test_com_120f8_published_profile.py' -v
+          python -m unittest discover -s tests/channel_analysis -p 'test_com_120f8_config_contract.py' -v
+          python -m unittest discover -s tests/channel_analysis -p 'test_com_120f8_real_numeric_reference.py' -v
+  independent-python-octave-real-com:
+    needs: source-contract-offline
+    runs-on: ubuntu-latest
+    timeout-minutes: 48
+    strategy:
+      fail-fast: false
+      matrix:
+        channel: ['10', '16', '18']
+    env:
+      OPENBLAS_NUM_THREADS: '1'
+      OMP_NUM_THREADS: '1'
+      MKL_NUM_THREADS: '1'
+      MPLBACKEND: Agg
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - uses: actions/checkout@v5
+      - name: Fetch pinned COM 4p17p0 independently maintained source
+        uses: actions/checkout@v5
+        with:
+          repository: tbermen/SiCoPR
+          ref: cb7c4be5c63d41e88b6ee7d04fb17e0046ab0f75
+          path: _external_reference
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install bounded reference dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C _external_reference rev-parse HEAD)" = cb7c4be5c63d41e88b6ee7d04fb17e0046ab0f75
+          test -f _external_reference/LICENSE
+          python -m pip install --disable-pip-version-check --no-cache-dir './_external_reference[plots]'
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends octave gnuplot-nox
+      - name: Actual same-final-profile Python vs Octave COM/FOM Test1 and Test2
+        shell: bash
+        timeout-minutes: 35
+        run: |
+          set -euo pipefail
+          mkdir -p _receipts
+          python scripts/com_120f8_real_numeric_reference.py \
+            --channel "${{ matrix.channel }}" \
+            --external _external_reference \
+            --output "_receipts/012-13-real-com-${{ matrix.channel }}db.json"
+          python - "${{ matrix.channel }}" <<'PY'
+          import json,math,sys
+          from pathlib import Path
+          d=json.loads(Path(f"_receipts/012-13-real-com-{sys.argv[1]}db.json").read_text())
+          assert d['status']=='FINAL_PROFILE_HISTORICAL_CHANNEL_NUMERIC_CORRELATION'
+          assert d['independent_python_octave_correlation_pass'] is True
+          assert len(d['cases'])==2
+          assert all(math.isfinite(c['python_com_db']) and
+                     math.isfinite(c['octave_com_db']) and
+                     c['delta_com_db'] <= 1e-4 and
+                     c['delta_fom_db'] <= 1e-4 and
+                     c['normative_ieee_pass_fail'] is None
+                     for c in d['cases'])
+          assert d['final_standard_golden_qualified'] is False
+          print("Independent final-profile candidate COM/FOM computed (NOT IEEE PHY certified)")
+          PY
+      - name: Retain only numerical metadata; never upload external source/S4P/PDF
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: com-012-13-final-profile-candidate-${{ matrix.channel }}db
+          path: _receipts/*.json
+          if-no-files-found: warn
