@@ -215,11 +215,15 @@ def compare(py: list[dict], octave: list[dict]) -> list[dict]:
 
 
 def execute(loss: str, external: Path, output: Path) -> int:
-    import sicopr
     validate_external(external)
-    require(Path(sicopr.__file__).resolve() ==
-            (external / "sicopr.py").resolve(),
-            "loaded third-party COM source not pinned checkout")
+    sys.path.insert(0, str(external))
+    try:
+        import sicopr
+        require(Path(sicopr.__file__).resolve() ==
+                (external / "sicopr.py").resolve(),
+                "loaded third-party COM source not pinned checkout")
+    finally:
+        sys.path.remove(str(external))
     with tempfile.TemporaryDirectory(prefix="012_13-numeric-") as tmp:
         root = Path(tmp)
         config_csv = root / "final_profile_candidate.csv"
