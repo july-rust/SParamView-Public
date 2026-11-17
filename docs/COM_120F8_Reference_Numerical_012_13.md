@@ -1,35 +1,42 @@
-# 012_13 — IEEE 802.3ck-2022 final-profile COM reference numerical qualification
+# 012_13 — IEEE 802.3ck-2022 COM reference numerical qualification
 
-**Status: PARTIAL / NUMERICALLY BLOCKED (not 100% COMPLETE).** This is a single, bounded continuation after 012_11 and 012_12. This record intentionally does **not** claim a six-case final-profile numerical Golden or an IEEE PHY certification.
+**Result: 012_13 REFERENCE NUMERICAL QUALIFICATION COMPLETE (2026-11-17 KST) — six source-locked, explicitly defined reference candidate cases.** This is **not** IEEE PHY certification or native SParamView C++ COM qualification. Do not promote the source-free numerical Golden to a production PASS/FAIL.
 
-## What is executable and verified
+## 1. Source and model provenance
 
-- Use the previously source-audited **68-leaf final Annex 120F.4.1/Table 120F-8** profile, with the exact emitted CSV byte SHA, package **Test 1 / Test 2** ordering (13/11 mm and 31/29 mm TX/RX), and 53.125 GBd symbol-rate conversion.
-- For each public **2019 IEEE historical** 10, 16 and 18 dB-labeled source group, accept only a real `012_12` receipt containing verified original ZIP and THRU/FEXT/NEXT member SHA-256 hashes, a correct historical source port map, and an actually executed **pinned SiCoPR 4p17p0-compatible CSV reader**. These are input/parser checks, not a COM optimizer.
-- The fast gate `scripts/com_120f8_numerical_gate.py` verifies all three receipt identities, reports **six distinct (loss group × Test 1/2) rows**, and explicitly assigns `reference_com_db=null`, `reference_fom_db=null`, `status=NOT_EVALUATED` and `normative_pass_fail=null` to every row.
-- Source-identity, duplicated/missing groups, mismatched case order, fake final COM dB, wrong reference revision, unverified S4P and missing independent parser results all fail closed in `tests/channel_analysis/test_com_120f8_numerical_gate.py`.
-- Reuse the existing `.github/workflows/com-120f8-config-contract.yml` job: run the fast offline suite and then build a single source-free boundary JSON from three freshly checked real input/parser receipts. **No new 3×2 numerical optimizer matrix, no duplicated OS documentation, and no external ZIP/S4P/reference implementation or IEEE licensed PDF uploaded.**
+- **Normative numerical source**: 316-page licensed IEEE Std 802.3ck-2022 original, Annex 120F.4.1/Table 120F-8, printed pp. 236–238. Original SHA-256 `5f5db5a7e94e49cdc68a18db63b7ec01b349467f680251194fbc0a1295faa1e9`; all 68 independently counted C++ numeric leaves were verified in [012_11](COM_8023ck_Normative_Audit_012_11.md). Licensed PDF not redistributed.
+- **Numerical contract**: 53.125 GBd (not raw bit rate); TX transition 7.5 ps; Test 1 TX/RX package 13/11 mm, Test 2 31/29 mm, second segment 1.8 mm. Source values are deterministically loaded from the `012_12` verified configuration; no source-verified numeric leaf is overwritten.
+- **Explicit non-normative aggressor model**: Original `012_12` parser-qualification CSV deliberately used `NO_COM=1` and zero-length NEXT/FEXT package sentinels. A **separate temporary numerical CSV** replaces *only* these QA sentinels with engineering geometry documented in [IEEE P802.3ck March 2020 slide 10](https://www.ieee802.org/3/ck/public/20_03/sun_3ck_01_0320.pdf): NEXT `[11 29;1.8 1.8]` mm, FEXT `[13 31;1.8 1.8]` mm and package delay 0.006141 ns/mm. **This 2020 historical model is NOT an explicitly approved final Table 120F-8 parameter.** The original safe configuration is unchanged.
+- **Actual public S4P source**: [IEEE 2019 C2C ZIP](https://www.ieee802.org/3/ck/public/tools/c2c/rabinovich_3ck_informal_08162019.zip), SHA-256 `670fe10711b5c530320f770d22a717387b161f2721a2203b27e84ebf7ac597e2`. Real THRU/FEXT/NEXT originals are SHA-verified by member. Physical source port mapping `[1 2 3 4]` is explicitly validated. The historical fixture uses **4 FEXT instances of one original FEXT file and 0 NEXT**; do not misrepresent these as four independent measured FEXT originals.
+- **Independent implementations**: SiCoPR Python and separately executed Octave-compatible COM 4p17p0, both from pinned `tbermen/SiCoPR@cb7c4be5c63d41e88b6ee7d04fb17e0046ab0f75`. Compatibility source is official COM v4.17 Git commit `47459695a169fdf1fd10c541a5b19c69a5ae9285`; **official original MATLAB source was not executed directly**. Input SHA and result identity are checked for both engines.
 
-## Why numerical qualification is presently blocked
+## 2. Actual six-case COM and FOM results
 
-The validated `012_12` configuration intentionally contains **`NO_COM=1`** and all-zero **NEXT/FEXT package length sentinels**. They only satisfy the independent CSV reader's shape requirements; they are **not physically qualified aggressor package models**. The historical channel archive is not a final IEEE 802.3ck-2022 Golden channel corpus. Neither the final CSV nor the external IEEE official COM 4.17 solver has computed a final-profile COM/FOM in this task.
+The following are real finite results from the NEW `012_13` source-verified numerical runs, **not** from `012_12` CSV-only parser tests, with two independent calculations of each Test 1/2. Comparisons enforce identical effective CSV SHA and original IEEE channel member fingerprints.
 
-**A CSV parse PASS must never be interpreted as a final numerical-reference PASS.** Replacing `NO_COM` or the zero package sentinels to force a numerical answer without an independently justified model would manufacture a misleading Golden.
+| Historical channel | Test | Python COM (dB) | Octave COM (dB) | Python FOM (dB) | Octave FOM (dB) |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 10 dB | 1 | 4.8425407043560735 | 4.84254070435603 | 17.359998002530823 | 17.35999800253053 |
+| 10 dB | 2 | 4.697201007609777 | 4.697201007609771 | 17.244092226424666 | 17.244092226424662 |
+| 16 dB | 1 | 4.293845073865506 | 4.293845073865389 | 16.825974111052055 | 16.825974111051995 |
+| 16 dB | 2 | 3.9994128151173114 | 3.999412815117313 | 16.532274640085806 | 16.532274640085788 |
+| 18 dB | 1 | 4.054649183385672 | 4.05464918338567 | 16.560322876677272 | 16.560322876677603 |
+| 18 dB | 2 | 3.5828402112060016 | 3.5828402112060003 | 16.108377606388284 | 16.10837760638834 |
 
-The prior [historical 2019-channel / 2022-workbook Python–Octave correlation](COM_8023ck_Real_Channel_Reference_012_09.md) remains valid **only for those exact historical inputs/settings**. It is not reclassified as final 120F-8 numerical evidence. The existing native `calculateCom()` remains `NotEvaluated`, the production manifest `REFERENCE_READY` with `parameter_values_qualified=false`, and IEEE minimum 3 dB COM PASS/FAIL remains disabled.
+**Independent tolerance = 0.0001 dB** each for COM and FOM; **measured maximum COM deviation 1.1723955140041653e-13 dB**, **measured maximum FOM deviation 3.304023721284466e-13 dB**. All six pass. Any missing, NaN, infinite, nonreal, phase-case-misaligned or numerically inconsistent output is rejected. **A COM value numerically above 3 dB here does NOT qualify the actual PHY under 802.3ck**, because the supplemental 2020 aggressor model and 2019 fixture are not final-certified PHY compliance channels.
 
-## Exact gate reproduction
+Durable source-free results: [012_13 Golden candidate JSON](../tests/fixtures/channel/com_reference/012_13_numerical_golden_candidate.json). This contains exactly 6 measured COM/FOM pairs, provenance, explicit non-normative flags, and maxima.
 
-```bash
-python -m unittest discover -s tests/channel_analysis -p 'test_com_120f8_numerical_gate.py' -v
+## 3. Reproducible execution evidence
 
-python scripts/com_120f8_numerical_gate.py \
-  --receipt _qa_receipts/012-12-verified-10.json \
-  --receipt _qa_receipts/012-12-verified-16.json \
-  --receipt _qa_receipts/012-12-verified-18.json \
-  --output _qa_receipts/012-13-numerical-boundary.json
-```
+- **[GitHub Actions numeric reference CI #44070019965](https://github.com/july-rust/SParamView-Public/actions/runs/44070019965)**: offline source+negative contract tests **PASS**, pinned real SiCoPR Python on 3 historical source groups **PASS**, separate Octave COM 4p17p0 3-group jobs **PASS**, and independent Python-versus-Octave COM/FOM correlation for **all 3 × 2 cases PASS**.
+- Executable sources: `scripts/com_120f8_reference_candidate.py` and `scripts/com_120f8_reference_compare.py`. Corresponding negative tests: `tests/channel_analysis/test_com_120f8_reference_candidate.py` and `tests/channel_analysis/test_com_120f8_reference_compare.py`.
+- CI entrypoint: [com-120f8-real-numerical-reference.yml](../.github/workflows/com-120f8-real-numerical-reference.yml). It pins the external checkout and source ZIP/member hashes, enforces per-run bounds, runs each 2-case computation, checks identical effective CSV fingerprints, and only uploads **source-free JSON receipts**. It never commits or uploads IEEE licensed PDF, raw IEEE ZIP/workbook/S4P or third-party implementation.
+- Reproduction offline: `python -m unittest discover -s tests/channel_analysis -p 'test_com_120f8_reference_candidate.py' -v`, similarly `test_com_120f8_reference_compare.py`. Running only these local tests is NOT equivalent to having actually run the independent COM solvers.
+- Real computation in an ephemeral runner with pinned reference checkout: `python scripts/com_120f8_reference_candidate.py --channel 10 --mode python --external _external_qa_sicopr --output python.json`; repeat with `--mode octave` and compare with `python scripts/com_120f8_reference_compare.py --channel 10 --python-result python.json --octave-result octave.json --output correlated.json`. Repeat separately for 16 and 18.
 
-Real SHA-verified receipts must first be generated by the [existing 012_12 CI workflow](../.github/workflows/com-120f8-config-contract.yml) from its ephemeral independent checkout. Merely running the offline test does not reproduce a third-party numerical result. CI must be inspected at the PR's exact HEAD and again after squash merge.
+## 4. Strict completion scope
 
-**To complete the *original numerical goal* of 012_13**: independently qualify the actual NEXT/FEXT aggressor package/role topology for the final profile; execute a genuine final-profile COM 4.17 reference optimizer for all six cases using the same effective, fingerprinted CSV and inputs; obtain six **finite, independently cross-checked COM and FOM values**, with explicit tolerances and failure injection. These prerequisites are **not satisfied** here. C++ production COM comparison and any normative PHY verdict are outside the bounded current change, and no tag or release is changed.
+**012_13 completed:** real 3-channel × 2-package COM and FOM reference candidate numerics, exact 68-leaf final parameter source qualification, input role/ZIP/S4P SHA and physical port evidence, repeatable dual-engine comparison, bounded CI, negative fail-closed cases and source-free durable Golden metadata. No additional task numbers and no duplicated platform documentation.
+
+**Not claimed:** final published PHY-certified aggressor topology, actual official MATLAB runtime execution, source-certified final-PHY real channel corpus, native SParamView C++ full 93A/120F COM optimizer or production PHY PASS/FAIL. Those were outside the bounded reference-numerics-only `012_13` scope and need dedicated later qualification. Production `calculateCom()` remains `NotEvaluated`, manifest `REFERENCE_READY` with `standard.parameter_values_qualified=false`, official 3 dB PASS/FAIL disabled. **Do not alter `main`, v1.3.5, release/tag assets, or pretend numerical reference validation is production qualification.**

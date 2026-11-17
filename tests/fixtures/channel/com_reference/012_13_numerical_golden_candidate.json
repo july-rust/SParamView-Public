@@ -1,0 +1,106 @@
+{
+  "contract": "012_13_REFERENCE_NUMERICAL_GOLDEN_CANDIDATE_V1",
+  "status": "NUMERICALLY_CORRELATED_SIX_CASES",
+  "standard": "IEEE Std 802.3ck-2022 Annex 120F.4.1 Table 120F-8",
+  "standard_parameter_numeric_leaves_verified": 68,
+  "reference_source_sha": "47459695a169fdf1fd10c541a5b19c69a5ae9285",
+  "python_and_octave_compat_commit": "cb7c4be5c63d41e88b6ee7d04fb17e0046ab0f75",
+  "observed_ci": "https://github.com/july-rust/SParamView-Public/actions/runs/44070019965",
+  "original_2019_s4p_archive_sha256": "670fe10711b5c530320f770d22a717387b161f2721a2203b27e84ebf7ac597e2",
+  "package_test_definitions": [
+    {
+      "test": 1,
+      "tx_mm": 13,
+      "rx_mm": 11,
+      "secondary_mm": 1.8
+    },
+    {
+      "test": 2,
+      "tx_mm": 31,
+      "rx_mm": 29,
+      "secondary_mm": 1.8
+    }
+  ],
+  "supplemental_non_normative_model": {
+    "source": "https://www.ieee802.org/3/ck/public/20_03/sun_3ck_01_0320.pdf",
+    "source_status": "IEEE_P8023CK_2020_DRAFT_FIXTURE_NOT_FINAL_NORMATIVE",
+    "next_tx_side_mm_by_case": [
+      11,
+      29
+    ],
+    "fext_tx_side_mm_by_case": [
+      13,
+      31
+    ],
+    "propagation_tau_ns_per_mm": 0.006141,
+    "number_of_fext_instances": 4,
+    "number_of_distinct_fext_files": 1,
+    "number_of_next_instances": 0,
+    "verified_original_thru_port_order": [
+      1,
+      2,
+      3,
+      4
+    ]
+  },
+  "tolerance_com_db": 0.0001,
+  "tolerance_fom_db": 0.0001,
+  "observed_max_abs_com_difference_db": 1.1723955140041653e-13,
+  "observed_max_abs_fom_difference_db": 3.304023721284466e-13,
+  "cases": [
+    {
+      "channel_label_db": 10,
+      "test": 1,
+      "python_com_db": 4.8425407043560735,
+      "octave_com_db": 4.84254070435603,
+      "python_fom_db": 17.359998002530823,
+      "octave_fom_db": 17.35999800253053
+    },
+    {
+      "channel_label_db": 10,
+      "test": 2,
+      "python_com_db": 4.697201007609777,
+      "octave_com_db": 4.697201007609771,
+      "python_fom_db": 17.244092226424666,
+      "octave_fom_db": 17.244092226424662
+    },
+    {
+      "channel_label_db": 16,
+      "test": 1,
+      "python_com_db": 4.293845073865506,
+      "octave_com_db": 4.293845073865389,
+      "python_fom_db": 16.825974111052055,
+      "octave_fom_db": 16.825974111051995
+    },
+    {
+      "channel_label_db": 16,
+      "test": 2,
+      "python_com_db": 3.9994128151173114,
+      "octave_com_db": 3.999412815117313,
+      "python_fom_db": 16.532274640085806,
+      "octave_fom_db": 16.532274640085788
+    },
+    {
+      "channel_label_db": 18,
+      "test": 1,
+      "python_com_db": 4.054649183385672,
+      "octave_com_db": 4.05464918338567,
+      "python_fom_db": 16.560322876677272,
+      "octave_fom_db": 16.560322876677603
+    },
+    {
+      "channel_label_db": 18,
+      "test": 2,
+      "python_com_db": 3.5828402112060016,
+      "octave_com_db": 3.5828402112060003,
+      "python_fom_db": 16.108377606388284,
+      "octave_fom_db": 16.10837760638834
+    }
+  ],
+  "reference_candidate_only": true,
+  "official_ieee_matlab_executed": false,
+  "native_cpp_com_evaluated": false,
+  "final_ieee_phy_compliance_certified": false,
+  "normative_phy_pass_fail": null,
+  "third_party_or_ieee_licensed_files_bundled": false
+}
