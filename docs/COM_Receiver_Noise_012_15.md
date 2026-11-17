@@ -42,7 +42,8 @@ There are **no PAM4 taps** in this receiver-only model. The raw
 
 For zero variance, return a validated degenerate diagnostic and
 `NO_CONTINUOUS_DENSITY` without a continuous PDF or positive-tail quantile.
-Bad PSD, nonfinite values, non-increasing axes, overflow/underflow, budgets and
+Bad PSD, nonfinite values, non-increasing or subnormal frequency steps,
+overflow/underflow (including per-interval area), budgets and
 cancellation are fail-closed.
 
 ## Verification and acceptance
