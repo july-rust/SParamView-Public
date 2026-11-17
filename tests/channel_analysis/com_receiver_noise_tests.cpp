@@ -157,6 +157,21 @@ int main() {
     bad=flat();bad.noiseTransfer[1]={1e308,0};
     reject([&]{(void)calculateComReceiverNoise(bad);},
            "Gain overflow rejected");
+    // Codex P2: positive but subnormal intermediate PSD or H^2 must never
+    // silently turn into a usable zero-variance distribution.
+    bad=flat();
+    bad.oneSidedPsdV2PerHz=1e-300;
+    bad.frequencyHz={0,1e100};
+    bad.noiseTransfer={{1e-30,0},{1e-30,0}};
+    reject([&]{(void)calculateComReceiverNoise(bad);},
+           "Weighted one-sided PSD underflow rejected");
+    bad=flat();
+    bad.noiseTransfer={{1e-200,0},{1e-200,0},{1e-200,0}};
+    reject([&]{(void)calculateComReceiverNoise(bad);},
+           "Transfer power underflow rejected");
+    bad.oneSidedPsdV2PerHz=0;
+    require(calculateComReceiverNoise(bad).usable(),
+            "Exact zero PSD remains valid with tiny finite filter");
     std::atomic_bool cancelled{true};
     bool wasCancelled=false;
     try { (void)calculateComReceiverNoise(flat(),{},&cancelled); }
