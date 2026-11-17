@@ -319,12 +319,26 @@ try {
                "Test1 independent DC through physical-to-FFE-to-RX");
   closeComplex(connected.value->test2.conditionedThru[0],0.5*rxDc,
                "Test2 independent DC through physical-to-FFE-to-RX");
+  // TX_93A46_GAUSSIAN: fixed, independently precomputed analytic
+  // 93A-46 beta=1 samples for the published 7.5ps C2C transition.
+  close(com120F8TxTransitionFilter(0.),1.,
+        "IEEE TX Gaussian unity at DC");
+  close(com120F8TxTransitionFilter(10e9),0.9805954881986921,
+        "TX Gaussian real response at 10 GHz");
+  close(com120F8TxTransitionFilter(26.5625e9),0.870874406500672,
+        "TX Gaussian response at PAM4 Nyquist");
+  reject([&]{(void)com120F8TxTransitionFilter(-1.);},
+         "negative TX Gaussian frequency must fail");
+  reject([&]{(void)com120F8TxTransitionFilter(
+      std::numeric_limits<double>::infinity());},
+      "infinite TX Gaussian frequency must fail");
   const Complex rx10=com120F8ReceiverTransfer(10e9,-20.,-4.);
+  const double tx10=com120F8TxTransitionFilter(10e9);
   closeComplex(connected.value->test1.conditionedThru[1000],
-               std::polar(0.8,-2.*std::numbers::pi*10e9*20e-12)*rx10,
+               std::polar(0.8,-2.*std::numbers::pi*10e9*20e-12)*rx10*tx10,
                "Test1 independent complex delay and RX at 10 GHz");
   closeComplex(connected.value->test2.conditionedThru[1000],
-               std::polar(0.5,-2.*std::numbers::pi*10e9*40e-12)*rx10,
+               std::polar(0.5,-2.*std::numbers::pi*10e9*40e-12)*rx10*tx10,
                "Test2 independent complex delay and RX at 10 GHz");
   demand(std::abs(connected.value->test1.conditionedThru[1000]-
                   connected.value->test2.conditionedThru[1000])>0.05,
