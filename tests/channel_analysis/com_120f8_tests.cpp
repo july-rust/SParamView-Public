@@ -314,7 +314,7 @@ try {
   demand(connected.value->test1.frequencyHz==grid &&
          connected.value->test2.frequencyHz==grid,
          "Test1/Test2 must keep the exact same measured frequency samples");
-  const Complex rxDc=com120F8ReceiverTransfer(0.,-20.,-4.);
+  const si::Complex rxDc=com120F8ReceiverTransfer(0.,-20.,-4.);
   closeComplex(connected.value->test1.conditionedThru[0],0.8*rxDc,
                "Test1 independent DC through physical-to-FFE-to-RX");
   closeComplex(connected.value->test2.conditionedThru[0],0.5*rxDc,
@@ -332,7 +332,7 @@ try {
   reject([&]{(void)com120F8TxTransitionFilter(
       std::numeric_limits<double>::infinity());},
       "infinite TX Gaussian frequency must fail");
-  const Complex rx10=com120F8ReceiverTransfer(10e9,-20.,-4.);
+  const si::Complex rx10=com120F8ReceiverTransfer(10e9,-20.,-4.);
   const double tx10=com120F8TxTransitionFilter(10e9);
   closeComplex(connected.value->test1.conditionedThru[1000],
                std::polar(0.8,-2.*std::numbers::pi*10e9*20e-12)*rx10*tx10,
@@ -379,7 +379,7 @@ try {
   for(double f:grid) {
     ComPhysicalFourPort b;
     b.referenceOhm={50.,50.,50.,50.};
-    const Complex g=std::polar(0.75,-2.*std::numbers::pi*f*12e-12);
+    const si::Complex g=std::polar(0.75,-2.*std::numbers::pi*f*12e-12);
     for(int c=0;c<2;++c) {
       b.scattering[4*(c+2)+c]=g;
       b.scattering[4*c+(c+2)]=g;
