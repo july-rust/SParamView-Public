@@ -39,7 +39,8 @@ add_library(si_channel_analysis src/channel_analysis/common.cpp
                                 src/channel_analysis/com_statistics.cpp
                                 src/channel_analysis/com_physical_channel.cpp
                                 src/channel_analysis/com_causal_package.cpp
-                                src/channel_analysis/com_causal_channel.cpp)
+                                src/channel_analysis/com_causal_channel.cpp
+                                src/channel_analysis/com_interference.cpp)
 target_include_directories(si_channel_analysis PUBLIC include)
 target_link_libraries(si_channel_analysis PUBLIC si_core)
 if(MSVC)
@@ -128,6 +129,12 @@ add_test(NAME channel_com_causal_s4p_pipeline COMMAND si_com_causal_channel_test
          "${CMAKE_BINARY_DIR}/com-causal-source")
 set_tests_properties(channel_com_causal_s4p_pipeline PROPERTIES TIMEOUT 90)
 install(TARGETS si_com_causal_channel_tests RUNTIME DESTINATION tests)
+# 012_14: finite-band NEXT/FEXT multi-aggressor, independent analytic oracle.
+add_executable(si_com_interference_tests tests/channel_analysis/com_interference_tests.cpp)
+target_link_libraries(si_com_interference_tests PRIVATE si_channel_analysis)
+add_test(NAME channel_com_interference_pulses COMMAND si_com_interference_tests)
+set_tests_properties(channel_com_interference_pulses PROPERTIES TIMEOUT 90)
+install(TARGETS si_com_interference_tests RUNTIME DESTINATION tests)
 add_executable(si_hardening_tests tests/hardening_tests.cpp)
 target_link_libraries(si_hardening_tests PRIVATE si_core)
 install(TARGETS si_hardening_tests RUNTIME DESTINATION tests)
