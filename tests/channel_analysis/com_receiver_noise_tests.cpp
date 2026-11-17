@@ -196,6 +196,12 @@ int main() {
     reject([&]{(void)calculateComReceiverNoise(bad);},
            "Weighted one-sided PSD underflow rejected");
     bad=flat();
+    bad.oneSidedPsdV2PerHz=3e-300;
+    bad.frequencyHz={0,1e100};
+    bad.noiseTransfer={{1e-12,0},{1e-12,0}};
+    reject([&]{(void)calculateComReceiverNoise(bad);},
+           "Lossy nonzero subnormal PSD rejected before amplification");
+    bad=flat();
     bad.noiseTransfer={{1e-200,0},{1e-200,0},{1e-200,0}};
     reject([&]{(void)calculateComReceiverNoise(bad);},
            "Transfer power underflow rejected");
