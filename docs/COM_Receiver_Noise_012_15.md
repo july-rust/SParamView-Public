@@ -34,29 +34,29 @@ integrated exactly once:
 Composite trapezoids and compensated accumulation produce V² and V.
 For positive RMS, the Gaussian PDF is in 1/V,
 CDF is dimensionless, and the exact existing **Gaussian-only** branch of
-\`calculatePam4StatisticalNoise\` yields Q such that P(N > Q) = p.
+`calculatePam4StatisticalNoise` yields Q such that P(N > Q) = p.
 There are **no PAM4 taps** in this receiver-only model. The raw
-\`oneSidedTailProbability\` is not automatically equated to IEEE DER.
+`oneSidedTailProbability` is not automatically equated to IEEE DER.
 
 For zero variance, return a validated degenerate diagnostic and
-\`NO_CONTINUOUS_DENSITY\` without a continuous PDF or positive-tail quantile.
-Bad PSD, nonfinite values, non-increasing axes, overflows, budgets and
+`NO_CONTINUOUS_DENSITY` without a continuous PDF or positive-tail quantile.
+Bad PSD, nonfinite values, non-increasing axes, overflow/underflow, budgets and
 cancellation are fail-closed.
 
 ## Verification and acceptance
 
 One focused, Qt-free CTest target
-\`channel_com_receiver_gaussian_noise\` verifies an analytic flat filter;
+`channel_com_receiver_gaussian_noise` verifies an analytic flat filter;
 a finite-band first-order lowpass with independent
 S*fc*atan(F/fc) oracle; Gaussian PDF/CDF symmetry; known independent
 Q^-1(1e-5)=4.264890793922825; PSD/gain scaling, degenerate, adversarial,
 budget and cancellation cases. Reuse existing
-\`channel_com_statistical_noise\` and
-\`channel_com_120f8_final_parameters\` regression tests.
+`channel_com_statistical_noise` and
+`channel_com_120f8_final_parameters` regression tests.
 
 Do not assert passing CI, native OS execution, review or merger until the
-final exact HEAD evidence has been retrieved. Keep \`calculateCom()\`
-\`NotEvaluated\`. No new IEEE reference audit, external reference batch,
+final exact HEAD evidence has been retrieved. Keep `calculateCom()`
+`NotEvaluated`. No new IEEE reference audit, external reference batch,
 GUI, jitter, NEXT/FEXT PDF, optimizer, main merge, tag or v1.4.0 release.
 
 ## Source references
