@@ -67,10 +67,16 @@ Result<ComReceiverNoiseData> calculateComReceiverNoise(
     require(powerGain != 0.0 ||
                 (h.real() == 0.0 && h.imag() == 0.0),
             "Receiver-noise transfer power underflow");
+    require(powerGain == 0.0 ||
+                powerGain >= std::numeric_limits<double>::min(),
+            "Subnormal receiver-noise transfer power unsupported");
     const double spectral = input.oneSidedPsdV2PerHz*powerGain;
     require(std::isfinite(spectral), "Receiver-noise PSD overflow");
     require(spectral != 0.0 || powerGain == 0.0,
             "Receiver-noise weighted PSD underflow");
+    require(spectral == 0.0 ||
+                spectral >= std::numeric_limits<double>::min(),
+            "Subnormal receiver-noise weighted PSD unsupported");
     return spectral;
   };
   double sum = 0.0, correction = 0.0;
@@ -98,6 +104,11 @@ Result<ComReceiverNoiseData> calculateComReceiverNoise(
     require((previousWeighted == 0.0 || left > 0.0) &&
                 (currentWeighted == 0.0 || right > 0.0),
             "Receiver-noise interval variance underflow");
+    require((left == 0.0 ||
+                left >= std::numeric_limits<double>::min()) &&
+            (right == 0.0 ||
+                right >= std::numeric_limits<double>::min()),
+            "Subnormal receiver-noise interval area unsupported");
     const double term = left + right;
     require(std::isfinite(term) && term >= 0,
             "Receiver-noise variance integration overflow");
@@ -112,6 +123,8 @@ Result<ComReceiverNoiseData> calculateComReceiverNoise(
   }
   require(!nonzeroWeighted || sum > 0,
           "Receiver-noise variance underflow");
+  require(sum == 0.0 || sum >= std::numeric_limits<double>::min(),
+          "Subnormal receiver-noise variance unsupported");
   const double rms = std::sqrt(sum);
   require(std::isfinite(rms), "Receiver-noise RMS overflow");
 
