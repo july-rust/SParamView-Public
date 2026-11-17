@@ -81,6 +81,9 @@ void validateCom120F8Equalizer(const Com120F8EqualizerChoice& choice);
 // Annex 93A.1 CTLE transfer as parameterized for final 802.3ck 120F-8.
 // Complex transfer includes phase. The fourth-order receive noise filter
 // is evaluated separately; both remain components, NOT complete COM margin.
+// IEEE 93A-46 Gaussian TX transition response, with Tr=7.5 ps
+// (120F C2C) and beta=1. Independent real-valued component, not COM.
+double com120F8TxTransitionFilter(double frequencyHz);
 Complex com120F8Ctle(double frequencyHz, double gDcDb, double gDc2Db);
 Complex com120F8ReceiverNoiseFilter(double frequencyHz);
 Complex com120F8ReceiverTransfer(double frequencyHz,
@@ -133,7 +136,7 @@ Result<Com120F8PulseDiagnostics> calculateCom120F8BandlimitedPulse(
 // or noise reference is guessed. This is NOT IEEE COM dB or PASS/FAIL.
 struct Com120F8LoadedTestCaseSpectra {
   ComPreparedData test1, test2;
-  const char* model = "EXPLORATORY_C2C_PACKAGE_FFE_CTLE_RX";
+  const char* model = "EXPLORATORY_C2C_PACKAGE_HT_FFE_CTLE_RX";
 };
 Result<Com120F8LoadedTestCaseSpectra> prepareCom120F8LoadedTestCases(
     const ComPhysicalChannelData& physical,
