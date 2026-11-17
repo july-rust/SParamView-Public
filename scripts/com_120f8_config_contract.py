@@ -258,8 +258,15 @@ def actual_reference_parse(config: Path, module_dir: Path) -> dict:
         sicopr.COM_MATLAB_VERSION = "4p17p0"
         op = SimpleNamespace(GET_FD=False, TDMODE=0,
                              CONFIG2MAT_ONLY=False, SAVE_CONFIG2MAT=False)
-        p,_ = sicopr.read_ParamConfigFile(str(config), op)
+        p,parsed_op = sicopr.read_ParamConfigFile(str(config), op)
         import numpy as np
+        require(getattr(parsed_op, "DO_NOT_COMPUTE_COM", None) == 1,
+                "Unqualified reference config must prohibit COM computation")
+        next_zp = np.asarray(p.z_p_next_cases,dtype=float)
+        fext_zp = np.asarray(p.z_p_fext_cases,dtype=float)
+        require(next_zp.shape == (2,4) and fext_zp.shape == (2,4) and
+                np.all(next_zp == 0.) and np.all(fext_zp == 0.),
+                "Unqualified aggressor package sentinels were modified")
         tx = np.asarray(p.z_p_tx_cases,dtype=float)
         rx = np.asarray(p.z_p_rx_cases,dtype=float)
         require(tx.ndim==2 and rx.ndim==2 and tx.shape[0]==2 and
