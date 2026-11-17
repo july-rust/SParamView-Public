@@ -184,7 +184,7 @@ int main() {
            "Subnormal frequency step rejected before halving");
     bad=flat();
     bad.oneSidedPsdV2PerHz=1e-300;
-    bad.frequencyHz={0,1e-10,1e100};
+    bad.frequencyHz={0,1e-30,1e100};
     reject([&]{(void)calculateComReceiverNoise(bad);},
            "Tiny interval contribution must not vanish silently");
     // Codex P2: positive but subnormal intermediate PSD or H^2 must never
