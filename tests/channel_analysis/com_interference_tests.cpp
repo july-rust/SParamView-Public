@@ -48,6 +48,7 @@ ComPreparedAggressor aggressor(const std::string& id, ComCoupling kind,
 // The sine integral is evaluated on an independent Simpson grid, not using
 // the production trapezoid implementation.
 double sineIntegral(double x) {
+  if (x == 0.) return 0.; // Si(0)=0; avoid 0/0 in Simpson samples
   constexpr int steps = 20000;
   const double h = x / steps;
   double sum = 0;
