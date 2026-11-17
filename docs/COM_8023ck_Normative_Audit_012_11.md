@@ -5,6 +5,27 @@
 **Result:** **PARTIAL — 68/68 published-edition text comparison MATCH; official-original authentication BLOCKED**  
 **Production IEEE COM qualification:** **NOT EVALUATED**; no changes to the numerical engine, reference manifest or pass/fail gates.
 
+## 0B. User-supplied IEEE PDF coverage check (2026-11-17 KST)
+
+**Input:** User explicitly provided a local file named `IEEE Std 802.3ck-2022.pdf` for the final 012_11 validation. Its bytes were inspected directly, **not** inferred from the filename. No IEEE copyrighted bytes or extracted pages were committed.
+
+| Evidence | Checked result |
+| --- | --- |
+| Local file SHA-256 | `e557641e565f75df8a3151375c7356b9db5b02d5a325c33d55fb9b2a0068f5fb` |
+| File size | 214,784 bytes |
+| PDF page count | **3 pages** (pdfinfo / independent PyMuPDF verification) |
+| PDF producer | FPDF 1.81; this is not evidence of the original IEEE-distributed PDF identity |
+| Visible page coverage | 1: standard cover; 2: title/approval; 3: abstract, keywords, publication and copyright information |
+| Standard identity / approval / publication | IEEE 802.3ck-2022, approved 2022-09-21, published 2022-12-28 **confirmed by the visible pages** |
+| Annex 120F.4.1 and Table 120F-8 substantive pages | **ABSENT**; no printed pp. 236–238 or other technical parameter pages |
+| Embedded PDF file attachments | **0** |
+
+**Decision:** This uploaded PDF is **a 3-page front-matter excerpt**, not a complete official final standard. The abstract **mentions** Annex 120F but does not contain the annex's technical text, Table 120F-8, its footnotes, or the relevant Annex 93A rules. A matching cover/date/ISBN **cannot** certify the 68 C++ numeric entries against an authoritative original. The previous **68/68 published-edition secondary-text cross-check is unchanged** and remains explicitly non-authoritative for direct original-document authentication.
+
+**Gate:** `012_11 = PARTIAL/BLOCKED`; do **not** mark 100% COMPLETE or progress normative COM Golden qualification until the user supplies an authorized **complete** IEEE 802.3ck-2022 PDF that includes at least the published numbered pages 236–238 and Annex 120F.4.1/93A references. Revalidate SHA, completeness and individual values using the existing `test_com_120f8_published_profile.py` regression without adding task numbers. Release and PASS/FAIL remain disabled. The user-provided excerpt itself must stay outside the public repo and all release artifacts.
+
+---
+
 ## 0A. Final-source access recheck and 2026 corrigendum (2026-11-17 KST)
 
 - **IEEE official source identity:** [IEEE SA 802.3ck-2022 catalog](https://standards.ieee.org/ieee/802.3ck/7322/) confirms IEEE GET availability, board approval 2022-09-21 and publication 2022-12-28. IEEE Xplore [DOI 10.1109/IEEESTD.2022.9999414](https://ieeexplore.ieee.org/document/9999414) confirms the approved standard identity, but metadata is not a complete authenticated PDF.
