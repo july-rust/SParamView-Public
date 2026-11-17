@@ -18,6 +18,8 @@ class NumericReferenceContinuationContract(unittest.TestCase):
         self.assertEqual(d["z_p (NEXT)"], numerical.NEXT_PACKAGE)
         self.assertEqual(d["z_p (FEXT)"], numerical.FEXT_PACKAGE)
         self.assertEqual(d["Port Order"], "[1 2 3 4]")
+        self.assertEqual(d["DISPLAY_WINDOW"], "0")
+        self.assertEqual(d["SAVE_FIGURES"], "0")
         self.assertEqual(len(d), len(rows))
 
     def test_independent_real_com_and_fom_exact_correlation(self):
