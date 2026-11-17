@@ -3,7 +3,7 @@
 **기준일:** 2026-11-16 (KST)
 **공식 기준:** v1.3.5 (tag/release 불변)
 **목표:** ILD·ICN·Eye Diagram·COM을 각각 독립적인 C++20 수치 엔진, Qt6 창, 테스트로 구현하고 **v1.4.0 한 번에 릴리스**
-**상태:** 012_01 COMPLETE / 012_02 COMPLETE (REFERENCE_READY) / 012_03 CORE VERIFIED (PR #37; 최종 병합 상태는 PR 참조) / 012_04 GUI/워커 COMPLETE (PR #38; CI 43708927772) / 012_05 COMPLETE (ILD 엔진/GUI PR #40; CI 43766947020) / 012_06 COMPLETE (Generic ICN PR #42; CI 43775680490) / 012_07 COMPLETE (Eye 수치 엔진 PR #45; CI 43798693800) / 012_08 COMPLETE (PR #47 및 통합 CI #43812686401 검증 성공) / 012_09 PARTIAL / BLOCKED (PR #49~#60 병합, #61 수치 진단 CI 검증; PR #59에서 IEEE 2019 C2C 실제 3채널×Test1/Test2의 Python/Octave 4.17 독립 참조 수치 일치 확인, CI #43972559021; 정식 IEEE 최종 표 및 C++ COM 엔진은 미완성), 012_10~14 미착수 / 규격 COM 미구현 / v1.4.0 미출시
+**상태:** 012_01 COMPLETE / 012_02 COMPLETE (REFERENCE_READY) / 012_03 CORE VERIFIED (PR #37; 최종 병합 상태는 PR 참조) / 012_04 GUI/워커 COMPLETE (PR #38; CI 43708927772) / 012_05 COMPLETE (ILD 엔진/GUI PR #40; CI 43766947020) / 012_06 COMPLETE (Generic ICN PR #42; CI 43775680490) / 012_07 COMPLETE (Eye 수치 엔진 PR #45; CI 43798693800) / 012_08 COMPLETE (PR #47 및 통합 CI #43812686401 검증 성공) / 012_09 PARTIAL / BLOCKED (PR #49~#61 병합, #62 Test1/2 물리-RX 통합 CI 검증; PR #59에서 IEEE 2019 C2C 실제 3채널×Test1/Test2의 Python/Octave 4.17 독립 참조 수치 일치 확인, CI #43972559021; 정식 IEEE 최종 표 및 C++ COM 엔진은 미완성), 012_10~14 미착수 / 규격 COM 미구현 / v1.4.0 미출시
 **작업 번호:** 012_01 ~ 012_14. 단계별 PR, CI, 증거와 완료 조건을 연결한다.
 
 > 이 문서는 향후 실행할 개발 명령의 기준이며, 문서 작성만으로 기능이나 공식 표준 적합성을 검증했다고 주장하지 않는다.
@@ -110,6 +110,8 @@
 - **완료:** 전체 Table 120F-8 값 및 Test1/Test2 실제 재현, 3개 동규격 oracle 각각 허용 오차 통과, profile 불일치·미지원은 NOT_EVALUATED. 단순 P802.3dj 예제의 수치 PASS를 802.3ck PHY 적합성으로 전용하지 않는다. **이 게이트가 실패하면 012_09 미완료·v1.4.0 미출시**.
 
 - **2026-11-17 `012_09_03` 부분 구현:** [PR #61](https://github.com/july-rust/SParamView-Public/pull/61)에서 단일 C++ band-limited 원형 임펄스 및 -3~+9 UI tap 진단, analytic delay oracle와 fail-closed 검증을 추가했다. [커밋 기준 CI #43992134634](https://github.com/july-rust/SParamView-Public/actions/runs/43992134634): Release/Sanitizer 각 **45/45**, Windows x64/ARM64 + native ARM64, macOS arm64 **성공**. 이는 **정식 IEEE 93A 펄스/ISI/잡음/DFE/최적화/COM 계산이 아님**. 최종 규격 원문 독립 감사, C++ 대 정식 PHY Golden 3채널×Test1/Test2, COM PASS/FAIL 등 필수 게이트는 **미완료**. 문서 정리는 플랫폼별 중복 없이 1회 배치. `012_09`의 완료 상태를 변경하지 않는다.
+
+- **2026-11-17 `012_09_03` 보완·통합:** [PR #62](https://github.com/july-rust/SParamView-Public/pull/62)에서 기존 TX/Board/RX 물리 S4P 패키지 Test 1·2와 FFE/CTLE/RX 사이 실제 C++ 수치 경로 및 93A-46 Gaussian TX 전이 필터(7.5 ps)를 연결했다. 두 패키지 경로·임피던스·위상·수동성 검증과 독립 10 GHz complex oracle, 실제 합성 4포트 회귀를 추가했다. 최종 코드 커밋 `bcfb8b98` [CI #43998681208](https://github.com/july-rust/SParamView-Public/actions/runs/43998681208): Linux Release/Sanitizer 각각 **45/45**, Windows x64/ARM64, native ARM64, macOS arm64 **전부 SUCCESS**. 이는 **완전한 93A pulse/ISI/jitter/noise/DFE/XTALK 최적화·COM dB나 정식 PHY Golden 3채널 일치가 아니다**. `calculateCom()`은 계속 `NotEvaluated`; `012_09` 전체는 **PARTIAL/BLOCKED**. 문서는 플랫폼별 중복 없이 최종 1회 일괄 갱신했다.
 
 ### 012_10 — COM 독립 GUI 및 결과 보고
 - **실행:** ComWindow 프로파일/채널/Aggressor/패키지·EQ·잡음 설정, 결과/원인·진단 표시, CSV/PNG 및 재현성 정보 제공.

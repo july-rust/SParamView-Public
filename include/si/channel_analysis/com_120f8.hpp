@@ -5,6 +5,7 @@
 // or evidence that a measured channel qualifies for PHY PASS/FAIL.
 // Primary standard: https://ieeexplore.ieee.org/document/9999414
 #include "si/channel_analysis/com.hpp"
+#include "si/channel_analysis/com_physical_channel.hpp"
 #include <array>
 #include <vector>
 
@@ -80,6 +81,9 @@ void validateCom120F8Equalizer(const Com120F8EqualizerChoice& choice);
 // Annex 93A.1 CTLE transfer as parameterized for final 802.3ck 120F-8.
 // Complex transfer includes phase. The fourth-order receive noise filter
 // is evaluated separately; both remain components, NOT complete COM margin.
+// IEEE 93A-46 Gaussian TX transition response, with Tr=7.5 ps
+// (120F C2C) and beta=1. Independent real-valued component, not COM.
+double com120F8TxTransitionFilter(double frequencyHz);
 Complex com120F8Ctle(double frequencyHz, double gDcDb, double gDc2Db);
 Complex com120F8ReceiverNoiseFilter(double frequencyHz);
 Complex com120F8ReceiverTransfer(double frequencyHz,
@@ -122,6 +126,22 @@ struct Com120F8PulseDiagnostics {
 // Data is inherently periodic/band-limited: NEVER equate it to Annex 93A COM.
 Result<Com120F8PulseDiagnostics> calculateCom120F8BandlimitedPulse(
     const ComPreparedData& prepared, Provenance provenance = {},
+    const std::atomic_bool* cancelled = nullptr);
+
+
+// 012_09_03: bridge BOTH already-loaded, physically cascaded Test 1/2
+// differential networks to the native 120F-8 FFE/CTLE/receiver diagnostics.
+// Preserves each complex Sdd21 and explicit 13/11 vs 31/29 mm package
+// identity. No mixed-mode data are reconstructed from Sdd21 and no channel
+// or noise reference is guessed. This is NOT IEEE COM dB or PASS/FAIL.
+struct Com120F8LoadedTestCaseSpectra {
+  ComPreparedData test1, test2;
+  const char* model = "EXPLORATORY_C2C_PACKAGE_HT_FFE_CTLE_RX";
+};
+Result<Com120F8LoadedTestCaseSpectra> prepareCom120F8LoadedTestCases(
+    const ComPhysicalChannelData& physical,
+    const Com120F8EqualizerChoice& choice,
+    Provenance provenance = {},
     const std::atomic_bool* cancelled = nullptr);
 
 } // namespace si::channel
