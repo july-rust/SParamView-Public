@@ -6,11 +6,30 @@
     "edition": "IEEE Std 802.3ck-2022",
     "annex": "120F; Annex 93A.1 COM methodology",
     "applicable_clause": "120F.4.1",
-    "parameter_table": "120F-8 (identity pinned; complete numeric parameter verification NOT performed)",
+    "parameter_table": "120F-8 (68 C++ parameter numeric leaves verified against complete licensed published original, printed pp. 236–238)",
     "approval_status": "PUBLISHED",
     "normative_source_url": "https://standards.ieee.org/ieee/802.3ck/7322/",
     "normative_criterion": "COM >= 3 dB separately for both device package Test 1 and Test 2",
-    "parameter_values_qualified": false
+    "parameter_values_qualified": false,
+    "parameter_source_audit": {
+      "status": "SOURCE_VERIFIED_012_11",
+      "edition": "IEEE Std 802.3ck-2022",
+      "clause": "120F.4.1",
+      "table": "120F-8",
+      "pdf_sha256": "5f5db5a7e94e49cdc68a18db63b7ec01b349467f680251194fbc0a1295faa1e9",
+      "pdf_pages": 316,
+      "source_size_bytes": 4606528,
+      "published_print_pages": [
+        236,
+        237,
+        238
+      ],
+      "numeric_leaves_checked": 68,
+      "numeric_mismatches": 0,
+      "source_distribution": "USER_PROVIDED_IEEE_XPLORE_LICENSED_COPY_NOT_REDISTRIBUTED",
+      "review_report": "docs/COM_8023ck_Normative_Audit_012_11.md"
+    },
+    "production_qualification_note": "The primary published parameter table is source-verified in 012_11. parameter_values_qualified remains false because status REFERENCE_READY is not production PHY numerical/Golden qualification."
   },
   "reference": {
     "release": "4.17.0",
@@ -31,7 +50,6 @@
   },
   "cases": [],
   "blockers": [
-    "IEEE 802.3ck-2022 Annex 120F candidate has no reviewed complete published PHY COM parameter table/settings in this repository",
     "IEEE official GitLab v4.17.0 config_templates/C2C/200G files reference P802.3dj D2.x drafts (not a suitable 802.3ck normative profile)",
     "No three independent real licensed THRU/NEXT/FEXT fixture + published expected COM + executed reference output cases",
     "Fixture and dependency redistribution requirements remain unverified; avoid copying draft spreadsheets without license audit"
@@ -79,9 +97,9 @@
     }
   ],
   "remaining_release_gates": [
-    "012_09: check every 802.3ck-2022 Annex 120F.4.1 Table 120F-8 numeric parameter against licensed final standard, including Test1/Test2",
+    "012_11 Table 120F-8 source verification COMPLETE; production COM algorithm and same-PHY numerical validation still required",
     "012_09: implement C++ COM engine and obtain >=3 valid same-802.3ck-profile independent numeric fixture/oracle cases including NEXT/FEXT",
-    "012_11: production COM numerical cross-validation, real profile fail-closed, regression tests",
+    "Later COM engine/golden stage: independent numeric cross-validation, real profile fail-closed and regression tests",
     "012_13: audit third-party license/dependencies and package notices; no IEEE/SiCoPR code or vendor channel included unless separately authorized"
   ]
 }
