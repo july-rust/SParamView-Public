@@ -4,12 +4,16 @@ on:
     branches: [integration/v1.4.0]
     paths:
       - 'scripts/com_120f8_reference_candidate.py'
+      - 'scripts/com_120f8_reference_compare.py'
+      - 'tests/channel_analysis/test_com_120f8_reference_compare.py'
       - 'tests/channel_analysis/test_com_120f8_reference_candidate.py'
       - '.github/workflows/com-120f8-real-numerical-reference.yml'
   push:
     branches: [integration/v1.4.0]
     paths:
       - 'scripts/com_120f8_reference_candidate.py'
+      - 'scripts/com_120f8_reference_compare.py'
+      - 'tests/channel_analysis/test_com_120f8_reference_compare.py'
       - 'tests/channel_analysis/test_com_120f8_reference_candidate.py'
       - '.github/workflows/com-120f8-real-numerical-reference.yml'
 permissions:
@@ -26,7 +30,9 @@ jobs:
       - name: Install finite-source local test dependencies
         run: python -m pip install --disable-pip-version-check numpy scipy
       - name: Verify deterministic 68-leaf and explicit draft aggressor contract
-        run: python -m unittest discover -s tests/channel_analysis -p 'test_com_120f8_reference_candidate.py' -v
+        run: |
+          python -m unittest discover -s tests/channel_analysis -p 'test_com_120f8_reference_candidate.py' -v
+          python -m unittest discover -s tests/channel_analysis -p 'test_com_120f8_reference_compare.py' -v
   run-real-c2c-reference-python:
     needs: source-verified-offline
     runs-on: ubuntu-latest
@@ -34,7 +40,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        channel: ['10']
+        channel: ['10','16','18']
     env:
       OPENBLAS_NUM_THREADS: '1'
       OMP_NUM_THREADS: '1'
@@ -75,7 +81,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        channel: ['10']
+        channel: ['10','16','18']
     env:
       OPENBLAS_NUM_THREADS: '1'
       OMP_NUM_THREADS: '1'
@@ -114,3 +120,40 @@ jobs:
           name: 01213-final-parameters-draft-aggressors-octave-${{ matrix.channel }}
           path: 01213-octave-${{ matrix.channel }}.json
           if-no-files-found: warn
+
+  cross-validate-independent-python-vs-octave:
+    needs: [run-real-c2c-reference-python, run-real-c2c-reference-octave]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        channel: ['10','16','18']
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          name: 01213-final-parameters-draft-aggressors-python-${{ matrix.channel }}
+          path: _numeric_input_python
+      - uses: actions/download-artifact@v4
+        with:
+          name: 01213-final-parameters-draft-aggressors-octave-${{ matrix.channel }}
+          path: _numeric_input_octave
+      - name: Compare COM/FOM Test1+Test2 against same exact SHA qualified CSV
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/com_120f8_reference_compare.py \
+            --channel '${{ matrix.channel }}' \
+            --python-result '_numeric_input_python/01213-python-${{ matrix.channel }}.json' \
+            --octave-result '_numeric_input_octave/01213-octave-${{ matrix.channel }}.json' \
+            --output '01213-correlated-${{ matrix.channel }}.json'
+      - name: Preserve only original source-free numeric comparison receipts
+        uses: actions/upload-artifact@v4
+        with:
+          name: 01213-final-parameters-verified-numeric-correlation-${{ matrix.channel }}
+          path: 01213-correlated-${{ matrix.channel }}.json
+          if-no-files-found: error
