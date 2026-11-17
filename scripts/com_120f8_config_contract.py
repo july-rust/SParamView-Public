@@ -297,7 +297,7 @@ def actual_reference_parse(config: Path, module_dir: Path) -> dict:
                 int(p.ndfe)==6 and int(p.samples_per_ui)==32,
                 "Independent COM 4.17 parser changed numeric values/case order")
     finally:
-        sys.path.remove(str(module_dir))
+        sys.path.remove(str(expected_root))
     return {"status":"RUNTIME_LOAD_PASS",
             "loader":"PINNED_INDEPENDENT_SICOPR_4P17P0_PYTHON_PARSER",
             "reference_sha":"cb7c4be5c63d41e88b6ee7d04fb17e0046ab0f75",
