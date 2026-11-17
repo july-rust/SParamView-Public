@@ -168,6 +168,39 @@ int main() {
       times200.push_back(i*ui/8);
     reject([&]{(void)calculateComInterferencePulses(bad,times200);},
            "aggregate work cap");
+    // The public total-work limit may exceed the underlying primitive's
+    // stricter four-million-bin-time limit. Chunking must preserve ALL
+    // requested samples and their corresponding individual pulse values.
+    auto longInput = fixture();
+    constexpr size_t longBins = 8193;
+    longInput.frequencyHz.reserve(longBins);
+    longInput.conditionedThru.resize(longBins,{1.,0.});
+    for (size_t k = bins; k < longBins; ++k)
+      longInput.frequencyHz.push_back(k * df);
+    ComPreparedAggressor longAgg;
+    longAgg.id = "long-next";
+    longAgg.coupling = ComCoupling::Next;
+    longAgg.conditionedTransfer.assign(longBins,{0.05,0.});
+    longInput.aggressors.push_back(std::move(longAgg));
+    std::vector<double> longTimes;
+    for (size_t i = 0; i < 512; ++i)
+      longTimes.push_back(i*1e-12);
+    demand(longBins*longTimes.size() > 4000000u,
+           "chunking regression must exceed primitive budget");
+    const auto longPulse =
+        calculateComInterferencePulses(longInput,longTimes);
+    demand(longPulse.usable() &&
+           longPulse.value->aggressors.front().unitSymbolPulse.size() ==
+               longTimes.size(), "chunking lost time samples");
+    auto scaleInput = longInput;
+    for (auto& v : scaleInput.aggressors.front().conditionedTransfer)
+      v *= 2.;
+    const auto scalePulse =
+        calculateComInterferencePulses(scaleInput,{longTimes[256]});
+    close(scalePulse.value->aggressors.front().unitSymbolPulse.front(),
+          2.*longPulse.value->aggressors.front().unitSymbolPulse[256],
+          1e-12,"chunking must preserve sample linearity");
+
     std::atomic_bool cancelled{true};
     bool cancelledReceived = false;
     try {(void)calculateComInterferencePulses(one,times,{},&cancelled);}

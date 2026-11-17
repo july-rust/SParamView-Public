@@ -113,14 +113,28 @@ Result<ComInterferenceData> calculateComInterferencePulses(
     check(cancelled);
     single.conditionedThru.assign(a.conditionedTransfer.begin(),
                                   a.conditionedTransfer.end());
-    auto pulse = calculateCom120F8RectangularPulse(
-        single, queryTimeSeconds, {}, cancelled);
-    require(pulse.usable(), "COM interference pulse primitive not usable");
     ComInterferencePulse item;
     item.id = a.id;
     item.coupling = a.coupling;
-    item.maximumAbsolutePulse = pulse.value->maximumAbsolutePulse;
-    item.unitSymbolPulse = std::move(pulse.value->unitSymbolPulse);
+    item.unitSymbolPulse.reserve(queryTimeSeconds.size());
+    // The existing single-pulse integrator also has its own stricter
+    // 4,000,000 bin-time cap. Chunk the explicitly validated common time grid
+    // so the advertised aggregate budget is actually executable.
+    const size_t maxChunk = 4000000u / single.frequencyHz.size();
+    require(maxChunk > 0, "COM pulse primitive chunk budget unavailable");
+    for (size_t begin = 0; begin < queryTimeSeconds.size(); begin += maxChunk) {
+      check(cancelled);
+      const size_t end = std::min(queryTimeSeconds.size(), begin + maxChunk);
+      const std::vector<double> chunk(queryTimeSeconds.begin() + begin,
+                                      queryTimeSeconds.begin() + end);
+      auto pulse = calculateCom120F8RectangularPulse(
+          single, chunk, {}, cancelled);
+      require(pulse.usable(), "COM interference pulse primitive not usable");
+      item.maximumAbsolutePulse =
+          std::max(item.maximumAbsolutePulse, pulse.value->maximumAbsolutePulse);
+      item.unitSymbolPulse.insert(item.unitSymbolPulse.end(),
+          pulse.value->unitSymbolPulse.begin(), pulse.value->unitSymbolPulse.end());
+    }
     data.aggressors.push_back(std::move(item));
   }
   check(cancelled);
