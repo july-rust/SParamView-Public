@@ -2,6 +2,19 @@
 
 **Status:** PARTIAL IMPLEMENTATION / 012_09 NOT COMPLETE. This is an auditable engineering handoff, not a COM-margin qualification.
 
+## 2026-11-17 — Published-final 120F-8 typed native C++ parameter + receiver component (working PR)
+
+The **published IEEE 802.3ck-2022** Annex 120F.4.1/Table 120F-8 parameters were transcribed into a strict typed SI unit profile in `include/si/channel_analysis/com_120f8.hpp`, with independent `com_120f8_tests.cpp` numeric-oracle assertions and CTest registration. This **does not** certify full IEEE Annex 93A COM.
+
+- Final 53.125 GBd, fmin <=50 MHz, max 10 MHz direct-grid step, nominal 3 dB threshold (not activated), 13/11 mm Test1 and 31/29 mm Test2, package capacitances/inductances/impedances, RX 39.84375 GHz, noise/jitter, FFE/CTLE/DFE limits all encoded in SI units.
+- Important final-vs-draft correction: 2022 Table 120F-8 `c(-3)` range starts **-0.04**, not **-0.06** as in an older 2020 proposal. The C++ validator rejects old-draft and off-grid TX/CTLE settings and nonfinite values. Annex 93A also requires the **derived** `c(0) = 1 - sum(abs(non-cursor FFE taps))`; independently selected cursors and choices with `c(0) < 0.54` fail closed. Reviewer-discovered P2 normalized-cursor defect and associated initially invalid independent oracle have been corrected.
+- Annex 93A phase-preserving CTLE transfer and the IEEE working-group's fourth-order Butterworth RX noise filter are calculated by actual C++ `com120F8Ctle`, `com120F8ReceiverNoiseFilter`, `com120F8ReceiverTransfer`, compared against independently evaluated fixed complex samples at DC, 10, 21.25, 26.5625 and 39.84375 GHz.
+- `prepareCom120F8ReceiverSpectra` combines a selected 5-tap FFE and RX transfer with the pre-existing matched-wave scalar diagnostics for an actual C++ numerical execution. Its five FIR slots have the main cursor at index 3; the adapter explicitly removes the common placement delay so the returned complex FFE response is referenced to c(0), not an unintended 3-UI delayed output. The same cursor-reference correction is applied to THRU and all aggressors. It explicitly returns only `Status::Warning`/exploratory model. It does **not** incorporate the complete physical package COM signal/noise/jitter/ISI/crosstalk/equalizer optimization or produce COM margin/PASS.
+- The complete official IEEE GET PDF should still be independently obtained and byte-identified before claiming audited final-source provenance; a publicly exposed licensed reproduction is not equivalent to authenticated original source capture.
+- No change to `calculateCom()`: `Status::NotEvaluated` remains mandatory until native Annex 93A normative COM numerical goldens qualify.
+
+Sources: [IEEE published 802.3ck-2022 official record](https://ieeexplore.ieee.org/document/9999414), [IEEE working-group 2019 C2M slides showing the common Annex 93A CTLE and receiver noise-filter formula](https://www.ieee802.org/3/ck/public/adhoc/oct30_19/sun_3ck_adhoc_01_103019.pdf), and [IEEE working-group 2020 historical C2C table](https://www.ieee802.org/3/ck/public/adhoc/sept23_20/wu_3ck_adhoc_01a_092320.pdf). The 2019/2020 proposals alone are NOT published-final normative evidence.
+
 ## 2026-11-17 — Historical IEEE C2C reference numerical path repaired (PR #59)
 
 **Verified historical reference candidate only, not final IEEE/native C++ acceptance.** Physical source port ordering was the root cause of the previously non-real Python COM FOM. The IEEE 2019 source S4P has differential TX pair 1/2 and RX pair 3/4, whereas the default interpreted TX 1/3 and RX 2/4. SHA-verified source transmission at 10 MHz and 26.5625 GHz is used to gate a documented, temporary port-map setting `[1 2 3 4]`. No `abs(A_s)` manipulation, S4P polarity tampering or source workbook mutation was done.
