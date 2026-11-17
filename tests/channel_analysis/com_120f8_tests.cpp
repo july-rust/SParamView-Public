@@ -477,6 +477,29 @@ try {
   } catch(const si::Cancelled&) {rectangleCancelled=true;}
   demand(rectangleCancelled,"rectangular pulse cancellation must propagate");
 
+  // NONUNIFORM_QUADRATURE_ALIAS_REPRO (independent review 2026-11-17):
+  // The 10,10,10,5 MHz repetition produces a false ~2.7% postcursor at
+  // 1/35MHz offset under plain nonuniform trapezoidal integration.
+  // Its max frequency step STILL satisfies 120F-8 (<=10 MHz), and the
+  // time query passes the generic delay-support bound. Fail closed until
+  // a validated phase-aware resampler/integrator is implemented.
+  auto irregular=gaussian;
+  for(size_t k=1;k<irregular.frequencyHz.size();++k) {
+    const double spacing=(k%4==0)?5e6:10e6;
+    irregular.frequencyHz[k]=irregular.frequencyHz[k-1]+spacing;
+    const double fk=irregular.frequencyHz[k];
+    irregular.conditionedThru[k]=
+      std::exp(-std::pow(fk/fc,2.))*
+      std::polar(0.8,-2.*std::numbers::pi*fk*delay);
+  }
+  validateCom120F8DirectGrid(irregular.frequencyHz);
+  const std::vector<double> aliasQuery{delay+ui/2.+1./35e6};
+  demand(aliasQuery.front()*10e6<0.45,
+         "alias repro must pass ordinary delay support gate");
+  reject([&]{(void)calculateCom120F8RectangularPulse(
+      irregular,aliasQuery);},
+      "nonuniform spectral comb false postcursor must fail closed");
+
   Com120F8LoadedTestCaseSpectra testPair;
   testPair.test1=gaussian;
   testPair.test2=gaussian;
