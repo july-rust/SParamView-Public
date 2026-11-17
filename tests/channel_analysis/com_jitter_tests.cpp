@@ -194,6 +194,27 @@ int main() {
     invalid=sample(provenance);
     invalid.timeSeconds={0,1e-9,1e-9};
     reject([&]{calculateComJitter(invalid,provenance);},"duplicate time");
+    // Codex P2 regression: a physically nonzero local dV/dt can become
+    // zero in double precision, but a huge UI makes its jitter contribution
+    // mathematically representable. Never call this a flat, zero-noise eye.
+    invalid=sample(provenance);
+    invalid.receiverNoise=noise(provenance,0);
+    invalid.symbolRateBd=1e-308;
+    invalid.dualDiracPeakUi=0;
+    invalid.timeSeconds={-5e307,0,5e307};
+    invalid.receiverVoltageV={-5e-17,0,5e-17};
+    invalid.decisionTimeSeconds=0;
+    reject([&]{calculateComJitter(invalid,provenance);},
+           "nonzero local slope underflow-to-zero must fail closed");
+    invalid=sample(provenance);
+    invalid.receiverNoise=noise(provenance,0);
+    invalid.symbolRateBd=1e-200;
+    invalid.dualDiracPeakUi=0;
+    invalid.timeSeconds={-5e299,0,5e299};
+    invalid.receiverVoltageV={-5e-17,0,5e-17};
+    invalid.decisionTimeSeconds=0;
+    reject([&]{calculateComJitter(invalid,provenance);},
+           "subnormal finite local slope must fail closed");
     invalid=sample(provenance);
     invalid.decisionTimeSeconds=0;
     reject([&]{calculateComJitter(invalid,provenance);},"no extrapolation");
