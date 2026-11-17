@@ -40,7 +40,8 @@ add_library(si_channel_analysis src/channel_analysis/common.cpp
                                 src/channel_analysis/com_physical_channel.cpp
                                 src/channel_analysis/com_causal_package.cpp
                                 src/channel_analysis/com_causal_channel.cpp
-                                src/channel_analysis/com_interference.cpp)
+                                src/channel_analysis/com_interference.cpp
+                                src/channel_analysis/com_receiver_noise.cpp)
 target_include_directories(si_channel_analysis PUBLIC include)
 target_link_libraries(si_channel_analysis PUBLIC si_core)
 if(MSVC)
@@ -135,6 +136,12 @@ target_link_libraries(si_com_interference_tests PRIVATE si_channel_analysis)
 add_test(NAME channel_com_interference_pulses COMMAND si_com_interference_tests)
 set_tests_properties(channel_com_interference_pulses PROPERTIES TIMEOUT 90)
 install(TARGETS si_com_interference_tests RUNTIME DESTINATION tests)
+# 012_15: bounded Gaussian receiver noise integral and independent PDF/Q oracle.
+add_executable(si_com_receiver_noise_tests tests/channel_analysis/com_receiver_noise_tests.cpp)
+target_link_libraries(si_com_receiver_noise_tests PRIVATE si_channel_analysis)
+add_test(NAME channel_com_receiver_gaussian_noise COMMAND si_com_receiver_noise_tests)
+set_tests_properties(channel_com_receiver_gaussian_noise PROPERTIES TIMEOUT 90)
+install(TARGETS si_com_receiver_noise_tests RUNTIME DESTINATION tests)
 add_executable(si_hardening_tests tests/hardening_tests.cpp)
 target_link_libraries(si_hardening_tests PRIVATE si_core)
 install(TARGETS si_hardening_tests RUNTIME DESTINATION tests)
