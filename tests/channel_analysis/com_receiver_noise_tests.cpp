@@ -173,6 +173,20 @@ int main() {
     bad=flat();bad.noiseTransfer[1]={1e308,0};
     reject([&]{(void)calculateComReceiverNoise(bad);},
            "Gain overflow rejected");
+    // Codex P2: halving subnormal df would discard a representable
+    // area even with a very large, finite one-sided PSD.
+    bad=flat();
+    const double m=std::numeric_limits<double>::denorm_min();
+    bad.oneSidedPsdV2PerHz=1e308;
+    bad.frequencyHz={0,m,3*m};
+    bad.noiseTransfer={{1.,0.},{1.,0.},{1.,0.}};
+    reject([&]{(void)calculateComReceiverNoise(bad);},
+           "Subnormal frequency step rejected before halving");
+    bad=flat();
+    bad.oneSidedPsdV2PerHz=1e-300;
+    bad.frequencyHz={0,1e-10,1e100};
+    reject([&]{(void)calculateComReceiverNoise(bad);},
+           "Tiny interval contribution must not vanish silently");
     // Codex P2: positive but subnormal intermediate PSD or H^2 must never
     // silently turn into a usable zero-variance distribution.
     bad=flat();
