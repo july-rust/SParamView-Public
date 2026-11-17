@@ -8,6 +8,8 @@
 
 > **2026-11-17 새 `012_15` 범위:** [수신기 Gaussian 잡음 독립 수치 엔진](COM_Receiver_Noise_012_15.md). 유한 대역 단측 PSD 적분, RMS, PDF/CDF, 기존 Gaussian-only Quantile을 재사용한다. 지터·통계 누화 결합·COM dB/PHY PASS/FAIL·GUI·릴리스는 제외한다. 실제 완료 판정은 해당 PR 최신 HEAD의 필수 CI 및 병합 증거를 확인한 후 기록한다. 이 신규 번호는 아래 2026-11-16 이전 역사적 012_15 번호 계획과 무관하다.
 
+> **2026-11-18 새 `012_16` 범위:** [COM RJ/Dual-Dirac 국소 선형 지터 수치 엔진](COM_Jitter_012_16.md). 독립 시간/UI 변환, 두 원자 이동 Gaussian 혼합의 PDF/CDF/단측 Quantile, `012_15`의 검증된 Gaussian RMS 입력만 재사용한다. 전압 캘리브레이션 및 SourceSnapshot/잡음 Provenance가 일치해야 하며, 비정규(normative 아님) 근사 출력만 제공한다. CTest 단일 타깃으로 독립 고정밀 oracle를 검증한다. 최종 Annex 93A 지터/ISI/XTALK 통계 PDF, PHY PASS/FAIL, GUI, main 및 릴리스는 여전히 제외한다. 실제 완료는 최신 PR HEAD CI·리뷰·병합 증거로만 판정한다.
+
 **기준일:** 2026-11-16 (KST)
 **공식 기준:** v1.3.5 (tag/release 불변)
 **목표:** ILD·ICN·Eye Diagram·COM을 각각 독립적인 C++20 수치 엔진, Qt6 창, 테스트로 구현하고 **v1.4.0 한 번에 릴리스**
