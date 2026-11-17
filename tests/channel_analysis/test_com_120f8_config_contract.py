@@ -83,6 +83,33 @@ class Com120F8ReferenceConfigurationContract(unittest.TestCase):
                 with self.assertRaisesRegex(contract.ContractError,"C\\+\\+ scalar drift"):
                     contract.config_rows()
 
+    def test_small_si_capacitance_drift_never_passes_static(self):
+        original=contract.HEADER.read_text(encoding="utf-8")
+        self.assertIn("cdFaradSingleEnded = 1.2e-13;",original)
+        with TemporaryDirectory() as temp:
+            path=Path(temp)/"wrong-capacitance.hpp"
+            path.write_text(
+                original.replace("cdFaradSingleEnded = 1.2e-13;",
+                                 "cdFaradSingleEnded = 1.209e-13;",1),
+                encoding="utf-8")
+            with patch.object(contract,"HEADER",path):
+                with self.assertRaisesRegex(contract.ContractError,
+                                            "C\\+\\+ scalar drift"):
+                    contract.config_rows()
+
+    def test_reject_unpinned_local_checkout_even_if_parser_is_installed(self):
+        with TemporaryDirectory() as temp:
+            root=Path(temp)
+            fake=root/"unrelated_checkout"
+            fake.mkdir()
+            (fake/"sicopr.py").write_text("COM_MATLAB_VERSION = '4p17p0'\\n",
+                                          encoding="utf-8")
+            config=root/"config.csv"
+            config.write_text("f_b,53.125\\n",encoding="utf-8")
+            with self.assertRaisesRegex(contract.ContractError,
+                                        "Cannot authenticate pinned"):
+                contract.actual_reference_parse(config,fake)
+
     def test_reference_identity_drift_fails_closed(self):
         with TemporaryDirectory() as temp:
             manifest=json.loads(contract.SOURCE_AUDIT.read_text(encoding="utf-8"))
