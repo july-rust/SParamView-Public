@@ -27,9 +27,20 @@ void validateCom120F8Equalizer(const Com120F8EqualizerChoice& choice) {
     gridValue(choice.txFfe[coefficientIndex],p.txNoncursor[i],
               "Final IEEE 120F-8 TX FFE tap outside discrete bounds");
   }
+  // Annex 93A TX FFE c(0) is NOT an independent optimization
+  // coefficient. Its value is exactly 1-sum(|c(i)|, i != 0), and the
+  // published final 120F-8 lower cursor bound applies to that derived value.
   const double cursor=choice.txFfe[3];
-  require(std::isfinite(cursor) && cursor>=p.minimumCursor && cursor<=1.,
-          "Final IEEE 120F-8 TX FFE cursor violates limits");
+  double noncursorMagnitude=0.;
+  for(size_t i=0;i<choice.txFfe.size();++i)
+    if(i!=3) noncursorMagnitude+=std::abs(choice.txFfe[i]);
+  const double derivedCursor=1.-noncursorMagnitude;
+  require(std::isfinite(cursor) &&
+          std::isfinite(derivedCursor) &&
+          derivedCursor>=p.minimumCursor-1e-12 &&
+          derivedCursor<=1. &&
+          std::abs(cursor-derivedCursor)<=1e-12,
+          "Final IEEE 120F-8 FFE cursor must equal 1-sum(abs(non-cursor taps)) and respect minimum");
   gridValue(choice.ctleDcGainDb,p.ctleDcGainDb,
             "Final IEEE 120F-8 CTLE DC gain outside discrete bounds");
   gridValue(choice.ctleDcGain2Db,p.ctleDcGain2Db,
