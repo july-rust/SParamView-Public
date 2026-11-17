@@ -10,6 +10,8 @@
 
 > **2026-11-18 새 `012_16` 범위:** [COM RJ/Dual-Dirac 국소 선형 지터 수치 엔진](COM_Jitter_012_16.md). 독립 시간/UI 변환, 두 원자 이동 Gaussian 혼합의 PDF/CDF/단측 Quantile, `012_15`의 검증된 Gaussian RMS 입력만 재사용한다. 전압 캘리브레이션 및 SourceSnapshot/잡음 Provenance가 일치해야 하며, 비정규(normative 아님) 근사 출력만 제공한다. CTest 단일 타깃으로 독립 고정밀 oracle를 검증한다. 최종 Annex 93A 지터/ISI/XTALK 통계 PDF, PHY PASS/FAIL, GUI, main 및 릴리스는 여전히 제외한다. 실제 완료는 최신 PR HEAD CI·리뷰·병합 증거로만 판정한다.
 
+> **2026-11-18 신규 012_17:** [COM 고정 6-Tap DFE 잔류 ISI 엔진](COM_DFE_012_17.md)은 이전 명령의 임펄스/심볼 혼용 문제를 수정하여 기존 band-limited rectangular-SYMBOL 응답만 입력한다. 최종 120F-8 Tap Min/Max, 명시적인 -3..+9 UI 결정 시점, Test1/Test2 출처 격리, 고정된 독립 수치 Golden 및 실제 심볼 컨볼루션 회귀만 수행한다. DFE 최적화 탐색, Annex 93A 전체 통계, COM dB, PHY PASS/FAIL, GUI, main/릴리스는 제외한다. 완료 여부는 최신 PR HEAD 필수 CI와 보호 병합 증거로만 판정한다.
+
 **기준일:** 2026-11-16 (KST)
 **공식 기준:** v1.3.5 (tag/release 불변)
 **목표:** ILD·ICN·Eye Diagram·COM을 각각 독립적인 C++20 수치 엔진, Qt6 창, 테스트로 구현하고 **v1.4.0 한 번에 릴리스**
