@@ -48,6 +48,21 @@ void validateCom120F8Equalizer(const Com120F8EqualizerChoice& choice) {
   gridValue(choice.ctleDcGain2Db,p.ctleDcGain2Db,
             "Final IEEE 120F-8 CTLE second DC gain outside discrete bounds");
 }
+double com120F8TxTransitionFilter(double frequencyHz) {
+  require(std::isfinite(frequencyHz) && frequencyHz>=0. &&
+          frequencyHz<=1e12,
+          "IEEE 120F-8 transmitter transition frequency out of range");
+  // Gaussian 93A-46, beta=1 (not the beta=2 variant for older PHYs).
+  // Tr=7.5ps from 120F.4.1. This transfer is a single component only;
+  // it does NOT replace X(f), complete pulse response or COM statistics.
+  const double a=std::numbers::pi*frequencyHz*
+                 final8023ck120F8().txTransitionTimeS/1.6832;
+  const double value=std::exp(-a*a);
+  require(std::isfinite(value) && value>=0. && value<=1.,
+          "Invalid COM TX Gaussian transition transfer");
+  return value;
+}
+
 Complex com120F8Ctle(double frequencyHz,double gDcDb,double gDc2Db) {
   require(std::isfinite(frequencyHz) && frequencyHz>=0,
           "IEEE 120F-8 CTLE invalid frequency");
@@ -367,16 +382,26 @@ Result<Com120F8LoadedTestCaseSpectra> prepareCom120F8LoadedTestCases(
   Com120F8LoadedTestCaseSpectra data;
   data.test1=std::move(*one.value);
   data.test2=std::move(*two.value);
+  // Apply the same phase-preserving, real Gaussian TX transition
+  // response to both physically distinct package test cases.
+  // The full Annex 93A rectangular input pulse X(f) remains missing;
+  // DO NOT mistake these conditioned spectra for COM or a pulse.
+  for(size_t k=0;k<n;++k) {
+    if(!(k&1023u))check();
+    const double tx=com120F8TxTransitionFilter(physical.frequencyHz[k]);
+    data.test1.conditionedThru[k]*=tx;
+    data.test2.conditionedThru[k]*=tx;
+  }
   Result<Com120F8LoadedTestCaseSpectra> result;
   result.status=Status::Warning;
   result.value=std::move(data);
   result.provenance=std::move(provenance);
-  result.provenance.algorithm="com-120f8-loaded-physical-ffe-rx-exploratory";
+  result.provenance.algorithm="com-120f8-loaded-physical-ht-ffe-rx-exploratory";
   result.provenance.version="012_09_03-bridge-1";
   result.diagnostics.push_back({
     Severity::Warning,"NOT_IEEE_COM",
     "Historical causal physical S4P Test1/Test2 loaded channels were "
-    "separately conditioned through C++ FFE/CTLE/RX. This is an "
+    "separately conditioned through C++ 93A-46 Ht, FFE/CTLE/RX. This is an "
     "exploratory complex transfer: no complete Annex 93A pulse/ISI, "
     "crosstalk/jitter/noise/DFE optimization, COM dB or IEEE PASS/FAIL."});
   return result;
