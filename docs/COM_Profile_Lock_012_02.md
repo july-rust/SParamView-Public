@@ -1,5 +1,7 @@
 # 012_02 — COM profile identity and reference readiness
 
+> **2026-11-17 012_11 최종 갱신:** 최종 IEEE Std 802.3ck-2022 전체 승인 원문(PDF 316쪽, SHA-256은 [감사 기록](COM_8023ck_Normative_Audit_012_11.md) 참조)과 Table 120F-8의 구현 수치 68개를 직접 대조하여 **012_11 규격값 감사 COMPLETE (68/68)**. 아래 2026-11-15의 미래 일정 표현은 당시 계획 기록이다. 독립 Golden 및 C++ COM PASS/FAIL의 **NOT EVALUATED** 상태는 변경하지 않았다.
+
 **2026-11-15 (KST) · 012_02: COMPLETE / REFERENCE_READY; IEEE production PHY conformance: NOT EVALUATED.**
 
 ## Approved PHY identity (the only v1.4.0 target)

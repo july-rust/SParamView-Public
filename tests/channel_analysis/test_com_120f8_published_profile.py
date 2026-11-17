@@ -1,11 +1,12 @@
-"""012_11: pin the published-edition 120F.4.1/120F-8 *parameter* candidate.
+"""012_11: lock the licensed final IEEE 802.3ck-2022 120F.4.1/120F-8 C++ values.
 
 These are independent factual numeric expectations, not executable IEEE algorithms,
 not an IEEE-licensed text copy, and not a conformance certificate.
-Evidence and publisher/third-party provenance limitations:
+The 316-page original was privately reviewed and is NOT redistributed; its SHA-256 and clause/page audit are recorded in:
 docs/COM_8023ck_Normative_Audit_012_11.md.
 """
 import ast
+import json
 import math
 from pathlib import Path
 import re
@@ -17,9 +18,9 @@ HEADER = (
 )
 
 # Numeric scalar fields in Com120F8Parameters, all in C++ field units.
-# 120F.4.1 adds min COM and Tr. Values were cross-read from TWO independent
-# transcriptions of published IEEE Std 802.3ck-2022, pp. 236-238, and the
-# official IEEE standards catalog. The IEEE-hosted PDF is not redistributed.
+# 120F.4.1 adds min COM and Tr. All 68 values are checked directly against
+# the user-provided licensed final original: SHA 5f5db5a7e94e49cdc68a18db63b7ec01b349467f680251194fbc0a1295faa1e9,
+# printed pp. 236-238 (PDF pp. 237-239). The original must NEVER be committed.
 EXPECTED_SCALARS = {
     "symbolRateHz": 53.125e9,
     "maximumStartFrequencyHz": 0.05e9,
@@ -140,6 +141,29 @@ class Test120F8PublishedValues(unittest.TestCase):
                                               abs_tol=1e-20), (name, a, b))
                 checked += 1
         self.assertEqual(checked, 68)
+
+    def test_direct_original_source_audit_receipt_and_production_lock(self):
+        # Offline CI validates the review receipt and executable source defaults,
+        # not the original licensed PDF (which is intentionally not redistributed).
+        manifest_path = (Path(__file__).resolve().parents[2]
+                         / "tests/fixtures/channel/com_reference/manifest.json")
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        audit = manifest["standard"]["parameter_source_audit"]
+        self.assertEqual(audit["status"], "SOURCE_VERIFIED_012_11")
+        self.assertEqual(audit["edition"], "IEEE Std 802.3ck-2022")
+        self.assertEqual(audit["clause"], "120F.4.1")
+        self.assertEqual(audit["table"], "120F-8")
+        self.assertEqual(audit["pdf_pages"], 316)
+        self.assertEqual(audit["published_print_pages"], [236, 237, 238])
+        self.assertEqual(audit["source_size_bytes"], 4606528)
+        self.assertEqual(audit["numeric_leaves_checked"], 68)
+        self.assertEqual(audit["numeric_mismatches"], 0)
+        self.assertEqual(
+            audit["pdf_sha256"],
+            "5f5db5a7e94e49cdc68a18db63b7ec01b349467f680251194fbc0a1295faa1e9")
+        self.assertEqual(manifest["status"], "REFERENCE_READY")
+        self.assertIs(manifest["standard"]["parameter_values_qualified"], False)
+        self.assertEqual(manifest["cases"], [])
 
     def test_reject_executable_initializers(self):
         for expr in ("__import__('os').system('echo PWN')", "foo(2)", "1**3",

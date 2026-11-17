@@ -2,10 +2,60 @@
 
 **Date:** 2026-11-17 (KST)  
 **Repository baseline:** `integration/v1.4.0` at `02d261a538003362cea940f8f6fe6ffd64cbfb77` before this audit  
-**Result:** **PARTIAL — 68/68 published-edition text comparison MATCH; official-original authentication BLOCKED**  
+**Result:** **012_11 100% COMPLETE — official original 316 pages checked; 68/68 code numeric values MATCH; COM engine remains NOT EVALUATED**  
 **Production IEEE COM qualification:** **NOT EVALUATED**; no changes to the numerical engine, reference manifest or pass/fail gates.
 
-## 0B. User-supplied IEEE PDF coverage check (2026-11-17 KST)
+## FINAL REVIEW — 012_11 100% COMPLETE (2026-11-17 KST)
+
+This final review **supersedes the historical blocked state** recorded in sections 0B, 0A and 0 below. Those sections explain earlier attempts with an incomplete three-page excerpt and non-authoritative online reproductions; they are not current blockers.
+
+### Original, source identity and rights
+
+The user provided the **complete 316-page IEEE Xplore licensed original** titled IEEE Std 802.3ck-2022. Its edition, publication data, PDF metadata, page sequence and Xplore licensing markings are consistent with the officially published amendment. The PDF was analyzed locally and **must not be copied to this public GitHub repository, any CI artifact or any release**. Do not record the licensed person's name or account.
+
+| Verified item | Evidence |
+| --- | --- |
+| File SHA-256 | 5f5db5a7e94e49cdc68a18db63b7ec01b349467f680251194fbc0a1295faa1e9 |
+| Size / complete pages | 4,606,528 bytes / **316 PDF pages** |
+| Document title | IEEE Std 802.3ck-2022 (approved September 21, 2022; published December 28, 2022) |
+| PDF creation metadata | 2022-12-15, FrameMaker 16.0.1, Acrobat Distiller 22.0 |
+| Exact normative profile pages | **Printed pp. 236–238 = PDF pages 237–239**, Section 120F.4.1 and all of Table 120F-8 |
+| Annex 93A amendment | **Printed pp. 216–222 = PDF pages 217–223** |
+| Receiver interference exception | **Printed pp. 233–234 = PDF pages 234–235** |
+| Availability in repo | **No licensed PDF/text/pages committed**; only SHA, page references and independently authored comparisons |
+
+### Direct source-to-C++ numeric comparison: PASS 68/68
+
+All **68 primitive numeric leaves** pinned by tests/channel_analysis/test_com_120f8_published_profile.py were individually rechecked against the **complete licensed original** and directly compared to current include/si/channel_analysis/com_120f8.hpp, Git blob 8065a6b244deee2db941b22bf1d8ac3fed23b151. **68 MATCH, 0 MISMATCH, 0 MISSING implemented numeric values.**
+
+| Parameter group | C++ numeric leaves | Source | Result |
+| --- | ---: | --- | --- |
+| Basic grid, timing, capacitances/inductance, package line, FFE cursor, CTLE filter frequencies, PAM4/Tx amplitudes/noise/jitter and COM criterion | **34** | 120F.4.1 and Table 120F-8, printed pp. 236–238 | **MATCH 34/34** |
+| Four FFE noncursor three-value ranges and two CTLE three-value ranges | **18** | Table 120F-8, printed p. 237 | **MATCH 18/18** |
+| TX/RX package lengths for Tests 1/2; DFE minimum and maximum coefficient limit arrays | **16** | Table 120F-8, printed pp. 236–237 | **MATCH 16/16** |
+| **Total** | **68** | **Final IEEE published original** | **PASS 68/68** |
+
+The 68 count represents the **existing C++ scalar/array/range leaves**, not the number of rows in the IEEE table. The minimum **3 dB COM criterion** and **7.5 ps Ht(f) transition** belong to **120F.4.1**, not Table 120F-8 rows themselves.
+
+**Key unit conversions independently checked:** Cd 1.2e-4 nF = 1.2e-13 F; Ls 0.12 nH = 1.2e-10 H; Cb 3e-5 nF = 3e-14 F; Cp 8.7e-5 nF = 8.7e-14 F. The 53.125 **GBd** value is a symbol rate, not an assumed raw binary bit rate. No silent change to the already-correct defaults was required.
+
+### 120F.4.1, Test1/Test2, 93A and exception validation
+
+1. **Printed p. 236, 120F.4.1:** COM follows 93A.1 with Ht(f) Tr = **7.5 ps** and must be **at least 3 dB for each separate Test 1 and Test 2**; neither an average nor the better case suffices.
+2. **Printed p. 236, Table 120F-8:** Test 1 TX/RX package lengths are **13/11 mm**, Test 2 TX/RX are **31/29 mm**; secondary line 1.8 mm, Zc 87.5 ohms, Zc2 92.5 ohms. Current C++ arrays preserve correct ordering.
+3. **Printed pp. 216–222, Annex 93A:** The amendment establishes 120F-8 use for 100GAUI-1/200GAUI-2/400GAUI-4 C2C; transmitter/receiver package cascades have opposite orientations, including Cb, Ls and the optional second package line; the 93A.1.6 optimization includes FFE/CTLE and bounded DFE. Optional floating-tap banks are absent unless their parameters are specified by the invoking PHY clause. These applicability rules were reviewed, NOT independently proven numerically by the C++ solver.
+4. **Printed p. 234, 120F.3.2.4:** A different receiver interference-tolerance calibration substitutes measured transmitter SNDR/RLM/jitter and uses the lower of two case COM margins. These measured quantities must not replace fixed 120F.4.1 channel-profile defaults.
+
+**No Table 120F-8 footnote or required implemented setting was omitted.** The entire normative table was visually checked, including all three physical PDF pages.
+
+### Explicit completion boundary
+
+**012_11: 100% COMPLETE — primary source authentication, numeric profile, Test1/Test2 rules, basic 93A references, supporting source digest and auditable tests are complete.**
+
+**NOT COMPLETE and OUTSIDE 012_11:** the actual complete IEEE COM statistical numerical engine, independent same-profile Golden channel data and COM PASS/FAIL activation. Keep the current reference manifest's production gate **REFERENCE_READY / parameter_values_qualified=false**, since its existing preflight code reserves that field for a **production qualified** manifest rather than a stand-alone table audit. Record the now-complete SOURCE verification separately; do not weaken qualify_normative() or alter calculateCom(). Existing v1.3.5 tag, release and any v1.4.0 release remain unchanged.
+
+---
+## 0B. Historical three-page excerpt coverage check (2026-11-17 KST)
 
 **Input:** User explicitly provided a local file named `IEEE Std 802.3ck-2022.pdf` for the final 012_11 validation. Its bytes were inspected directly, **not** inferred from the filename. No IEEE copyrighted bytes or extracted pages were committed.
 
