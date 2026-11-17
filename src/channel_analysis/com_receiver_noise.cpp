@@ -22,8 +22,12 @@ void check(const std::atomic_bool* cancelled) {
 }
 double densityAt(double voltage, double rms) {
   const double z = voltage/rms;
-  if (!std::isfinite(z) || std::abs(z) > 40.0) return 0.0;
-  return std::exp(-0.5*z*z)/(rms*std::sqrt(2.0*std::numbers::pi));
+  if (!std::isfinite(z)) return 0.0; // far outside representable tail
+  // Evaluating exp(-z^2/2) first loses representable densities when RMS
+  // is very small. Evaluate the complete PDF in log space instead.
+  const double logPdf = -0.5*z*z - std::log(rms) -
+                        0.5*std::log(2.0*std::numbers::pi);
+  return std::exp(logPdf); // caller rejects overflow; genuine underflow -> 0
 }
 } // namespace
 
