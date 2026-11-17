@@ -142,7 +142,14 @@ def config_rows() -> tuple[list[list[str]], dict]:
     secondary = s("secondaryPackageLengthMm")
     put("z_p (TX)", matrix([list(tx), [secondary, secondary]]))
     put("z_p (RX)", matrix([list(rx), [secondary, secondary]]))
-    # NEXT/FEXT aggressor packaging is intentionally not guessed.
+    # The real COM 4.17 CSV parser requires NEXT/FEXT matrices of the
+    # same 2-case x 2-segment shape even when only validating the THRU setup.
+    # These ZERO matrices are deliberately NON-PHYSICAL shape sentinels.
+    # Coupled with NO_COM=1, they must never be used to calculate a margin.
+    put("z_p (FEXT)", matrix([[0., 0.], [0., 0.]]))
+    put("z_p (NEXT)", matrix([[0., 0.], [0., 0.]]))
+    put("NO_COM", 1)
+    # NEXT/FEXT aggressor packaging is intentionally NOT qualified.
     zc1, zc2 = s("primaryPackageZcOhm"), s("secondaryPackageZcOhm")
     put("package_Z_c", matrix([[zc1,zc1], [zc2,zc2]]))
     a1 = s("packageA1SqrtNsPerMm")
@@ -201,6 +208,8 @@ def config_rows() -> tuple[list[list[str]], dict]:
         "source_profile": "IEEE Std 802.3ck-2022/120F.4.1/120F-8",
         "default_gamma0_not_source_verified": True,
         "aggressor_package_and_s4p_compliance": "NOT_QUALIFIED",
+        "reference_config_no_com": True,
+        "next_fext_zero_package_sentinels": True,
         "official_com_4p17_runtime": "NOT_RUN",
         "normative_com_db": None,
         "normative_pass_fail": None,
