@@ -144,4 +144,36 @@ Result<Com120F8LoadedTestCaseSpectra> prepareCom120F8LoadedTestCases(
     Provenance provenance = {},
     const std::atomic_bool* cancelled = nullptr);
 
+
+// 012_09_03 — actual ideal PAM4/NRZ *rectangular symbol* convolution with
+// already-conditioned complex H(f). This integrates 93A's ideal symbol
+// excitation X(f) = UI*sinc(pi*f*UI)*exp(-j*pi*f*UI), over the measured band.
+// H(f) is the dimensionless, matched-response transfer. Output is a
+// dimensionless pulse per unit symbol level, NOT a calibrated voltage, BER,
+// statistical COM, PHY PASS/FAIL, or a normative Annex 93A qualification.
+// Query sample times are explicit — no inferred channel delay or sample phase.
+struct Com120F8RectangularPulseData {
+  std::vector<double> timeSeconds;
+  std::vector<double> unitSymbolPulse;
+  double symbolPeriodSeconds = 0;
+  double maximumAbsolutePulse = 0;
+  const char* model = "EXPLORATORY_MEASURED_BAND_RECTANGULAR_SYMBOL_CONVOLUTION";
+};
+Result<Com120F8RectangularPulseData> calculateCom120F8RectangularPulse(
+    const ComPreparedData& conditioned,
+    const std::vector<double>& queryTimeSeconds,
+    Provenance provenance = {},
+    const std::atomic_bool* cancelled = nullptr);
+
+// Keeps Test1 and Test2 physically distinct through identical sampled-time
+// symbol excitation, without claiming an IEEE 802.3ck COM dB result.
+struct Com120F8RectangularPulseCases {
+  Com120F8RectangularPulseData test1, test2;
+};
+Result<Com120F8RectangularPulseCases> calculateCom120F8RectangularPulseCases(
+    const Com120F8LoadedTestCaseSpectra& conditioned,
+    const std::vector<double>& queryTimeSeconds,
+    Provenance provenance = {},
+    const std::atomic_bool* cancelled = nullptr);
+
 } // namespace si::channel
