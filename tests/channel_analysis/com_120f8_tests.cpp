@@ -5,6 +5,8 @@
 #include <cmath>
 #include <iostream>
 #include <limits>
+#include <numbers>
+#include <atomic>
 #include <stdexcept>
 #include <vector>
 using namespace si::channel;
@@ -217,6 +219,66 @@ try {
   for(int i=0;i<2;++i)badGrid.pop_back();
   reject([&]{validateCom120F8DirectGrid(badGrid);},
          "below Nyquist must fail");
+
+  // 012_09_03: independent analytic pure-delay Sdd21 = exp(-j2*pi*f*T)
+  // oracle for a bounded real circular IFFT + direct fractional-UI DFT.
+  // The 8 MHz grid, 32.768 GHz Nyquist and 64-sample delay are chosen
+  // independently of the implementation's peak detector.
+  ComPreparedData delayed;
+  const size_t fftN=8192;
+  const size_t delaySamples=64;
+  const double df=8e6;
+  for(size_t k=0;k<=fftN/2;++k) {
+    delayed.frequencyHz.push_back(static_cast<double>(k)*df);
+    delayed.conditionedThru.push_back(std::polar(1.,
+      -2.*std::numbers::pi*static_cast<double>(k)*
+      static_cast<double>(delaySamples)/static_cast<double>(fftN)));
+  }
+  const auto pulse=calculateCom120F8BandlimitedPulse(delayed);
+  demand(pulse.status==si::channel::Status::Warning &&
+         pulse.usable() && pulse.value.has_value(),
+         "bandlimited pulse diagnostic must remain a warning");
+  demand(pulse.value->mainCursorSample==delaySamples,
+         "analytic pure-delay main cursor index");
+  close(pulse.value->samplePeriodS,1./(fftN*df),"IFFT time step");
+  close(pulse.value->mainCursorTimeS,delaySamples/(fftN*df),
+        "absolute phase delay retained");
+  close(pulse.value->mainCursorAmplitude,1.,"unit amplitude of pure delay");
+  demand(pulse.value->uiTapOffsets.size()==13 &&
+         pulse.value->uiTapAmplitudes.size()==13 &&
+         pulse.value->uiTapOffsets[3]==0.,
+         "signed pre/post UI taps must have explicit cursor origin");
+  close(pulse.value->uiTapAmplitudes[3],1.,"fractional-UI direct DFT cursor");
+  demand(pulse.provenance.algorithm==
+         "com-120f8-bandlimited-pulse-exploratory" &&
+         !pulse.diagnostics.empty() &&
+         pulse.diagnostics[0].code=="NOT_IEEE_COM",
+         "exploratory impulse cannot produce IEEE COM");
+  ComPreparedData nonuniform=delayed;
+  nonuniform.frequencyHz[2]+=1e6;
+  reject([&]{(void)calculateCom120F8BandlimitedPulse(nonuniform);},
+         "must refuse implicit nonuniform frequency resampling");
+  ComPreparedData nonHermitian=delayed;
+  nonHermitian.conditionedThru[0]={1.,0.1};
+  reject([&]{(void)calculateCom120F8BandlimitedPulse(nonHermitian);},
+         "must refuse imaginary DC in real-time impulse");
+  ComPreparedData flat=delayed;
+  flat.conditionedThru.assign(flat.conditionedThru.size(),{1.,0.});
+  reject([&]{(void)calculateCom120F8BandlimitedPulse(flat);},
+         "must refuse circularly wrapped negative pre-cursors");
+  ComPreparedData missing=delayed;
+  missing.conditionedThru.pop_back();
+  reject([&]{(void)calculateCom120F8BandlimitedPulse(missing);},
+         "must refuse mismatched spectrum arrays");
+  std::atomic_bool cancelledPulse{true};
+  bool pulseCancelled=false;
+  try {
+    (void)calculateCom120F8BandlimitedPulse(delayed,{},&cancelledPulse);
+  } catch(const si::Cancelled&) {
+    pulseCancelled=true;
+  }
+  demand(pulseCancelled,"pulse diagnostic cancellation must propagate");
+
   std::cout<<"012_09 published-final 120F-8 numeric contract, TX/CTLE "
               "bounds, source package drift and strict-grid tests PASS; "
               "normative COM solver still NOT_EVALUATED\n";

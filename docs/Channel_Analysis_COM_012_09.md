@@ -2,6 +2,14 @@
 
 **Status:** PARTIAL IMPLEMENTATION / 012_09 NOT COMPLETE. This is an auditable engineering handoff, not a COM-margin qualification.
 
+## 2026-11-17 — 012_09_03 numerical progress (PR #61, not normative COM)
+
+The bounded, phase-preserving **time-domain diagnostic** `calculateCom120F8BandlimitedPulse` was added to the existing C++ 120F-8 spectral components. It reconstructs a strictly real Hermitian radix-2 band-limited circular impulse, finds the signed main cursor, and evaluates -3 through +9 UI tap amplitudes by direct fractional-UI Fourier evaluation. It rejects nonuniform source grids, nonreal DC/Nyquist, nonfinite data, insufficient circular-window margin and cancellation; no implicit frequency extension is permitted. The standalone analytic pure-delay Sdd21 oracle and adversarial negatives run in `si_com_120f8_tests`.
+
+**Actual pre-document evidence:** [PR #61](https://github.com/july-rust/SParamView-Public/pull/61), [CI #43992134634](https://github.com/july-rust/SParamView-Public/actions/runs/43992134634) — Linux Release 45/45 and ASan/UBSan 45/45, Windows x64/ARM64, native Windows ARM64 package, macOS arm64 all SUCCESS. All references are exact commit `5f9f7f3608c5d41d9ca92e1c9eb201edd564a5b2`; document-only follow-up and any squash merge require a separate last-head verification.
+
+**Explicit qualification boundary:** This inverse transfer is **impulse, not Annex 93A transmit-shaped pulse**, and its UI taps are unitless, periodic and band-limited. It does not integrate the final approved IEEE 93A packet waveform, statistical ISI, jitter/XTALK/noise, DFE/EQ search or a qualified PHY table with three independently matched native C++ real-channel Golden cases. Therefore `calculateCom()` remains `NotEvaluated`, 3 dB PASS/FAIL remains disabled, `012_09_03` and `012_09` remain PARTIAL/BLOCKED, and no v1.4.0 release is authorized. An authenticated final IEEE Standard PDF and audited same-final-PHY numerical comparisons are not currently recorded as completed.
+
 ## 2026-11-17 — Published-final 120F-8 typed native C++ parameter + receiver component (working PR)
 
 The **published IEEE 802.3ck-2022** Annex 120F.4.1/Table 120F-8 parameters were transcribed into a strict typed SI unit profile in `include/si/channel_analysis/com_120f8.hpp`, with independent `com_120f8_tests.cpp` numeric-oracle assertions and CTest registration. This **does not** certify full IEEE Annex 93A COM.

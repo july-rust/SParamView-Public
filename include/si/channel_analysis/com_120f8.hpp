@@ -101,4 +101,27 @@ Result<ComPreparedData> prepareCom120F8ReceiverSpectra(
 // reference implementation's frequency handling.
 void validateCom120F8DirectGrid(const std::vector<double>& frequencyHz);
 
+
+// A bounded, explicitly NON-NORMATIVE time-domain primitive for 012_09_03.
+// The caller supplies the already phase-conditioned 120F-8 THRU spectrum.
+// No frequency padding, extrapolation, package substitution, statistical
+// noise, equalizer optimization, COM dB, or standard PHY verdict is performed.
+struct Com120F8PulseDiagnostics {
+  double samplePeriodS = 0;
+  double mainCursorTimeS = 0;
+  double mainCursorAmplitude = 0; // dimensionless, not an assumed voltage
+  size_t mainCursorSample = 0;
+  std::vector<double> uiTapOffsets;  // -3,-2,-1,0,+1,...,+9 UI
+  std::vector<double> uiTapAmplitudes; // signed, phase-aware time response
+  const char* model = "EXPLORATORY_BANDLIMITED_CIRCULAR_PULSE";
+};
+
+// Strict direct radix-2 positive spectrum with real DC/Nyquist endpoints,
+// zero additional interpolation, no hidden periodic wrap into the reported
+// tap window, and an independent continuous-time DFT sampling of cursor taps.
+// Data is inherently periodic/band-limited: NEVER equate it to Annex 93A COM.
+Result<Com120F8PulseDiagnostics> calculateCom120F8BandlimitedPulse(
+    const ComPreparedData& prepared, Provenance provenance = {},
+    const std::atomic_bool* cancelled = nullptr);
+
 } // namespace si::channel

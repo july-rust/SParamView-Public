@@ -1,5 +1,6 @@
 #include "si/channel_analysis/com_120f8.hpp"
 #include <algorithm>
+#include <bit>
 #include <cmath>
 #include <numbers>
 #include <utility>
@@ -169,4 +170,120 @@ void validateCom120F8DirectGrid(const std::vector<double>& frequencyHz) {
   require(frequencyHz.back()>=p.symbolRateHz/2.,
           "IEEE 120F-8 direct grid stops below 26.5625 GHz Nyquist");
 }
+
+Result<Com120F8PulseDiagnostics> calculateCom120F8BandlimitedPulse(
+    const ComPreparedData& prepared, Provenance provenance,
+    const std::atomic_bool* cancelled) {
+  auto checkCancelled = [&] {
+    if (cancelled && cancelled->load(std::memory_order_relaxed))
+      throw Cancelled();
+  };
+  checkCancelled();
+  const auto& frequencies = prepared.frequencyHz;
+  const auto& transfer = prepared.conditionedThru;
+  const size_t bins = frequencies.size();
+  require(bins >= 3 && bins <= 16385 && transfer.size() == bins,
+          "COM pulse: missing spectrum or bounded radix-2 positive bins");
+  const size_t n = 2*(bins-1);
+  require(std::has_single_bit(n), "COM pulse: positive bins must form radix-2 IFFT");
+  validateCom120F8DirectGrid(frequencies);
+  const double df = frequencies[1];
+  require(std::isfinite(df) && df>0, "COM pulse: invalid frequency spacing");
+  for (size_t k=0; k<bins; ++k) {
+    if (!(k&1023u)) checkCancelled();
+    const double expected = static_cast<double>(k)*df;
+    require(std::abs(frequencies[k]-expected) <=
+              1e-10*std::max(1., std::abs(expected)),
+            "COM pulse: nonuniform grid cannot be implicitly resampled");
+    require(std::isfinite(transfer[k].real()) &&
+            std::isfinite(transfer[k].imag()),
+            "COM pulse: nonfinite complex spectrum");
+  }
+  // DC and Nyquist samples of an actual real impulse must be real. Do not
+  // silently discard a physically inconsistent imaginary component.
+  for (const auto& endpoint : {transfer.front(),transfer.back()}) {
+    require(std::abs(endpoint.imag()) <=
+              1e-10*std::max(1.,std::abs(endpoint.real())),
+            "COM pulse: non-Hermitian DC/Nyquist endpoint");
+  }
+  std::vector<Complex> full(n);
+  full[0]={transfer.front().real(),0.};
+  full[n/2]={transfer.back().real(),0.};
+  for (size_t k=1; k<n/2; ++k) {
+    full[k]=transfer[k];
+    full[n-k]=std::conj(transfer[k]);
+  }
+  checkCancelled();
+  fft(full,true);
+  checkCancelled();
+  const double dt=1./(static_cast<double>(n)*df);
+  const double ui=1./final8023ck120F8().symbolRateHz;
+  const double period=static_cast<double>(n)*dt;
+  require(std::isfinite(dt) && dt>0 && std::isfinite(period) &&
+          std::isfinite(ui) && period>12*ui,
+          "COM pulse: invalid finite analysis window");
+  size_t peakIndex=0;
+  double peakMagnitude=0.;
+  for (size_t k=0; k<n; ++k) {
+    if (!(k&1023u)) checkCancelled();
+    require(std::isfinite(full[k].real()) && std::isfinite(full[k].imag()) &&
+            std::abs(full[k].imag())<1e-9*
+              std::max(1.,std::abs(full[k].real())),
+            "COM pulse: invalid real-valued inverse transform");
+    const double magnitude=std::abs(full[k].real());
+    if (magnitude>peakMagnitude) {
+      peakMagnitude=magnitude;
+      peakIndex=k;
+    }
+  }
+  require(peakMagnitude>=1e-15,
+          "COM pulse: no resolvable main cursor");
+  const double cursorTime=static_cast<double>(peakIndex)*dt;
+  // Circular FFT impulses carry periodic aliasing. Refuse to interpret
+  // wrapped pre/post-cursors as real channel ISI contributions.
+  require(cursorTime>=3*ui && cursorTime+9*ui<period,
+          "COM pulse: cursor too close to circular window boundary");
+  Com120F8PulseDiagnostics data;
+  data.samplePeriodS=dt;
+  data.mainCursorTimeS=cursorTime;
+  data.mainCursorAmplitude=full[peakIndex].real();
+  data.mainCursorSample=peakIndex;
+  data.uiTapOffsets.reserve(13);
+  data.uiTapAmplitudes.reserve(13);
+  // Band-limited Fourier-series evaluation directly at arbitrary UI phases.
+  // Linear interpolation of coarse IFFT samples would bias tap amplitudes.
+  for (int offset=-3; offset<=9; ++offset) {
+    checkCancelled();
+    const double t=cursorTime+static_cast<double>(offset)*ui;
+    const double x=t/dt;
+    double value=transfer.front().real()+
+                 transfer.back().real()*std::cos(std::numbers::pi*x);
+    for (size_t k=1; k<n/2; ++k) {
+      if (!(k&2047u)) checkCancelled();
+      const double phase=2.*std::numbers::pi*
+                         static_cast<double>(k)*x/static_cast<double>(n);
+      value+=2.*(transfer[k]*std::polar(1.,phase)).real();
+    }
+    value/=static_cast<double>(n);
+    require(std::isfinite(value),
+            "COM pulse: nonfinite UI-sampled impulse");
+    data.uiTapOffsets.push_back(static_cast<double>(offset));
+    data.uiTapAmplitudes.push_back(value);
+  }
+  require(std::abs(data.uiTapAmplitudes[3]-data.mainCursorAmplitude) <=
+            1e-8*std::max(1.,peakMagnitude),
+          "COM pulse: inconsistent FFT and direct DFT cursor");
+  Result<Com120F8PulseDiagnostics> result;
+  result.status=Status::Warning;
+  result.value=std::move(data);
+  result.provenance=std::move(provenance);
+  result.provenance.algorithm="com-120f8-bandlimited-pulse-exploratory";
+  result.provenance.version="012_09_03-component-1";
+  result.diagnostics.push_back({Severity::Warning,"NOT_IEEE_COM",
+    "Band-limited periodic impulse and UI taps only. No standard "
+    "93A pulse extrapolation/ISI/DFE/jitter/noise/XTALK optimization, "
+    "normative COM dB or PASS/FAIL is calculated."});
+  return result;
+}
+
 } // namespace si::channel
