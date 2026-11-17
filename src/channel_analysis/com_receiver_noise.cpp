@@ -88,9 +88,17 @@ Result<ComReceiverNoiseData> calculateComReceiverNoise(
             "Receiver-noise frequency increment overflow");
     const double currentWeighted = weightedPsd(i);
     nonzeroWeighted |= currentWeighted > 0;
+    // A subnormal step loses a nonzero fraction when halved; reject such
+    // physically unresolvable frequency grids rather than bias variance.
+    require(width >= std::numeric_limits<double>::min(),
+            "Subnormal receiver-noise frequency interval");
     const double halfWidth = width*0.5;
-    const double term = previousWeighted*halfWidth +
-                        currentWeighted*halfWidth;
+    const double left = previousWeighted*halfWidth;
+    const double right = currentWeighted*halfWidth;
+    require((previousWeighted == 0.0 || left > 0.0) &&
+                (currentWeighted == 0.0 || right > 0.0),
+            "Receiver-noise interval variance underflow");
+    const double term = left + right;
     require(std::isfinite(term) && term >= 0,
             "Receiver-noise variance integration overflow");
     // Compensated non-negative trapezoid accumulation.
