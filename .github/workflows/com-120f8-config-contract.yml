@@ -4,6 +4,8 @@ on:
     branches: [integration/v1.4.0]
     paths:
       - 'scripts/com_120f8_config_contract.py'
+      - 'scripts/com_120f8_numerical_gate.py'
+      - 'tests/channel_analysis/test_com_120f8_numerical_gate.py'
       - 'tests/channel_analysis/test_com_120f8_config_contract.py'
       - 'tests/channel_analysis/test_com_120f8_published_profile.py'
       - 'include/si/channel_analysis/com_120f8.hpp'
@@ -13,6 +15,8 @@ on:
     branches: [integration/v1.4.0]
     paths:
       - 'scripts/com_120f8_config_contract.py'
+      - 'scripts/com_120f8_numerical_gate.py'
+      - 'tests/channel_analysis/test_com_120f8_numerical_gate.py'
       - 'tests/channel_analysis/test_com_120f8_config_contract.py'
       - 'tests/channel_analysis/test_com_120f8_published_profile.py'
       - 'include/si/channel_analysis/com_120f8.hpp'
@@ -33,6 +37,7 @@ jobs:
         run: |
           python -m unittest discover -s tests/channel_analysis -p 'test_com_120f8_published_profile.py' -v
           python -m unittest discover -s tests/channel_analysis -p 'test_com_120f8_config_contract.py' -v
+          python -m unittest discover -s tests/channel_analysis -p 'test_com_120f8_numerical_gate.py' -v
       - name: Generate config for three offline candidates without false runtime claims
         shell: bash
         run: |
@@ -109,10 +114,32 @@ jobs:
           print('012_12 input/profile qualified WITHOUT COM verdict',d['source_inputs']['channel_loss_label_db'])
           PY
           done
+      - name: Enforce 012_13 six-case numerical fail-closed boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/com_120f8_numerical_gate.py \
+            --receipt _qa_receipts/012-12-verified-10.json \
+            --receipt _qa_receipts/012-12-verified-16.json \
+            --receipt _qa_receipts/012-12-verified-18.json \
+            --output _qa_receipts/012-13-numerical-boundary.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path("_qa_receipts/012-13-numerical-boundary.json").read_text())
+          assert d["status"] == "FINAL_120F8_NUMERICAL_BLOCKED"
+          assert d["case_count"] == 6 and not d["final_120f_golden_qualified"]
+          assert d["final_profile_numeric_computation"] == "NOT_RUN"
+          assert all(x["reference_com_db"] is None and x["reference_fom_db"] is None
+                     and x["normative_pass_fail"] is None for x in d["cases"])
+          print("012_13: six candidate configurations verified, COM not evaluated")
+          PY
       - name: Upload source-free QA receipts only, never vendor bytes
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: com-012-12-config-and-input-qualification-receipts
-          path: _qa_receipts/012-12-verified-*.json
+          path: |
+            _qa_receipts/012-12-verified-*.json
+            _qa_receipts/012-13-numerical-boundary.json
           if-no-files-found: warn
