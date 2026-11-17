@@ -439,6 +439,20 @@ Result<Com120F8RectangularPulseData> calculateCom120F8RectangularPulse(
           "COM rectangular pulse DC must be real");
   require(std::isfinite(largestStep) && largestStep>0,
           "COM rectangular pulse invalid integration step");
+  // A nonuniform positive-frequency grid combined with plain trapezoids
+  // creates spectral comb aliases (false late ISI/postcursors). The COM
+  // engine does not yet qualify a phase-aware nonuniform quadrature or a
+  // controlled resampler, so explicitly reject ALL such grids. The
+  // caller may supply a separately checked uniform-grid source, never
+  // have this numerical primitive silently interpolate/extrapolate it.
+  const double uniformStep=f[1]-f[0];
+  for(size_t k=2;k<n;++k) {
+    const double actual=f[k]-f[k-1];
+    require(std::abs(actual-uniformStep)<=
+              1e-9*uniformStep,
+            "COM rectangular pulse nonuniform frequency grid requires "
+            "independently qualified phase-aware resampling");
+  }
   for(size_t j=0;j<queryTimeSeconds.size();++j) {
     const double t=queryTimeSeconds[j];
     // A quadrature grid aliases oscillatory exp(j*2*pi*f*t) if the
@@ -455,7 +469,7 @@ Result<Com120F8RectangularPulseData> calculateCom120F8RectangularPulse(
   std::vector<double> weights(n),excitation(n);
   for(size_t k=0;k<n;++k) {
     if(!(k&1023u))check();
-    // Trapezoidal quadrature across the EXACT, possibly nonuniform
+    // Trapezoidal quadrature on the validated STRICTLY UNIFORM
     // measured frequency grid. No extrapolated DC or upper stop band.
     weights[k]=(k==0?(f[1]-f[0])*0.5:
                 k+1==n?(f[n-1]-f[n-2])*0.5:
