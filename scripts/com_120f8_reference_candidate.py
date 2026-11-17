@@ -225,6 +225,9 @@ def run_octave(cfg: Path, inputs: list[Path], root: Path, ext: Path) -> list[dic
 def run(channel: str, mode: str, external: Path, output: Path) -> dict:
     require(channel in SOURCE_CHANNELS, "unqualified source channel")
     ext = validate_external(external)
+    # Physical S4P orientation audit imports sicopr before optimizer launch.
+    # Pin its import path BEFORE that audit, not just in run_python().
+    sys.path.insert(0, str(ext))
     with tempfile.TemporaryDirectory(prefix="ck-final-120f8-reference-") as temp:
         root = Path(temp)
         _, inputs, source = historical.prepare(channel, root)
