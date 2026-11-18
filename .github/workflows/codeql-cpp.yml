@@ -1,0 +1,47 @@
+# Independent CodeQL analysis. Keep the existing multi-platform build/test CI unchanged.
+# For repositories with CodeQL Default setup enabled, switch to Advanced setup
+# before relying on SARIF upload from this workflow.
+name: CodeQL C++ security and quality
+
+on:
+  push:
+    branches:
+      - main
+      - integration/v1.4.0
+  pull_request:
+    branches:
+      - main
+      - integration/v1.4.0
+  workflow_dispatch:
+  # GitHub executes scheduled workflows from the default branch only.
+  # This schedule takes effect after this file is present on main.
+  schedule:
+    - cron: '37 2 * * 1'
+
+permissions:
+  contents: read
+  actions: read
+  security-events: write
+
+jobs:
+  codeql-cpp:
+    name: CodeQL (C/C++)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v5
+
+      # C/C++ supports buildless extraction; avoid rebuilding Qt and the
+      # three platform release matrices solely for a security scan.
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: c-cpp
+          build-mode: none
+          queries: security-and-quality
+
+      - name: Analyze and upload results
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:c-cpp
