@@ -106,6 +106,7 @@ ComEqualizerSearchCandidate evaluate(
   require(compensated.usable(), "012_18: DFE evaluation unavailable");
   ComEqualizerSearchCandidate candidate;
   candidate.equalizer = choice;
+  candidate.settingsIdentity = base.settingsIdentity;
   candidate.dfeTaps = taps;
   candidate.cursorAmplitudeUnitSymbol =
       compensated.value->cursorAmplitudeUnitSymbol;
@@ -177,6 +178,7 @@ Result<ComEqualizerSearchData> searchCom120F8LocalEqualizer(
   data.initial = evaluate(physical,initial,testCase,decisionTimeSeconds,
                           provenance,cancelled);
   data.best = data.initial;
+  data.evaluatedCandidates.push_back(data.initial);
   data.evaluated=1;
 
   const auto p = final8023ck120F8();
@@ -237,6 +239,7 @@ Result<ComEqualizerSearchData> searchCom120F8LocalEqualizer(
         auto evaluated = evaluate(physical,candidate,testCase,
                                   decisionTimeSeconds,provenance,cancelled);
         ++data.evaluated;
+        data.evaluatedCandidates.push_back(evaluated);
         const double tolerance = 1e-12 *
                         std::max(1.,std::abs(data.best.residualScore));
         if (evaluated.residualScore < data.best.residualScore-tolerance)
@@ -248,6 +251,7 @@ Result<ComEqualizerSearchData> searchCom120F8LocalEqualizer(
     }
   }
   require(data.evaluated >= 1 &&
+          data.evaluatedCandidates.size() == data.evaluated &&
           data.evaluated + data.rejected == data.attempted,
           "012_18: inconsistent bounded candidate accounting");
   Result<ComEqualizerSearchData> result;
