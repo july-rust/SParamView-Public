@@ -8,6 +8,7 @@
 #include <stdexcept>
 #include <set>
 #include <string>
+#include <utility>
 
 using namespace si;
 using namespace si::channel;
@@ -36,7 +37,7 @@ Provenance source(const std::string& which = "TEST1") {
   p.mappingGeneration=34;
   return p;
 }
-Result<ComPhysicalChannelData> physical() {
+si::channel::Result<ComPhysicalChannelData> physical() {
   const auto profile=final8023ck120F8();
   ComPhysicalChannelData p;
   p.model="EXPLORATORY_HISTORICAL_8023CK_CAUSAL_PACKAGE_S4P";
@@ -59,7 +60,7 @@ Result<ComPhysicalChannelData> physical() {
     p.test1.loadedSdd.push_back(s1);
     p.test2.loadedSdd.push_back(s2);
   }
-  Result<ComPhysicalChannelData> out;
+  si::channel::Result<ComPhysicalChannelData> out;
   out.status=Status::Warning;
   out.value=std::move(p);
   out.provenance=source();
