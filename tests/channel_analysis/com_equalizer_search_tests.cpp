@@ -6,6 +6,7 @@
 #include <limits>
 #include <numbers>
 #include <stdexcept>
+#include <set>
 #include <string>
 
 using namespace si;
@@ -126,6 +127,20 @@ int main() {
     close(d.best.residualScore,
           std::hypot(d.best.precursorRss,d.best.postcursorRss),
           1e-12,"Chosen objective equals observed precursor/postcursor RSS");
+    demand(d.evaluatedCandidates.size()==d.evaluated,
+           "Every evaluated candidate remains auditable");
+    std::set<std::string> candidateIdentities;
+    for (const auto& c: d.evaluatedCandidates) {
+      demand(candidateIdentities.insert(c.settingsIdentity).second,
+             "All candidate source/EQ identity suffixes must be unique");
+      demand(c.settingsIdentity.find("|case=TEST1|")!=std::string::npos &&
+             c.settingsIdentity.find("|eq=120F8")!=std::string::npos,
+             "Candidate full settings identity remains separated");
+      close(c.residualScore,std::hypot(c.precursorRss,c.postcursorRss),
+            1e-12,"Every candidate score equals its RSS evidence");
+      demand(d.best.residualScore <= c.residualScore+1e-12,
+             "Chosen candidate minimum across every audited neighbor");
+    }
     validateCom120F8Equalizer(d.best.equalizer);
     validateCom120F8DfeTaps(d.best.dfeTaps);
     demand(d.testCase=="TEST1" &&
