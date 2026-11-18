@@ -1,6 +1,6 @@
 # 012_18 — Bounded COM FFE/CTLE one-step local search with ideal DFE
 
-**Status:** Implementation submitted for CI; acceptance is determined by exact PR HEAD required checks and protected squash merge.
+**Status:** Initial 012_18 implementation merged in [PR #77](https://github.com/july-rust/SParamView-Public/pull/77), exact-HEAD required CI [#44204941042](https://github.com/july-rust/SParamView-Public/actions/runs/44204941042) **SUCCESS** and post-merge push CI [#44207280011](https://github.com/july-rust/SParamView-Public/actions/runs/44207280011) **SUCCESS**. Follow-up input-provenance qualification is subject to its own exact-HEAD CI and review evidence.
 
 ## Purpose and scope
 
@@ -9,13 +9,18 @@ observed residual ISI RSS**. It is **NOT** IEEE 802.3ck Annex 93A optimum,
 normative COM/DER/BER, voltage margin, or PHY PASS/FAIL. Production
 `calculateCom()` deliberately remains `NotEvaluated`.
 
-Input is a caller-provided trusted historical causal Test1/Test2 physical
-`ComPhysicalChannelData`, full case-specific source SHA/revision/mapping/
-generation/settings identity, one valid 120F-8 FFE/CTLE seed and an explicit
-decision instant. The engine does **not** independently recreate a
-SourceSnapshot from already prepared physical spectra. Caller must ensure
-the given physical input belongs to that source and reject live generation
-changes outside this synchronous numerical function.
+Input is a provenance-bearing `Result<ComPhysicalChannelData>` from the
+pre-existing historical causal S4P physical pipeline; the exact upstream
+algorithm/version and source SHA, revision, mapping, workspace/mapping
+generations **must match** the caller's case-specific `Provenance`. An
+unqualified, NotEvaluated, absent or mismatched physical Result fails closed
+before numerical evaluation. This guards accidental cross-source mixing;
+it does not cryptographically prove that a hand-constructed Result contains
+genuine bytes. The caller must use `calculateHistoricalCausalC2cFromSource`
+(or a properly verified equivalent), recheck live SourceSnapshot generation,
+and avoid fabricating provenance. This engine does **not** itself read a
+SourceSnapshot from raw traces. One valid 120F-8 FFE/CTLE seed and an
+explicit decision instant are required.
 
 ## Search contract
 
@@ -83,10 +88,12 @@ bounds, and rejects NaN/invalid normalized cursor.
 
 The integrated fixture independently supplies a synthetic reciprocal,
 passive, complex, delayed two-port on a uniform 0..32-GHz frequency
-grid. This exercises the existing physical FFE/CTLE, actual rectangular
-symbol quadrature, DFE, deterministic neighborhood selection, case
-isolation, source identity, explicit numeric budget, cancellation and
-fail-closed behavior. The fixture is an engineering synthetic model,
+grid. It wraps the data in an upstream-algorithm-identified Result to
+exercise the existing physical FFE/CTLE, actual rectangular symbol
+quadrature, DFE, deterministic neighborhood selection, both Test cases,
+source SHA/revision/mapping-generation/version mismatches, unavailable
+upstream Result, an excessive bin count, nonuniform-grid rejection,
+cancellation and fail-closed behavior. The fixture is an engineering synthetic model,
 NOT official IEEE PHY qualification. No full historical Python/Octave
 3x2 reference is rerun.
 

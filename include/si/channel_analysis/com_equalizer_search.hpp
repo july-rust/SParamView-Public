@@ -33,13 +33,15 @@ std::array<double,6> minimizeCom120F8IdealDfeResidual(
     const std::array<double,13>& normalized);
 
 // Each call evaluates one explicitly selected Test1 or Test2 package.
-// Caller supplies an existing, trusted and fully source-identified physical
-// Test1/Test2 object. No SourceSnapshot is inferred from the spectra.
+// Requires the complete provenance-bearing Result of the established
+// historical causal S4P physical engine. The source SHA/revision/mapping/
+// generations and upstream algorithm must match caller provenance. No
+// SourceSnapshot is inferred; live generation freshness is a caller duty.
 // Exactly 13 UI sample times, the SAME decision time for all candidates.
 // Fixed upper bound of 13 candidates and finite convolution-work budget.
 // No normative COM, PHY/BER/DER verdict, global optimum, or GUI.
 Result<ComEqualizerSearchData> searchCom120F8LocalEqualizer(
-    const ComPhysicalChannelData& physical,
+    const Result<ComPhysicalChannelData>& physical,
     const Com120F8EqualizerChoice& initial,
     const std::string& testCase, double decisionTimeSeconds,
     Provenance provenance, const std::atomic_bool* cancelled = nullptr);
