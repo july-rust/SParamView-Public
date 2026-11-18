@@ -26,6 +26,17 @@ bool trustedSource(const Provenance& p) {
          !p.settingsIdentity.empty() && p.workspaceGeneration != 0 &&
          p.mappingGeneration != 0;
 }
+bool samePhysicalSource(const Provenance& upstream,
+                        const Provenance& caller) {
+  return trustedSource(caller) &&
+         upstream.sourceSha256 == caller.sourceSha256 &&
+         upstream.revision == caller.revision &&
+         upstream.mappingIdentity == caller.mappingIdentity &&
+         upstream.workspaceGeneration == caller.workspaceGeneration &&
+         upstream.mappingGeneration == caller.mappingGeneration &&
+         upstream.algorithm == "com-causal-c2c-historical-physical-network" &&
+         upstream.version == "012_09-causal-package-1";
+}
 bool sameChoice(const Com120F8EqualizerChoice& a,
                 const Com120F8EqualizerChoice& b) {
   return a.txFfe == b.txFfe &&
@@ -135,7 +146,7 @@ std::array<double,6> minimizeCom120F8IdealDfeResidual(
 }
 
 Result<ComEqualizerSearchData> searchCom120F8LocalEqualizer(
-    const ComPhysicalChannelData& physical,
+    const Result<ComPhysicalChannelData>& physicalResult,
     const Com120F8EqualizerChoice& initial,
     const std::string& testCase, double decisionTimeSeconds,
     Provenance provenance, const std::atomic_bool* cancelled) {
@@ -151,6 +162,12 @@ Result<ComEqualizerSearchData> searchCom120F8LocalEqualizer(
           provenance.settingsIdentity.find(wrongCase) == std::string::npos &&
           provenance.settingsIdentity.find("|eq=") == std::string::npos,
           "012_18: case or equalizer identity is ambiguous");
+  require(physicalResult.usable() &&
+          physicalResult.status == Status::Warning &&
+          physicalResult.value.has_value() &&
+          samePhysicalSource(physicalResult.provenance, provenance),
+          "012_18: unavailable, unqualified or mismatched physical source result");
+  const auto& physical = *physicalResult.value;
   require(physical.model != nullptr && std::string_view(physical.model) ==
           "EXPLORATORY_HISTORICAL_8023CK_CAUSAL_PACKAGE_S4P",
           "012_18: physical source model is not qualified for this bridge");
