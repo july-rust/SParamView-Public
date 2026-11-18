@@ -1,22 +1,16 @@
 # Independent CodeQL analysis. Keep the existing multi-platform build/test CI unchanged.
-# For repositories with CodeQL Default setup enabled, switch to Advanced setup
-# before relying on SARIF upload from this workflow.
+# GitHub's main branch has a separate CodeQL Advanced workflow for C/C++, Python,
+# and Actions. Keep this workflow specific to the integration branch to avoid
+# duplicate CodeQL C/C++ uploads when the integration branch reaches main.
 name: CodeQL C++ security and quality
 
 on:
   push:
     branches:
-      - main
       - integration/v1.4.0
   pull_request:
     branches:
-      - main
       - integration/v1.4.0
-  workflow_dispatch:
-  # GitHub executes scheduled workflows from the default branch only.
-  # This schedule takes effect after this file is present on main.
-  schedule:
-    - cron: '37 2 * * 1'
 
 permissions:
   contents: read
