@@ -43,7 +43,8 @@ add_library(si_channel_analysis src/channel_analysis/common.cpp
                                 src/channel_analysis/com_interference.cpp
                                 src/channel_analysis/com_receiver_noise.cpp
                                 src/channel_analysis/com_jitter.cpp
-                                src/channel_analysis/com_dfe.cpp)
+                                src/channel_analysis/com_dfe.cpp
+                                src/channel_analysis/com_equalizer_search.cpp)
 target_include_directories(si_channel_analysis PUBLIC include)
 target_link_libraries(si_channel_analysis PUBLIC si_core)
 if(MSVC)
@@ -156,6 +157,13 @@ target_link_libraries(si_com_dfe_tests PRIVATE si_channel_analysis)
 add_test(NAME channel_com_dfe_fixed_taps COMMAND si_com_dfe_tests)
 set_tests_properties(channel_com_dfe_fixed_taps PROPERTIES TIMEOUT 90)
 install(TARGETS si_com_dfe_tests RUNTIME DESTINATION tests)
+# 012_18: bounded COM FFE/CTLE local search and independent ideal DFE oracle.
+add_executable(si_com_equalizer_search_tests
+  tests/channel_analysis/com_equalizer_search_tests.cpp)
+target_link_libraries(si_com_equalizer_search_tests PRIVATE si_channel_analysis)
+add_test(NAME channel_com_equalizer_local_search COMMAND si_com_equalizer_search_tests)
+set_tests_properties(channel_com_equalizer_local_search PROPERTIES TIMEOUT 90)
+install(TARGETS si_com_equalizer_search_tests RUNTIME DESTINATION tests)
 add_executable(si_hardening_tests tests/hardening_tests.cpp)
 target_link_libraries(si_hardening_tests PRIVATE si_core)
 install(TARGETS si_hardening_tests RUNTIME DESTINATION tests)
