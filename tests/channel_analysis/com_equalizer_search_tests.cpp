@@ -36,7 +36,7 @@ Provenance source(const std::string& which = "TEST1") {
   p.mappingGeneration=34;
   return p;
 }
-ComPhysicalChannelData physical() {
+Result<ComPhysicalChannelData> physical() {
   const auto profile=final8023ck120F8();
   ComPhysicalChannelData p;
   p.model="EXPLORATORY_HISTORICAL_8023CK_CAUSAL_PACKAGE_S4P";
@@ -59,7 +59,14 @@ ComPhysicalChannelData physical() {
     p.test1.loadedSdd.push_back(s1);
     p.test2.loadedSdd.push_back(s2);
   }
-  return p;
+  Result<ComPhysicalChannelData> out;
+  out.status=Status::Warning;
+  out.value=std::move(p);
+  out.provenance=source();
+  out.provenance.settingsIdentity.clear(); // Physical source precedes EQ.
+  out.provenance.algorithm="com-causal-c2c-historical-physical-network";
+  out.provenance.version="012_09-causal-package-1";
+  return out;
 }
 } // namespace
 int main() {
@@ -191,15 +198,66 @@ int main() {
         channel,start,"TEST1",std::numeric_limits<double>::infinity(),p);},
         "Infinite cursor timing rejected");
     auto invalidPhysical=channel;
-    invalidPhysical.model="INVALID";
+    invalidPhysical.value->model="INVALID";
     reject([&]{(void)searchCom120F8LocalEqualizer(
         invalidPhysical,start,"TEST1",cursor,p);},
         "Unqualified physical model rejected");
     auto truncated=channel;
-    truncated.frequencyHz.resize(400);
+    truncated.value->frequencyHz.resize(400);
     reject([&]{(void)searchCom120F8LocalEqualizer(
         truncated,start,"TEST1",cursor,p);},
         "Missing Nyquist grid rejected");
+    // A matching-looking raw physical model is not sufficient: the
+    // origin-bearing Result and its algorithm/version must actually match.
+    auto alteredPhysical=channel;
+    alteredPhysical.provenance.sourceSha256=std::string(64,'d');
+    reject([&]{(void)searchCom120F8LocalEqualizer(
+        alteredPhysical,start,"TEST1",cursor,p);},
+        "Different upstream source SHA fails closed");
+    alteredPhysical=channel;
+    alteredPhysical.provenance.mappingGeneration++;
+    reject([&]{(void)searchCom120F8LocalEqualizer(
+        alteredPhysical,start,"TEST1",cursor,p);},
+        "Different physical mapping generation fails closed");
+    alteredPhysical=channel;
+    alteredPhysical.provenance.revision+="tampered";
+    reject([&]{(void)searchCom120F8LocalEqualizer(
+        alteredPhysical,start,"TEST1",cursor,p);},
+        "Different physical revision fails closed");
+    alteredPhysical=channel;
+    alteredPhysical.provenance.algorithm="unqualified-physical-spectra";
+    reject([&]{(void)searchCom120F8LocalEqualizer(
+        alteredPhysical,start,"TEST1",cursor,p);},
+        "Unknown upstream physical algorithm fails closed");
+    alteredPhysical=channel;
+    alteredPhysical.provenance.version="wrong-version";
+    reject([&]{(void)searchCom120F8LocalEqualizer(
+        alteredPhysical,start,"TEST1",cursor,p);},
+        "Unknown physical algorithm version fails closed");
+    alteredPhysical=channel;
+    alteredPhysical.status=Status::NotEvaluated;
+    reject([&]{(void)searchCom120F8LocalEqualizer(
+        alteredPhysical,start,"TEST1",cursor,p);},
+        "Not-evaluated physical source rejected");
+    alteredPhysical=channel;
+    alteredPhysical.value.reset();
+    reject([&]{(void)searchCom120F8LocalEqualizer(
+        alteredPhysical,start,"TEST1",cursor,p);},
+        "Physical source without spectrum rejected");
+
+    auto excessive=channel;
+    excessive.value->frequencyHz.clear();
+    for (int k=0; k<=32769; ++k)
+      excessive.value->frequencyHz.push_back(8e6*static_cast<double>(k));
+    reject([&]{(void)searchCom120F8LocalEqualizer(
+        excessive,start,"TEST1",cursor,p);},
+        "Over-budget frequency grid fails before symbol quadrature");
+    // Reject a non-uniform valid-step grid, without silently resampling.
+    auto nonuniform=channel;
+    nonuniform.value->frequencyHz[200]+=1e6;
+    reject([&]{(void)searchCom120F8LocalEqualizer(
+        nonuniform,start,"TEST1",cursor,p);},
+        "Nonuniform source grid must not be silently integrated");
     std::atomic_bool cancelled{true};
     bool stopped=false;
     try {(void)searchCom120F8LocalEqualizer(
