@@ -11,6 +11,7 @@
 namespace si::channel {
 struct ComEqualizerSearchCandidate {
   Com120F8EqualizerChoice equalizer;
+  std::string settingsIdentity;
   std::array<double,6> dfeTaps{};
   double cursorAmplitudeUnitSymbol = 0;
   double precursorRss = 0, postcursorRss = 0, residualScore = 0;
@@ -19,6 +20,7 @@ struct ComEqualizerSearchData {
   std::string testCase;
   double decisionTimeSeconds = 0;
   ComEqualizerSearchCandidate initial, best;
+  std::vector<ComEqualizerSearchCandidate> evaluatedCandidates;
   size_t attempted = 0, evaluated = 0, rejected = 0;
   std::vector<std::string> rejectionReasons;
   std::string model = "NON_NORMATIVE_ONE_STEP_120F8_ISI_LOCAL_SEARCH";
