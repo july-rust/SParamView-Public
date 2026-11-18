@@ -1,8 +1,7 @@
-# Independent CodeQL analysis. Keep the existing multi-platform build/test CI unchanged.
-# GitHub's main branch has a separate CodeQL Advanced workflow for C/C++, Python,
-# and Actions. Keep this workflow specific to the integration branch to avoid
-# duplicate CodeQL C/C++ uploads when the integration branch reaches main.
-name: CodeQL C++ security and quality
+# Independent CodeQL analysis for integration/v1.4.0 only.
+# main already has a separate CodeQL Advanced workflow for C/C++, Python, Actions.
+# No product source or existing three-platform build/test CI is modified.
+name: CodeQL integration security and quality
 
 on:
   push:
@@ -18,24 +17,71 @@ permissions:
   security-events: write
 
 jobs:
-  codeql-cpp:
-    name: CodeQL (C/C++)
+  codeql:
+    name: CodeQL (${{ matrix.language }})
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [c-cpp, python, actions]
     steps:
       - name: Checkout source
         uses: actions/checkout@v5
 
-      # C/C++ supports buildless extraction; avoid rebuilding Qt and the
-      # three platform release matrices solely for a security scan.
+      # Buildless C++ intentionally includes both GUI and Qt-free sources.
+      # It is not identical to build-aware coverage; the existing CI performs
+      # actual builds and tests on Linux, Windows x64/ARM64 and macOS.
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
         with:
-          languages: c-cpp
+          languages: ${{ matrix.language }}
           build-mode: none
           queries: security-and-quality
 
       - name: Analyze and upload results
+        id: analyze
         uses: github/codeql-action/analyze@v4
         with:
-          category: /language:c-cpp
+          category: /language:${{ matrix.language }}
+
+      # The GitHub connector cannot enumerate Code Scanning alerts.
+      # Summarize raw SARIF rule hits without exposing code snippets or paths;
+      # these hits are not necessarily equal to GitHub's open-alert count.
+      - name: Summarize raw SARIF findings
+        env:
+          SARIF_DIR: ${{ steps.analyze.outputs.sarif-output }}
+          SCAN_LANGUAGE: ${{ matrix.language }}
+        run: |
+          python3 - <<'PY'
+          import collections
+          import json
+          import os
+          from pathlib import Path
+
+          folder = Path(os.environ["SARIF_DIR"])
+          files = sorted(folder.glob("*.sarif"))
+          if not files:
+              raise SystemExit(f"No SARIF found at {folder}")
+          by_rule = collections.Counter()
+          by_level = collections.Counter()
+          for file in files:
+              data = json.loads(file.read_text(encoding="utf-8"))
+              for run in data.get("runs", []):
+                  for result in run.get("results", []):
+                      rule = result.get("ruleId") or "(missing rule)"
+                      by_rule[rule] += 1
+                      by_level[result.get("level", "unspecified")] += 1
+          lines = [
+              f"### CodeQL {os.environ['SCAN_LANGUAGE']} — raw SARIF summary",
+              f"- SARIF files: {len(files)}",
+              f"- Raw results (may include diagnostics): {sum(by_rule.values())}",
+              f"- Levels: {dict(by_level)}",
+              "- Most frequent rule IDs:",
+          ]
+          lines += [f"  - {rule}: {count}" for rule, count in by_rule.most_common(15)]
+          report = "\n".join(lines) + "\n"
+          print(report)
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+              summary.write(report)
+          PY
