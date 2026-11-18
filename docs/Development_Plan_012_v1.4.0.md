@@ -12,6 +12,8 @@
 
 > **2026-11-18 신규 012_17:** [COM 고정 6-Tap DFE 잔류 ISI 엔진](COM_DFE_012_17.md)은 이전 명령의 임펄스/심볼 혼용 문제를 수정하여 기존 band-limited rectangular-SYMBOL 응답만 입력한다. 최종 120F-8 Tap Min/Max, 명시적인 -3..+9 UI 결정 시점, Test1/Test2 출처 격리, 고정된 독립 수치 Golden 및 실제 심볼 컨볼루션 회귀만 수행한다. DFE 최적화 탐색, Annex 93A 전체 통계, COM dB, PHY PASS/FAIL, GUI, main/릴리스는 제외한다. 완료 여부는 최신 PR HEAD 필수 CI와 보호 병합 증거로만 판정한다.
 
+> **2026-11-18 신규 012_18:** [Bounded FFE/CTLE One-Step Local Search + DFE 수치 검증](COM_Equalizer_Search_012_18.md). 최종 120F-8의 6개 이산 EQ 독립 변수에서 현재 설정 주변 최대 13개 후보만 결정적으로 평가하고, 각 후보의 고정 심볼 응답에 대한 6-Tap DFE 최소 잔류 ISI를 published continuous 범위 내에서 계산한다. 동일 Test1/Test2 조건 및 명시적 커서, Source/Mapping/Generation/Settings 출처와 유한 심볼 적분 예산을 유지한다. **이는 비규범 국소 ISI 최적화일 뿐** Annex 93A 전체 최적화·COM dB·BER/DER·PHY PASS/FAIL 또는 GUI가 아니다. `calculateCom()`은 `NotEvaluated` 유지. 완료는 최신 PR HEAD 필수 CI/리뷰와 squash merge 증거로만 확정한다. 
+
 **기준일:** 2026-11-16 (KST)
 **공식 기준:** v1.3.5 (tag/release 불변)
 **목표:** ILD·ICN·Eye Diagram·COM을 각각 독립적인 C++20 수치 엔진, Qt6 창, 테스트로 구현하고 **v1.4.0 한 번에 릴리스**
