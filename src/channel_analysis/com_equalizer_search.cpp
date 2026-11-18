@@ -244,6 +244,10 @@ Result<ComEqualizerSearchData> searchCom120F8LocalEqualizer(
                         std::max(1.,std::abs(data.best.residualScore));
         if (evaluated.residualScore < data.best.residualScore-tolerance)
           data.best = std::move(evaluated);
+      } catch (const si::Cancelled&) {
+        // Cancelled derives from si::Error; it must NEVER become a
+        // rejected candidate, particularly during the final neighbor.
+        throw;
       } catch (const si::Error& e) {
         ++data.rejected;
         data.rejectionReasons.push_back(label+":NUMERIC_REJECTED:"+e.what());
