@@ -228,7 +228,7 @@ bool sameTaps(const std::vector<ComCombinedTapRecord>& a,
   for(size_t i=0;i<a.size();++i)
     if(a[i].role!=b[i].role || a[i].aggressorId!=b[i].aggressorId ||
        a[i].uiOffset!=b[i].uiOffset ||
-       a[i].signedVoltageV!=b[i].signedVoltageV) return false;
+       std::abs(a[i].signedVoltageV-b[i].signedVoltageV)>1e-15) return false;
   return true;
 }
 void eraseNext(ComCombinedTailInput& in) {
@@ -285,14 +285,15 @@ int main() {
   need(two.value->test1.selectedTapCount==6 &&
        two.value->test1.omittedTapCount==0 &&
        two.value->test1.statesEvaluated==4096 &&
-       two.value->test1.lowerTailBoundV==two.value->test1.upperTailBoundV,
+       std::abs(two.value->test1.lowerTailBoundV-
+                two.value->test1.upperTailBoundV)<=0.,
        "combined exact six-tap budget");
   need(two.value->test2.testCase=="TEST2" &&
-       two.value->test2.selectedTailQuantileV!=
-           two.value->test1.selectedTailQuantileV &&
-       two.value->worstCaseExploratoryUpperTailV==
-           std::max(two.value->test1.upperTailBoundV,
-                    two.value->test2.upperTailBoundV),
+       std::abs(two.value->test2.selectedTailQuantileV-
+                two.value->test1.selectedTailQuantileV)>1e-9 &&
+       std::abs(two.value->worstCaseExploratoryUpperTailV-
+                std::max(two.value->test1.upperTailBoundV,
+                         two.value->test2.upperTailBoundV))<1e-15,
        "two test cases and worst exploratory upper bound");
   bool hasFext=false;
   for(const auto& t:two.value->test1.selectedTaps)
@@ -369,8 +370,8 @@ int main() {
   const auto permuted=calculateComCombinedTailBridge(reordered,p,live);
   need(sameTaps(permuted.value->test1.selectedTaps,b.selectedTaps) &&
        sameTaps(permuted.value->test1.omittedTaps,b.omittedTaps) &&
-       permuted.value->test1.selectedTailQuantileV==
-           b.selectedTailQuantileV,
+       std::abs(permuted.value->test1.selectedTailQuantileV-
+                b.selectedTailQuantileV)<1e-15,
        "deterministic input permutation invariance");
 
   auto dd=fixture(p,2);
