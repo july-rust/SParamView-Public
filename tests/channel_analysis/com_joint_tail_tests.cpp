@@ -18,6 +18,28 @@ void require(bool condition, const char* why) {
 void near(double x, double y, double tolerance, const char* why) {
   require(std::isfinite(x) && std::abs(x-y)<=tolerance, why);
 }
+void bracket(const ComJointTailData& data, double oracle, double p,
+             const char* why) {
+  require(data.numericalQualification ==
+              "NUMERICALLY_BRACKETED_NOT_CERTIFIED" &&
+          std::isfinite(data.numericalQuantileLowerV) &&
+          std::isfinite(data.numericalQuantileUpperV) &&
+          data.numericalQuantileLowerV >= 0. &&
+          data.numericalQuantileLowerV < data.oneSidedNoiseQuantileV &&
+          data.oneSidedNoiseQuantileV < data.numericalQuantileUpperV &&
+          oracle > data.numericalQuantileLowerV &&
+          oracle < data.numericalQuantileUpperV &&
+          data.lowerEndpointTailProbability > p &&
+          data.upperEndpointTailProbability < p &&
+          data.lowerEndpointTailProbability >= data.verifiedTailProbability &&
+          data.verifiedTailProbability >= data.upperEndpointTailProbability &&
+          data.numericalBracketWidthV > 0. &&
+          std::isfinite(data.numericalBracketWidthV) &&
+          data.normalizedBracketWidth > 0. &&
+          data.numericalBracketWidthV <= 1e-5 *
+              std::max(1., std::abs(data.oneSidedNoiseQuantileV)),
+          why);
+}
 template<class Fn> void rejects(Fn fn, const char* why) {
   bool hit=false;
   try { (void)fn(); } catch(const Error&) { hit=true; }
@@ -76,6 +98,17 @@ int main() {
       pure.diagnostics[0].code=="NOT_IEEE_COM", "non-normative contract");
     near(pure.value->oneSidedNoiseQuantileV,.0852978158784565,1e-12,
         "independent analytic standard Gaussian quantile");
+    bracket(*pure.value,.08529781587845649257,1e-5,
+            "pure Gaussian high-precision interval oracle");
+    // Independent 80-digit mpmath erfinv references; no runtime Python.
+    const auto lowP=calculateComJointTail(
+        inputs(.02,0,0,{},1e-12,p1,"TEST1"),"TEST1",p1);
+    bracket(*lowP.value,.14068967650602263860,1e-12,
+            "1e-12 boundary high-precision Gaussian quantile");
+    const auto highP=calculateComJointTail(
+        inputs(.02,0,0,{},.1,p1,"TEST1"),"TEST1",p1);
+    bracket(*highP.value,.02563103131089200934,.1,
+            "0.1 boundary high-precision Gaussian quantile");
     require(pure.value->statesEvaluated==1,"Gaussian one state");
     near(pure.value->gaussianVarianceV2,.0004,1e-16,"Gaussian variance");
 
@@ -85,6 +118,8 @@ int main() {
         inputs(.02,0,0,{.03},1e-5,p1,"TEST1"),"TEST1",p1);
     near(one.value->oneSidedNoiseQuantileV,.10893359953178733,1e-12,
          "independent four-state golden");
+    bracket(*one.value,.10893359953178733,1e-5,
+            "one PAM4 tap independent golden in numerical interval");
     require(one.value->statesEvaluated==4,"PAM4 must have four states");
     near(one.value->totalVarianceV2,.0004+(.03*.03)*5./9.,1e-15,
          "PAM4 level variance");
@@ -93,6 +128,8 @@ int main() {
         inputs(.012,.016,.015,{.03},1e-5,p1,"TEST1"),"TEST1",p1);
     near(joint.value->oneSidedNoiseQuantileV,.12056005802997405,1e-12,
          "independent eight-state Gaussian RJ/receiver + DD/PAM4 golden");
+    bracket(*joint.value,.12056005802997405,1e-5,
+            "Gaussian RJ Dual-Dirac PAM4 bracket");
     require(joint.value->statesEvaluated==8,"eight mixture states");
     near(joint.value->gaussianVarianceV2,.0004,1e-16,"independent Gaussian sum");
     near(joint.value->totalVarianceV2,
@@ -104,6 +141,8 @@ int main() {
         inputs(.012,.016,.015,{.03,.01},1e-8,p1,"TEST1"),"TEST1",p1);
     near(harder.value->oneSidedNoiseQuantileV,.15527837162253227,1e-11,
          "independent 32-state 1e-8 tail golden");
+    bracket(*harder.value,.15527837162253227,1e-8,
+            "1e-8 Gaussian mixture bracket");
     require(harder.value->statesEvaluated==32,"32 mixture states");
     // Codex adversarial case: p equals an exact 1/16 discrete-state mass.
     // The double-precision erfc tail rounds to exactly p over an enormous
@@ -155,8 +194,12 @@ int main() {
             "different case calibrations cannot be compared");
     auto full=inputs(.02,0,.001,
         {0.001,0.002,0.003,0.004,0.005,0.006},1e-5,p1,"TEST1");
-    require(calculateComJointTail(full,"TEST1",p1).value->statesEvaluated==8192,
-            "bounded 8192-state maximum");
+    const auto fullResult=calculateComJointTail(full,"TEST1",p1);
+    require(fullResult.value->statesEvaluated==8192 &&
+            fullResult.value->numericalBracketWidthV>0. &&
+            fullResult.value->lowerEndpointTailProbability>1e-5 &&
+            fullResult.value->upperEndpointTailProbability<1e-5,
+            "8192 state maximum with validated numerical crossing");
     full.pam4Taps.push_back(component(.001,
         ComJointComponentKind::IndependentPam4Tap,"pam4-6",p1,"TEST1"));
     rejects([&]{return calculateComJointTail(full,"TEST1",p1);},
