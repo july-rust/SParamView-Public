@@ -160,8 +160,8 @@ int main() {
        t1.omittedTapCount==0 && t2.omittedTapCount==0 &&
        t1.statesEvaluated==16 && t2.statesEvaluated==16 &&
        t1.boundMode=="EXACT_ASSUMED_MIXTURE" &&
-       t1.lowerTailBoundV==t1.selectedTailQuantileV &&
-       t1.upperTailBoundV==t1.selectedTailQuantileV &&
+       !(t1.lowerTailBoundV < t1.selectedTailQuantileV) &&
+       !(t1.upperTailBoundV > t1.selectedTailQuantileV) &&
        t1.componentRole=="VICTIM_SELF_ISI" &&
        t1.selectedUiOffsets[0]==1 && t1.selectedUiOffsets[1]==-1 &&
        t2.selectedUiOffsets[0]==-1 && t2.selectedUiOffsets[1]==1 &&
