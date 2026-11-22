@@ -31,7 +31,7 @@ Each component is a provenance-bearing `Result<ComJointVoltageEvidence>`. Inputs
 
 These metadata checks are **not cryptographic or physical proof** of calibration or statistical independence. The utility cannot create calibrated volts from 012_14 dimensionless pulses or from 012_17/18 normalized ISI or synthesize the normative COM noise reference from historical candidate 012_13.
 
-Output is always `Warning / NOT_IEEE_COM`, model `EXPLORATORY_INDEPENDENT_PAM4_DUAL_DIRAC_GAUSSIAN`. The paired Test1/Test2 helper reports the maximum of the two **exploratory noise quantiles**, not worst-case IEEE COM. Production `calculateCom()` remains `NotEvaluated` with no finite COM or verdict. No GUI or released tag is changed.
+Output is always `Warning / NOT_IEEE_COM`, model `EXPLORATORY_INDEPENDENT_PAM4_DUAL_DIRAC_GAUSSIAN`. The paired Test1/Test2 helper requires identical tail targets and comparable receiver plane/calibration between cases before reporting the maximum of the two **exploratory noise quantiles**, not worst-case IEEE COM. Production `calculateCom()` remains `NotEvaluated` with no finite COM or verdict. No GUI or released tag is changed.
 
 ## Bounded independent numerical acceptance
 
