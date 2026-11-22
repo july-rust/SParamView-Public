@@ -71,9 +71,17 @@ void validatePulse(const Com120F8RectangularPulseData& p) {
             "012_21: pulse is not sampled at -3..+9 UI");
     observedMax=std::max(observedMax,std::abs(v));
   }
-  require(std::abs(observedMax-p.maximumAbsolutePulse)<=
-             1e-10*std::max(1.,observedMax),
-          "012_21: pulse maximum is inconsistent");
+  // A unit-symbol pulse may be arbitrarily small: an absolute 1e-10
+  // floor would admit a false zero maximum for a nonzero waveform.
+  if(std::fpclassify(observedMax)==FP_ZERO) {
+    require(std::fpclassify(p.maximumAbsolutePulse)==FP_ZERO,
+            "012_21: all-zero pulse reports nonzero maximum");
+  } else {
+    require(p.maximumAbsolutePulse>0. &&
+            std::abs(observedMax-p.maximumAbsolutePulse)/
+                std::max(observedMax,p.maximumAbsolutePulse)<=1e-10,
+            "012_21: pulse maximum differs by relative magnitude");
+  }
 }
 void validateScale(const Result<ComVoltageScaleEvidence>& r,
                    const Provenance& expected, const char* which) {

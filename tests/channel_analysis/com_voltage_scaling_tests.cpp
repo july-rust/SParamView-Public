@@ -207,6 +207,21 @@ int main() {
   bad=input; bad.pulses.value->test1.maximumAbsolutePulse=4.;
   rejects([&]{return scaleCom120F8ReceiverEquivalentVoltage(bad,p);},
           "invalid pulse max");
+  bad=input;
+  for(double& v:bad.pulses.value->test1.unitSymbolPulse) v*=1e-12;
+  bad.test1Scale.value->voltsPerUnitSymbol=1e12;
+  bad.pulses.value->test1.maximumAbsolutePulse=0.;
+  rejects([&]{return scaleCom120F8ReceiverEquivalentVoltage(bad,p);},
+          "tiny nonzero pulse with claimed zero maximum must reject");
+  bad.pulses.value->test1.maximumAbsolutePulse=.8e-12;
+  near(scaleCom120F8ReceiverEquivalentVoltage(bad,p)
+           .value->test1.cursorEquivalentV,.8,1e-14,
+       "tiny consistent pulse with large scale is valid");
+  bad=input;
+  for(double& v:bad.pulses.value->test1.unitSymbolPulse) v=0.;
+  bad.pulses.value->test1.maximumAbsolutePulse=.1;
+  rejects([&]{return scaleCom120F8ReceiverEquivalentVoltage(bad,p);},
+          "all-zero pulse cannot report nonzero maximum");
   bad=input; bad.pulses.value->test1.unitSymbolPulse.pop_back();
   rejects([&]{return scaleCom120F8ReceiverEquivalentVoltage(bad,p);},
           "invalid pulse tap count");
