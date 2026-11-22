@@ -230,8 +230,13 @@ Result<ComJointTailCasesData> calculateComJointTailCases(
   validateExpected(p1, "TEST1");
   validateExpected(p2, "TEST2");
   samePhysicalSource(p1, p2);
+  require(test1.oneSidedTailProbability == test2.oneSidedTailProbability,
+          "Test1/Test2 tail targets are not comparable");
   const auto a = calculateComJointTail(test1, "TEST1", p1, cancelled);
   const auto b = calculateComJointTail(test2, "TEST2", p2, cancelled);
+  require(a.value->referencePlane == b.value->referencePlane &&
+          a.value->calibrationIdentity == b.value->calibrationIdentity,
+          "Test1/Test2 receiver voltage planes or calibrations differ");
   check(cancelled);
   Result<ComJointTailCasesData> out;
   out.status = Status::Warning;
