@@ -25,7 +25,7 @@ void checkExpected(const Provenance& p, std::string_view test) {
   const std::string token = "|case=" + std::string(test) + "|";
   const auto pos = p.settingsIdentity.find(token);
   require(pos != std::string::npos &&
-          p.settingsIdentity.find(token, pos + token.size()) == std::string::npos &&
+          p.settingsIdentity.find(token, pos + 1) == std::string::npos &&
           p.settingsIdentity.find(test == "TEST1" ? "|case=TEST2|" :
                                   "|case=TEST1|") == std::string::npos,
           "Mixed, duplicated or missing Test case identity");
@@ -50,9 +50,9 @@ void checkEvidence(const Result<ComVoltageEvidence>& r,
 }
 double safeDb(double a, double b) {
   // Prefer direct log of a representable ratio near unity.
-  // Subtract logs if division underflows/overflows.
+  // Subtract logs if division underflows, overflows, or rounds to subnormal.
   const double q = a / b;
-  const double db = std::isfinite(q) && q > 0. ?
+  const double db = std::isnormal(q) && q > 0. ?
       20. * std::log10(q) :
       (20. / std::log(10.)) * (std::log(a) - std::log(b));
   require(std::isfinite(db), "Invalid logarithmic voltage ratio");

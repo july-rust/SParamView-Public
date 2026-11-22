@@ -67,6 +67,13 @@ int main() {
       close(calculateComDiagnosticVoltageRatio(
           inputs(.4*scale,.2*scale,p1,"TEST1"),"TEST1",p1)
           .value->ratioDb,oracle,1e-12,"voltage scale invariance");
+    // Independent 80-digit Decimal oracle for positive subnormal ratio.
+    // A rounded subnormal quotient can be off by multiple dB.
+    const auto subnormal = calculateComDiagnosticVoltageRatio(
+        inputs(std::numeric_limits<double>::min(), 3e15, p1, "TEST1"),
+        "TEST1", p1);
+    close(subnormal.value->ratioDb, -6462.5955364661689, 1e-9,
+          "subnormal quotient must use logarithmic fallback");
     auto extreme=calculateComDiagnosticVoltageRatio(
         inputs(std::numeric_limits<double>::max(),
                std::numeric_limits<double>::denorm_min(),p1,"TEST1"),
@@ -128,6 +135,14 @@ int main() {
     malformed.settingsIdentity+="|case=TEST1|";
     rejects([&]{(void)calculateComDiagnosticVoltageRatio(
         t1,"TEST1",malformed);},"duplicate case");
+    // An overlapping delimiter can hide a duplicate case token.
+    // The evidence must MATCH the malformed expected provenance so the
+    // failure is from parsing rather than a provenance mismatch.
+    malformed=p1;
+    malformed.settingsIdentity="120F8|case=TEST1|case=TEST1|settings=019|";
+    rejects([&]{(void)calculateComDiagnosticVoltageRatio(
+        inputs(.4,.2,malformed,"TEST1"),"TEST1",malformed);},
+        "adjacent duplicate case tokens sharing a separator");
     malformed=p1;
     malformed.sourceSha256="invalid";
     rejects([&]{(void)calculateComDiagnosticVoltageRatio(
