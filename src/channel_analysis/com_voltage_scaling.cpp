@@ -50,6 +50,14 @@ void validatePulse(const Com120F8RectangularPulseData& p) {
   const double cursorTime=p.timeSeconds[3];
   require(std::isfinite(cursorTime) && cursorTime>=0.,
           "012_21: invalid decision time");
+  // Keep absolute-time floating-point granularity and spacing errors
+  // bounded by the UI, not by the potentially huge cursor timestamp.
+  const double timingTolerance=1e-6*ui;
+  const double nextTime=std::nextafter(
+      cursorTime,std::numeric_limits<double>::infinity());
+  require(std::isfinite(nextTime) &&
+          nextTime-cursorTime<=timingTolerance*0.5,
+          "012_21: absolute decision time has inadequate UI resolution");
   double observedMax=0.;
   for(size_t i=0; i<kTapCount; ++i) {
     const double t=p.timeSeconds[i], v=p.unitSymbolPulse[i];
@@ -59,8 +67,7 @@ void validatePulse(const Com120F8RectangularPulseData& p) {
                   "012_21: pulse time axis not increasing");
     const double relative=t-cursorTime;
     const double nominal=(static_cast<double>(i)-3.)*ui;
-    require(std::abs(relative-nominal)<=
-                1e-9*std::max(std::abs(cursorTime),ui),
+    require(std::abs(relative-nominal)<=timingTolerance,
             "012_21: pulse is not sampled at -3..+9 UI");
     observedMax=std::max(observedMax,std::abs(v));
   }
@@ -109,8 +116,11 @@ ComScaledVoltageCase scale(const Com120F8RectangularPulseData& p,
     out.timeSeconds[i]=p.timeSeconds[i];
     out.unitSymbolPulse[i]=p.unitSymbolPulse[i];
     const double scaled=s.voltsPerUnitSymbol*p.unitSymbolPulse[i];
+    // Reject both complete underflow to zero and partial underflow to
+    // subnormal results, whose relative rounding error may be enormous.
     require(std::isfinite(scaled) &&
-            (p.unitSymbolPulse[i]==0. || scaled!=0.),
+            (std::fpclassify(p.unitSymbolPulse[i])==FP_ZERO ||
+             std::isnormal(scaled)),
             "012_21: receiver equivalent voltage overflow or underflow");
     out.equivalentPulseV[i]=scaled;
     out.maximumAbsoluteEquivalentV=
@@ -141,8 +151,11 @@ Result<ComScaledVoltageCases> scaleCom120F8ReceiverEquivalentVoltage(
   const auto& pulses=*input.pulses.value;
   validatePulse(pulses.test1);
   validatePulse(pulses.test2);
+  const double pairTimeTolerance=
+      1e-6/final8023ck120F8().symbolRateHz;
   for(size_t i=0;i<13;++i)
-    require(pulses.test1.timeSeconds[i]==pulses.test2.timeSeconds[i],
+    require(std::abs(pulses.test1.timeSeconds[i]-
+                     pulses.test2.timeSeconds[i])<=pairTimeTolerance,
             "012_21: Test1/Test2 decision-time grids disagree");
   validateScale(input.test1Scale,expected,"TEST1");
   validateScale(input.test2Scale,expected,"TEST2");

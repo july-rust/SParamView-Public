@@ -178,11 +178,32 @@ int main() {
       std::numeric_limits<double>::max();
   bad.pulses.value->test1.maximumAbsolutePulse=
       std::numeric_limits<double>::max();
+  bad.test1Scale.value->voltsPerUnitSymbol=2.;
   rejects([&]{return scaleCom120F8ReceiverEquivalentVoltage(bad,p);},
           "overflow in scale multiplication");
+  bad=input;
+  bad.pulses.value->test1.unitSymbolPulse[5]=
+      3.*std::numeric_limits<double>::denorm_min();
+  rejects([&]{return scaleCom120F8ReceiverEquivalentVoltage(bad,p);},
+          "subnormal partially underflowed multiplication");
+  bad=input;
+  bad.pulses.value->test1.unitSymbolPulse[5]=
+      std::numeric_limits<double>::denorm_min();
+  rejects([&]{return scaleCom120F8ReceiverEquivalentVoltage(bad,p);},
+          "underflowed multiplication rounded to zero");
   bad=input; bad.pulses.value->test1.timeSeconds[2]+=5e-12;
   rejects([&]{return scaleCom120F8ReceiverEquivalentVoltage(bad,p);},
           "non-UI-spaced time axis");
+  bad=input;
+  // Large absolute cursor time must not make a two-UI grid pass.
+  for(auto* sample : {&bad.pulses.value->test1,
+                      &bad.pulses.value->test2}) {
+    for(int k=-3;k<=9;++k)
+      sample->timeSeconds[static_cast<size_t>(k+3)]=
+          1. + k*2.*sample->symbolPeriodSeconds;
+  }
+  rejects([&]{return scaleCom120F8ReceiverEquivalentVoltage(bad,p);},
+          "large absolute cursor weakens UI spacing tolerance");
   bad=input; bad.pulses.value->test1.maximumAbsolutePulse=4.;
   rejects([&]{return scaleCom120F8ReceiverEquivalentVoltage(bad,p);},
           "invalid pulse max");
