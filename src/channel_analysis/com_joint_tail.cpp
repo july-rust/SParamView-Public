@@ -227,6 +227,15 @@ Result<ComJointTailData> calculateComJointTail(
   require(std::isfinite(voltage) && voltage >= 0. &&
           std::abs(verified - p) <= p * 1e-6,
           "Joint-tail probability accuracy not qualified");
+  // An exact discrete-state mass may make the erfc tail round to the target
+  // throughout a WIDE interval. A small residual alone then accepts a false
+  // quantile. Demand that moving one Gaussian sigma to EITHER side produces
+  // a resolvable relative tail change. Otherwise the root is not numerically
+  // identifiable with double precision and must fail closed.
+  const double localGuard = p * 1e-6;
+  require(tail(q - 1.) > p + localGuard &&
+          tail(q + 1.) < p - localGuard,
+          "Numerically unresolved discrete-mixture tail plateau");
   check(cancelled);
 
   Result<ComJointTailData> result;
