@@ -47,9 +47,9 @@ Com120F8RectangularPulseData victimPulse(double cursor) {
   }
   return x;
 }
-Result<ComVoltageScaleEvidence> scale(const Provenance& p,
+si::channel::Result<ComVoltageScaleEvidence> scale(const Provenance& p,
                                      const char* test, double gain) {
-  Result<ComVoltageScaleEvidence> r;
+  si::channel::Result<ComVoltageScaleEvidence> r;
   r.status = Status::Valid;
   r.provenance = p;
   r.provenance.algorithm = "independent-fixture-scale";
@@ -78,10 +78,10 @@ ComInterferencePulse aggressor(const std::string& id, ComCoupling c,
   x.maximumAbsolutePulse=std::max(std::abs(u1),std::abs(u2));
   return x;
 }
-Result<ComAggressorVoltageEvidence> calibration(
+si::channel::Result<ComAggressorVoltageEvidence> calibration(
     const Provenance& p, const char* test, const std::string& id,
     ComCoupling coupling, double gain) {
-  Result<ComAggressorVoltageEvidence> r;
+  si::channel::Result<ComAggressorVoltageEvidence> r;
   r.status=Status::Valid;
   r.provenance=p;
   r.provenance.settingsIdentity += "case=";
@@ -147,7 +147,8 @@ ComAggressorVoltageInput fixture(const Provenance& p, size_t n=2) {
 } // namespace
 int main() {
  try {
-  const auto p=source(), live=liveFrom(p);
+  const auto p=source();
+  const auto live=liveFrom(p);
   const auto result=calculateComAggressorReceiverVoltage(fixture(p),p,live);
   need(result.usable() && result.status==Status::Warning &&
        result.value->model==
