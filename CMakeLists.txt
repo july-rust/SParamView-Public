@@ -46,7 +46,8 @@ add_library(si_channel_analysis src/channel_analysis/common.cpp
                                 src/channel_analysis/com_dfe.cpp
                                 src/channel_analysis/com_equalizer_search.cpp
                                 src/channel_analysis/com_voltage_ratio.cpp
-                                src/channel_analysis/com_joint_tail.cpp)
+                                src/channel_analysis/com_joint_tail.cpp
+                                src/channel_analysis/com_voltage_scaling.cpp)
 target_include_directories(si_channel_analysis PUBLIC include)
 target_link_libraries(si_channel_analysis PUBLIC si_core)
 if(MSVC)
@@ -180,6 +181,13 @@ target_link_libraries(si_com_joint_tail_tests PRIVATE si_channel_analysis)
 add_test(NAME channel_com_joint_tail COMMAND si_com_joint_tail_tests)
 set_tests_properties(channel_com_joint_tail PROPERTIES TIMEOUT 40)
 install(TARGETS si_com_joint_tail_tests RUNTIME DESTINATION tests)
+# 012_21: deterministic exploratory pulse -> receiver-equivalent voltage scaling.
+add_executable(si_com_voltage_scaling_tests
+  tests/channel_analysis/com_voltage_scaling_tests.cpp)
+target_link_libraries(si_com_voltage_scaling_tests PRIVATE si_channel_analysis)
+add_test(NAME channel_com_voltage_scaling COMMAND si_com_voltage_scaling_tests)
+set_tests_properties(channel_com_voltage_scaling PROPERTIES TIMEOUT 30)
+install(TARGETS si_com_voltage_scaling_tests RUNTIME DESTINATION tests)
 add_executable(si_hardening_tests tests/hardening_tests.cpp)
 target_link_libraries(si_hardening_tests PRIVATE si_core)
 install(TARGETS si_hardening_tests RUNTIME DESTINATION tests)
