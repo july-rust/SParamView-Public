@@ -109,7 +109,8 @@ ComVictimIsiTailCaseData calculateCase(
   }
   std::sort(taps.begin(), taps.end(), [](const Tap& a, const Tap& b) {
     const double aa = std::abs(a.valueV), bb = std::abs(b.valueV);
-    if (aa != bb) return aa > bb;
+    if (aa > bb) return true;
+    if (aa < bb) return false;
     return a.uiOffset < b.uiOffset; // Stable deterministic tie-break.
   });
   ComJointTailInput mix;
