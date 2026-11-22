@@ -28,10 +28,10 @@ Provenance identity(const std::string& c="TEST1") {
   p.mappingGeneration=19;
   return p;
 }
-Result<ComVoltageEvidence> evidence(double v, const Provenance& p,
+si::channel::Result<ComVoltageEvidence> evidence(double v, const Provenance& p,
                                     const std::string& c,
                                     const std::string& alg) {
-  Result<ComVoltageEvidence> r;
+  si::channel::Result<ComVoltageEvidence> r;
   r.status=Status::Valid;
   r.value=ComVoltageEvidence{v,c,"receiver-decision","voltage-calibration"};
   r.provenance=p;
