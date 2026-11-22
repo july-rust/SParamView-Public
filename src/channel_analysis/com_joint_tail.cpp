@@ -236,12 +236,63 @@ Result<ComJointTailData> calculateComJointTail(
   require(tail(q - 1.) > p + localGuard &&
           tail(q + 1.) < p - localGuard,
           "Numerically unresolved discrete-mixture tail plateau");
+  // 012_26: Evaluate a separated probability-crossing bracket rather than
+  // publishing q as though the numerical root were an exact real number.
+  // This is an independently inspectable double-precision diagnostic, not a
+  // directed-rounding guarantee for the platform's libm erfc implementation.
+  const double probabilityGuard = p * 1e-9;
+  const double normalizedScale = std::max(1., std::abs(q));
+  const double initialStep = 1e-8 * normalizedScale;
+  const double maximumWidth = 1e-5 * normalizedScale;
+  double lowerNormalized = q, upperNormalized = q;
+  double lowerProbability = 0., upperProbability = 0.;
+  bool crossed = false;
+  for (int attempt = 0; attempt < 10; ++attempt) {
+    check(cancelled);
+    const double step = std::ldexp(initialStep, attempt);
+    lowerNormalized = std::max(0., q - step);
+    upperNormalized = q + step;
+    if (!(lowerNormalized < q && upperNormalized > q &&
+          std::isfinite(upperNormalized))) break;
+    const double width = upperNormalized - lowerNormalized;
+    if (!(width > 0. && width <= maximumWidth)) break;
+    lowerProbability = tail(lowerNormalized);
+    upperProbability = tail(upperNormalized);
+    if (lowerProbability >= p + probabilityGuard &&
+        upperProbability <= p - probabilityGuard) {
+      crossed = true;
+      break;
+    }
+  }
+  require(crossed && lowerProbability >= p + probabilityGuard &&
+          upperProbability <= p - probabilityGuard &&
+          lowerProbability >= verified && verified >= upperProbability,
+          "012_26: unresolved probability-crossing numerical bracket");
+  const double widthNormalized = upperNormalized - lowerNormalized;
+  // Outward expansion protects the conversion back from normalized sigma
+  // coordinates; it does not certify transcendental libm evaluation.
+  const double lowerVoltage = std::nextafter(
+      lowerNormalized * sigma, -std::numeric_limits<double>::infinity());
+  const double upperVoltage = std::nextafter(
+      upperNormalized * sigma, std::numeric_limits<double>::infinity());
+  require(std::isfinite(lowerVoltage) && std::isfinite(upperVoltage) &&
+          lowerVoltage >= 0. && lowerVoltage <= voltage &&
+          voltage <= upperVoltage && lowerVoltage < upperVoltage &&
+          std::isfinite(upperVoltage - lowerVoltage),
+          "012_26: invalid or unrepresentable numerical voltage bracket");
   check(cancelled);
 
   Result<ComJointTailData> result;
   result.status = Status::Warning;
-  result.value = ComJointTailData{voltage, verified, sigma2, totalVariance,
+  ComJointTailData qualified{voltage, verified, sigma2, totalVariance,
       shifts.size(), test, plane, calibration};
+  qualified.numericalQuantileLowerV = lowerVoltage;
+  qualified.numericalQuantileUpperV = upperVoltage;
+  qualified.lowerEndpointTailProbability = lowerProbability;
+  qualified.upperEndpointTailProbability = upperProbability;
+  qualified.numericalBracketWidthV = upperVoltage - lowerVoltage;
+  qualified.normalizedBracketWidth = widthNormalized;
+  result.value = std::move(qualified);
   result.provenance = expected;
   result.provenance.algorithm = "com-joint-tail-exploratory";
   result.provenance.version = "012_20-1";
