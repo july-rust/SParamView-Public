@@ -1,11 +1,13 @@
 #include "si/channel_analysis/com_voltage_scaling.hpp"
 #include "si/channel_analysis/com.hpp"
+#include <algorithm>
 #include <atomic>
 #include <cmath>
 #include <iostream>
 #include <limits>
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 using namespace si;
 using namespace si::channel;
@@ -53,7 +55,7 @@ ComVoltageScalingInput golden(const Provenance& p) {
   in.pulses.value=Com120F8RectangularPulseCases{
       pulse(.8,-.1,.2),pulse(.5,.25,-.2)};
   auto evidence=[&](double scale,const char* which,const char* source) {
-    Result<ComVoltageScaleEvidence> r;
+    si::channel::Result<ComVoltageScaleEvidence> r;
     r.status=Status::Valid;
     r.provenance=p;
     r.provenance.algorithm="caller-explicit-voltage-scale";
