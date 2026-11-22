@@ -97,7 +97,8 @@ double addOutward(double previous, double magnitude) {
 bool tapOrder(const ComCombinedTapRecord& a, const ComCombinedTapRecord& b) {
   const double aa = std::abs(a.signedVoltageV);
   const double bb = std::abs(b.signedVoltageV);
-  if (aa != bb) return aa > bb;
+  if (aa > bb) return true;
+  if (aa < bb) return false;
   if (a.role != b.role)
     return static_cast<int>(a.role) < static_cast<int>(b.role);
   if (a.aggressorId != b.aggressorId)
