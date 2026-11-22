@@ -1,5 +1,7 @@
 #include "si/channel_analysis/com_joint_tail.hpp"
 #include <algorithm>
+#include <bit>
+#include <cstdint>
 #include <cctype>
 #include <cmath>
 #include <limits>
@@ -105,6 +107,8 @@ Result<ComJointTailData> calculateComJointTail(
   const double p = input.oneSidedTailProbability;
   require(std::isfinite(p) && p >= 1e-12 && p <= 0.1,
           "Unsupported one-sided tail probability");
+  // Fail closed before doing any floating-point mixture work: all voltages
+  // must share the exact source, Test case, decision plane and calibration.
   std::unordered_set<std::string> ids;
   std::string plane, calibration;
   validateComponent(input.receiverGaussian, expected, test,
@@ -120,6 +124,8 @@ Result<ComJointTailData> calculateComJointTail(
     validateComponent(tap, expected, test,
                       ComJointComponentKind::IndependentPam4Tap, false,
                       ids, plane, calibration);
+  // RX and RJ contributions are independent Gaussian-only amplitudes;
+  // a combined RJ+RX RMS would double count the receiver noise and is rejected.
   const double rx = input.receiverGaussian.value->amplitudeV;
   const double rj = input.randomJitterGaussian.value->amplitudeV;
   const double sigma = std::hypot(rx, rj);
@@ -129,6 +135,8 @@ Result<ComJointTailData> calculateComJointTail(
   require(std::isfinite(sigma2) && sigma2 > 0.,
           "Gaussian variance cannot be represented");
   const double peak = input.dualDiracPeak.value->amplitudeV;
+  // Use sigma-normalized coordinates to avoid absolute voltage tolerances;
+  // reject enormous ratios that double precision cannot resolve accurately.
   const double normalizedPeak = peak / sigma;
   require(std::isfinite(normalizedPeak) && normalizedPeak < 1e10,
           "Unresolvable Dual-Dirac/Gaussian dynamic range");
@@ -136,6 +144,8 @@ Result<ComJointTailData> calculateComJointTail(
   // Work in normalized Gaussian sigma units to retain nV/pV precision.
   std::vector<double> shifts{0.};
   double upperShift = normalizedPeak, normalizedVariance = 1.;
+  // Exact independent PAM4 enumeration: each new tap multiplies states by 4.
+  // Every state remains equiprobable; no Gaussian approximation of ISI tails.
   for (const auto& tap : input.pam4Taps) {
     check(cancelled);
     const double normalizedTap = tap.value->amplitudeV / sigma;
@@ -153,6 +163,8 @@ Result<ComJointTailData> calculateComJointTail(
         expanded.push_back(old + normalizedTap * level);
     shifts = std::move(expanded);
   }
+  // A nonzero symmetrical Dual-Dirac offset doubles the state count; zero
+  // peak does not generate duplicate states or distort tail probabilities.
   if (normalizedPeak > 0.) {
     check(cancelled);
     require(shifts.size() <= kMaxStates / 2, "Dual-Dirac state budget exceeded");
@@ -173,6 +185,8 @@ Result<ComJointTailData> calculateComJointTail(
   require(std::isfinite(totalVariance) && totalVariance > 0.,
           "Total voltage variance cannot be represented");
 
+  // Kahan-compensated aggregation keeps small rare-event contributions from
+  // being lost when evaluating erfc tails over thousands of states.
   const double invStates = 1. / static_cast<double>(shifts.size());
   auto tail = [&](double threshold) {
     double sum = 0., compensation = 0.;
@@ -192,16 +206,22 @@ Result<ComJointTailData> calculateComJointTail(
             "Invalid mixture tail");
     return value;
   };
+  // Symmetry gives P(X>0)=0.5; at max discrete shift plus 12 sigma the
+  // one-sided tail is below the supported minimum probability of 1e-12.
   double low = 0., high = upperShift + 12.;
   require(std::isfinite(high) && tail(low) > p && tail(high) < p,
           "Unbracketed joint-tail quantile");
   for (int iter = 0; iter < 120; ++iter) {
     check(cancelled);
     const double midpoint = low + (high - low) / 2.;
-    if (midpoint == low || midpoint == high) break;
+    // The root bracket cannot be refined if its floating-point endpoints
+    // have no representable interior; use strict ordering, not float ==.
+    if (!(midpoint > low && midpoint < high)) break;
     if (tail(midpoint) > p) low = midpoint;
     else high = midpoint;
   }
+  // Re-evaluate the tail rather than trusting only a converged interval:
+  // unresolved numerical cases must fail, not produce a plausible voltage.
   const double q = (low + high) / 2.;
   const double verified = tail(q), voltage = q * sigma;
   require(std::isfinite(voltage) && voltage >= 0. &&
@@ -230,7 +250,10 @@ Result<ComJointTailCasesData> calculateComJointTailCases(
   validateExpected(p1, "TEST1");
   validateExpected(p2, "TEST2");
   samePhysicalSource(p1, p2);
-  require(test1.oneSidedTailProbability == test2.oneSidedTailProbability,
+  // The two diagnostic noise thresholds are comparable only at the same
+  // exact configured p (not merely two approximately equal tail targets).
+  require(std::bit_cast<std::uint64_t>(test1.oneSidedTailProbability) ==
+          std::bit_cast<std::uint64_t>(test2.oneSidedTailProbability),
           "Test1/Test2 tail targets are not comparable");
   const auto a = calculateComJointTail(test1, "TEST1", p1, cancelled);
   const auto b = calculateComJointTail(test2, "TEST2", p2, cancelled);
