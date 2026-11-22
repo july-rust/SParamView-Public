@@ -20,6 +20,22 @@ void need(bool ok, const char* why) {
 void near(double actual, double expected, double tol, const char* why) {
   need(std::isfinite(actual) && std::abs(actual-expected) <= tol, why);
 }
+void numericalBound(const ComCombinedTailCaseData& x, double oracle,
+                    double p, const char* why) {
+  need(x.numericalQualification ==
+           "NUMERICALLY_BRACKETED_NOT_CERTIFIED" &&
+       std::isfinite(x.selectedNumericalLowerV) &&
+       std::isfinite(x.selectedNumericalUpperV) &&
+       x.selectedNumericalLowerV < oracle &&
+       oracle < x.selectedNumericalUpperV &&
+       x.selectedNumericalLowerV < x.selectedTailQuantileV &&
+       x.selectedTailQuantileV < x.selectedNumericalUpperV &&
+       x.selectedLowerEndpointProbability > p &&
+       x.selectedUpperEndpointProbability < p &&
+       x.lowerTailBoundV <= x.selectedNumericalLowerV &&
+       x.upperTailBoundV >= x.selectedNumericalUpperV &&
+       x.lowerTailBoundV < x.upperTailBoundV, why);
+}
 template <class F> void rejects(F f, const char* why) {
   bool caught = false;
   try { (void)f(); } catch (const si::Error&) { caught = true; }
@@ -246,7 +262,7 @@ int main() {
   const auto live=liveFrom(p);
   const auto empty=calculateComCombinedTailBridge(fixture(p,0,true),p,live);
   need(empty.usable() && empty.status==Status::Warning &&
-       empty.provenance.version=="012_25-1" &&
+       empty.provenance.version=="012_26-1" &&
        empty.diagnostics.size()==1 &&
        empty.diagnostics.front().code=="NOT_IEEE_COM" &&
        empty.value->test1.selectedTapCount==0 &&
@@ -254,21 +270,27 @@ int main() {
        "Gaussian-only and NOT_IEEE_COM contract");
   near(empty.value->test1.selectedTailQuantileV,.0852978158784565,1e-11,
        "Gaussian-only published independent mathematical oracle");
+  numericalBound(empty.value->test1,.08529781587845649257,1e-5,
+                 "Gaussian-only nonzero numerical interval");
 
   const auto victim=calculateComCombinedTailBridge(fixture(p,0),p,live);
   const auto& v=victim.value->test1;
   near(v.selectedTailQuantileV,.1323069531212122,1e-11,
        "independent 2-tap self-ISI oracle");
+  numericalBound(v,.1323069531212122,1e-5,
+                 "victim-only numerical interval");
   need(v.selectedTapCount==2 && v.omittedTapCount==0 &&
        v.statesEvaluated==16 && v.selectedTaps[0].role==
        ComCombinedTapRole::VictimSelfIsi &&
        v.selectedTaps[0].uiOffset==1 && v.selectedTaps[1].uiOffset==-1 &&
-       v.boundMode=="EXACT_ASSUMED_MIXTURE",
+       v.boundMode=="NUMERICALLY_BRACKETED_ASSUMED_MIXTURE",
        "victim-only cursor exclusion and roles");
 
   const auto one=calculateComCombinedTailBridge(fixture(p,1),p,live);
   near(one.value->test1.selectedTailQuantileV,.416686608710545,1e-11,
        "independent victim+NEXT 4-tap oracle");
+  numericalBound(one.value->test1,.416686608710545,1e-5,
+                 "victim+NEXT numerical interval");
   need(one.value->test1.selectedTapCount==4 &&
        one.value->test1.statesEvaluated==256,
        "victim+NEXT PAM4 state count");
@@ -282,11 +304,13 @@ int main() {
   const auto two=calculateComCombinedTailBridge(fixture(p,2),p,live);
   near(two.value->test1.selectedTailQuantileV,.6967286340771246,1e-10,
        "independent 6-tap victim+NEXT+FEXT oracle");
+  numericalBound(two.value->test1,.6967286340771246,1e-5,
+                 "six taps retain numerical bracket");
   need(two.value->test1.selectedTapCount==6 &&
        two.value->test1.omittedTapCount==0 &&
        two.value->test1.statesEvaluated==4096 &&
-       std::abs(two.value->test1.lowerTailBoundV-
-                two.value->test1.upperTailBoundV)<=0.,
+       two.value->test1.lowerTailBoundV <
+         two.value->test1.upperTailBoundV,
        "combined exact six-tap budget");
   need(two.value->test2.testCase=="TEST2" &&
        std::abs(two.value->test2.selectedTailQuantileV-
@@ -331,7 +355,7 @@ int main() {
   const auto& b=seven.value->test1;
   need(b.selectedTapCount==6 && b.omittedTapCount==2 &&
        b.statesEvaluated==4096 &&
-       b.boundMode=="CONSERVATIVE_BOUNDED_MIXTURE" &&
+       b.boundMode=="CONSERVATIVE_NUMERICAL_BOUND" &&
        b.selectedTaps.size()==6 && b.omittedTaps.size()==2,
        "bounded eight-tap selection, no silently dropped terms");
   near(b.omittedTapBoundV,.0003,1e-12,
@@ -343,13 +367,16 @@ int main() {
   }
   for(const auto& t:b.omittedTaps)
     allValues.push_back(t.signedVoltageV);
-  near(b.selectedTailQuantileV,
-       static_cast<double>(independentQuantile(selectedValues,.02L,1e-5L)),
-       1e-10,"independent exact selected enumeration");
+  const double selectedOracle=static_cast<double>(
+      independentQuantile(selectedValues,.02L,1e-5L));
+  near(b.selectedTailQuantileV,selectedOracle,1e-10,
+       "independent exact selected enumeration");
+  numericalBound(b,selectedOracle,1e-5,
+                 "eight-tap selected subset numerical bracket");
   const double fullOracle=static_cast<double>(
       independentQuantile(allValues,.02L,1e-5L));
-  need(fullOracle>=b.lowerTailBoundV-1e-10 &&
-       fullOracle<=b.upperTailBoundV+1e-10,
+  need(fullOracle>=b.lowerTailBoundV &&
+       fullOracle<=b.upperTailBoundV,
        "independent 8-tap full-tail quantile within omitted bound");
 
   auto high32=calculateComCombinedTailBridge(fixture(p,32),p,live);
