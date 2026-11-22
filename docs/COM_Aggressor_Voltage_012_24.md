@@ -1,0 +1,21 @@
+# 012_24 — NEXT/FEXT receiver-equivalent voltage bridge (NOT IEEE COM)
+
+**Scope:** a bounded Qt-free C++20 conversion of the existing 012_14 *already-conditioned* individual NEXT/FEXT unit-symbol pulses into exploratory, independently caller-scaled receiver voltage. This is **not** a physical calibration proof, PHY result, stochastic cross-talk model, or COM(dB) computation.
+
+## Strict contract
+- Inputs are the actual typed `Result<ComInterferenceTestCases>` from 012_14, typed `Result<ComScaledVoltageCases>` from 012_21, the expected pair Provenance, and **live SourceIdentity from the active SourceSnapshot**. 012_22 rechecks the victim's 13 signed voltages. Comparison against independently passed live identity detects mismatches, but callers still must obtain that identity from the current workspace.
+- The 012_14 pair result must carry Warning/NOT_IEEE_COM, exact expected algorithm/version `com-120f8-separated-test1-test2-interference` / `012_14-1`, and matching SHA, revision, mapping, settings and generations. This confirms **metadata consistency**, not re-execution or physical provenance of originally conditioned transfers.
+- The 012_14 cases must have 13 finite time samples aligned at -3..+9 UI to 012_21 victim decision time, an unmodified unit-symbol peak, and the expected 012_14 model. Time mismatch fails closed.
+- Independent per-aggressor per-Test positive normal `voltsPerUnitSymbol` factors, calibration-source IDs, TX reference plane/TX EQ, shared RX decision plane/RX EQ and normalization, case-specific provenance and matching NEXT/FEXT ID are all required. No victim gain is borrowed; 120F-8 reference peaks are not silently used as gains. TX EQ identity is caller-declared: 012_14's existing output lacks a separately proven TX-conditioning chain, so this bridge **cannot certify physical aggressor TX calibration**.
+- Cross-Test aggressor sets must match on ID and coupling. Per-Test scales and calibration sources may differ. Up to 32 sources per Test and exactly 13 values per source, 832 maximum converted samples. Sorting by ID makes output deterministic; zero aggressors are allowed.
+- Each output pulse contains original signed unit-symbol samples, signed receiver-equivalent volts, the peak magnitude recalculated from those volts, scaling and provenance metadata. NaN, infinity, missing calibration, overflow, subnormal underflow, stale source, source/case/plane mismatch, time mismatch, peak tampering, and cancellation do not produce a usable result.
+
+## Independent synthetic mathematical qualification
+All output voltages are checked by an independent ordinary arithmetic oracle, *not* by another production scaling call: Test1 NEXT [-0.25,+0.5] at 0.4 V/unit gives [-0.1,+0.2] V; Test1 FEXT [+0.3,-0.2] at 0.6 V/unit gives [+0.18,-0.12] V. Test2 applies different signed symbol pulses and independently supplied gains. The dedicated CTest includes 0, 2 and 32-source scenarios, permutation invariance, signed and zero values, current-live SourceSnapshot mismatch, over-budget, and numerous fail-closed corruptions. Existing 012_14, 012_21–012_23 tests remain intact.
+
+No external PHY reference channel numbers are asserted. An explicit `Warning/NOT_IEEE_COM` accompanies every successful exploratory result. Production `calculateCom()` stays `NotEvaluated`; the full 93A statistical DER/FOM, victim-self-ISI/NEXT/FEXT combined tail and PHY PASS/FAIL are **out of scope**.
+
+## Acceptance
+One new header, source and Qt-free CTest, one CMake registration, this note and one living-plan entry. No platform-specific duplicate documents. Require latest PR HEAD Linux Release+ASan/UBSan, Windows x64 and Windows ARM64 native package checks, macOS arm64, CodeQL and established COM regressions. Actual substantive Codex review if available, protected squash-merge into integration/v1.4.0 and post-merge CI verification are required for a fully qualified COMPLETE; otherwise PARTIAL. Never modify main, v1.3.5 tags or release assets.
+
+References: [012_14 interference](COM_Interference_012_14.md), [012_21 voltage scaling](COM_Voltage_Scaling_012_21.md), [012_22 self-ISI](COM_Victim_ISI_012_22.md), [012_23 bounded victim tail](COM_Victim_ISI_Tail_012_23.md).

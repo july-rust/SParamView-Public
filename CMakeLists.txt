@@ -49,7 +49,8 @@ add_library(si_channel_analysis src/channel_analysis/common.cpp
                                 src/channel_analysis/com_joint_tail.cpp
                                 src/channel_analysis/com_voltage_scaling.cpp
                                 src/channel_analysis/com_victim_isi.cpp
-                                src/channel_analysis/com_victim_isi_tail.cpp)
+                                src/channel_analysis/com_victim_isi_tail.cpp
+                                src/channel_analysis/com_aggressor_voltage.cpp)
 target_include_directories(si_channel_analysis PUBLIC include)
 target_link_libraries(si_channel_analysis PUBLIC si_core)
 if(MSVC)
@@ -204,6 +205,13 @@ target_link_libraries(si_com_victim_isi_tail_tests PRIVATE si_channel_analysis)
 add_test(NAME channel_com_victim_isi_tail COMMAND si_com_victim_isi_tail_tests)
 set_tests_properties(channel_com_victim_isi_tail PROPERTIES TIMEOUT 40)
 install(TARGETS si_com_victim_isi_tail_tests RUNTIME DESTINATION tests)
+# 012_24: NEXT/FEXT per-aggressor receiver-voltage scaling/qualification.
+add_executable(si_com_aggressor_voltage_tests
+  tests/channel_analysis/com_aggressor_voltage_tests.cpp)
+target_link_libraries(si_com_aggressor_voltage_tests PRIVATE si_channel_analysis)
+add_test(NAME channel_com_aggressor_voltage COMMAND si_com_aggressor_voltage_tests)
+set_tests_properties(channel_com_aggressor_voltage PROPERTIES TIMEOUT 30)
+install(TARGETS si_com_aggressor_voltage_tests RUNTIME DESTINATION tests)
 add_executable(si_hardening_tests tests/hardening_tests.cpp)
 target_link_libraries(si_hardening_tests PRIVATE si_core)
 install(TARGETS si_hardening_tests RUNTIME DESTINATION tests)
