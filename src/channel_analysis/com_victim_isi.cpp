@@ -1,7 +1,9 @@
 #include "si/channel_analysis/com_victim_isi.hpp"
 #include <algorithm>
 #include <array>
+#include <bit>
 #include <cmath>
+#include <cstdint>
 #include <cctype>
 #include <limits>
 #include <string>
@@ -70,7 +72,7 @@ void validateSource(const Result<ComScaledVoltageCases>& result,
           "012_22: upstream model is not receiver-equivalent voltage");
 }
 void requireNormalOrZero(double value, const char* message) {
-  require(std::isnormal(value) || value == 0., message);
+  require(std::isnormal(value) || std::fpclassify(value) == FP_ZERO, message);
 }
 void validateCase(const ComScaledVoltageCase& v,
                   const char* which, double ui,
@@ -108,13 +110,15 @@ void validateCase(const ComScaledVoltageCase& v,
             "012_22: sample not on the -3..+9 UI grid");
     const double reconstructed = v.voltsPerUnitSymbol * u;
     require(std::isfinite(reconstructed) &&
-            (u == 0. || std::isnormal(reconstructed)),
+            (std::fpclassify(u) == FP_ZERO || std::isnormal(reconstructed)),
             "012_22: sample conversion overflow or underflow");
     // Relative to the sample itself, not to a different large cursor;
     // even a tiny malicious or stale tap must not pass.
     const double denominator = std::max(std::abs(reconstructed), std::abs(volts));
-    if (denominator == 0.) {
-      require(reconstructed == volts, "012_22: inconsistent zero sample");
+    if (std::fpclassify(denominator) == FP_ZERO) {
+      require(std::fpclassify(reconstructed) == FP_ZERO &&
+              std::fpclassify(volts) == FP_ZERO,
+              "012_22: inconsistent zero sample");
     } else {
       require(std::abs(reconstructed - volts) / denominator <= 1e-12,
               "012_22: voltage does not match signed pulse times scale");
@@ -122,13 +126,15 @@ void validateCase(const ComScaledVoltageCase& v,
     maxObserved = std::max(maxObserved, std::abs(volts));
   }
   require(std::isfinite(v.maximumAbsoluteEquivalentV) &&
-          ((maxObserved == 0. && v.maximumAbsoluteEquivalentV == 0.) ||
+          ((std::fpclassify(maxObserved) == FP_ZERO &&
+            std::fpclassify(v.maximumAbsoluteEquivalentV) == FP_ZERO) ||
            (v.maximumAbsoluteEquivalentV > 0. &&
             std::isfinite(maxObserved) &&
             std::abs(v.maximumAbsoluteEquivalentV - maxObserved) /
                 std::max(v.maximumAbsoluteEquivalentV, maxObserved) <= 1e-12)),
           "012_22: invalid reported voltage maximum");
-  require(v.cursorEquivalentV == v.equivalentPulseV[kCursor],
+  require(std::bit_cast<std::uint64_t>(v.cursorEquivalentV) ==
+          std::bit_cast<std::uint64_t>(v.equivalentPulseV[kCursor]),
           "012_22: inconsistent cursor voltage");
   require(std::isnormal(v.cursorEquivalentV),
           "012_22: zero/subnormal cursor cannot define PAM4 spacing");
