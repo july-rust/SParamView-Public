@@ -51,9 +51,9 @@ Com120F8RectangularPulseData victimPulse(
   }
   return x;
 }
-Result<ComVoltageScaleEvidence> scale(
+si::channel::Result<ComVoltageScaleEvidence> scale(
     const Provenance& p, const char* which, double gain) {
-  Result<ComVoltageScaleEvidence> r;
+  si::channel::Result<ComVoltageScaleEvidence> r;
   r.status=Status::Valid;
   r.provenance=p;
   r.provenance.algorithm="independent-synthetic-victim-scale";
@@ -82,10 +82,10 @@ ComInterferencePulse pulse(const std::string& id, ComCoupling kind,
   p.maximumAbsolutePulse=std::max(std::abs(before),std::abs(after));
   return p;
 }
-Result<ComAggressorVoltageEvidence> calibration(
+si::channel::Result<ComAggressorVoltageEvidence> calibration(
     const Provenance& p, const char* which, const std::string& id,
     ComCoupling coupling, double gain) {
-  Result<ComAggressorVoltageEvidence> r;
+  si::channel::Result<ComAggressorVoltageEvidence> r;
   r.status=Status::Valid;
   r.provenance=p;
   r.provenance.settingsIdentity += "case=";
@@ -107,10 +107,10 @@ Result<ComAggressorVoltageEvidence> calibration(
   r.value=e;
   return r;
 }
-Result<ComJointVoltageEvidence> noiseComponent(
+si::channel::Result<ComJointVoltageEvidence> noiseComponent(
     const Provenance& p, const char* which, ComJointComponentKind kind,
     const char* id, double v) {
-  Result<ComJointVoltageEvidence> r;
+  si::channel::Result<ComJointVoltageEvidence> r;
   r.status=Status::Valid;
   r.provenance=p;
   r.provenance.settingsIdentity += "case=";
@@ -215,7 +215,7 @@ long double independentQuantile(
     return sum/static_cast<long double>(states.size());
   };
   long double low=0., high=1.;
-  for(int i=0;i<125;++i) {
+  for(int i=0;i<68;++i) {
     const auto mid=(low+high)/2;
     if(probability(mid)>oneSidedP) low=mid;
     else high=mid;
