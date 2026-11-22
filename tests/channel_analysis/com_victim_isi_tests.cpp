@@ -58,7 +58,7 @@ ComVoltageScalingInput prepareInput(const Provenance& p) {
   input.pulses.value = Com120F8RectangularPulseCases{
       pulse(.8, -.1, .2), pulse(.5, .25, -.2)};
   auto makeScale = [&](double v, const char* which, const char* source) {
-    Result<ComVoltageScaleEvidence> result;
+    si::channel::Result<ComVoltageScaleEvidence> result;
     result.status = Status::Valid;
     result.provenance = p;
     result.provenance.algorithm = "caller-explicit-voltage-scale";
