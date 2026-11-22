@@ -21,7 +21,7 @@ P(X>q)=\frac{1}{N}\sum_s \frac{1}{2}
 \operatorname{erfc}\left(\frac{q-s}{\sqrt{2}\sigma}\right).
 \]
 
-Find the unique positive threshold \(q\) for input one-sided tail \(p\in[10^{-12},0.1]\) by bounded bisection. The implementation uses \(\sigma\)-normalized voltages and compensated tail summation; it verifies the resulting tail against the requested probability with relative error no greater than \(10^{-6}\). For variance regression use \(\sigma^2 + (5/9)\sum_i c_i^2 + A^2\). If \(A=0\), no duplicate Dirac state is allocated. Maximum state count is \(4^6\times2=8192\).
+Find the unique positive threshold \(q\) for input one-sided tail \(p\in[10^{-12},0.1]\) by bounded bisection. The implementation uses \(\sigma\)-normalized voltages and compensated tail summation; it verifies the resulting tail against the requested probability with relative error no greater than \(10^{-6}\). A bisection residual may falsely pass on numerically flat discrete probability plateaus, so the algorithm additionally requires that offsets of one Gaussian RMS in both directions produce resolvable tail changes; otherwise it rejects the unidentifiable quantile. For variance regression use \(\sigma^2 + (5/9)\sum_i c_i^2 + A^2\). If \(A=0\), no duplicate Dirac state is allocated. Maximum state count is \(4^6\times2=8192\).
 
 **Not modeled:** stochastic dependence between aggressors, real receiver decision adaptation, nonlinear jitter transfer, DFE error propagation, normative COM DER/FOM optimizer, package-parameter qualification, or a standard-compliant physical voltage calibration. These assumptions must never be silently introduced into the API.
 
