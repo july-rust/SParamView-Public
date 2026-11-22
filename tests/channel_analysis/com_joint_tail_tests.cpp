@@ -136,6 +136,16 @@ int main() {
     near(pair.value->worstCaseNoiseQuantileV,
          joint.value->oneSidedNoiseQuantileV,1e-12,
          "worst exploratory noise max, NOT COM margin");
+    auto differentTail=t2;
+    differentTail.oneSidedTailProbability=1e-8;
+    rejects([&]{return calculateComJointTailCases(t1,differentTail,p1,p2);},
+            "different tail targets cannot be compared");
+    auto differentCalibration=t2;
+    differentCalibration.receiverGaussian.value->calibrationIdentity="other-cal";
+    differentCalibration.randomJitterGaussian.value->calibrationIdentity="other-cal";
+    differentCalibration.dualDiracPeak.value->calibrationIdentity="other-cal";
+    rejects([&]{return calculateComJointTailCases(t1,differentCalibration,p1,p2);},
+            "different case calibrations cannot be compared");
     auto full=inputs(.02,0,.001,
         {0.001,0.002,0.003,0.004,0.005,0.006},1e-5,p1,"TEST1");
     require(calculateComJointTail(full,"TEST1",p1).value->statesEvaluated==8192,
