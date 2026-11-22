@@ -33,10 +33,10 @@ Provenance identity(const std::string& test="TEST1") {
   p.mappingGeneration=20;
   return p;
 }
-Result<ComJointVoltageEvidence> component(double v,
+si::channel::Result<ComJointVoltageEvidence> component(double v,
     ComJointComponentKind kind, const std::string& id,
     const Provenance& p, const std::string& test) {
-  Result<ComJointVoltageEvidence> r;
+  si::channel::Result<ComJointVoltageEvidence> r;
   r.status=Status::Valid;
   r.value=ComJointVoltageEvidence{v,kind,id,test,
       "rx-decision-plane","voltage-calibration-020",
