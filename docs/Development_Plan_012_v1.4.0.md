@@ -1,3 +1,5 @@
+> **2026-11-22 신규 012_20 — [Joint Statistical Tail Engine](COM_Joint_Tail_012_20.md):** 012_09의 기존 Gaussian+PAM4 수학 primitive를 반복 구현하지 않고, 명시적 수신기 전압 보정을 거친 독립 PAM4 최대 6개 탭 + 별도 RX Gaussian + Gaussian RJ + Dual-Dirac 이동의 **최대 8192상태** 단측 tail 분위수를 계산한다. Gaussian RJ와 이미 RX 잡음을 포함하는 012_16 결합 출력의 이중 사용을 차단하고, Test1/Test2 출처·plane·calibration/generation 검증 및 독립 Golden을 수행한다. 결과는 Warning/NOT_IEEE_COM이고 정식 `calculateCom()`은 NotEvaluated 유지. 실제 완료는 신규 PR 최신 HEAD CI, Codex 리뷰 및 integration 병합 검증 이후에만 선언한다. UI, main, 태그, 릴리스 변경 없음.
+
 > **2026-11-22 신규 012_19 — [COM 전압비 진단 커널](COM_Voltage_Ratio_012_19.md):** 012_18의 ISI 점수를 공식 COM으로 전용하지 않고, 동일 수신 기준면·캘리브레이션·출처를 요구하는 유한 양수 전압비의 독립 수학 커널 및 Test1/Test2 격리를 구현한다. 계산 성공도 Warning / NOT_IEEE_COM이며, Annex 93A DER 통계·FOM 최적화·공식 COM(dB) 및 PHY 합격 판정을 구현하거나 활성화하지 않는다. 실제 완료 여부는 최신 HEAD 테스트·CI·Codex 및 병합 증거로만 확정한다.
 
 # SParamView v1.4.0 — 012 시리즈 전체 개발·검증·릴리스 계획
