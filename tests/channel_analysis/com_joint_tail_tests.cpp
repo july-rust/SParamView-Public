@@ -105,6 +105,13 @@ int main() {
     near(harder.value->oneSidedNoiseQuantileV,.15527837162253227,1e-11,
          "independent 32-state 1e-8 tail golden");
     require(harder.value->statesEvaluated==32,"32 mixture states");
+    // Codex adversarial case: p equals an exact 1/16 discrete-state mass.
+    // The double-precision erfc tail rounds to exactly p over an enormous
+    // plateau and gives a false root near 0.141626 V instead of the
+    // balanced-tail location near 0.166677 V; reject, never certify.
+    rejects([&]{return calculateComJointTail(
+        inputs(.001,0,0,{.1,.1},.0625,p1,"TEST1"),"TEST1",p1);},
+        "flat discrete mixture tail must fail closed");
 
     const auto old=calculatePam4StatisticalNoise(
         ComStatisticalNoiseInput{.02,1e-5,{.03}});
