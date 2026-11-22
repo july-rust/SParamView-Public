@@ -126,10 +126,8 @@ ComAggressorVoltageInput fixture(const Provenance& p, size_t n=2) {
   ComInterferenceTestCases x;
   for (auto* c : {&x.test1,&x.test2}) {
     c->symbolPeriodSeconds = 1. / final8023ck120F8().symbolRateHz;
-    c->timeSeconds=input.victim.value->test1.timeSeconds.empty() ?
-       std::vector<double>{} : std::vector<double>(
-       input.victim.value->test1.timeSeconds.begin(),
-       input.victim.value->test1.timeSeconds.end());
+    c->timeSeconds.assign(input.victim.value->test1.timeSeconds.begin(),
+                          input.victim.value->test1.timeSeconds.end());
   }
   for (size_t i=0;i<n;++i) {
     const std::string id="aggressor-"+std::to_string(i);
@@ -200,6 +198,8 @@ int main() {
   bad=fixture(p);
   bad.test1.calibrations[0].value->voltsPerUnitSymbol=
       std::numeric_limits<double>::max();
+  bad.interference.value->test1.aggressors[0].unitSymbolPulse[4]=2.;
+  bad.interference.value->test1.aggressors[0].maximumAbsolutePulse=2.;
   rejects([&]{return calculateComAggressorReceiverVoltage(bad,p,live);},
           "overflow scale");
   bad=fixture(p);
@@ -281,8 +281,6 @@ int main() {
           fixture(p),p,live,&cancelled);
   } catch (const si::Cancelled&) { wasCancelled=true; }
   need(wasCancelled,"cancellation must propagate");
-  ComInput unused;
-  (void)unused;
   std::cout<<"012_24 independent voltage multiplication and fail-closed PASS\n";
   return 0;
  } catch (const std::exception& e) {
