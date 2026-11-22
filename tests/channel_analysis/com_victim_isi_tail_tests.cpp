@@ -60,7 +60,7 @@ ComVoltageScalingInput preparePulses(
   x.pulses.value = Com120F8RectangularPulseCases{
       pulse(cursor1,t1), pulse(cursor2,t2)};
   auto scale = [&](double volts, const char* which, const char* source) {
-    Result<ComVoltageScaleEvidence> r;
+    si::channel::Result<ComVoltageScaleEvidence> r;
     r.status = Status::Valid;
     r.provenance = p;
     r.provenance.algorithm = "caller-explicit-012-23-scaling";
@@ -82,11 +82,11 @@ ComVoltageScalingInput preparePulses(
   x.test2Scale = scale(.4,"TEST2","external-cal-B");
   return x;
 }
-Result<ComJointVoltageEvidence> noiseComponent(
+si::channel::Result<ComJointVoltageEvidence> noiseComponent(
     const Provenance& expected, const ComScaledVoltageCase& scaled,
     const char* which, ComJointComponentKind kind, const char* componentId,
     double amplitude) {
-  Result<ComJointVoltageEvidence> r;
+  si::channel::Result<ComJointVoltageEvidence> r;
   r.status = Status::Valid;
   r.provenance = expected;
   r.provenance.settingsIdentity += "case=";
