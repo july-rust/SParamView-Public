@@ -204,32 +204,53 @@ ComCombinedTailCaseData calculateCase(
           tail.diagnostics.front().code == "NOT_IEEE_COM",
           "012_25: unqualified joint-tail output");
   out.selectedTailQuantileV = tail.value->oneSidedNoiseQuantileV;
+  out.selectedNumericalLowerV = tail.value->numericalQuantileLowerV;
+  out.selectedNumericalUpperV = tail.value->numericalQuantileUpperV;
+  out.selectedLowerEndpointProbability = tail.value->lowerEndpointTailProbability;
+  out.selectedUpperEndpointProbability = tail.value->upperEndpointTailProbability;
+  out.numericalQualification = tail.value->numericalQualification;
   out.verifiedSelectedTailProbability = tail.value->verifiedTailProbability;
   out.statesEvaluated = tail.value->statesEvaluated;
   require(std::isfinite(out.selectedTailQuantileV) &&
           out.selectedTailQuantileV >= 0. &&
+          std::isfinite(out.selectedNumericalLowerV) &&
+          std::isfinite(out.selectedNumericalUpperV) &&
+          out.selectedNumericalLowerV >= 0. &&
+          out.selectedNumericalLowerV < out.selectedTailQuantileV &&
+          out.selectedTailQuantileV < out.selectedNumericalUpperV &&
+          out.selectedLowerEndpointProbability > p &&
+          out.selectedUpperEndpointProbability < p &&
+          out.numericalQualification == "NUMERICALLY_BRACKETED_NOT_CERTIFIED" &&
           out.statesEvaluated > 0 && out.statesEvaluated <= 8192,
-          "012_25: unqualified selected quantile or state count");
+          "012_26: unqualified selected numerical interval or state count");
   if (out.omittedTapCount == 0) {
-    out.boundMode = "EXACT_ASSUMED_MIXTURE";
-    out.lowerTailBoundV = out.upperTailBoundV = out.selectedTailQuantileV;
+    // 012_26: even the exact enumerated mixture has numerical root error.
+    out.boundMode = "NUMERICALLY_BRACKETED_ASSUMED_MIXTURE";
+    out.lowerTailBoundV = out.selectedNumericalLowerV;
+    out.upperTailBoundV = out.selectedNumericalUpperV;
   } else {
-    out.boundMode = "CONSERVATIVE_BOUNDED_MIXTURE";
-    require(out.selectedTailQuantileV <=
+    out.boundMode = "CONSERVATIVE_NUMERICAL_BOUND";
+    require(out.selectedNumericalUpperV <=
             std::numeric_limits<double>::max() - out.omittedTapBoundV,
-            "012_25: tail upper bound overflow");
-    const double lower = out.selectedTailQuantileV - out.omittedTapBoundV;
-    const double upper = out.selectedTailQuantileV + out.omittedTapBoundV;
+            "012_26: tail upper bound overflow");
+    const double lower = out.selectedNumericalLowerV - out.omittedTapBoundV;
+    const double upper = out.selectedNumericalUpperV + out.omittedTapBoundV;
     out.lowerTailBoundV =
         std::nextafter(lower, -std::numeric_limits<double>::infinity());
     out.upperTailBoundV =
         std::nextafter(upper, std::numeric_limits<double>::infinity());
     require(std::isfinite(out.lowerTailBoundV) &&
             std::isfinite(out.upperTailBoundV) &&
-            out.lowerTailBoundV <= out.selectedTailQuantileV &&
-            out.upperTailBoundV >= out.selectedTailQuantileV,
-            "012_25: invalid outward-rounded interval");
+            out.lowerTailBoundV <= out.selectedNumericalLowerV &&
+            out.upperTailBoundV >= out.selectedNumericalUpperV,
+            "012_26: invalid outward-rounded numerical interval");
   }
+  require(std::isfinite(out.lowerTailBoundV) &&
+          std::isfinite(out.upperTailBoundV) &&
+          out.lowerTailBoundV < out.upperTailBoundV &&
+          out.lowerTailBoundV <= out.selectedTailQuantileV &&
+          out.selectedTailQuantileV <= out.upperTailBoundV,
+          "012_26: combined-tail numerical bound invalid");
   check(cancelled);
   return out;
 }
@@ -277,13 +298,13 @@ Result<ComCombinedTailCasesData> calculateComCombinedTailBridge(
   result.provenance = expectedPair;
   result.provenance.algorithm =
       "com-victim-aggressor-bounded-joint-tail-exploratory";
-  result.provenance.version = "012_25-1";
+  result.provenance.version = "012_26-1";
   result.diagnostics.push_back({Severity::Warning, "NOT_IEEE_COM",
       "Assumed independent uniform PAM4 victim self-ISI and NEXT/FEXT taps; "
       "omitted voltage terms receive an outward-rounded magnitude envelope. "
       "Caller-supplied TX/voltage calibration and physical independence are "
-      "NOT certified. The selected numerical quantile has solver tolerance: "
-      "bounds are not rigorous floating-point enclosures. Not Annex 93A "
+      "NOT certified. Probability-crossing brackets are finite-precision "
+      "diagnostics, NOT rigorously rounded libm enclosures. Not Annex 93A "
       "COM, DER/FOM, BER, PHY PASS/FAIL or a production verdict."});
   return result;
 }
