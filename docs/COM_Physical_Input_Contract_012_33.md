@@ -86,6 +86,7 @@ The dedicated Qt-free CTest `channel_com_012_33_physical_contract` checks:
 ## 5. Verification and completion gates
 
 - Build/test with `-DSI_BUILD_GUI=OFF` for the bounded numerical CTest; retain the existing CTest fleet without altering release workflows.
+- **Native ARM64 gap correction:** the existing `Windows ARM64` job on the general three-platform workflow performs an x64-hosted cross-build and PE/deployment audit; this is **not** native CTest execution. A single additive, path-scoped, Qt-free workflow (`.github/workflows/com-01233-native-arm64.yml`) uses the official `windows-11-vs2026-arm` GitHub-hosted runner to build/run this one numeric CTest on actual ARM64. This does not weaken any existing required checks, release rule or source-qualification gate. Both cross-build and native runs must pass.
 - Review code changes on final PR HEAD, including the identity check scope, the model distinction and the independent ABCD oracle provenance.
 - Required GitHub CI (Linux, Windows x64, native Windows ARM64, macOS arm64) and CodeQL need evidence before declaring a completed merged task.
 - Squash merge to `integration/v1.4.0` only through existing protection. Verify post-merge integration CI.
