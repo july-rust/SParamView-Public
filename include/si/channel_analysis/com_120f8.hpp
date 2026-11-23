@@ -176,4 +176,16 @@ Result<Com120F8RectangularPulseCases> calculateCom120F8RectangularPulseCases(
     Provenance provenance = {},
     const std::atomic_bool* cancelled = nullptr);
 
+// 012_33: source-anchored *historical causal* Test1/Test2 physical-to-RX
+// complex bridge. Unlike the lower-level input adapter, this entrypoint
+// constructs the historical package from the confirmed S4P SourceSnapshot.
+// observedLiveIdentity is supplied by the caller and checked before/after;
+// callers MUST recheck their actual live workspace identity at presentation.
+// Always Warning/NOT_IEEE_COM; never a production PHY/COM margin.
+Result<Com120F8LoadedTestCaseSpectra> prepareCom120F8HistoricalCausalFromSource(
+    const SourceSnapshot& source, std::string_view victimChannelId,
+    const Com120F8EqualizerChoice& choice,
+    const SourceIdentity& observedLiveIdentity,
+    double maxAllowedModeConversion = 0.0, Control* control = nullptr);
+
 } // namespace si::channel

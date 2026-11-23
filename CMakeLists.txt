@@ -128,6 +128,17 @@ add_test(NAME channel_com_physical_test_cases COMMAND si_com_physical_channel_te
          "${CMAKE_BINARY_DIR}/com-physical-source")
 set_tests_properties(channel_com_physical_test_cases PROPERTIES TIMEOUT 90)
 install(TARGETS si_com_physical_channel_tests RUNTIME DESTINATION tests)
+# 012_33: source-backed Test1/Test2 historical causal physical contract,
+# independent complex ABCD/FFE/CTLE/RX oracles, negative and stale cases.
+add_executable(si_com_physical_contract_012_33_tests
+  tests/channel_analysis/com_physical_contract_012_33_tests.cpp)
+target_link_libraries(si_com_physical_contract_012_33_tests
+  PRIVATE si_channel_analysis)
+add_test(NAME channel_com_012_33_physical_contract
+  COMMAND si_com_physical_contract_012_33_tests
+          "${CMAKE_BINARY_DIR}/com-012_33-source")
+set_tests_properties(channel_com_012_33_physical_contract PROPERTIES TIMEOUT 120)
+install(TARGETS si_com_physical_contract_012_33_tests RUNTIME DESTINATION tests)
 # 012_09: independent IEEE 93A causal propagation S/gamma oracles.
 add_executable(si_com_causal_package_tests tests/channel_analysis/com_causal_package_tests.cpp)
 target_link_libraries(si_com_causal_package_tests PRIVATE si_channel_analysis)
