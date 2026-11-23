@@ -36,9 +36,13 @@ struct ComCombinedTapRecord {
 struct ComCombinedTailCaseData {
   std::string testCase;
   std::string receiverDecisionPlane, calibrationIdentity;
-  std::string boundMode; // EXACT_ASSUMED_MIXTURE or CONSERVATIVE_BOUNDED_MIXTURE
+  std::string boundMode; // NUMERICALLY_BRACKETED_ASSUMED_MIXTURE or CONSERVATIVE_NUMERICAL_BOUND
   double selectedTailQuantileV = 0.;
+  // The selected subset's finite-precision quantile interval (012_26).
+  double selectedNumericalLowerV = 0., selectedNumericalUpperV = 0.;
+  double selectedLowerEndpointProbability = 0., selectedUpperEndpointProbability = 0.;
   double verifiedSelectedTailProbability = 0.;
+  std::string numericalQualification = "NUMERICALLY_BRACKETED_NOT_CERTIFIED";
   double omittedTapBoundV = 0.;
   double lowerTailBoundV = 0., upperTailBoundV = 0.;
   size_t selectedTapCount = 0, omittedTapCount = 0, statesEvaluated = 0;

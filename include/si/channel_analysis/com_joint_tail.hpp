@@ -40,6 +40,12 @@ struct ComJointTailData {
   size_t statesEvaluated = 0;
   std::string testCase, referencePlane, calibrationIdentity;
   std::string model = "EXPLORATORY_INDEPENDENT_PAM4_DUAL_DIRAC_GAUSSIAN";
+  // 012_26: finite-precision probability-crossing bracket, NOT a rigorously
+  // rounded IEEE/MPFR interval. Preserve the 012_20 point-estimate contract.
+  double numericalQuantileLowerV = 0., numericalQuantileUpperV = 0.;
+  double lowerEndpointTailProbability = 0., upperEndpointTailProbability = 0.;
+  double numericalBracketWidthV = 0., normalizedBracketWidth = 0.;
+  std::string numericalQualification = "NUMERICALLY_BRACKETED_NOT_CERTIFIED";
 };
 
 struct ComJointTailCasesData {
