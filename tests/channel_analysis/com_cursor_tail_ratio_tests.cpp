@@ -20,22 +20,6 @@ void need(bool ok, const char* why) {
 void near(double actual, double expected, double tol, const char* why) {
   need(std::isfinite(actual) && std::abs(actual-expected) <= tol, why);
 }
-void numericalBound(const ComCombinedTailCaseData& x, double oracle,
-                    double p, const char* why) {
-  need(x.numericalQualification ==
-           "NUMERICALLY_BRACKETED_NOT_CERTIFIED" &&
-       std::isfinite(x.selectedNumericalLowerV) &&
-       std::isfinite(x.selectedNumericalUpperV) &&
-       x.selectedNumericalLowerV < oracle &&
-       oracle < x.selectedNumericalUpperV &&
-       x.selectedNumericalLowerV < x.selectedTailQuantileV &&
-       x.selectedTailQuantileV < x.selectedNumericalUpperV &&
-       x.selectedLowerEndpointProbability > p &&
-       x.selectedUpperEndpointProbability < p &&
-       x.lowerTailBoundV <= x.selectedNumericalLowerV &&
-       x.upperTailBoundV >= x.selectedNumericalUpperV &&
-       x.lowerTailBoundV < x.upperTailBoundV, why);
-}
 template <class F> void rejects(F f, const char* why) {
   bool caught = false;
   try { (void)f(); } catch (const si::Error&) { caught = true; }
