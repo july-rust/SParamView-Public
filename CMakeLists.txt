@@ -51,7 +51,8 @@ add_library(si_channel_analysis src/channel_analysis/common.cpp
                                 src/channel_analysis/com_victim_isi.cpp
                                 src/channel_analysis/com_victim_isi_tail.cpp
                                 src/channel_analysis/com_aggressor_voltage.cpp
-                                src/channel_analysis/com_combined_tail.cpp)
+                                src/channel_analysis/com_combined_tail.cpp
+                                src/channel_analysis/com_cursor_tail_ratio.cpp)
 target_include_directories(si_channel_analysis PUBLIC include)
 target_link_libraries(si_channel_analysis PUBLIC si_core)
 if(MSVC)
@@ -221,6 +222,14 @@ target_link_libraries(si_com_combined_tail_tests PRIVATE si_channel_analysis)
 add_test(NAME channel_com_combined_tail COMMAND si_com_combined_tail_tests)
 set_tests_properties(channel_com_combined_tail PROPERTIES TIMEOUT 40)
 install(TARGETS si_com_combined_tail_tests RUNTIME DESTINATION tests)
+# 012_28: exploratory PAM4 cursor / combined-tail upper-bound dB bridge.
+add_executable(si_com_cursor_tail_ratio_tests
+  tests/channel_analysis/com_cursor_tail_ratio_tests.cpp)
+target_link_libraries(si_com_cursor_tail_ratio_tests PRIVATE si_channel_analysis)
+add_test(NAME channel_com_cursor_tail_ratio COMMAND si_com_cursor_tail_ratio_tests)
+set_tests_properties(channel_com_cursor_tail_ratio PROPERTIES TIMEOUT 40)
+install(TARGETS si_com_cursor_tail_ratio_tests RUNTIME DESTINATION tests)
+
 add_executable(si_hardening_tests tests/hardening_tests.cpp)
 target_link_libraries(si_hardening_tests PRIVATE si_core)
 install(TARGETS si_hardening_tests RUNTIME DESTINATION tests)
