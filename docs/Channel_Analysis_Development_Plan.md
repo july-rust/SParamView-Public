@@ -98,6 +98,8 @@ Record actual source hashes, trace/profile versions, GUI evidence/logs and exact
 - Export: every result identifies file hash, channel/pins, input frequency span, assumptions, configuration, algorithm version and evaluation quality/status. Export errors cannot corrupt the original file.
 - Documentation: the present document is planning-only. Update existing release notes and EN/KO user instructions **at implementation time**. Do not rewrite historical v1.3.5 release contents or tagged assets.
 
-## 7. Immediate next development task
+## 7. Current next task (2026-11-23) and historical note
 
-**Implement and qualify Stage A shared contracts first, without release or placeholder calculations.** Its initial PR should introduce only non-modal window ownership, immutable channel snapshots, progress/cancellation, caching isolation and lifecycle/state tests, without changing legacy SI numerics. Next, develop all four standalone engines in separate PRs, integrate, run exact-commit cross-platform and numerical release gates, and publish **only one official v1.4.0 release** after every required function passes.
+**현행 다음 작업은 [012_31 COM Gap Matrix와 규격/참조 코드 버전 자격 감사](Development_Plan_012_v1.4.0.md)**다. 네 기능의 012_01~012_30 진행 기록을 재개발하지 않으며, 012_32~50의 공식 수치 검증·제품 통합·출시 게이트는 현행 실행계획을 따른다.
+
+**Historical (2026-11-16):** 아래 당시의 'Stage A부터 먼저 구현' 지시는 개발 초기 순서를 보여 주는 이력이며 **현재 미착수 작업이 아니다**. Stage A 및 ILD/ICN/Eye의 제한된 범위는 이미 구현·자동 검증되었고, IEEE 공식 COM 및 v1.4.0 릴리스는 미완이다.
