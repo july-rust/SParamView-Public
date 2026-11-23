@@ -2,10 +2,18 @@
 // 012_28: exploratory cursor/combined-tail voltage-ratio bridge; NOT IEEE COM.
 #include "si/channel_analysis/com_combined_tail.hpp"
 #include <atomic>
+#include <cstddef>
 #include <optional>
 #include <string>
 
 namespace si::channel {
+
+// Diagnostic reason for a finite dB upper endpoint being absent.
+// This does not describe IEEE COM or physical-channel certification.
+enum class ComCursorTailUpperBoundState {
+  Available,
+  NonpositiveNoiseLower
+};
 
 struct ComCursorTailRatioCaseData {
   std::string testCase, receiverDecisionPlane, calibrationIdentity;
@@ -19,6 +27,16 @@ struct ComCursorTailRatioCaseData {
   double exploratoryLowerRatioDb = 0.;
   // Absent when N_lower <= 0. Never substitute infinity, zero, or DBL_MAX.
   std::optional<double> exploratoryUpperRatioDb;
+  ComCursorTailUpperBoundState upperBoundState =
+      ComCursorTailUpperBoundState::NonpositiveNoiseLower;
+  // 012_30: read-only exploratory diagnostic widths. An absent width means
+  // non-representable arithmetic, not zero uncertainty or a failed ratio.
+  double omittedTapBoundV = 0.;
+  size_t selectedTapCount = 0, omittedTapCount = 0;
+  std::optional<double> numericalWidthV;
+  std::optional<double> omittedTapEnvelopeWidthV;
+  std::optional<double> totalNoiseIntervalWidthV;
+  std::optional<double> exploratoryIntervalWidthDb;
   double oneSidedTailProbability = 0.;
   std::string numericalQualification, boundMode;
 };
