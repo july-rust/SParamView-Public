@@ -4,6 +4,8 @@
 #include <cctype>
 #include <string_view>
 #include <utility>
+#include <sstream>
+#include <locale>
 
 namespace si::channel {
 namespace {
@@ -193,4 +195,183 @@ Result<ComScaledVoltageCases> scaleCom120F8ReceiverEquivalentVoltage(
     "proof, Sdd21 is not assumed to equal Vout/Vin. No IEEE COM/PHY verdict."});
   return result;
 }
+
+namespace {
+std::vector<double> fixedTimes(const ComFixedVictimCaseChoice& c,
+                               const char* expected) {
+  require(c.testCase==expected,"012_34: swapped test case");
+  validateCom120F8DfeTaps(c.dfeTaps);
+  const double ui=1./final8023ck120F8().symbolRateHz;
+  const double t=c.decisionTimeSeconds;
+  require(std::isfinite(t) && t>=3.*ui &&
+          std::nextafter(t,std::numeric_limits<double>::infinity())-t
+            <=1e-9*ui,"012_34: invalid decision time or resolution");
+  std::vector<double> times;
+  for(int k=-3;k<=9;++k) {
+    const double x=t+k*ui;
+    require(std::isfinite(x) && x>=0. &&
+            (times.empty() || x>times.back()),"012_34: invalid time grid");
+    times.push_back(x);
+  }
+  return times;
+}
+void appendIdentity(std::ostringstream& out, const std::string& value) {
+  constexpr char hex[]="0123456789abcdef";
+  out<<value.size()<<":";
+  for(unsigned char byte:value) out<<hex[byte>>4]<<hex[byte&15];
+  out<<"/";
+}
+std::string caseIdentity(const Provenance& parent,
+                         const ComFixedVictimCaseChoice& c) {
+  std::ostringstream out;
+  out.imbue(std::locale::classic());
+  out<<parent.settingsIdentity<<"|case="<<c.testCase<<"|012_34-v1/";
+  out<<std::hexfloat<<c.decisionTimeSeconds<<"/";
+  for(double tap:c.dfeTaps) out<<tap<<"/";
+  if(c.voltageScale) {
+    const auto& s=*c.voltageScale->value;
+    out<<"voltage/"<<s.voltsPerUnitSymbol<<"/";
+    for(const auto* key:{&s.transmitterReferencePlane,&s.receiverDecisionPlane,
+                         &s.normalizationIdentity,&s.calibrationIdentity,
+                         &s.calibrationSourceIdentity,&s.txEqualizerIdentity,
+                         &s.rxEqualizerIdentity}) appendIdentity(out,*key);
+  } else out<<"no-voltage";
+  return out.str();
+}
+template<typename Values>
+ComObservedIsi observedIsi(const Values& values) {
+  ComObservedIsi out;
+  for(size_t k=0;k<13;++k) {
+    const double v=values[k];
+    require(std::isfinite(v),"012_34: nonfinite ISI");
+    if(k==3) continue;
+    auto& side=k<3?out.precursorRss:out.postcursorRss;
+    side=std::hypot(side,v);
+    out.absoluteSumBound+=std::abs(v);
+  }
+  out.totalRss=std::hypot(out.precursorRss,out.postcursorRss);
+  out.pam4Rms=out.totalRss*std::sqrt(5./9.);
+  require(std::isfinite(out.totalRss) && std::isfinite(out.absoluteSumBound)
+      && (out.totalRss==0. || std::isnormal(out.pam4Rms)),
+      "012_34: observed ISI dynamic range exceeded");
+  // Absolute sum is an observed-window diagnostic, not a certified enclosure.
+  return out;
+}
+ComFixedVictimCaseData fixedCase(const ComPreparedData& spectrum,
+    const Provenance& parent, const ComFixedVictimCaseChoice& choice,
+    const std::vector<double>& times, const std::atomic_bool* cancelled) {
+  check(cancelled);
+  if(choice.voltageScale) {
+    validateScale(*choice.voltageScale,parent,choice.testCase.c_str());
+    const auto& s=*choice.voltageScale->value;
+    require(s.txEqualizerIdentity==parent.settingsIdentity &&
+            s.rxEqualizerIdentity==parent.settingsIdentity,
+            "012_34: voltage evidence not bound to actual fixed EQ");
+  }
+  auto provenance=parent;
+  provenance.settingsIdentity=caseIdentity(parent,choice);
+  auto pulse=calculateCom120F8RectangularPulse(spectrum,times,provenance,cancelled);
+  require(pulse.usable(),"012_34: symbol pulse unavailable");
+  validatePulse(*pulse.value);
+  const auto dfe=calculateComDfe(
+      ComDfeInput{pulse,choice.dfeTaps,choice.testCase},provenance,cancelled);
+  require(dfe.usable(),"012_34: fixed DFE unavailable");
+  ComFixedVictimCaseData out;
+  out.testCase=choice.testCase;
+  out.settingsIdentity=provenance.settingsIdentity;
+  out.pulse=*pulse.value;
+  out.dfe=*dfe.value;
+  out.phaseUi=std::fmod(choice.decisionTimeSeconds,out.pulse.symbolPeriodSeconds)
+      /out.pulse.symbolPeriodSeconds;
+  for(size_t k=0;k<13;++k) {
+    check(cancelled);
+    const double r=(k>=4 && k<=9)?
+      out.dfe.normalizedAfter[k]*out.dfe.cursorAmplitudeUnitSymbol:
+      out.pulse.unitSymbolPulse[k];
+    require(std::isfinite(r) && (k<4 || k>9 ||
+        out.dfe.normalizedAfter[k]==0. || std::isnormal(r)),
+        "012_34: residual dynamic range exceeded");
+    out.residualUnitSymbol[k]=r;
+  }
+  out.isiBefore=observedIsi(out.pulse.unitSymbolPulse);
+  out.isiAfter=observedIsi(out.residualUnitSymbol);
+  if(choice.voltageScale) {
+    const auto& evidence=*choice.voltageScale->value;
+    ComFixedVictimVoltage v;
+    v.before=scale(out.pulse,evidence,cancelled);
+    for(size_t k=0;k<13;++k) {
+      check(cancelled);
+      const double r=out.residualUnitSymbol[k]*evidence.voltsPerUnitSymbol;
+      require(std::isfinite(r) && (out.residualUnitSymbol[k]==0. ||
+          std::isnormal(r)),"012_34: residual voltage dynamic range exceeded");
+      v.residualV[k]=r;
+    }
+    v.isiBeforeV=observedIsi(v.before.equivalentPulseV);
+    v.isiAfterV=observedIsi(v.residualV);
+    out.voltage=std::move(v);
+  }
+  check(cancelled);
+  return out;
+}
+} // namespace
+
+Result<ComFixedVictimCases> calculateComFixedVictimFromSource(
+    const SourceSnapshot& source,std::string_view victimChannelId,
+    const Com120F8EqualizerChoice& eq,const SourceIdentity& observedLiveIdentity,
+    const ComFixedVictimCaseChoice& test1,const ComFixedVictimCaseChoice& test2,
+    double maxAllowedModeConversion,Control* control) {
+  const auto* cancelled=control?&control->cancelled:nullptr;
+  check(cancelled);
+  const auto stale=[&] {
+    Result<ComFixedVictimCases> r;
+    r.status=Status::Stale;
+    r.diagnostics.push_back({Severity::Error,"SOURCE_STALE",
+        "012_34: source no longer matches observed live identity."});
+    return r;
+  };
+  if(!source.current(observedLiveIdentity)) return stale();
+  const auto times1=fixedTimes(test1,"TEST1"),times2=fixedTimes(test2,"TEST2");
+  const auto physical=prepareCom120F8HistoricalCausalFromSource(
+      source,victimChannelId,eq,observedLiveIdentity,maxAllowedModeConversion,control);
+  if(physical.status==Status::Stale) return stale();
+  require(physical.usable() && physical.status==Status::Warning &&
+      physical.provenance.algorithm=="com-120f8-causal-source-complex-bridge" &&
+      physical.provenance.version=="012_33-1" &&
+      qualifiedIdentity(physical.provenance) && physical.value->model &&
+      std::string_view(physical.value->model)=="EXPLORATORY_C2C_PACKAGE_HT_FFE_CTLE_RX",
+      "012_34: invalid historical causal producer");
+  ComFixedVictimCases data;
+  data.test1=fixedCase(physical.value->test1,physical.provenance,test1,times1,cancelled);
+  data.test2=fixedCase(physical.value->test2,physical.provenance,test2,times2,cancelled);
+  if(data.test1.voltage && data.test2.voltage) {
+    const auto& a=data.test1.voltage->before;
+    const auto& b=data.test2.voltage->before;
+    require(a.transmitterReferencePlane==b.transmitterReferencePlane &&
+            a.receiverDecisionPlane==b.receiverDecisionPlane &&
+            a.normalizationIdentity==b.normalizationIdentity &&
+            a.calibrationIdentity==b.calibrationIdentity,
+            "012_34: incompatible paired voltage planes or calibration");
+  }
+  check(cancelled);
+  if(!source.current(observedLiveIdentity)) return stale();
+  Result<ComFixedVictimCases> out;
+  out.status=Status::Warning;
+  out.provenance=physical.provenance;
+  std::ostringstream settings;
+  settings.imbue(std::locale::classic());
+  settings<<physical.provenance.settingsIdentity<<"/012_34-pair/";
+  appendIdentity(settings,data.test1.settingsIdentity);
+  appendIdentity(settings,data.test2.settingsIdentity);
+  out.provenance.settingsIdentity=settings.str();
+  out.provenance.algorithm="com-source-fixed-victim-observed-isi-dfe";
+  out.provenance.version="012_34-1";
+  out.value=std::move(data);
+  out.diagnostics.push_back({Severity::Warning,"NOT_IEEE_COM",
+      "Fixed explicit decisions and ideal six-tap DFE; observed -3..+9 UI only. "
+      "PAM4 RMS assumes independent equiprobable symbols. Voltage is caller-declared."});
+  out.diagnostics.push_back({Severity::Warning,"REFERENCE_BLOCKED",
+      "Final PHY equation mapping, calibration, COM dB and verdict are unqualified."});
+  return out;
+}
+
 } // namespace si::channel
