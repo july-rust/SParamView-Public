@@ -70,9 +70,9 @@ void close(double actual,double expected,const char* what) {
     throw std::runtime_error(what);
   }
 }
-Result<ComVoltageScaleEvidence> evidence(const Provenance& p,
+si::channel::Result<ComVoltageScaleEvidence> evidence(const Provenance& p,
       const char* which,double factor) {
-  Result<ComVoltageScaleEvidence> result;
+  si::channel::Result<ComVoltageScaleEvidence> result;
   result.status=Status::Warning;
   result.provenance=p;
   ComVoltageScaleEvidence s;
