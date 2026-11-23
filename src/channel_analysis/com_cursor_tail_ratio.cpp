@@ -13,6 +13,21 @@ void check(const std::atomic_bool* cancelled) {
   if (cancelled && cancelled->load(std::memory_order_relaxed))
     throw si::Cancelled();
 }
+// No clamping or invented finite stand-ins. Widths are diagnostics only:
+ // signed finite endpoints can have an unrepresentable finite difference.
+std::optional<double> nonnegativeWidth(double upper, double lower) {
+  if (!std::isfinite(upper) || !std::isfinite(lower) || upper < lower)
+    return std::nullopt;
+  const double width = upper - lower;
+  if (!std::isfinite(width) || width < 0.) return std::nullopt;
+  return width;
+}
+std::optional<double> omittedEnvelopeWidth(double bound) {
+  if (!std::isfinite(bound) || bound < 0.) return std::nullopt;
+  const double width = 2. * bound;
+  if (!std::isfinite(width)) return std::nullopt;
+  return width;
+}
 bool hasNotIeeeCom(const std::vector<Diagnostic>& diagnostics) {
   return std::any_of(diagnostics.begin(), diagnostics.end(),
       [](const Diagnostic& d) {
@@ -53,6 +68,9 @@ ComCursorTailRatioCaseData convert(
           "012_28: unqualified or nonpositive combined-tail upper bound");
   require(std::isfinite(noise.lowerTailBoundV),
           "012_29: nonfinite combined-tail lower bound");
+  require(std::isfinite(noise.omittedTapBoundV) &&
+              noise.omittedTapBoundV >= 0.,
+          "012_30: invalid omitted-tap envelope");
   const double ratio = calculateDiagnosticVoltageRatioDb(
       spacing, noise.upperTailBoundV);
   require(std::isfinite(ratio), "012_28: nonfinite diagnostic voltage ratio");
@@ -76,6 +94,19 @@ ComCursorTailRatioCaseData convert(
   out.noiseLowerTailBoundV = noise.lowerTailBoundV;
   out.exploratoryLowerRatioDb = ratio;
   out.exploratoryUpperRatioDb = upperRatio;
+  out.upperBoundState = upperRatio
+      ? ComCursorTailUpperBoundState::Available
+      : ComCursorTailUpperBoundState::NonpositiveNoiseLower;
+  out.omittedTapBoundV = noise.omittedTapBoundV;
+  out.selectedTapCount = noise.selectedTapCount;
+  out.omittedTapCount = noise.omittedTapCount;
+  out.numericalWidthV = nonnegativeWidth(
+      noise.selectedNumericalUpperV, noise.selectedNumericalLowerV);
+  out.omittedTapEnvelopeWidthV = omittedEnvelopeWidth(noise.omittedTapBoundV);
+  out.totalNoiseIntervalWidthV = nonnegativeWidth(
+      noise.upperTailBoundV, noise.lowerTailBoundV);
+  if (upperRatio)
+    out.exploratoryIntervalWidthDb = nonnegativeWidth(*upperRatio, ratio);
   out.oneSidedTailProbability = probability;
   out.numericalQualification = noise.numericalQualification;
   out.boundMode = noise.boundMode;
@@ -137,13 +168,14 @@ Result<ComCursorTailRatioCasesData> calculateComCursorTailRatioBridge(
   out.value = std::move(data);
   out.provenance = expectedPair;
   out.provenance.algorithm = "com-cursor-tail-ratio-exploratory";
-  out.provenance.version = "012_29-1";
+  out.provenance.version = "012_30-1";
   out.diagnostics.push_back({Severity::Warning, "NOT_IEEE_COM",
       "Exploratory nominal PAM4 half-spacing / assumed-mixture tail: "
       "dB lower bound, plus optional upper bound only for positive noise "
       "lower bound. Numerical brackets are NOT certified enclosures; "
       "TX/RX voltage calibration, physical independence and target-DER "
-      "relation are NOT verified. Not IEEE Annex 93A COM(dB), DER/FOM "
+      "relation are NOT verified. Diagnostic uncertainty widths are not "
+      "certified numerical error budgets. Not IEEE Annex 93A COM(dB), DER/FOM "
       "or PHY PASS/FAIL."});
   return out;
 }
