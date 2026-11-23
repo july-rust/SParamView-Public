@@ -79,6 +79,79 @@ void expectDiagnostic(const std::vector<Diagnostic>& diagnostics,
 }
 }
 
+
+void testTwoVictimIdentity(const std::filesystem::path& root,
+                           const Com120F8EqualizerChoice& eq) {
+  // One S8P source, two disjoint confirmed differential Victims, identical
+  // source hash and mapping identity, but distinct physical channel responses.
+  // This was a P2 Codex finding: source-wide mapping identity alone does not
+  // identify the victim chosen for receiver calibration and subsequent joins.
+  namespace fs=std::filesystem;
+  const fs::path file=root/"two-victims-012_33.s8p";
+  std::ofstream out(file);
+  demand(bool(out),"cannot write multi-victim S8P fixture");
+  out<<"# GHz S RI R 50\n"<<std::setprecision(17);
+  for(int k=0;k<=2657;++k) {
+    const double frequency=1.e7*static_cast<double>(k);
+    Complex samples[64]{};
+    for(int victim=0;victim<2;++victim) {
+      const Complex g=std::polar(victim==0?0.75:0.55,
+          -2.*std::numbers::pi*frequency*(victim==0?12.e-12:18.e-12));
+      for(int leg=0;leg<2;++leg) {
+        const int near=4*victim+leg;
+        const int far=near+2;
+        samples[8*far+near]=g;
+        samples[8*near+far]=g;
+      }
+    }
+    out<<frequency/1.e9;
+    for(int stimulus=0;stimulus<8;++stimulus)
+      for(int response=0;response<8;++response) {
+        const Complex x=samples[8*response+stimulus];
+        out<<" "<<x.real()<<" "<<x.imag();
+      }
+    out<<"\n";
+  }
+  out.close();
+  demand(bool(out),"multi-victim S8P write failure");
+  const auto cache=Cache::open(file,root/"cache-s8p",nullptr,true);
+  Channel a;
+  a.id="victim-A"; a.name="CHANNEL_A";
+  a.nearP=0;a.nearN=1;a.farP=2;a.farN=3;
+  Channel b;
+  b.id="victim-B"; b.name="CHANNEL_B";
+  b.nearP=4;b.nearN=5;b.farP=6;b.farN=7;
+  const auto snapshot=SourceSnapshot::capture(
+      cache,{a,b},"two-victim-revision",71,73);
+  const auto live=snapshot.identity();
+  const auto first=prepareCom120F8HistoricalCausalFromSource(
+      snapshot,"victim-A",eq,live);
+  const auto second=prepareCom120F8HistoricalCausalFromSource(
+      snapshot,"victim-B",eq,live);
+  demand(first.usable() && second.usable(),
+         "both confirmed victims of the same S8P must be usable");
+  demand(first.provenance.sourceSha256==second.provenance.sourceSha256 &&
+         first.provenance.mappingIdentity==second.provenance.mappingIdentity &&
+         first.provenance.workspaceGeneration==second.provenance.workspaceGeneration &&
+         first.provenance.mappingGeneration==second.provenance.mappingGeneration,
+         "both victims must share the exact same source-wide identity");
+  demand(first.provenance.settingsIdentity !=
+             second.provenance.settingsIdentity &&
+         first.provenance.settingsIdentity.find("victim:8:")!=
+             std::string::npos &&
+         second.provenance.settingsIdentity.find("victim:8:")!=
+             std::string::npos,
+         "selected victim must be encoded unambiguously in provenance");
+  const auto& h1=first.value->test1.conditionedThru[1000];
+  const auto& h2=second.value->test1.conditionedThru[1000];
+  demand(std::abs(h1-h2)>0.01,
+         "two-victim fixture must exercise distinct complex responses");
+  const auto again=prepareCom120F8HistoricalCausalFromSource(
+      snapshot,"victim-A",eq,live);
+  demand(again.provenance.settingsIdentity==first.provenance.settingsIdentity,
+         "same victim and EQ must preserve deterministic provenance");
+}
+
 int main(int argc, char** argv) {
   try {
     demand(argc==2,"expected dedicated CTest temporary source folder");
@@ -197,6 +270,8 @@ int main(int argc, char** argv) {
     near(fromSource.value->test2.conditionedThru[k10GHz],
          {0.054732367610984996,-0.06551197911112154},
          "S4P Touchstone full source Test2 Golden");
+
+    testTwoVictimIdentity(root,fixedEq);
 
     // 3. Explicit fail-closed paths: wrong package role, unsupported model,
     // stale observed live identity, invalid EQ, mapping, grid and cancel.
