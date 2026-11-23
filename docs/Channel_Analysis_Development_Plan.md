@@ -1,6 +1,6 @@
 # SParamView Channel Analysis Development Plan — v1.3.5 Baseline
 
-**Implementation work breakdown:** [012_01~012_14 complete v1.4.0 development, verification and release plan](Development_Plan_012_v1.4.0.md). This is the controlling numbered implementation checklist; the present page retains the feature/architecture overview.
+**Current execution work breakdown (2026-11-23):** [final reviewed v1.4.0 plan, active 012_31~012_50](Development_Plan_012_v1.4.0.md). Earlier 012_01~012_14 numbering and the 2026-11-16 baseline are retained for historical traceability, **not as a second active release schedule**. This page retains the feature/architecture overview.
 
 **Updated:** 2026-11-16 (KST)  
 **Status:** PARTIAL IMPLEMENTATION / ILD + ICN numerical & automated GUI scope, Eye numerical 012_07 COMPLETE; Eye GUI 012_08 COMPLETE (PR and post-merge CI success); COM pending  
