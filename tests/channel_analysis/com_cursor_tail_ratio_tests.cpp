@@ -203,7 +203,7 @@ int main() {
     const auto live=liveFrom(p);
     const auto baseline=calculateComCursorTailRatioBridge(fixture(p,0,true),p,live);
     need(baseline.usable() && baseline.status==Status::Warning &&
-         baseline.provenance.version=="012_29-1" &&
+         baseline.provenance.version=="012_30-1" &&
          baseline.provenance.algorithm=="com-cursor-tail-ratio-exploratory" &&
          baseline.diagnostics.size()==1 &&
          baseline.diagnostics.front().code=="NOT_IEEE_COM" &&
@@ -252,6 +252,35 @@ int main() {
                   *b.exploratoryUpperRatioDb),1e-12,
          "012_29: exact two-case minimum of finite upper endpoints");
 
+    // 012_30: independently fixed Gaussian quantile lies within the
+    // two reported noise endpoints; diagnostic widths describe those
+    // finite-precision endpoints without claiming a certified enclosure.
+    need(a.upperBoundState==ComCursorTailUpperBoundState::Available &&
+         b.upperBoundState==ComCursorTailUpperBoundState::Available &&
+         a.numericalWidthV && b.numericalWidthV &&
+         *a.numericalWidthV>0. && *b.numericalWidthV>0. &&
+         *a.numericalWidthV<1e-5 && *b.numericalWidthV<1e-5 &&
+         a.omittedTapBoundV==0. && b.omittedTapBoundV==0. &&
+         a.omittedTapCount==0 && b.omittedTapCount==0 &&
+         a.omittedTapEnvelopeWidthV && b.omittedTapEnvelopeWidthV &&
+         *a.omittedTapEnvelopeWidthV==0. &&
+         *b.omittedTapEnvelopeWidthV==0. &&
+         a.totalNoiseIntervalWidthV && b.totalNoiseIntervalWidthV &&
+         a.exploratoryIntervalWidthDb && b.exploratoryIntervalWidthDb &&
+         a.noiseLowerTailBoundV<=qRef && a.noiseUpperTailV>=qRef &&
+         b.noiseLowerTailBoundV<=qRef && b.noiseUpperTailV>=qRef,
+         "012_30: independent Gaussian budget/source/upper state");
+    near(*a.totalNoiseIntervalWidthV,*a.numericalWidthV,1e-12,
+         "012_30: TEST1 Gaussian total width");
+    near(*b.totalNoiseIntervalWidthV,*b.numericalWidthV,1e-12,
+         "012_30: TEST2 Gaussian total width");
+    near(*a.exploratoryIntervalWidthDb,
+         *a.exploratoryUpperRatioDb-a.exploratoryLowerRatioDb,1e-14,
+         "012_30: TEST1 finite dB interval width");
+    near(*b.exploratoryIntervalWidthDb,
+         *b.exploratoryUpperRatioDb-b.exploratoryLowerRatioDb,1e-14,
+         "012_30: TEST2 finite dB interval width");
+
     // Adding victim self-ISI and NEXT/FEXT cannot increase the diagnostic
     // ratio in these independently fixed synthetic examples.
     const auto victim=calculateComCursorTailRatioBridge(fixture(p,0),p,live);
@@ -276,6 +305,31 @@ int main() {
          omitted.value->test1.noiseUpperTailV >
              fext.value->test1.noiseUpperTailV,
          "012_28: omitted tap not silently discarded");
+    // The independent arithmetic reference sums *all* records omitted
+    // by the existing selection, rather than trusting its cached bound.
+    const auto independentOmitted =
+        calculateComCombinedTailBridge(fixture(p,3),p,live);
+    long double sumOmitted=0.;
+    for(const auto& tap:independentOmitted.value->test1.omittedTaps)
+      sumOmitted += std::abs(static_cast<long double>(tap.signedVoltageV));
+    const auto& c=omitted.value->test1;
+    need(c.omittedTapCount>0 && c.omittedTapCount ==
+             independentOmitted.value->test1.omittedTaps.size() &&
+         c.selectedTapCount ==
+             independentOmitted.value->test1.selectedTaps.size() &&
+         c.numericalWidthV && c.omittedTapEnvelopeWidthV &&
+         c.totalNoiseIntervalWidthV && *c.numericalWidthV>0. &&
+         *c.omittedTapEnvelopeWidthV>0. &&
+         static_cast<long double>(c.omittedTapBoundV) + 1e-13L >=
+             sumOmitted,
+         "012_30: omitted-tap records and diagnostic widths");
+    near(*c.omittedTapEnvelopeWidthV,
+         static_cast<double>(2.L*sumOmitted),1e-12,
+         "012_30: independent omitted-tap sum width");
+    near(*c.totalNoiseIntervalWidthV,
+         *c.numericalWidthV+*c.omittedTapEnvelopeWidthV,1e-12,
+         "012_30: numerical + omitted contributions");
+
     need(std::abs(victim.value->test1.exploratoryLowerRatioDb -
                   victim.value->test2.exploratoryLowerRatioDb)>1e-6 &&
          victim.value->test1.testCase=="TEST1" &&
@@ -307,6 +361,26 @@ int main() {
     near(*doubled.value->test2.exploratoryUpperRatioDb,
          *b.exploratoryUpperRatioDb,1e-8,
          "012_29: TEST2 upper common scaling invariance");
+
+    need(doubled.value->test1.numericalWidthV &&
+         doubled.value->test2.numericalWidthV &&
+         doubled.value->test1.totalNoiseIntervalWidthV &&
+         doubled.value->test2.totalNoiseIntervalWidthV &&
+         doubled.value->test1.exploratoryIntervalWidthDb &&
+         doubled.value->test2.exploratoryIntervalWidthDb,
+         "012_30: scaled diagnostics absent");
+    near(*doubled.value->test1.numericalWidthV,
+         2.*(*a.numericalWidthV),1e-8,
+         "012_30: TEST1 voltage width scales");
+    near(*doubled.value->test2.numericalWidthV,
+         2.*(*b.numericalWidthV),1e-8,
+         "012_30: TEST2 voltage width scales");
+    near(*doubled.value->test1.exploratoryIntervalWidthDb,
+         *a.exploratoryIntervalWidthDb,1e-8,
+         "012_30: TEST1 dB width scale-invariant");
+    near(*doubled.value->test2.exploratoryIntervalWidthDb,
+         *b.exploratoryIntervalWidthDb,1e-8,
+         "012_30: TEST2 dB width scale-invariant");
 
     // A validated signed negative cursor must preserve both absolute
     // half-spacing and voltage-ratio endpoints.
@@ -341,6 +415,15 @@ int main() {
          one.value->test2.exploratoryUpperRatioDb.has_value() &&
          one.value->minimumExploratoryRatioUpperDb.has_value(),
          "012_29: one-sided TEST1 and finite TEST2 upper contract");
+    need(one.value->test1.upperBoundState ==
+             ComCursorTailUpperBoundState::NonpositiveNoiseLower &&
+         one.value->test2.upperBoundState ==
+             ComCursorTailUpperBoundState::Available &&
+         !one.value->test1.exploratoryIntervalWidthDb &&
+         one.value->test1.totalNoiseIntervalWidthV &&
+         one.value->test1.omittedTapEnvelopeWidthV &&
+         one.value->test2.exploratoryIntervalWidthDb,
+         "012_30: explicit TEST1-only upper-bound absence");
     near(*one.value->minimumExploratoryRatioUpperDb,
          *one.value->test2.exploratoryUpperRatioDb,1e-12,
          "012_29: one known Test upper bounds the minimum");
@@ -355,6 +438,18 @@ int main() {
          !both.value->minimumExploratoryRatioUpperDb &&
          std::isfinite(both.value->minimumExploratoryRatioDb),
          "012_29: both nonpositive noise lower bounds must remain one-sided");
+
+    need(both.value->test1.upperBoundState ==
+             ComCursorTailUpperBoundState::NonpositiveNoiseLower &&
+         both.value->test2.upperBoundState ==
+             ComCursorTailUpperBoundState::NonpositiveNoiseLower &&
+         !both.value->test1.exploratoryIntervalWidthDb &&
+         !both.value->test2.exploratoryIntervalWidthDb &&
+         both.value->test1.numericalWidthV &&
+         both.value->test2.numericalWidthV &&
+         both.value->test1.totalNoiseIntervalWidthV &&
+         both.value->test2.totalNoiseIntervalWidthV,
+         "012_30: both missing upper bounds preserve voltage budgets");
 
     // The existing pure 012_19 dB kernel must survive extreme positive
     // representable voltages and near-unity ratios without arithmetic
@@ -422,7 +517,7 @@ int main() {
     need(production.status==Status::NotEvaluated &&
          !production.value.has_value(),
          "012_28 cannot activate official calculateCom");
-    std::cout<<"012_29 exploratory cursor/tail ratio interval PASS\n";
+    std::cout<<"012_30 exploratory cursor/tail uncertainty budget PASS\n";
     return 0;
   } catch(const std::exception& e) {
     std::cerr<<"012_28 FAILED: "<<e.what()<<'\n';
