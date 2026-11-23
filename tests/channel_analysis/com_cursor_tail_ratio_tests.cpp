@@ -1,4 +1,5 @@
 #include "si/channel_analysis/com_cursor_tail_ratio.hpp"
+#include "si/channel_analysis/com_voltage_ratio.hpp"
 #include "si/channel_analysis/com.hpp"
 #include <algorithm>
 #include <array>
@@ -202,7 +203,7 @@ int main() {
     const auto live=liveFrom(p);
     const auto baseline=calculateComCursorTailRatioBridge(fixture(p,0,true),p,live);
     need(baseline.usable() && baseline.status==Status::Warning &&
-         baseline.provenance.version=="012_28-1" &&
+         baseline.provenance.version=="012_29-1" &&
          baseline.provenance.algorithm=="com-cursor-tail-ratio-exploratory" &&
          baseline.diagnostics.size()==1 &&
          baseline.diagnostics.front().code=="NOT_IEEE_COM" &&
@@ -227,6 +228,29 @@ int main() {
          a.boundMode=="NUMERICALLY_BRACKETED_ASSUMED_MIXTURE" &&
          a.oneSidedTailProbability==1e-5,
          "012_28: probability/qualification metadata");
+    // Independent Gaussian oracle checks both images of the finite-precision
+    // noise interval, without borrowing the engine's estimated quantile.
+    const double ideal1 = 20.*std::log10((.16/3.)/qRef);
+    const double ideal2 = 20.*std::log10((.20/3.)/qRef);
+    need(a.noiseLowerTailBoundV > 0. &&
+         b.noiseLowerTailBoundV > 0. &&
+         a.noiseLowerTailBoundV <= a.noiseUpperTailV &&
+         b.noiseLowerTailBoundV <= b.noiseUpperTailV &&
+         a.exploratoryUpperRatioDb.has_value() &&
+         b.exploratoryUpperRatioDb.has_value() &&
+         a.exploratoryLowerRatioDb <= *a.exploratoryUpperRatioDb &&
+         b.exploratoryLowerRatioDb <= *b.exploratoryUpperRatioDb,
+         "012_29: missing or inverted Gaussian diagnostic interval");
+    near(*a.exploratoryUpperRatioDb,ideal1,1e-4,
+         "012_29: TEST1 independent upper dB golden");
+    near(*b.exploratoryUpperRatioDb,ideal2,1e-4,
+         "012_29: TEST2 independent upper dB golden");
+    need(baseline.value->minimumExploratoryRatioUpperDb.has_value(),
+         "012_29: Gaussian pair upper must exist");
+    near(*baseline.value->minimumExploratoryRatioUpperDb,
+         std::min(*a.exploratoryUpperRatioDb,
+                  *b.exploratoryUpperRatioDb),1e-12,
+         "012_29: exact two-case minimum of finite upper endpoints");
 
     // Adding victim self-ISI and NEXT/FEXT cannot increase the diagnostic
     // ratio in these independently fixed synthetic examples.
@@ -274,6 +298,80 @@ int main() {
          a.exploratoryLowerRatioDb,1e-8,"TEST1 common scaling invariance");
     near(doubled.value->test2.exploratoryLowerRatioDb,
          b.exploratoryLowerRatioDb,1e-8,"TEST2 common scaling invariance");
+    need(doubled.value->test1.exploratoryUpperRatioDb &&
+         doubled.value->test2.exploratoryUpperRatioDb,
+         "012_29: voltage scaling lost upper bound");
+    near(*doubled.value->test1.exploratoryUpperRatioDb,
+         *a.exploratoryUpperRatioDb,1e-8,
+         "012_29: TEST1 upper common scaling invariance");
+    near(*doubled.value->test2.exploratoryUpperRatioDb,
+         *b.exploratoryUpperRatioDb,1e-8,
+         "012_29: TEST2 upper common scaling invariance");
+
+    // A validated signed negative cursor must preserve both absolute
+    // half-spacing and voltage-ratio endpoints.
+    auto signedCursor=fixture(p,0,true);
+    auto& signedTest1=signedCursor.voltage.victim.value->test1;
+    signedTest1.unitSymbolPulse[3]=-signedTest1.unitSymbolPulse[3];
+    signedTest1.equivalentPulseV[3]=-signedTest1.equivalentPulseV[3];
+    signedTest1.cursorEquivalentV=signedTest1.equivalentPulseV[3];
+    const auto negative=calculateComCursorTailRatioBridge(signedCursor,p,live);
+    need(negative.value->test1.cursorSignedV < 0. &&
+         negative.value->test1.exploratoryUpperRatioDb.has_value(),
+         "012_29: negative signed cursor not accepted");
+    near(negative.value->test1.exploratoryLowerRatioDb,
+         a.exploratoryLowerRatioDb,1e-12,
+         "012_29: negative cursor lower dB invariance");
+    near(*negative.value->test1.exploratoryUpperRatioDb,
+         *a.exploratoryUpperRatioDb,1e-12,
+         "012_29: negative cursor upper dB invariance");
+
+    // 20 independently sourced synthetic aggressors (within the 32 limit)
+    // create an omitted-tap envelope larger than one or both lower quantiles.
+    // Missing upper ends must be absent, not NaN, infinity, zero or DBL_MAX.
+    auto oneSided=fixture(p,20);
+    for(size_t i=2;i<oneSided.voltage.test1.calibrations.size();++i)
+      oneSided.voltage.test1.calibrations[i].value->voltsPerUnitSymbol=40.;
+    const auto one=calculateComCursorTailRatioBridge(oneSided,p,live);
+    need(one.value->test1.boundMode=="CONSERVATIVE_NUMERICAL_BOUND" &&
+         one.value->test1.noiseLowerTailBoundV <= 0. &&
+         !one.value->test1.exploratoryUpperRatioDb.has_value() &&
+         std::isfinite(one.value->test1.exploratoryLowerRatioDb) &&
+         one.value->test2.noiseLowerTailBoundV > 0. &&
+         one.value->test2.exploratoryUpperRatioDb.has_value() &&
+         one.value->minimumExploratoryRatioUpperDb.has_value(),
+         "012_29: one-sided TEST1 and finite TEST2 upper contract");
+    near(*one.value->minimumExploratoryRatioUpperDb,
+         *one.value->test2.exploratoryUpperRatioDb,1e-12,
+         "012_29: one known Test upper bounds the minimum");
+    auto bothOneSided=oneSided;
+    for(size_t i=2;i<bothOneSided.voltage.test2.calibrations.size();++i)
+      bothOneSided.voltage.test2.calibrations[i].value->voltsPerUnitSymbol=40.;
+    const auto both=calculateComCursorTailRatioBridge(bothOneSided,p,live);
+    need(both.value->test1.noiseLowerTailBoundV <= 0. &&
+         both.value->test2.noiseLowerTailBoundV <= 0. &&
+         !both.value->test1.exploratoryUpperRatioDb &&
+         !both.value->test2.exploratoryUpperRatioDb &&
+         !both.value->minimumExploratoryRatioUpperDb &&
+         std::isfinite(both.value->minimumExploratoryRatioDb),
+         "012_29: both nonpositive noise lower bounds must remain one-sided");
+
+    // The existing pure 012_19 dB kernel must survive extreme positive
+    // representable voltages and near-unity ratios without arithmetic
+    // overflow or premature division underflow.
+    const double small=std::numeric_limits<double>::min();
+    const double huge=std::numeric_limits<double>::max();
+    const long double independentExtreme=
+        (20.L/std::log(10.L))*
+        (std::log(static_cast<long double>(small))-
+         std::log(static_cast<long double>(huge)));
+    near(calculateDiagnosticVoltageRatioDb(small,huge),
+         static_cast<double>(independentExtreme),1e-7,
+         "012_29: extreme safe-log voltage ratio");
+    const double nearUnityVoltage=std::nextafter(1.,2.);
+    near(calculateDiagnosticVoltageRatioDb(nearUnityVoltage,1.),
+         20.*std::log10(nearUnityVoltage),1e-12,
+         "012_29: near-unity stable voltage ratio");
 
     // Deliberately bad inputs must fail during upstream replay, not yield
     // attractive but unqualified dB values.
@@ -324,7 +422,7 @@ int main() {
     need(production.status==Status::NotEvaluated &&
          !production.value.has_value(),
          "012_28 cannot activate official calculateCom");
-    std::cout<<"012_28 exploratory cursor/tail ratio PASS\n";
+    std::cout<<"012_29 exploratory cursor/tail ratio interval PASS\n";
     return 0;
   } catch(const std::exception& e) {
     std::cerr<<"012_28 FAILED: "<<e.what()<<'\n';
