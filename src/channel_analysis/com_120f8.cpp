@@ -621,6 +621,15 @@ Result<Com120F8LoadedTestCaseSpectra> prepareCom120F8HistoricalCausalFromSource(
   for(double tap:choice.txFfe) settings<<tap<<",";
   settings<<"/ctle="<<choice.ctleDcGainDb<<","
           <<choice.ctleDcGain2Db;
+  // 012_33 Codex review: mappingIdentity describes the WHOLE mapping, not
+  // which victim was selected. Without this field two distinct victim
+  // channels of one S8P may have identical provenance. Use length + bytewise
+  // hexadecimal encoding to avoid separators, Unicode and prefix collisions.
+  constexpr char hex[]="0123456789abcdef";
+  settings<<"/victim:"<<victimChannelId.size()<<":";
+  for(unsigned char byte:victimChannelId) {
+    settings<<hex[byte>>4]<<hex[byte&0x0f];
+  }
   result.provenance.settingsIdentity=settings.str();
   result.provenance.algorithm="com-120f8-causal-source-complex-bridge";
   result.provenance.version="012_33-1";
