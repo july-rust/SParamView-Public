@@ -109,6 +109,45 @@ int main() {
         inputs(.02,0,0,{},.1,p1,"TEST1"),"TEST1",p1);
     bracket(*highP.value,.02563103131089200934,.1,
             "0.1 boundary high-precision Gaussian quantile");
+    // 012_27: independent 85-dps mpmath roots for the COMPLETE signed-PAM4
+    // + Gaussian RX/RJ + symmetric Dual-Dirac mixture, rounded to binary64.
+    // The offline generator is tools/com_joint_tail_high_precision_oracle_012_27.py.
+    // Strict Gaussian mixture monotonicity implies that containing the
+    // independent high-precision root ALSO encloses the exact-model endpoint
+    // crossing, without claiming correctly-rounded platform libm/erfc.
+    struct HighPrecisionOracle {
+      const char* label;
+      double rx, rj, dirac;
+      std::vector<double> taps;
+      double probability, quantileV;
+      size_t stateCount;
+    };
+    const std::vector<HighPrecisionOracle> highPrecisionGoldens{
+        {"A: 8192 states, 1e-12", .02, .01, .007,
+         {.012,-.009,.0075,-.005,.003,.0015},
+         1e-12, .1813963720094670315386479554859677831141, 8192},
+        {"B: 8192 states, 1e-5", .02, .01, .007,
+         {.012,-.009,.0075,-.005,.003,.0015},
+         1e-5, .1126899214884016856277887781228827684481, 8192},
+        {"C: 32 states, 0.1", .02, .008, .004,
+         {.007,-.003},
+         .1, .0290142951402238101068471004927634105483, 32},
+    };
+    for (const auto& golden : highPrecisionGoldens) {
+      const auto observed = calculateComJointTail(
+          inputs(golden.rx, golden.rj, golden.dirac, golden.taps,
+                 golden.probability, p1, "TEST1"), "TEST1", p1);
+      require(observed.usable() && observed.status==Status::Warning &&
+              observed.diagnostics.size()==1 &&
+              observed.diagnostics[0].code=="NOT_IEEE_COM" &&
+              observed.provenance.version=="012_20-1" &&
+              observed.value->statesEvaluated==golden.stateCount,
+              "012_27: full-mixture status/provenance/state count");
+      bracket(*observed.value, golden.quantileV, golden.probability,
+              "012_27: 85-dps full-mixture quantile outside numeric bracket");
+      near(observed.value->oneSidedNoiseQuantileV, golden.quantileV,
+           2e-11, "012_27: full-mixture high-precision quantile mismatch");
+    }
     require(pure.value->statesEvaluated==1,"Gaussian one state");
     near(pure.value->gaussianVarianceV2,.0004,1e-16,"Gaussian variance");
 
