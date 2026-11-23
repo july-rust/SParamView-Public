@@ -1,4 +1,9 @@
 #include "si/channel_analysis/com_120f8.hpp"
+#include "si/channel_analysis/com_causal_channel.hpp"
+#include <iomanip>
+#include <limits>
+#include <locale>
+#include <sstream>
 #include <algorithm>
 #include <bit>
 #include <cmath>
