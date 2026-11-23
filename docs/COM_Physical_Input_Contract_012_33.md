@@ -24,7 +24,7 @@
 4. Preserves 50 Ω single-ended physical port waves; converts to 100 Ω differential waves, preserving forward/reverse complex responses and reflections. Mixed-mode conversion above the declared limit, non-passive data and frequency/reference inconsistency remain failures.
 5. Invokes **the existing historical causal** package producer, with Test1 TX/RX lengths 13/11 mm and Test2 TX/RX lengths 31/29 mm, respectively; secondary line length 1.8 mm in each. TX path is die→board, RX path board→die.
 6. Reuses the pre-existing fixed-EQ preparation chain: cursor-relative FFE, complex CTLE, receiver filter and one Gaussian TX transition response. The current code's receiver-filter transfer is a **diagnostic matched-wave component**, not a proven complete normative signal/noise ownership model.
-7. Rechecks the caller-supplied observed identity, preserves measured SHA-256/revision/mapping/workspace/mapping generations and adds a deterministic, locale-independent hexadecimal-floating-point settings identity. The source owner must still recheck **actual live** state before publishing results; a caller-provided identity cannot detect an external change never passed to this function.
+7. Rechecks the caller-supplied observed identity, preserves measured SHA-256/revision/mapping/workspace/mapping generations and adds a deterministic, locale-independent hexadecimal-floating-point settings identity. The settings identity now also includes the **exact selected victim ID as length-prefixed hexadecimal UTF-8 bytes**, because the mapping identity describes the *whole* source mapping, not one chosen victim; this closes the Codex P2 cross-victim collision finding. The source owner must still recheck **actual live** state before publishing results; a caller-provided identity cannot detect an external change never passed to this function.
 8. Returns `Warning` with `NOT_IEEE_COM` and `REFERENCE_BLOCKED`; never enables `calculateCom()` or a PHY verdict.
 
 The new entrypoint is deliberately a **historical causal experimental bridge**: provenance names, diagnostic messages and model identity do not promote this to final IEEE COM.
@@ -79,6 +79,7 @@ The dedicated Qt-free CTest `channel_com_012_33_physical_contract` checks:
 - Off-grid CTLE, unmapped victim channel and nonfinite mode-conversion limit;
 - Mismatched workspace generation returning `Status::Stale` without a result, and cancellation propagation;
 - Source hash/revision/mapping generation and deterministic settings identity;
+- **Two-victim S8P regression**: one source/mapping/generation containing two distinct 4-port victims with distinct complex transmission; confirms the shared global source identity but different victim-specific settings identities and deterministic repeat selection.
 - Production `calculateCom()` still `NotEvaluated`.
 
 **External-mapping limitation:** This test detects inconsistent or absent mapping but cannot independently prove a human-chosen four-port direction matches the true connector pinout; that requires source-specific physical evidence. An intentional differential sign reversal cannot be diagnosed by merely observing valid S4P.
