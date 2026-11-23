@@ -368,9 +368,9 @@ int main() {
     near(calculateDiagnosticVoltageRatioDb(small,huge),
          static_cast<double>(independentExtreme),1e-7,
          "012_29: extreme safe-log voltage ratio");
-    const double next=std::nextafter(1.,2.);
-    near(calculateDiagnosticVoltageRatioDb(next,1.),
-         20.*std::log10(next),1e-12,
+    const double nearUnityVoltage=std::nextafter(1.,2.);
+    near(calculateDiagnosticVoltageRatioDb(nearUnityVoltage,1.),
+         20.*std::log10(nearUnityVoltage),1e-12,
          "012_29: near-unity stable voltage ratio");
 
     // Deliberately bad inputs must fail during upstream replay, not yield
