@@ -1,7 +1,7 @@
 # SParamView v1.4.0 — Channel Analysis 요구사항·인터페이스 계약 (012_01)
 
 **상태:** REQUIREMENTS LOCKED (설계 기준). **구현:** 012_03 공통 Core·012_04 독립 창 틀·012_05 ILD·012_06 ICN·**012_07 Eye 수치 엔진 COMPLETE**; 012_08 Eye GUI COMPLETE (PR #47 및 병합 후 CI #43812686401 SUCCESS)·012_09 이후 COM/통합/릴리스는 미완료. **출시 기준:** immutable v1.3.5
-**원본 계획:** [Development_Plan_012_v1.4.0.md](Development_Plan_012_v1.4.0.md) · **실제 기준선:** [Channel_Analysis_Baseline_012_01.md](Channel_Analysis_Baseline_012_01.md)
+**현행 개발 실행 계획 (2026-11-23):** [012_31~012_50 최종 재검토안](Development_Plan_012_v1.4.0.md) · **실제 기준선:** [Channel_Analysis_Baseline_012_01.md](Channel_Analysis_Baseline_012_01.md). 아래 구 번호 012_09~012_14 완료 조건 표는 최초 인수 요구의 역사적 표현이며, **현행 작업 번호를 대체하지 않는다**. 기능·검증 게이트는 완화되지 않는다.
 
 > 이 문서는 요구사항 계약이며 규격 적합성 선언이 아니다. ILD/ICN/Eye 수치 구현과 ILD/ICN GUI 자동 검증은 각각 완료됐지만, Eye GUI는 PR #47로 검증·병합되었고 병합 후 통합 CI #43812686401이 SUCCESS로 완료됐다(012_08 COMPLETE). COM 수치/GUI·실측 PHY 적합성·v1.4.0 배포는 아직 완료되지 않았다. [Eye 수치 검증](Channel_Analysis_Eye_012_07.md) 참조.
 
