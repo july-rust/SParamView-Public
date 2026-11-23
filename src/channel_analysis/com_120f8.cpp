@@ -562,4 +562,73 @@ calculateCom120F8RectangularPulseCases(
   return out;
 }
 
+// 012_33: the only source-anchored, typed historical causal package-to-RX
+// bridge. Deliberately NOT a shortcut for the earlier attenuation-only model.
+Result<Com120F8LoadedTestCaseSpectra> prepareCom120F8HistoricalCausalFromSource(
+    const SourceSnapshot& source, std::string_view victimChannelId,
+    const Com120F8EqualizerChoice& choice,
+    const SourceIdentity& observedLiveIdentity,
+    double maxAllowedModeConversion, Control* control) {
+  if(control) control->check();
+  const auto &identity=source.identity();
+  auto stale = [&] {
+    Result<Com120F8LoadedTestCaseSpectra> out;
+    out.status=Status::Stale;
+    out.provenance.sourceSha256=identity.sha256;
+    out.provenance.revision=identity.revision;
+    out.provenance.mappingIdentity=identity.mappingIdentity;
+    out.provenance.workspaceGeneration=identity.workspaceGeneration;
+    out.provenance.mappingGeneration=identity.mappingGeneration;
+    out.provenance.algorithm="com-120f8-causal-source-bridge";
+    out.provenance.version="012_33-1";
+    out.diagnostics.push_back({Severity::Error,"SOURCE_STALE",
+      "Observed workspace identity differs from the captured S4P source; "
+      "physical response is not usable."});
+    return out;
+  };
+  if(!source.current(observedLiveIdentity)) return stale();
+  validateCom120F8Equalizer(choice);
+  require(std::isfinite(maxAllowedModeConversion) &&
+          maxAllowedModeConversion>=0. && maxAllowedModeConversion<=1.,
+          "012_33 invalid declared mode-conversion limit");
+  // This typed source producer constructs exactly the existing historical
+  // causal package. Never relabel attenuation-only or synthetic Sdd21 data.
+  const auto physical=calculateHistoricalCausalC2cFromSource(
+      source,victimChannelId,maxAllowedModeConversion,control);
+  require(physical.usable() && physical.value.has_value() &&
+          physical.provenance.sourceSha256==identity.sha256 &&
+          physical.provenance.revision==identity.revision &&
+          physical.provenance.mappingIdentity==identity.mappingIdentity &&
+          physical.provenance.workspaceGeneration==identity.workspaceGeneration &&
+          physical.provenance.mappingGeneration==identity.mappingGeneration,
+          "012_33 physical source identity/provenance mismatch");
+  const auto *cancelled=control?&control->cancelled:nullptr;
+  auto result=prepareCom120F8LoadedTestCases(
+      *physical.value,choice,physical.provenance,cancelled);
+  require(result.usable() && result.value.has_value(),
+          "012_33 historical causal Test1/Test2 receiver response unavailable");
+  if(control) control->check();
+  if(!source.current(observedLiveIdentity)) return stale();
+
+  // Hexadecimal floating-point values encode exact bitwise EQ/grid choices
+  // without decimal rounding or locale-dependent cache-key collisions.
+  std::ostringstream settings;
+  settings.imbue(std::locale::classic());
+  settings<<std::hexfloat<<std::setprecision(
+      std::numeric_limits<double>::max_digits10);
+  settings<<"012_33/historical-causal/120f8-fixed/mode="
+          <<maxAllowedModeConversion<<"/ffe=";
+  for(double tap:choice.txFfe) settings<<tap<<",";
+  settings<<"/ctle="<<choice.ctleDcGainDb<<","
+          <<choice.ctleDcGain2Db;
+  result.provenance.settingsIdentity=settings.str();
+  result.provenance.algorithm="com-120f8-causal-source-complex-bridge";
+  result.provenance.version="012_33-1";
+  result.diagnostics.push_back({Severity::Warning,"REFERENCE_BLOCKED",
+    "Historical C2C package and fixed EQ complex response only: final "
+    "802.3ck aggressor/package reference inputs and COM Goldens remain "
+    "unqualified; this is not IEEE COM(dB) or PHY PASS/FAIL."});
+  return result;
+}
+
 } // namespace si::channel
