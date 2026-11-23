@@ -66,6 +66,12 @@ void sameSource(const Provenance& a, const Provenance& b) {
           "Test1/Test2 source identity mismatch");
 }
 }
+double calculateDiagnosticVoltageRatioDb(double signalV, double noiseV) {
+  require(std::isfinite(signalV) && signalV > 0. &&
+          std::isfinite(noiseV) && noiseV > 0.,
+          "Diagnostic voltage ratio requires positive finite volts");
+  return safeDb(signalV, noiseV);
+}
 Result<ComVoltageRatioData> calculateComDiagnosticVoltageRatio(
     const ComVoltageRatioInput& input, std::string_view test,
     const Provenance& expected, const std::atomic_bool* cancelled) {
@@ -78,7 +84,7 @@ Result<ComVoltageRatioData> calculateComDiagnosticVoltageRatio(
   require(a.referencePlane == b.referencePlane &&
           a.calibrationIdentity == b.calibrationIdentity,
           "Different voltage receiver planes or calibrations");
-  const double db = safeDb(a.amplitudeV, b.amplitudeV);
+  const double db = calculateDiagnosticVoltageRatioDb(a.amplitudeV, b.amplitudeV);
   check(cancelled);
   Result<ComVoltageRatioData> out;
   out.status = Status::Warning;
