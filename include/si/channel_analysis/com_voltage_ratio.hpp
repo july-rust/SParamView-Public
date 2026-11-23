@@ -27,6 +27,9 @@ struct ComVoltageRatioCasesData {
 // Only evaluates 20*log10(signal/noise). It does not generate ComMarginData,
 // IEEE-qualified amplitudes, a COM value, or a PHY verdict.
 // All successful outputs are Warning + NOT_IEEE_COM.
+// Pure numeric dB kernel shared with 012_28. Validates positive finite V.
+double calculateDiagnosticVoltageRatioDb(double signalV, double noiseV);
+
 Result<ComVoltageRatioData> calculateComDiagnosticVoltageRatio(
     const ComVoltageRatioInput& input, std::string_view testCase,
     const Provenance& expected,
