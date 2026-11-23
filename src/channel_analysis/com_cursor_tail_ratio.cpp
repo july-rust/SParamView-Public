@@ -51,9 +51,19 @@ ComCursorTailRatioCaseData convert(
               noise.selectedLowerEndpointProbability > probability &&
               noise.selectedUpperEndpointProbability < probability,
           "012_28: unqualified or nonpositive combined-tail upper bound");
+  require(std::isfinite(noise.lowerTailBoundV),
+          "012_29: nonfinite combined-tail lower bound");
   const double ratio = calculateDiagnosticVoltageRatioDb(
       spacing, noise.upperTailBoundV);
   require(std::isfinite(ratio), "012_28: nonfinite diagnostic voltage ratio");
+  std::optional<double> upperRatio;
+  if (noise.lowerTailBoundV > 0.) {
+    const double upper = calculateDiagnosticVoltageRatioDb(
+        spacing, noise.lowerTailBoundV);
+    require(std::isfinite(upper) && upper >= ratio,
+            "012_29: inverted or nonfinite diagnostic dB interval");
+    upperRatio = upper;
+  }
   check(cancelled);
   ComCursorTailRatioCaseData out;
   out.testCase = which;
@@ -63,7 +73,9 @@ ComCursorTailRatioCaseData convert(
   out.cursorMagnitudeV = magnitude;
   out.nominalPam4HalfSpacingV = spacing;
   out.noiseUpperTailV = noise.upperTailBoundV;
+  out.noiseLowerTailBoundV = noise.lowerTailBoundV;
   out.exploratoryLowerRatioDb = ratio;
+  out.exploratoryUpperRatioDb = upperRatio;
   out.oneSidedTailProbability = probability;
   out.numericalQualification = noise.numericalQualification;
   out.boundMode = noise.boundMode;
@@ -105,18 +117,34 @@ Result<ComCursorTailRatioCasesData> calculateComCursorTailRatioBridge(
   data.minimumExploratoryRatioDb =
       std::min(data.test1.exploratoryLowerRatioDb,
                data.test2.exploratoryLowerRatioDb);
+  // min(X1,X2) <= min(U1,U2) if both upper bounds exist, and <= Ui
+  // if only one exists. An absent bound is NOT infinite measured noise.
+  const auto& u1 = data.test1.exploratoryUpperRatioDb;
+  const auto& u2 = data.test2.exploratoryUpperRatioDb;
+  if (u1 && u2)
+    data.minimumExploratoryRatioUpperDb = std::min(*u1, *u2);
+  else if (u1)
+    data.minimumExploratoryRatioUpperDb = *u1;
+  else if (u2)
+    data.minimumExploratoryRatioUpperDb = *u2;
+  require(!data.minimumExploratoryRatioUpperDb ||
+              *data.minimumExploratoryRatioUpperDb >=
+                  data.minimumExploratoryRatioDb,
+          "012_29: invalid two-Test dB interval");
   check(cancelled);
   Result<ComCursorTailRatioCasesData> out;
   out.status = Status::Warning;
   out.value = std::move(data);
   out.provenance = expectedPair;
   out.provenance.algorithm = "com-cursor-tail-ratio-exploratory";
-  out.provenance.version = "012_28-1";
+  out.provenance.version = "012_29-1";
   out.diagnostics.push_back({Severity::Warning, "NOT_IEEE_COM",
-      "Nominal PAM4 half-spacing / assumed-mixture upper tail only. "
-      "Numerical brackets are NOT certified enclosures; TX/RX voltage "
-      "calibration, physical independence and target-DER relation are "
-      "NOT verified. Not IEEE Annex 93A COM(dB), DER/FOM or PHY PASS/FAIL."});
+      "Exploratory nominal PAM4 half-spacing / assumed-mixture tail: "
+      "dB lower bound, plus optional upper bound only for positive noise "
+      "lower bound. Numerical brackets are NOT certified enclosures; "
+      "TX/RX voltage calibration, physical independence and target-DER "
+      "relation are NOT verified. Not IEEE Annex 93A COM(dB), DER/FOM "
+      "or PHY PASS/FAIL."});
   return out;
 }
 } // namespace si::channel
