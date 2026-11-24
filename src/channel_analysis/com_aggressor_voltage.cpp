@@ -2,6 +2,9 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <locale>
+#include <numbers>
+#include <sstream>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -17,6 +20,14 @@ void require(bool ok, const char* reason) {
 void check(const std::atomic_bool* cancelled) {
   if (cancelled && cancelled->load(std::memory_order_relaxed))
     throw si::Cancelled();
+}
+double scaleSample(double u,double factor) {
+  require(std::isfinite(u) && std::isnormal(factor) && factor>0.,
+          "COM invalid unit-symbol sample or declared voltage scale");
+  const double v=u*factor;
+  require(std::isfinite(v) && (u==0. || std::isnormal(v)),
+          "COM voltage overflow or underflow");
+  return v;
 }
 bool bounded(const std::string& s) { return !s.empty() && s.size() <= 256; }
 bool sameSource(const Provenance& a, const Provenance& b) {
@@ -152,11 +163,7 @@ ComAggressorVoltageCaseData convertCase(
     for (size_t i = 0; i < kTapCount; ++i) {
       check(cancelled);
       const double u = pulse.unitSymbolPulse[i];
-      require(std::isfinite(u), "012_24: nonfinite unit-symbol pulse");
-      const double voltage = u * e.voltsPerUnitSymbol;
-      require(std::isfinite(voltage) &&
-              (std::fpclassify(u) == FP_ZERO || std::isnormal(voltage)),
-              "012_24: voltage overflow or underflow");
+      const double voltage = scaleSample(u,e.voltsPerUnitSymbol);
       result.unitSymbolPulse[i] = u;
       result.equivalentPulseV[i] = voltage;
       observedInputMaximum = std::max(observedInputMaximum, std::abs(u));
@@ -227,6 +234,169 @@ Result<ComAggressorVoltageCasesData> calculateComAggressorReceiverVoltage(
     "Caller-declared NEXT/FEXT voltage scaling only. Provenance consistency "
     "does not prove TX calibration, physically conditioned transfer or "
     "aggressor independence. No statistical x-talk, COM dB or PHY verdict."});
+  return out;
+}
+Result<ComBoardCrosstalkResult> calculateComMatchedBoardCrosstalkFromSource(
+    const SourceSnapshot& source,std::string_view victimId,
+    const SourceIdentity& observedLiveIdentity,const ComBoardCrosstalkInput& input,
+    Control* control) {
+  const auto* cancelled=control?&control->cancelled:nullptr;
+  check(cancelled);
+  const auto stale=[] {
+    Result<ComBoardCrosstalkResult> r;
+    r.status=Status::Stale;
+    r.diagnostics.push_back({Severity::Error,"SOURCE_STALE","012_35 stale board source"});
+    return r;
+  };
+  if(!source.current(observedLiveIdentity)) return stale();
+  require(input.inventoryConfirmed && input.aggressors.size()<=kMaxAggressors &&
+          bounded(std::string(victimId)),"012_35 missing inventory or excessive aggressors");
+  require(input.independentEquiprobablePam4Declared ?
+          bounded(input.statisticalAssumptionSource) : input.statisticalAssumptionSource.empty(),
+          "012_35 invalid statistical assumption declaration");
+  const auto& victim=source.channel(victimId);
+  require(victim.differential(),"012_35 differential victim required");
+  for(double z:source.cache().meta().reference)
+    require(z==50.,"012_35 matched 50-ohm physical references required");
+  auto thru=extract(source,victimId,Metric::IL,false,{},control);
+  validateCom120F8DirectGrid(thru.frequencyHz);
+  const auto n=thru.frequencyHz.size();
+  require(n<=32769 && std::max<size_t>(1,input.aggressors.size())<=
+       (16u*1024u*1024u)/26/n,"012_35 pair numerical work budget");
+  const double ui=1./final8023ck120F8().symbolRateHz;
+  const double df=thru.frequencyHz[1];
+  std::vector<const ComBoardAggressorChoice*> order;
+  for(const auto& a:input.aggressors) order.push_back(&a);
+  std::sort(order.begin(),order.end(),[](auto a,auto b){return a->id<b->id;});
+  std::unordered_set<std::string> ids,paths;
+  std::vector<ComplexTrace> raw;
+  std::ostringstream key;
+  key.imbue(std::locale::classic());
+  key<<std::hexfloat;
+  const auto add=[&](std::string_view s){key<<s.size()<<':'<<s<<';';};
+  add("012_35-matched-board");add(victimId);
+  key<<input.independentEquiprobablePam4Declared<<';';add(input.statisticalAssumptionSource);
+  for(const auto* a:order) {
+    check(cancelled);
+    require(bounded(a->id)&&bounded(a->channelId)&&ids.insert(a->id).second &&
+            a->channelId!=victimId &&
+            (a->coupling==ComCoupling::Next||a->coupling==ComCoupling::Fext),
+            "012_35 invalid aggressor identity/role");
+    const auto& ch=source.channel(a->channelId);
+    require(ch.differential(),"012_35 differential aggressor required");
+    for(int v:{victim.nearP,victim.nearN,victim.farP,victim.farN})
+      for(int q:{ch.nearP,ch.nearN,ch.farP,ch.farN})
+        require(v!=q,"012_35 overlapping victim/aggressor ports");
+    const bool next=a->coupling==ComCoupling::Next;
+    const std::string path=std::to_string(next?ch.farP:ch.nearP)+":"+
+                           std::to_string(next?ch.farN:ch.nearN);
+    // Every repeated physical path must be explicitly declared by each instance.
+    if(!paths.insert(path).second)
+      require(a->repeatedPathDeclared &&
+        std::all_of(order.begin(),order.end(),[&](const auto* other){
+          if(other==a)return true;
+          const auto& o=source.channel(other->channelId);
+          bool on=other->coupling==ComCoupling::Next;
+          return (on?o.farP:o.nearP)!=(next?ch.farP:ch.nearP) ||
+                 (on?o.farN:o.nearN)!=(next?ch.farN:ch.nearN) ||
+                 other->repeatedPathDeclared;
+        }),"012_35 undeclared repeated path");
+    auto trace=extract(source,victimId,next?Metric::NEXT:Metric::FEXT,next,
+                       std::string_view(a->channelId),control);
+    require(trace.frequencyHz==thru.frequencyHz && trace.stimulusOhm==100. &&
+            trace.responseOhm==100.,"012_35 incompatible source grid or reference");
+    for(auto z:trace.transfer)require(std::abs(z)<=1.+1e-7,"012_35 nonpassive scalar coupling");
+    raw.push_back(std::move(trace));
+    add(a->id);add(a->channelId);key<<next<<';'<<a->repeatedPathDeclared<<';';
+  }
+  ComBoardCrosstalkResult data;
+  for(size_t k=0;k<2;++k) {
+    check(cancelled);
+    const auto& choice=input.cases[k];
+    const char* which=k==0?"TEST1":"TEST2";
+    require(choice.testCase==which && std::isfinite(choice.decisionTimeSeconds),
+            "012_35 wrong test case or decision time");
+    Com120F8EqualizerChoice rx;
+    rx.ctleDcGainDb=choice.ctleDcGainDb;rx.ctleDcGain2Db=choice.ctleDcGain2Db;
+    validateCom120F8Equalizer(rx);
+    auto& out=data.cases[k];
+    out.testCase=which;
+    add(which);key<<choice.decisionTimeSeconds<<';'<<rx.ctleDcGainDb<<';'<<rx.ctleDcGain2Db<<';';
+    for(int t=-3;t<=9;++t)out.timeSeconds.push_back(choice.decisionTimeSeconds+t*ui);
+    ComPreparedData prepared;
+    prepared.frequencyHz=thru.frequencyHz;
+    prepared.conditionedThru=thru.transfer; // validation anchor only, never a victim decision
+    for(size_t j=0;j<order.size();++j) {
+      check(cancelled);
+      const auto& a=*order[j];const auto& ac=a.cases[k];
+      require(std::isfinite(ac.relativeDelaySeconds)&&ac.relativeDelaySeconds>=0. &&
+              ac.relativeDelaySeconds*df<=.45,"012_35 invalid relative delay");
+      if(ac.declaredVoltsPerUnitSymbol)
+        require(std::isnormal(*ac.declaredVoltsPerUnitSymbol)&&
+                *ac.declaredVoltsPerUnitSymbol>0.&&bounded(ac.calibrationSource),
+                "012_35 invalid declared voltage calibration");
+      else require(ac.calibrationSource.empty(),"012_35 calibration without voltage");
+      auto eq=rx;eq.txFfe=ac.txFfe;
+      validateCom120F8Equalizer(eq);
+      for(double tap:ac.txFfe)key<<tap<<';';
+      key<<ac.relativeDelaySeconds<<';'<<bool(ac.declaredVoltsPerUnitSymbol)<<';';
+      if(ac.declaredVoltsPerUnitSymbol)key<<*ac.declaredVoltsPerUnitSymbol<<';';
+      add(ac.calibrationSource);
+      ComInput x;x.thru=thru;x.aggressors.push_back({a.id,a.coupling,raw[j]});
+      auto r=prepareCom120F8ReceiverSpectra(std::move(x),eq,{},cancelled);
+      require(r.usable()&&r.value->aggressors.size()==1,"012_35 conditioning failed");
+      auto spectrum=std::move(r.value->aggressors.front());
+      for(size_t i=0;i<n;++i) {
+        if(!(i&1023u))check(cancelled);
+        const double f=prepared.frequencyHz[i];
+        spectrum.conditionedTransfer[i]*=com120F8TxTransitionFilter(f)*
+          std::polar(1.,-2.*std::numbers::pi*f*ac.relativeDelaySeconds);
+      }
+      prepared.aggressors.push_back(std::move(spectrum));
+    }
+    auto r=calculateComInterferencePulses(prepared,out.timeSeconds,{},cancelled);
+    require(r.usable(),"012_35 pulse primitive unavailable");
+    bool totalAvailable=input.independentEquiprobablePam4Declared;
+    double total=0.;
+    for(size_t j=0;j<order.size();++j) {
+      const auto& a=*order[j];const auto& ac=a.cases[k];const auto& ch=source.channel(a.channelId);
+      ComBoardAggressorResult one;
+      one.pulse=std::move(r.value->aggressors[j]);
+      require(one.pulse.id==a.id && one.pulse.unitSymbolPulse.size()==13,
+              "012_35 pulse identity mismatch");
+      one.channelId=a.channelId;one.calibrationSource=ac.calibrationSource;
+      const bool next=a.coupling==ComCoupling::Next;
+      one.stimulusPorts={next?ch.farP:ch.nearP,next?ch.farN:ch.nearN};
+      one.responsePorts={victim.farP,victim.farN};
+      if(ac.declaredVoltsPerUnitSymbol) {
+        one.declaredEquivalentV.emplace();
+        double rss=0.;
+        for(size_t i=0;i<13;++i) {
+          const double v=scaleSample(one.pulse.unitSymbolPulse[i],*ac.declaredVoltsPerUnitSymbol);
+          (*one.declaredEquivalentV)[i]=v;rss=std::hypot(rss,v);
+        }
+        if(input.independentEquiprobablePam4Declared) {
+          one.observedPam4RmsV=rss*std::sqrt(5./9.);
+          total=std::hypot(total,*one.observedPam4RmsV);
+          require(std::isfinite(total),"012_35 RSS overflow");
+        }
+      } else totalAvailable=false;
+      out.aggressors.push_back(std::move(one));
+    }
+    if(totalAvailable)out.observedIndependentPam4RmsV=total;
+  }
+  check(cancelled);
+  if(!source.current(observedLiveIdentity))return stale();
+  const auto& id=source.identity();
+  Result<ComBoardCrosstalkResult> out;
+  out.status=Status::Warning;out.value=std::move(data);
+  out.provenance={id.sha256,id.revision,id.mappingIdentity,
+      "com-matched-board-fixed-crosstalk","012_35-board-1",key.str(),
+      id.workspaceGeneration,id.mappingGeneration};
+  out.diagnostics.push_back({Severity::Warning,"NOT_IEEE_COM",
+      "Matched-board wave paths with declared conditioning, voltage and optional independent PAM4 assumption; observed 13 samples only."});
+  out.diagnostics.push_back({Severity::Warning,"REFERENCE_BLOCKED",
+      "Aggressor package topology, die-plane linkage, physical calibration and official PSD/statistical definition unqualified."});
   return out;
 }
 } // namespace si::channel

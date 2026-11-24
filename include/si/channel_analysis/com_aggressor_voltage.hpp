@@ -60,4 +60,54 @@ Result<ComAggressorVoltageCasesData> calculateComAggressorReceiverVoltage(
     const ComAggressorVoltageInput& input, const Provenance& expectedPair,
     const SourceIdentity& live, const std::atomic_bool* cancelled = nullptr);
 
+// 012_35 bounded matched-board diagnostic. No package/die-plane equivalence.
+struct ComBoardAggressorCaseChoice {
+  std::array<double,5> txFfe{0.,0.,0.,1.,0.};
+  double relativeDelaySeconds=0.;
+  std::optional<double> declaredVoltsPerUnitSymbol;
+  std::string calibrationSource;
+};
+struct ComBoardAggressorChoice {
+  std::string id, channelId;
+  ComCoupling coupling=ComCoupling::Next;
+  bool repeatedPathDeclared=false;
+  std::array<ComBoardAggressorCaseChoice,2> cases;
+};
+struct ComBoardCrosstalkCaseChoice {
+  std::string testCase;
+  double decisionTimeSeconds=std::numeric_limits<double>::quiet_NaN();
+  double ctleDcGainDb=0.,ctleDcGain2Db=0.;
+};
+struct ComBoardCrosstalkInput {
+  bool inventoryConfirmed=false;
+  bool independentEquiprobablePam4Declared=false;
+  std::string statisticalAssumptionSource;
+  std::array<ComBoardCrosstalkCaseChoice,2> cases;
+  std::vector<ComBoardAggressorChoice> aggressors;
+};
+struct ComBoardAggressorResult {
+  ComInterferencePulse pulse;
+  std::string channelId, calibrationSource;
+  std::array<int,2> stimulusPorts{},responsePorts{};
+  std::optional<std::array<double,13>> declaredEquivalentV;
+  std::optional<double> observedPam4RmsV;
+};
+struct ComBoardCrosstalkCaseResult {
+  std::string testCase;
+  std::vector<double> timeSeconds;
+  std::vector<ComBoardAggressorResult> aggressors;
+  std::optional<double> observedIndependentPam4RmsV;
+};
+struct ComBoardCrosstalkResult {
+  std::array<ComBoardCrosstalkCaseResult,2> cases;
+  std::string model="EXPLORATORY_MATCHED_BOARD_XTALK_NOT_DIE_PLANE";
+};
+// Both cases use actual mapped board Sdd at the forward victim far endpoint.
+// Cases label explicit timing/EQ, NOT qualified package networks. No PSD,
+// die-plane aggregate, unobserved tail or official COM output is generated.
+Result<ComBoardCrosstalkResult> calculateComMatchedBoardCrosstalkFromSource(
+    const SourceSnapshot& source,std::string_view victimId,
+    const SourceIdentity& observedLiveIdentity,const ComBoardCrosstalkInput& input,
+    Control* control=nullptr);
+
 } // namespace si::channel

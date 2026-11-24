@@ -316,4 +316,9 @@
 
 ### 012_34 implementation candidate — 2026-11-24 KST
 
-Source-backed fixed decision times, signed pulse and ideal six-tap residual, optional explicitly declared receiver-equivalent voltage, and observed-window ISI are implemented for review. See [012_34 technical note](COM_Fixed_EQ_Victim_ISI_DFE_012_34.md). Qualification and completion depend on actual final HEAD review, CI, protected merge and post-merge evidence; final PHY reference remains BLOCKED. 012_35 is not started.
+Source-backed fixed decision times, signed pulse and ideal six-tap residual, optional explicitly declared receiver-equivalent voltage, and observed-window ISI are implemented for review. See [012_34 technical note](COM_Fixed_EQ_Victim_ISI_DFE_012_34.md). Qualification and completion depend on actual final HEAD review, CI, protected merge and post-merge evidence; final PHY reference remains BLOCKED. 012_35 candidate is under review; see below.
+
+
+### 012_35 matched-board candidate — 2026-11-24 KST
+
+**PARTIAL / REFERENCE BLOCKED.** [Technical note](COM_Fixed_EQ_Crosstalk_012_35.md): source-backed board-only NEXT/FEXT, explicit per-case conditioning and optional declared voltage/RMS; not the 012_34 die-plane physical contract. CI and review pending; final physical and normative definition blockers preserved.
