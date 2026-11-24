@@ -1,5 +1,6 @@
 // 012_36 bounded source-backed noise/jitter diagnostics, not IEEE COM.
 #include "si/channel_analysis/com_fixed_noise.hpp"
+#include "si/channel_analysis/com_fixed_fom.hpp"
 #include <algorithm>
 #include <cmath>
 #include <filesystem>
@@ -120,6 +121,12 @@ int main(int argc,char** argv){try{
   }
   ci.aggressors={next,fext};y.crosstalk=ci;y.historicalPackageAssumption=std::string(kHistoricalAggressorOverlay);
   auto joined=run(y);demand(joined.usable(),"historical replay");
+  // 012_37: even actual usable historical replay cannot supply full FOM inputs.
+  for(const auto* candidate:{&r,&joined})for(auto test:{"TEST1","TEST2"}){
+    const auto gate=assessComFixedFomSource(*candidate,test);
+    demand(gate.status==Status::NotEvaluated&&!gate.value,"unqualified FOM replay");
+    demand(!gate.diagnostics.empty()&&gate.diagnostics.back().code=="REFERENCE_BLOCKED","FOM blocker");
+  }
   for(const auto& c:joined.value->cases){
     demand(c.crosstalkObservedRmsV&&c.crosstalkPsdPowerV2&&!c.crosstalkSettingsIdentity.empty(),"historical ownership");
     demand(c.aggressorOwners.size()==2,"individual role ownership");
@@ -168,7 +175,8 @@ int main(int argc,char** argv){try{
   demand(std::fpclassify(calculateComReceiverNoise(ni).value->varianceV2)==FP_ZERO,"right endpoint actual zero");
   ni.quadrature=static_cast<ComReceiverNoiseQuadrature>(99);
   rejects([&]{(void)calculateComReceiverNoise(ni);});
-  live.mappingGeneration++;demand(run(x).status==Status::Stale,"stale");live=source.identity();
+  live.mappingGeneration++;auto stale=run(x);demand(stale.status==Status::Stale,"stale");
+  demand(assessComFixedFomSource(stale,"TEST1").status==Status::Stale,"FOM stale");live=source.identity();
   Control ctrl;ctrl.cancelled.store(true);bool cancelled=false;
   try{(void)calculateComFixedNoiseFromSource(source,v.id,live,x,&ctrl);}catch(const si::Cancelled&){cancelled=true;}
   demand(cancelled,"cancellation");
