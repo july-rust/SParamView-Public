@@ -10,6 +10,8 @@ struct ComFixedNoiseChoice {
   double oneSidedPsdV2PerHz=std::numeric_limits<double>::quiet_NaN();
   std::string noiseSource, receiverDecisionPlane, independenceDeclaration;
   bool independentRxRjDjDeclared=false;
+  // Separate symbol-distribution assumption for the observed h_J vector.
+  bool independentEquiprobablePam4Declared=false;
   double diagnosticTailProbability=1e-5;
 };
 struct ComFixedNoiseInput {
@@ -19,6 +21,17 @@ struct ComFixedNoiseInput {
   std::optional<ComBoardCrosstalkInput> crosstalk;
   std::string historicalPackageAssumption;
 };
+// Bounded reference-style observed span; not the full h_J phase vector.
+struct ComObservedReferenceJitter {
+  std::array<double,13> hJVoltagePerUi{}, dualDiracTapV{};
+  double randomJitterRmsV=0., dualDiracRmsV=0.;
+};
+struct ComFixedNoiseAggressorOwner {
+  std::string id, channelId;
+  ComCoupling coupling=ComCoupling::Next;
+  std::array<int,2> stimulusPorts{}, responsePorts{};
+  std::optional<double> observedRmsV, psdPowerV2;
+};
 struct ComFixedNoiseCase {
   std::string testCase, victimSettingsIdentity, noiseSource, receiverDecisionPlane;
   std::string independenceDeclaration;
@@ -26,6 +39,10 @@ struct ComFixedNoiseCase {
   std::vector<double> localTimeSeconds, localVoltageV;
   Result<ComReceiverNoiseData> receiverNoise;
   Result<ComJitterData> jitter;
+  // Alternatives, never additive to receiverNoise or local jitter.
+  std::optional<Result<ComReceiverNoiseData>> referenceRightEndpointNoise;
+  std::optional<ComObservedReferenceJitter> observedReferenceJitter;
+  std::vector<ComFixedNoiseAggressorOwner> aggressorOwners;
   std::optional<double> residualIsiObservedRmsV;
   std::optional<double> crosstalkObservedRmsV, crosstalkPsdPowerV2;
   std::string crosstalkSettingsIdentity;
@@ -38,7 +55,9 @@ struct ComFixedNoiseData {
 // another representation of the same component. DFE state is not noise.
 enum class ComNoiseRepresentation {
   PreDfeIsi, ResidualIsi, CrosstalkObserved, CrosstalkPsd,
-  RxGaussian, RandomJitter, DualDirac, CombinedGaussian, JitterMixture
+  RxGaussian, RandomJitter, DualDirac, CombinedGaussian, JitterMixture,
+  ReferenceRxRightEndpoint, ReferenceObservedRj, ReferenceObservedDd,
+  NextObserved, FextObserved, NextPsd, FextPsd
 };
 void validateComFixedNoiseRepresentations(const std::vector<ComNoiseRepresentation>& choices);
 Result<ComFixedNoiseData> calculateComFixedNoiseFromSource(

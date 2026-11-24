@@ -325,4 +325,4 @@ Source-backed fixed decision times, signed pulse and ideal six-tap residual, opt
 
 ### 012_36 bounded fixed-EQ noise/jitter candidate — 2026-11-24 KST
 
-**PARTIAL / REFERENCE BLOCKED.** [Technical note](COM_Fixed_EQ_Noise_Jitter_012_36.md). Two declared finite-band receiver-local models and source-replayed local waveform; final-head CI/review and protected merge evidence required.
+**PARTIAL / REFERENCE BLOCKED.** [Technical note](COM_Fixed_EQ_Noise_Jitter_012_36.md). Two declared finite-band receiver-local models and source-replayed local waveform; exact-hash 4.17 source audit, distinct reference-style right-endpoint and observed h_J diagnostics; final-head CI/review and protected merge evidence required.

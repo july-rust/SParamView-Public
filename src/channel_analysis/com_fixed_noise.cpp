@@ -30,14 +30,66 @@ unsigned owners(ComNoiseRepresentation choice){
     case ComNoiseRepresentation::PreDfeIsi:
     case ComNoiseRepresentation::ResidualIsi:return 1u;
     case ComNoiseRepresentation::CrosstalkObserved:
-    case ComNoiseRepresentation::CrosstalkPsd:return 2u;
-    case ComNoiseRepresentation::RxGaussian:return 4u;
-    case ComNoiseRepresentation::RandomJitter:return 8u;
-    case ComNoiseRepresentation::DualDirac:return 16u;
-    case ComNoiseRepresentation::CombinedGaussian:return 4u|8u;
-    case ComNoiseRepresentation::JitterMixture:return 4u|8u|16u;
+    case ComNoiseRepresentation::CrosstalkPsd:return 2u|4u;
+    case ComNoiseRepresentation::NextObserved:
+    case ComNoiseRepresentation::NextPsd:return 2u;
+    case ComNoiseRepresentation::FextObserved:
+    case ComNoiseRepresentation::FextPsd:return 4u;
+    case ComNoiseRepresentation::RxGaussian:
+    case ComNoiseRepresentation::ReferenceRxRightEndpoint:return 8u;
+    case ComNoiseRepresentation::RandomJitter:
+    case ComNoiseRepresentation::ReferenceObservedRj:return 16u;
+    case ComNoiseRepresentation::DualDirac:
+    case ComNoiseRepresentation::ReferenceObservedDd:return 32u;
+    case ComNoiseRepresentation::CombinedGaussian:return 8u|16u;
+    case ComNoiseRepresentation::JitterMixture:return 8u|16u|32u;
   }
   throw si::Error("012_36 unsupported noise representation");
+}
+
+// Use the same source-backed rectangular pulse, not residual DFE taps.
+// Equation 93A-28 style central difference on only the observed 13 UIs.
+// A full phase vector is not inferred; its absent tails remain unqualified.
+ComObservedReferenceJitter observedJitter(
+    const ComPreparedData& spec,const ComFixedVictimCaseData& v,
+    const Provenance& p,const std::atomic_bool* cancelled){
+  const auto profile=final8023ck120F8();
+  const double ui=1./profile.symbolRateHz,delta=ui/32.;
+  const double scale=v.voltage->before.voltsPerUnitSymbol;
+  std::vector<double> times;
+  for(double t:v.pulse.timeSeconds){times.push_back(t-delta);times.push_back(t+delta);}
+  const auto response=calculateCom120F8RectangularPulse(spec,times,p,cancelled);
+  require(response.usable()&&response.value->unitSymbolPulse.size()==26,
+    "012_36 observed reference jitter samples unavailable");
+  ComObservedReferenceJitter out;double rss=0.;
+  // A signed tap is V per UI. The DD vector owns the same jitter source as
+  // the local two-atom diagnostic but uses the PAM4 symbol law, not two atoms.
+  for(size_t k=0;k<13;++k){
+    const double a=response.value->unitSymbolPulse[2*k];
+    const double b=response.value->unitSymbolPulse[2*k+1];
+    const double diff=b-a;
+    const double width=times[2*k+1]-times[2*k];
+    require(std::isfinite(width)&&width>0.&&std::abs(width/(2.*delta)-1.)<1e-6,
+      "012_36 unresolved reference jitter sample spacing");
+    const double unitSlope=diff*(ui/width);
+    const double slope=unitSlope*scale;
+    require(std::isfinite(slope)&&(std::fpclassify(diff)==FP_ZERO||
+      (std::isnormal(unitSlope)&&std::isnormal(slope))),
+      "012_36 reference jitter slope dynamic range");
+    const double dd=slope*profile.dualDiracJitterPeakUi;
+    require(std::isfinite(dd)&&(std::fpclassify(slope)==FP_ZERO||std::isnormal(dd)),
+      "012_36 reference DD tap dynamic range");
+    out.hJVoltagePerUi[k]=slope;out.dualDiracTapV[k]=dd;
+    rss=std::hypot(rss,slope);
+  }
+  const double sigmaX=std::sqrt(5./9.);
+  out.randomJitterRmsV=rss*sigmaX*profile.randomJitterRmsUi;
+  out.dualDiracRmsV=rss*sigmaX*profile.dualDiracJitterPeakUi;
+  require(std::isfinite(rss)&&std::isfinite(out.randomJitterRmsV)&&
+    std::isfinite(out.dualDiracRmsV)&&(std::fpclassify(rss)==FP_ZERO||
+    (std::isnormal(out.randomJitterRmsV)&&std::isnormal(out.dualDiracRmsV))),
+    "012_36 reference jitter RMS dynamic range");
+  return out;
 }
 }
 void validateComFixedNoiseRepresentations(const std::vector<ComNoiseRepresentation>& choices){
@@ -54,6 +106,7 @@ Result<ComFixedNoiseData> calculateComFixedNoiseFromSource(
   check(control);
   if(!source.current(live))return stale();
   const auto* cancelled=control?&control->cancelled:nullptr;
+  // Replay immutable source and choices; do not accept a detached waveform.
   const auto phys=prepareCom120F8HistoricalCausalFromSource(source,victimId,input.eq,live,0.,control);
   if(phys.status==Status::Stale)return stale();
   require(phys.usable()&&phys.status==Status::Warning,"012_36 physical response unavailable");
@@ -61,6 +114,7 @@ Result<ComFixedNoiseData> calculateComFixedNoiseFromSource(
       input.victim[0],input.victim[1],0.,control);
   if(victim.status==Status::Stale)return stale();
   require(victim.usable()&&victim.status==Status::Warning,"012_36 victim replay unavailable");
+  // Optional historical crosstalk is replayed by its own typed producer.
   std::optional<Result<ComHistoricalFixedCrosstalkResult>> xtalk;
   if(input.crosstalk){
     ComHistoricalFixedCrosstalkInput x;
@@ -105,6 +159,8 @@ Result<ComFixedNoiseData> calculateComFixedNoiseFromSource(
           "012_36 noise source duplicates crosstalk identity");
         if(a.declaredEquivalentV)require(a.receiverDecisionPlane==n.receiverDecisionPlane,
           "012_36 crosstalk receiver plane mismatch");
+        c.aggressorOwners.push_back({a.pulse.id,a.channelId,a.pulse.coupling,
+          a.stimulusPorts,a.responsePorts,a.observedPam4RmsV,a.measuredBandPsdPowerV2});
       }
       c.crosstalkObservedRmsV=x.observedIndependentPam4RmsV;
       c.crosstalkPsdPowerV2=x.independentMeasuredBandPsdPowerV2;
@@ -121,7 +177,8 @@ Result<ComFixedNoiseData> calculateComFixedNoiseFromSource(
     append(id,v.settingsIdentity);append(id,c.crosstalkSettingsIdentity);
     append(id,n.noiseSource);append(id,n.receiverDecisionPlane);
     append(id,n.independenceDeclaration);
-    id<<"012_36-v1/"<<static_cast<int>(n.plane)<<"/"<<std::hexfloat
+    // Case identity records the extra observed-PAM4 assumption separately.
+    id<<"012_36-v2/"<<static_cast<int>(n.plane)<<"/"<<n.independentEquiprobablePam4Declared<<"/"<<std::hexfloat
       <<n.oneSidedPsdV2PerHz<<"/"<<n.diagnosticTailProbability<<"/"<<delta<<"/";
     p.settingsIdentity=id.str();append(pair,p.settingsIdentity);
     const auto pulse=calculateCom120F8RectangularPulse(spec,c.localTimeSeconds,p,cancelled);
@@ -134,6 +191,7 @@ Result<ComFixedNoiseData> calculateComFixedNoiseFromSource(
         "012_36 local voltage overflow or underflow");
       c.localVoltageV.push_back(volts);
     }
+    // PSD is already expressed in volts; never multiply by victim scale.
     ComReceiverNoiseInput ni;
     ni.frequencyHz=spec.frequencyHz;ni.oneSidedPsdV2PerHz=n.oneSidedPsdV2PerHz;
     ni.oneSidedTailProbability=n.diagnosticTailProbability;
@@ -146,6 +204,18 @@ Result<ComFixedNoiseData> calculateComFixedNoiseFromSource(
     ni.queryVoltageV={0.};
     c.receiverNoise=calculateComReceiverNoise(ni,p,cancelled);
     require(c.receiverNoise.usable(),"012_36 noise unavailable");
+    // 4.17 reference-style right-endpoint eta0 integral is meaningful only
+    // for a source explicitly declared before CTLE and RX filtering.
+    if(n.plane==ComFixedNoisePlane::CtleInput){
+      auto rp=p;rp.settingsIdentity+="/eta0-right-endpoint/";
+      ni.quadrature=ComReceiverNoiseQuadrature::RightEndpoint;
+      c.referenceRightEndpointNoise=calculateComReceiverNoise(ni,rp,cancelled);
+      require(c.referenceRightEndpointNoise->usable(),"012_36 reference-style RX noise unavailable");
+    }
+    if(n.independentEquiprobablePam4Declared)
+      c.observedReferenceJitter=observedJitter(spec,v,p,cancelled);
+    // The legacy local mixture remains separate; do not feed observed h_J
+    // or the right-endpoint alternative back into it as additional noise.
     ComJitterInput ji;
     ji.symbolRateBd=profile.symbolRateHz;ji.randomJitterRmsUi=profile.randomJitterRmsUi;
     ji.dualDiracPeakUi=profile.dualDiracJitterPeakUi;
@@ -162,7 +232,7 @@ Result<ComFixedNoiseData> calculateComFixedNoiseFromSource(
   out.status=Status::Warning;out.provenance=phys.provenance;
   out.provenance.settingsIdentity=pair.str();
   out.provenance.algorithm="com-fixed-eq-local-noise-jitter";
-  out.provenance.version="012_36-1";
+  out.provenance.version="012_36-2";
   out.diagnostics.push_back({Severity::Warning,"NOT_IEEE_COM",
     "Declared receiver-equivalent local-linear timing and finite-band noise only; no aggregate ISI/XTALK distribution or COM."});
   out.diagnostics.push_back({Severity::Warning,"REFERENCE_BLOCKED",

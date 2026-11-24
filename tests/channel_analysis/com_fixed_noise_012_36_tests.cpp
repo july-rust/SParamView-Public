@@ -58,7 +58,7 @@ int main(int argc,char** argv){try{
     n.oneSidedPsdV2PerHz=final8023ck120F8().oneSidedNoiseSpectralDensityV2PerGHz*1e-9;
     n.noiseSource="synthetic RX Gaussian";n.receiverDecisionPlane=e.receiverDecisionPlane;
     n.independenceDeclaration="synthetic independent Gaussian RJ and equal-weight DJ";
-    n.independentRxRjDjDeclared=true;
+    n.independentRxRjDjDeclared=true;n.independentEquiprobablePam4Declared=true;
   }
   auto run=[&](const auto& y){return calculateComFixedNoiseFromSource(source,v.id,live,y);};
   auto r=run(x);demand(r.usable()&&r.status==Status::Warning,"bounded candidate");
@@ -68,6 +68,10 @@ int main(int argc,char** argv){try{
   const double variance[2]={5.291375372119368e-7,1.353973295092927e-7};
   const double rms[2]={.0007274184058792689,.0003679637611359204};
   const double rj[2]={8.524900738511179e-5,7.91766531109424e-5};
+  const double hj[2][13]={
+    {.007357777502128054,-.007948427002818753,.007926685136764353,.008524900738511282,-.027278462172838733,.019050793777902864,-.006954522310778137,.0045234001395293676,-.0034276640080779207,.0026821737908822446,-.002085378107405951,.001685327112472896,-.0015479238033516002},
+    {.01136361332940745,-.01319862486877943,.015909156427989735,.007917665311094335,-.03684918300948571,.024753445158406287,-.008709068273586914,.006442609148152725,-.0050147931030290645,.004226808995560119,-.003607104466003142,.00319657413415788,-.002847748496050997}};
+  const double observedRj[2]={.0002845290999714409,.0003930952338340039};
   for(size_t k=0;k<2;++k){
     const auto& c=r.value->cases[k];demand(c.testCase==x.victim[k].testCase,"case");
     for(size_t j=0;j<3;++j)close(c.localVoltageV[j],volts[k][j]);
@@ -78,6 +82,21 @@ int main(int argc,char** argv){try{
     demand(c.receiverNoise.provenance.settingsIdentity==c.jitter.provenance.settingsIdentity,
       "case provenance");
     demand(!c.crosstalkObservedRmsV&&c.residualIsiObservedRmsV,"missing is not zero");
+    demand(c.referenceRightEndpointNoise.has_value()==(k==1),"right endpoint only at CTLE input");
+    if(k==1){
+      close(c.referenceRightEndpointNoise->value->varianceV2,1.3544416363637401e-7);
+      demand(c.referenceRightEndpointNoise->value->quadrature==ComReceiverNoiseQuadrature::RightEndpoint,
+        "reference quadrature identity");
+      demand(c.referenceRightEndpointNoise->provenance.settingsIdentity!=c.receiverNoise.provenance.settingsIdentity,
+        "reference alternative identity");
+    }
+    demand(c.observedReferenceJitter.has_value(),"observed h_J vector");
+    for(size_t j=0;j<13;++j){
+      close(c.observedReferenceJitter->hJVoltagePerUi[j],hj[k][j]);
+      close(c.observedReferenceJitter->dualDiracTapV[j],.02*hj[k][j]);
+    }
+    close(c.observedReferenceJitter->randomJitterRmsV,observedRj[k]);
+    close(c.observedReferenceJitter->dualDiracRmsV,2*observedRj[k]);
   }
   demand(r.value->cases[0].jitter.provenance.settingsIdentity!=r.value->cases[1].jitter.provenance.settingsIdentity,"case isolation");
   // Actual historical source-backed crosstalk, with the same declared victim planes.
@@ -98,8 +117,14 @@ int main(int argc,char** argv){try{
   }
   ci.aggressors={next,fext};y.crosstalk=ci;y.historicalPackageAssumption=std::string(kHistoricalAggressorOverlay);
   auto joined=run(y);demand(joined.usable(),"historical replay");
-  for(const auto& c:joined.value->cases)demand(c.crosstalkObservedRmsV&&c.crosstalkPsdPowerV2&&!c.crosstalkSettingsIdentity.empty(),"historical ownership");
+  for(const auto& c:joined.value->cases){
+    demand(c.crosstalkObservedRmsV&&c.crosstalkPsdPowerV2&&!c.crosstalkSettingsIdentity.empty(),"historical ownership");
+    demand(c.aggressorOwners.size()==2,"individual role ownership");
+    demand(c.aggressorOwners[0].coupling!=c.aggressorOwners[1].coupling,"NEXT/FEXT distinct");
+  }
   y.noise[0].noiseSource="NEXT";rejects([&]{run(y);});
+  y=x;y.noise[0].independentEquiprobablePam4Declared=false;
+  demand(!run(y).value->cases[0].observedReferenceJitter,"no assumed PAM4 vector statistics");
   y=x;y.noise[0].oneSidedPsdV2PerHz=0.;auto zero=run(y);
   demand(std::fpclassify(zero.value->cases[0].receiverNoise.value->rmsV)==FP_ZERO,"declared zero");
   y=x;y.noise[0].oneSidedPsdV2PerHz=1e-320;rejects([&]{run(y);});
@@ -119,6 +144,21 @@ int main(int argc,char** argv){try{
   rejects([]{validateComFixedNoiseRepresentations({R::RxGaussian,R::CombinedGaussian});});
   rejects([]{validateComFixedNoiseRepresentations({R::DualDirac,R::JitterMixture});});
   rejects([]{validateComFixedNoiseRepresentations({R::RandomJitter,R::RandomJitter});});
+  rejects([]{validateComFixedNoiseRepresentations({R::RandomJitter,R::ReferenceObservedRj});});
+  rejects([]{validateComFixedNoiseRepresentations({R::DualDirac,R::ReferenceObservedDd});});
+  rejects([]{validateComFixedNoiseRepresentations({R::RxGaussian,R::ReferenceRxRightEndpoint});});
+  rejects([]{validateComFixedNoiseRepresentations({R::CrosstalkPsd,R::NextObserved});});
+  validateComFixedNoiseRepresentations({R::NextObserved,R::FextObserved,R::ReferenceObservedRj,R::ReferenceObservedDd});
+  // Analytic asymmetric two-node integration proves endpoint convention.
+  ComReceiverNoiseInput ni;ni.oneSidedPsdV2PerHz=1.;ni.oneSidedTailProbability=1e-5;
+  ni.frequencyHz={0.,10.};ni.noiseTransfer={{1.,0.},{2.,0.}};
+  close(calculateComReceiverNoise(ni).value->varianceV2,25.);
+  ni.quadrature=ComReceiverNoiseQuadrature::RightEndpoint;
+  close(calculateComReceiverNoise(ni).value->varianceV2,40.);
+  ni.noiseTransfer={{1.,0.},{0.,0.}};
+  demand(std::fpclassify(calculateComReceiverNoise(ni).value->varianceV2)==FP_ZERO,"right endpoint actual zero");
+  ni.quadrature=static_cast<ComReceiverNoiseQuadrature>(99);
+  rejects([&]{(void)calculateComReceiverNoise(ni);});
   live.mappingGeneration++;demand(run(x).status==Status::Stale,"stale");live=source.identity();
   Control ctrl;ctrl.cancelled.store(true);bool cancelled=false;
   try{(void)calculateComFixedNoiseFromSource(source,v.id,live,x,&ctrl);}catch(const si::Cancelled&){cancelled=true;}
