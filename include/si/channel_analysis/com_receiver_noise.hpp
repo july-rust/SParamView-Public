@@ -10,12 +10,16 @@
 
 namespace si::channel {
 
+// The existing default remains trapezoidal. The reference-style option is
+// a right-endpoint finite-grid diagnostic, not complete normative bandwidth.
+enum class ComReceiverNoiseQuadrature { Trapezoid, RightEndpoint };
 struct ComReceiverNoiseInput {
   double oneSidedPsdV2PerHz = std::numeric_limits<double>::quiet_NaN();
   double oneSidedTailProbability = std::numeric_limits<double>::quiet_NaN();
   std::vector<double> frequencyHz; // starts at DC; strictly increasing
   std::vector<Complex> noiseTransfer; // transfer from noise injection to receiver
   std::vector<double> queryVoltageV; // explicitly requested PDF/CDF sample points
+  ComReceiverNoiseQuadrature quadrature=ComReceiverNoiseQuadrature::Trapezoid;
 };
 
 struct ComReceiverNoiseData {
@@ -28,9 +32,10 @@ struct ComReceiverNoiseData {
   std::vector<double> cdf;
   bool hasContinuousDensity = false;
   std::string model = "EXPLORATORY_GAUSSIAN_RECEIVER_NOISE";
+  ComReceiverNoiseQuadrature quadrature=ComReceiverNoiseQuadrature::Trapezoid;
 };
 
-// Integrates the finite measured band with a trapezoid rule, applies a
+// Integrates the finite measured band with the selected quadrature rule, applies a
 // zero-mean Gaussian distribution, and reuses the existing Gaussian-only
 // quantile solver. Max 8193 frequencies and 256 requested voltages.
 // No extrapolation, normative IEEE COM, jitter, crosstalk PDF or PHY verdict.

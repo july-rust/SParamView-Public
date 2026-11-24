@@ -42,6 +42,10 @@ Result<ComReceiverNoiseData> calculateComReceiverNoise(
               input.oneSidedTailProbability >= minTail &&
               input.oneSidedTailProbability <= maxTail,
           "One-sided tail probability is outside the qualified range");
+  require(input.quadrature==ComReceiverNoiseQuadrature::Trapezoid ||
+          input.quadrature==ComReceiverNoiseQuadrature::RightEndpoint,
+          "Unsupported receiver-noise quadrature");
+  const bool rightEndpoint=input.quadrature==ComReceiverNoiseQuadrature::RightEndpoint;
   const auto n = input.frequencyHz.size();
   require(n >= 2 && n <= maxFrequencySamples &&
               input.noiseTransfer.size() == n,
@@ -81,7 +85,7 @@ Result<ComReceiverNoiseData> calculateComReceiverNoise(
   };
   double sum = 0.0, correction = 0.0;
   double previousWeighted = weightedPsd(0);
-  bool nonzeroWeighted = previousWeighted > 0;
+  bool nonzeroWeighted = !rightEndpoint && previousWeighted > 0;
   for (size_t i = 1; i < n; ++i) {
     if (!(i & 255u)) check(cancelled);
     const double previousF = input.frequencyHz[i-1];
@@ -99,9 +103,11 @@ Result<ComReceiverNoiseData> calculateComReceiverNoise(
     require(width >= std::numeric_limits<double>::min(),
             "Subnormal receiver-noise frequency interval");
     const double halfWidth = width*0.5;
-    const double left = previousWeighted*halfWidth;
-    const double right = currentWeighted*halfWidth;
-    require((previousWeighted == 0.0 || left > 0.0) &&
+    // A reference-style right sum uses only the interval's upper node.
+    // An unused DC node is not an independently integrated noise source.
+    const double left = rightEndpoint ? 0. : previousWeighted*halfWidth;
+    const double right = currentWeighted*(rightEndpoint ? width : halfWidth);
+    require((rightEndpoint || previousWeighted == 0.0 || left > 0.0) &&
                 (currentWeighted == 0.0 || right > 0.0),
             "Receiver-noise interval variance underflow");
     require((left == 0.0 ||
@@ -112,7 +118,7 @@ Result<ComReceiverNoiseData> calculateComReceiverNoise(
     const double term = left + right;
     require(std::isfinite(term) && term >= 0,
             "Receiver-noise variance integration overflow");
-    // Compensated non-negative trapezoid accumulation.
+    // Compensated non-negative interval accumulation.
     const double y = term - correction;
     const double next = sum + y;
     correction = (next - sum) - y;
@@ -132,6 +138,7 @@ Result<ComReceiverNoiseData> calculateComReceiverNoise(
   data.varianceV2 = sum;
   data.rmsV = rms;
   data.integrationStopHz = input.frequencyHz.back();
+  data.quadrature=input.quadrature;
 
   Result<ComReceiverNoiseData> out;
   out.status = Status::Warning; // never a normative IEEE COM pass

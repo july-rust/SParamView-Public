@@ -10,6 +10,7 @@ on:
       - 'tests/channel_analysis/com_physical_contract_012_33_tests.cpp'
       - 'tests/channel_analysis/com_fixed_victim_012_34_tests.cpp'
       - 'tests/channel_analysis/com_fixed_crosstalk_012_35_tests.cpp'
+      - 'tests/channel_analysis/com_fixed_noise_012_36_tests.cpp'
       - '.github/workflows/com-01233-native-arm64.yml'
   push:
     branches: [integration/v1.4.0]
@@ -20,6 +21,7 @@ on:
       - 'tests/channel_analysis/com_physical_contract_012_33_tests.cpp'
       - 'tests/channel_analysis/com_fixed_victim_012_34_tests.cpp'
       - 'tests/channel_analysis/com_fixed_crosstalk_012_35_tests.cpp'
+      - 'tests/channel_analysis/com_fixed_noise_012_36_tests.cpp'
       - '.github/workflows/com-01233-native-arm64.yml'
   workflow_dispatch:
 
@@ -50,10 +52,10 @@ jobs:
       - name: Compile native ARM64 C++ numeric contract
         shell: pwsh
         run: |
-          cmake --build build-01233-arm64 --config Release --target si_com_physical_contract_012_33_tests si_com_fixed_victim_012_34_tests si_com_fixed_crosstalk_012_35_tests --parallel 2
+          cmake --build build-01233-arm64 --config Release --target si_com_physical_contract_012_33_tests si_com_fixed_victim_012_34_tests si_com_fixed_crosstalk_012_35_tests si_com_fixed_noise_012_36_tests --parallel 2
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Execute native ARM64 independent complex Golden and negative tests
         shell: pwsh
         run: |
-          ctest --test-dir build-01233-arm64 -C Release --output-on-failure -R "^channel_com_012_(33_physical_contract|34_fixed_victim|35_fixed_crosstalk)$"
+          ctest --test-dir build-01233-arm64 -C Release --output-on-failure -R "^channel_com_(012_(33_physical_contract|34_fixed_victim|35_fixed_crosstalk)|fixed_eq_noise_jitter)$"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
