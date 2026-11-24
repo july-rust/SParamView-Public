@@ -46,6 +46,7 @@ add_library(si_channel_analysis src/channel_analysis/common.cpp
                                 src/channel_analysis/com_fixed_noise.cpp
                                 src/channel_analysis/com_fixed_fom.cpp
                                 src/channel_analysis/com_fixed_tail.cpp
+                                src/channel_analysis/com_fixed_ratio.cpp
                                 src/channel_analysis/com_dfe.cpp
                                 src/channel_analysis/com_equalizer_search.cpp
                                 src/channel_analysis/com_voltage_ratio.cpp
@@ -167,6 +168,11 @@ target_link_libraries(si_com_fixed_tail_012_38_tests PRIVATE si_channel_analysis
 add_test(NAME channel_com_fixed_eq_der_tail COMMAND si_com_fixed_tail_012_38_tests)
 set_tests_properties(channel_com_fixed_eq_der_tail PROPERTIES TIMEOUT 30)
 install(TARGETS si_com_fixed_tail_012_38_tests RUNTIME DESTINATION tests)
+add_executable(si_com_fixed_ratio_012_39_tests tests/channel_analysis/com_fixed_ratio_012_39_tests.cpp)
+target_link_libraries(si_com_fixed_ratio_012_39_tests PRIVATE si_channel_analysis)
+add_test(NAME channel_com_fixed_eq_ratio COMMAND si_com_fixed_ratio_012_39_tests)
+set_tests_properties(channel_com_fixed_eq_ratio PROPERTIES TIMEOUT 30)
+install(TARGETS si_com_fixed_ratio_012_39_tests RUNTIME DESTINATION tests)
 
 # 012_09: independent IEEE 93A causal propagation S/gamma oracles.
 add_executable(si_com_causal_package_tests tests/channel_analysis/com_causal_package_tests.cpp)

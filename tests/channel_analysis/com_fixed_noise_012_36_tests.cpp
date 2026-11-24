@@ -2,6 +2,7 @@
 #include "si/channel_analysis/com_fixed_noise.hpp"
 #include "si/channel_analysis/com_fixed_fom.hpp"
 #include "si/channel_analysis/com_fixed_tail.hpp"
+#include "si/channel_analysis/com_fixed_ratio.hpp"
 #include <algorithm>
 #include <cmath>
 #include <filesystem>
@@ -129,6 +130,8 @@ int main(int argc,char** argv){try{
     demand(!gate.diagnostics.empty()&&gate.diagnostics.back().code=="REFERENCE_BLOCKED","FOM blocker");
     const auto der=assessComFixedTailSource(*candidate,test);
     demand(der.status==Status::NotEvaluated&&!der.value&&der.diagnostics.back().code=="REFERENCE_BLOCKED","DER replay blocker");
+    const auto ratio=assessComFixedRatioSource(*candidate,test);
+    demand(ratio.status==Status::NotEvaluated&&!ratio.value&&ratio.diagnostics.back().code=="REFERENCE_BLOCKED","ratio replay blocker");
   }
   for(const auto& c:joined.value->cases){
     demand(c.crosstalkObservedRmsV&&c.crosstalkPsdPowerV2&&!c.crosstalkSettingsIdentity.empty(),"historical ownership");
