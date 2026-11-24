@@ -19,8 +19,8 @@ Documentation:
 - [한국어 사용설명서](docs/USER_GUIDE_KO.md)
 - [Release notes](docs/Release_1.3.5.md)
 - [Revision history](docs/Revision_History.md)
-- [Planned future feature: separate ILD / ICN / COM / Eye Diagram windows](docs/Channel_Analysis_Development_Plan.md)
-- [v1.4.0 numbered development plan (012_01–012_14)](docs/Development_Plan_012_v1.4.0.md)
+- [v1.4.0 planned ILD / ICN / Eye Diagram windows (COM deferred)](docs/Channel_Analysis_Development_Plan.md)
+- [v1.4.0 current numbered development plan (012_43 onward)](docs/Development_Plan_012_v1.4.0.md)
 
 Core analysis includes RL/IL/NEXT/FEXT and Quick TDR workflows. Quick TDR is a band-limited estimate and should not be treated as an instrument-equivalent measurement.
 

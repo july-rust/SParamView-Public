@@ -1,3 +1,29 @@
+# 012_43 — Release scope stabilization (2026-11-25 KST)
+
+**Current authoritative scope:** v1.4.0 includes ILD, Generic ICN, Simulated Channel Eye and existing RL/IL/NEXT/FEXT/TDR, pending final qualification. COM is **DEFERRED / NOT_IEEE_COM**; 012_42 remains **REFERENCE BLOCKED**. The COM code, tests, oracles and historical records are preserved. No additional COM development or reference qualification is required for v1.4.0. Production COM menu and manager entry are disabled; no COM result or compliance claim may be exposed. No new COM feature, release or main merge in 012_43.
+
+| Step | Scope |
+|---|---|
+| 012_43 | COM freeze, production isolation, targeted regression |
+| 012_44 | ILD final numerical and GUI/export qualification |
+| 012_45 | ICN final numerical and GUI/export qualification |
+| 012_46 | Eye final numerical and GUI/export qualification |
+| 012_47 | UX defaults, New, last directory |
+| 012_48 | Sequential port setup, main-window state |
+| 012_49 | Integrated and legacy regression, project/cache lifecycle |
+| 012_50 | Windows x64, native Windows ARM64, macOS arm64 native execution |
+| 012_51 | Release candidate, package size, docs, license, SHA-256 |
+| 012_52 | Protected final main PR, post-merge CI, official release |
+
+All three release analyzers retain their prior numerical, fail-closed, GUI, export and independent verification requirements. Existing UX requests are retained. No measured BER or MIPI compliance claim from simulated eye; no arbitrary standards PASS for generic ILD/ICN. Exact PR-head required CI, review, protected squash integration merge and post-merge CI evidence are mandatory for 012_43 COMPLETE. No bypass. The official v1.3.5 tag/assets and main remain unchanged during this step.
+
+Historical plans and qualification records below are retained for traceability only; any earlier four-analyzer release requirement, COM continuation numbering or conflicting release gate is superseded by this decision. Do not execute the old 012_43–50 COM roadmap.
+
+
+---
+
+## Historical plans and execution records (superseded for future scheduling)
+
 > **2026-11-23 신규 012_30 — [COM 탐색용 dB 구간의 불확실성 구성 진단](COM_Cursor_Tail_Uncertainty_012_30.md):** 기존 012_29 전압비 하한/선택적 상한을 그대로 두고, 선택 Tap 분위수의 수치 폭·생략 Tap 절댓값 경계의 명목상 기여·전체 Noise 간격·표현 가능한 dB 구간 폭을 추가한다. 단측 dB 상한 부재를 타입으로 분류하고, 폭 산술 Overflow는 optional(없음)으로 나타내 원래 유효한 비율을 변경하지 않는다. 기존 Qt-free CTest에 독립 Gaussian 및 Tap 합계·Scaling·Test1/2·Fail-Closed 회귀를 추가하며 실질 검증을 요구한다. 성공 출력도 Warning/NOT_IEEE_COM / NUMERICALLY_BRACKETED_NOT_CERTIFIED이고 IEEE 공식 COM(dB)·DER/FOM·PHY 판정·GUI·main·릴리스는 변경하지 않는다. PR 최신 HEAD CI·리뷰·Squash Merge·병합 후 검증 전에는 COMPLETE를 선언하지 않는다.
 
 > **2026-11-23 신규 012_29 — [COM 탐색용 Cursor/Tail dB 구간 및 단측 상한 처리](COM_Cursor_Tail_Interval_012_29.md):** 기존 012_28의 재검증 SourceIdentity 및 복합 잡음 전압 상한 기반의 전압비 하한을 변경하지 않고, 양의 잡음 하한일 때만 탐색용 전압비 상한(dB)을 추가한다. 잡음 하한이 0 이하이면 상한을 optional(없음)로 처리하며, 두 Test 최소값의 상한은 유효한 Test 상한만으로 계산할 수 있다. 동일 upstream bridge 단 한 번 재생·기존 Qt-free CTest 확장·독립 Gaussian 수치 Golden·20 Aggressor omitted-bound/부호반전/극한/출처/취소 회귀를 수행한다. Warning/NOT_IEEE_COM, NUMERICALLY_BRACKETED_NOT_CERTIFIED 및 calculateCom() NotEvaluated는 유지한다. 공식 COM(dB)·DER/FOM·PHY 판정·GUI/main·v1.3.5 배포는 변경하지 않는다. 최신 PR HEAD CI·실질 리뷰·통합 Squash Merge·병합 후 검증이 모두 확인되기 전에는 COMPLETE를 선언하지 않는다.
