@@ -1,6 +1,7 @@
 // 012_36 bounded source-backed noise/jitter diagnostics, not IEEE COM.
 #include "si/channel_analysis/com_fixed_noise.hpp"
 #include "si/channel_analysis/com_fixed_fom.hpp"
+#include "si/channel_analysis/com_fixed_tail.hpp"
 #include <algorithm>
 #include <cmath>
 #include <filesystem>
@@ -126,6 +127,8 @@ int main(int argc,char** argv){try{
     const auto gate=assessComFixedFomSource(*candidate,test);
     demand(gate.status==Status::NotEvaluated&&!gate.value,"unqualified FOM replay");
     demand(!gate.diagnostics.empty()&&gate.diagnostics.back().code=="REFERENCE_BLOCKED","FOM blocker");
+    const auto der=assessComFixedTailSource(*candidate,test);
+    demand(der.status==Status::NotEvaluated&&!der.value&&der.diagnostics.back().code=="REFERENCE_BLOCKED","DER replay blocker");
   }
   for(const auto& c:joined.value->cases){
     demand(c.crosstalkObservedRmsV&&c.crosstalkPsdPowerV2&&!c.crosstalkSettingsIdentity.empty(),"historical ownership");
@@ -176,6 +179,7 @@ int main(int argc,char** argv){try{
   ni.quadrature=static_cast<ComReceiverNoiseQuadrature>(99);
   rejects([&]{(void)calculateComReceiverNoise(ni);});
   live.mappingGeneration++;auto stale=run(x);demand(stale.status==Status::Stale,"stale");
+  demand(assessComFixedTailSource(stale,"TEST1").status==Status::Stale,"DER stale");
   demand(assessComFixedFomSource(stale,"TEST1").status==Status::Stale,"FOM stale");live=source.identity();
   Control ctrl;ctrl.cancelled.store(true);bool cancelled=false;
   try{(void)calculateComFixedNoiseFromSource(source,v.id,live,x,&ctrl);}catch(const si::Cancelled&){cancelled=true;}
