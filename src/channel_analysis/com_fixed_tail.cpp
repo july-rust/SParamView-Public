@@ -10,7 +10,12 @@ void require(bool b,const char* why){if(!b)throw si::Error(why);}
 void check(const std::atomic_bool* c){if(c&&c->load(std::memory_order_relaxed))throw si::Cancelled();}
 bool named(const std::string& s){return !s.empty()&&s.size()<=256&&s.find_first_not_of(" \t\r\n")!=std::string::npos;}
 bool nonnegative(double x){return x==0.||(std::isnormal(x)&&x>0.);}
-bool closeRms(double a,double b){return a==b||(a>0.&&b>0.&&std::abs(a-b)/std::max(a,b)<=2e-12);}
+bool closeRms(double a,double b){
+  if(std::fpclassify(a)==FP_ZERO||std::fpclassify(b)==FP_ZERO)
+    return std::fpclassify(a)==FP_ZERO&&std::fpclassify(b)==FP_ZERO;
+  return std::isnormal(a)&&std::isnormal(b)&&a>0.&&b>0.&&
+    std::abs(a-b)/std::max(a,b)<=2e-12;
+}
 }
 Result<ComFixedTailData> calculateComFixedTailSynthetic(const ComFixedTailInput& in,
     const Provenance& p,const std::atomic_bool* cancelled){
