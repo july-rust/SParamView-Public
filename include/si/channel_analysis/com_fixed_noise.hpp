@@ -5,6 +5,14 @@
 namespace si::channel {
 // Alternative declared injection planes; neither is a qualified Annex 93A mapping.
 enum class ComFixedNoisePlane { RxFilterInput, CtleInput };
+// No summation is performed. A requested representation cannot coexist with
+// another representation of the same component. DFE state is not noise.
+enum class ComNoiseRepresentation {
+  PreDfeIsi, ResidualIsi, CrosstalkObserved, CrosstalkPsd,
+  RxGaussian, RandomJitter, DualDirac, CombinedGaussian, JitterMixture,
+  ReferenceRxRightEndpoint, ReferenceObservedRj, ReferenceObservedDd,
+  NextObserved, FextObserved, NextPsd, FextPsd
+};
 struct ComFixedNoiseChoice {
   ComFixedNoisePlane plane=ComFixedNoisePlane::RxFilterInput;
   double oneSidedPsdV2PerHz=std::numeric_limits<double>::quiet_NaN();
@@ -13,6 +21,8 @@ struct ComFixedNoiseChoice {
   // Separate symbol-distribution assumption for the observed h_J vector.
   bool independentEquiprobablePam4Declared=false;
   double diagnosticTailProbability=1e-5;
+  // Optional non-additive selection; validated for ownership AND availability.
+  std::vector<ComNoiseRepresentation> selectedRepresentations;
 };
 struct ComFixedNoiseInput {
   Com120F8EqualizerChoice eq;
@@ -35,6 +45,8 @@ struct ComFixedNoiseAggressorOwner {
 struct ComFixedNoiseCase {
   std::string testCase, victimSettingsIdentity, noiseSource, receiverDecisionPlane;
   std::string independenceDeclaration;
+  bool independentEquiprobablePam4Declared=false;
+  std::vector<ComNoiseRepresentation> selectedRepresentations;
   ComFixedNoisePlane injectionPlane=ComFixedNoisePlane::RxFilterInput;
   std::vector<double> localTimeSeconds, localVoltageV;
   Result<ComReceiverNoiseData> receiverNoise;
@@ -50,14 +62,6 @@ struct ComFixedNoiseCase {
 struct ComFixedNoiseData {
   std::array<ComFixedNoiseCase,2> cases;
   std::string model="EXPLORATORY_FIXED_EQ_LOCAL_NOISE_JITTER";
-};
-// No summation is performed. A requested representation cannot coexist with
-// another representation of the same component. DFE state is not noise.
-enum class ComNoiseRepresentation {
-  PreDfeIsi, ResidualIsi, CrosstalkObserved, CrosstalkPsd,
-  RxGaussian, RandomJitter, DualDirac, CombinedGaussian, JitterMixture,
-  ReferenceRxRightEndpoint, ReferenceObservedRj, ReferenceObservedDd,
-  NextObserved, FextObserved, NextPsd, FextPsd
 };
 void validateComFixedNoiseRepresentations(const std::vector<ComNoiseRepresentation>& choices);
 Result<ComFixedNoiseData> calculateComFixedNoiseFromSource(

@@ -61,6 +61,9 @@ int main(int argc,char** argv){try{
     n.independentRxRjDjDeclared=true;n.independentEquiprobablePam4Declared=true;
   }
   auto run=[&](const auto& y){return calculateComFixedNoiseFromSource(source,v.id,live,y);};
+  using R=ComNoiseRepresentation;
+  x.noise[0].selectedRepresentations={R::ResidualIsi,R::JitterMixture};
+  x.noise[1].selectedRepresentations={R::ResidualIsi,R::ReferenceRxRightEndpoint,R::ReferenceObservedRj,R::ReferenceObservedDd};
   auto r=run(x);demand(r.usable()&&r.status==Status::Warning,"bounded candidate");
   const double volts[2][3]={{.013941801951709965,.01423926335753524,.01447460824786692},
     {.021496570539206106,.021789620826230417,.021991424621149502}};
@@ -124,7 +127,14 @@ int main(int argc,char** argv){try{
   }
   y.noise[0].noiseSource="NEXT";rejects([&]{run(y);});
   y=x;y.noise[0].independentEquiprobablePam4Declared=false;
-  demand(!run(y).value->cases[0].observedReferenceJitter,"no assumed PAM4 vector statistics");
+  rejects([&]{run(y);}); // selected residual requires explicit PAM4 assumption
+  y.noise[0].selectedRepresentations.clear();auto noPam=run(y);
+  demand(!noPam.value->cases[0].observedReferenceJitter&&
+    !noPam.value->cases[0].residualIsiObservedRmsV,"no assumed PAM4 statistics");
+  y=x;y.noise[0].selectedRepresentations={R::RxGaussian,R::JitterMixture};rejects([&]{run(y);});
+  y=x;y.noise[0].selectedRepresentations={R::ReferenceRxRightEndpoint};rejects([&]{run(y);});
+  y=x;y.noise[0].selectedRepresentations={R::CrosstalkObserved};rejects([&]{run(y);});
+  y=x;y.noise[0].noiseSource=v.id;rejects([&]{run(y);});
   y=x;y.noise[0].oneSidedPsdV2PerHz=0.;auto zero=run(y);
   demand(std::fpclassify(zero.value->cases[0].receiverNoise.value->rmsV)==FP_ZERO,"declared zero");
   y=x;y.noise[0].oneSidedPsdV2PerHz=1e-320;rejects([&]{run(y);});
@@ -137,7 +147,6 @@ int main(int argc,char** argv){try{
   y=x;y.victim[0].voltageScale.reset();rejects([&]{run(y);});
   y=x;y.victim[0].voltageScale->provenance.mappingGeneration++;rejects([&]{run(y);});
   y=x;y.victim[0].testCase="TEST2";rejects([&]{run(y);});
-  using R=ComNoiseRepresentation;
   validateComFixedNoiseRepresentations({R::ResidualIsi,R::CrosstalkObserved,R::JitterMixture});
   rejects([]{validateComFixedNoiseRepresentations({R::ResidualIsi,R::PreDfeIsi});});
   rejects([]{validateComFixedNoiseRepresentations({R::CrosstalkObserved,R::CrosstalkPsd});});

@@ -1,4 +1,5 @@
 #include "si/channel_analysis/com_fixed_noise.hpp"
+#include <algorithm>
 #include <bit>
 #include <cmath>
 #include <cstdint>
@@ -47,6 +48,39 @@ unsigned owners(ComNoiseRepresentation choice){
   throw si::Error("012_36 unsupported noise representation");
 }
 
+// Availability is evaluated on the actual replayed case, never by treating
+// missing evidence as a zero statistic. This is an ownership contract only.
+bool roleAvailable(const ComFixedNoiseCase& c,ComCoupling role,bool psd){
+  bool found=false;
+  for(const auto& a:c.aggressorOwners){
+    if(a.coupling!=role)continue;
+    found=true;
+    if(psd?!a.psdPowerV2:!a.observedRmsV)return false;
+  }
+  return found;
+}
+bool available(const ComFixedNoiseCase& c,ComNoiseRepresentation r){
+  switch(r){
+    case ComNoiseRepresentation::PreDfeIsi:return false;
+    case ComNoiseRepresentation::ResidualIsi:return c.residualIsiObservedRmsV.has_value();
+    case ComNoiseRepresentation::CrosstalkObserved:return c.crosstalkObservedRmsV.has_value();
+    case ComNoiseRepresentation::CrosstalkPsd:return c.crosstalkPsdPowerV2.has_value();
+    case ComNoiseRepresentation::NextObserved:return roleAvailable(c,ComCoupling::Next,false);
+    case ComNoiseRepresentation::FextObserved:return roleAvailable(c,ComCoupling::Fext,false);
+    case ComNoiseRepresentation::NextPsd:return roleAvailable(c,ComCoupling::Next,true);
+    case ComNoiseRepresentation::FextPsd:return roleAvailable(c,ComCoupling::Fext,true);
+    case ComNoiseRepresentation::ReferenceRxRightEndpoint:
+      return c.referenceRightEndpointNoise.has_value()&&c.referenceRightEndpointNoise->usable();
+    case ComNoiseRepresentation::ReferenceObservedRj:
+    case ComNoiseRepresentation::ReferenceObservedDd:return c.observedReferenceJitter.has_value();
+    case ComNoiseRepresentation::RxGaussian:return c.receiverNoise.usable();
+    case ComNoiseRepresentation::RandomJitter:
+    case ComNoiseRepresentation::DualDirac:
+    case ComNoiseRepresentation::CombinedGaussian:
+    case ComNoiseRepresentation::JitterMixture:return c.jitter.usable();
+  }
+  return false;
+}
 // Use the same source-backed rectangular pulse, not residual DFE taps.
 // Equation 93A-28 style central difference on only the observed 13 UIs.
 // A full phase vector is not inferred; its absent tails remain unqualified.
@@ -105,6 +139,7 @@ Result<ComFixedNoiseData> calculateComFixedNoiseFromSource(
     const SourceIdentity& live,const ComFixedNoiseInput& input,Control* control){
   check(control);
   if(!source.current(live))return stale();
+  for(const auto& n:input.noise)validateComFixedNoiseRepresentations(n.selectedRepresentations);
   const auto* cancelled=control?&control->cancelled:nullptr;
   // Replay immutable source and choices; do not accept a detached waveform.
   const auto phys=prepareCom120F8HistoricalCausalFromSource(source,victimId,input.eq,live,0.,control);
@@ -137,7 +172,7 @@ Result<ComFixedNoiseData> calculateComFixedNoiseFromSource(
     auto& c=out.value->cases[k];
     require(v.voltage.has_value(),"012_36 missing declared receiver voltage");
     const auto& scale=v.voltage->before;
-    require(bounded(n.noiseSource)&&bounded(n.receiverDecisionPlane)&&
+    require(bounded(n.noiseSource)&&n.noiseSource!=victimId&&bounded(n.receiverDecisionPlane)&&
       n.independentRxRjDjDeclared&&bounded(n.independenceDeclaration)&&n.receiverDecisionPlane==scale.receiverDecisionPlane,
       "012_36 missing noise source, independence declaration or wrong receiver plane");
     require(n.plane==ComFixedNoisePlane::RxFilterInput||n.plane==ComFixedNoisePlane::CtleInput,
@@ -149,7 +184,10 @@ Result<ComFixedNoiseData> calculateComFixedNoiseFromSource(
     c.testCase=v.testCase;c.victimSettingsIdentity=v.settingsIdentity;
     c.noiseSource=n.noiseSource;c.receiverDecisionPlane=n.receiverDecisionPlane;
     c.independenceDeclaration=n.independenceDeclaration;c.injectionPlane=n.plane;
-    c.residualIsiObservedRmsV=v.voltage->isiAfterV.pam4Rms;
+    c.independentEquiprobablePam4Declared=n.independentEquiprobablePam4Declared;
+    if(n.independentEquiprobablePam4Declared)c.residualIsiObservedRmsV=v.voltage->isiAfterV.pam4Rms;
+    c.selectedRepresentations=n.selectedRepresentations;
+    std::sort(c.selectedRepresentations.begin(),c.selectedRepresentations.end());
     if(xtalk){
       const auto& x=xtalk->value->crosstalk.cases[k];
       require(x.victimSettingsIdentity==v.settingsIdentity&&x.timeSeconds==v.pulse.timeSeconds,
@@ -180,6 +218,7 @@ Result<ComFixedNoiseData> calculateComFixedNoiseFromSource(
     // Case identity records the extra observed-PAM4 assumption separately.
     id<<"012_36-v2/"<<static_cast<int>(n.plane)<<"/"<<n.independentEquiprobablePam4Declared<<"/"<<std::hexfloat
       <<n.oneSidedPsdV2PerHz<<"/"<<n.diagnosticTailProbability<<"/"<<delta<<"/";
+    for(auto r:c.selectedRepresentations)id<<static_cast<int>(r)<<"/";
     p.settingsIdentity=id.str();append(pair,p.settingsIdentity);
     const auto pulse=calculateCom120F8RectangularPulse(spec,c.localTimeSeconds,p,cancelled);
     require(pulse.usable()&&pulse.value->unitSymbolPulse.size()==3&&
@@ -226,6 +265,9 @@ Result<ComFixedNoiseData> calculateComFixedNoiseFromSource(
     ji.queryVoltageV={0.};
     c.jitter=calculateComJitter(ji,p,cancelled);
     require(c.jitter.usable(),"012_36 jitter unavailable");
+    // A selected alternative must exist on this exact case; no invented zero.
+    for(auto r:c.selectedRepresentations)
+      require(available(c,r),"012_36 selected noise representation unavailable");
   }
   check(control);
   if(!source.current(live))return stale();
