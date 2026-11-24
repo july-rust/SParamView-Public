@@ -90,6 +90,21 @@ int main(int argc,char** argv){try{
   y=x;y.aggressors[0].cases[0].declaredVoltsPerUnitSymbol.reset();y.aggressors[0].cases[0].calibrationSource.clear();
   auto missing=run(y);demand(!missing.value->cases[0].observedIndependentPam4RmsV &&
     !missing.value->cases[0].aggressors[1].declaredEquivalentV,"no invented voltage");
+  // Codex P2: reject nonzero power outside the qualified normal range,
+  // including a scale for which density used to vanish before integration.
+  y=x;for(auto& ag:y.aggressors)for(auto& ac:ag.cases)ac.declaredVoltsPerUnitSymbol=1e-156;
+  rejects([&]{run(y);});
+  // A small but normal integrated power remains available and scales
+  // quadratically; compare the dimensionless ratio instead of abs tolerance.
+  y=x;for(auto& ag:y.aggressors)for(auto& ac:ag.cases)ac.declaredVoltsPerUnitSymbol=1e-145;
+  auto tiny=run(y);
+  for(size_t k=0;k<2;++k)for(size_t j=0;j<2;++j) {
+    const auto& original=r.value->cases[k].aggressors[j].measuredBandPsdPowerV2;
+    const auto& small=tiny.value->cases[k].aggressors[j].measuredBandPsdPowerV2;
+    demand(original&&small&&std::isnormal(*small),"normal tiny PSD expected");
+    const double expected=(*original/scales[k][j]/scales[k][j])*1e-290;
+    demand(std::abs(*small/expected-1.)<1e-12,"tiny PSD quadratic scaling");
+  }
   y=x;y.aggressors[0].cases[0].declaredVoltsPerUnitSymbol=0.;rejects([&]{run(y);});
   y=x;y.cases[0].testCase="TEST2";rejects([&]{run(y);});
   y=x;y.aggressors.push_back(y.aggressors[0]);rejects([&]{run(y);});
@@ -152,6 +167,9 @@ int main(int argc,char** argv){try{
   auto bad=hx;bad.packageAssumption.clear();rejects([&]{dieRun(bad);});
   bad=hx;bad.aggressors.cases[0].decisionTimeSeconds+=1e-12;rejects([&]{dieRun(bad);});
   bad=hx;bad.aggressors.cases[0].ctleDcGainDb=-1.;rejects([&]{dieRun(bad);});
+  bad=hx;bad.aggressors.cases[0].decisionTimeSeconds=std::nextafter(
+      bad.aggressors.cases[0].decisionTimeSeconds,std::numeric_limits<double>::infinity());
+  rejects([&]{dieRun(bad);}); // exact immutable case identity, even one ULP
   bad=hx;bad.aggressors.aggressors[0].cases[0].dieCalibrationProvenance->mappingGeneration++;rejects([&]{dieRun(bad);});
   bad=hx;bad.aggressors.aggressors[0].cases[0].receiverDecisionPlane="board";rejects([&]{dieRun(bad);});
   bad=hx;bad.aggressors.aggressors[0].cases[0].dieCalibrationProvenance.reset();rejects([&]{dieRun(bad);});

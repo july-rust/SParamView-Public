@@ -1,6 +1,8 @@
 #include "si/channel_analysis/com_aggressor_voltage.hpp"
 #include "si/channel_analysis/com_causal_package.hpp"
 #include <algorithm>
+#include <bit>
+#include <cstdint>
 #include <cmath>
 #include <limits>
 #include <locale>
@@ -29,6 +31,12 @@ double scaleSample(double u,double factor) {
   require(std::isfinite(v) && (u==0. || std::isnormal(v)),
           "COM voltage overflow or underflow");
   return v;
+}
+// Fixed decisions/EQ are immutable input identities, not approximated results.
+// Require finite identical IEEE binary64 encodings; no tolerance or NaN match.
+bool sameFixedChoice(double a,double b) {
+  return std::isfinite(a)&&std::isfinite(b)&&
+         std::bit_cast<std::uint64_t>(a)==std::bit_cast<std::uint64_t>(b);
 }
 bool bounded(const std::string& s) { return !s.empty() && s.size() <= 256; }
 bool sameSource(const Provenance& a, const Provenance& b) {
@@ -283,19 +291,29 @@ ComplexTrace historicalPath(const SourceSnapshot& source,const Channel& victim,
 // detector-error variance. The DC endpoint has trapezoid half weight.
 double measuredPsdPower(const std::vector<double>& f,const std::vector<Complex>& h,
     double scale,double ui,const std::atomic_bool* cancelled) {
-  double sum=0.,previous=0.;
+  // Apply the frequency-bin quadrature weight before squaring. A per-Hz
+  // density can underflow even if the integrated power is representable.
+  // Accumulate weighted amplitudes with hypot; deliberately reject nonzero
+  // subnormal/overflowed final powers rather than claim zero interference.
+  double rms=0.;
   for(size_t i=0;i<f.size();++i) {
     if(!(i&1023u))check(cancelled);
     const double z=std::numbers::pi*f[i]*ui;
     const double sinc=i?std::sin(z)/z:1.;
+    const double weight=i==0?(f[1]-f[0])*.5:
+        i+1==f.size()?(f[i]-f[i-1])*.5:(f[i+1]-f[i-1])*.5;
+    const double factor=std::sqrt(2.*(5./9.)*ui*weight);
+    require(std::isnormal(factor)&&factor>0.,"012_35 invalid PSD quadrature weight");
     const double v=scaleSample(std::abs(h[i]),scale);
-    const double density=2.*(5./9.)*ui*std::pow(v*sinc,2);
-    require(std::isfinite(density)&&density>=0.,"012_35 invalid PSD density");
-    if(i)sum+=(f[i]-f[i-1])*(previous*.5+density*.5);
-    require(std::isfinite(sum),"012_35 PSD integral overflow");
-    previous=density;
+    if(v==0.||sinc==0.)continue; // actual zero transfer or excitation
+    const double amplitude=std::abs(v)*std::abs(sinc)*factor;
+    require(std::isnormal(amplitude),"012_35 PSD weighted amplitude outside normal range");
+    rms=std::hypot(rms,amplitude);
+    require(std::isfinite(rms),"012_35 PSD quadrature overflow");
   }
-  return sum;
+  const double power=rms*rms;
+  require(rms==0.||std::isnormal(power),"012_35 PSD power outside normal range");
+  return power;
 }
 Result<ComBoardCrosstalkResult> calculateFixedCrosstalk(
     const SourceSnapshot& source,std::string_view victimId,
@@ -528,9 +546,9 @@ Result<ComHistoricalFixedCrosstalkResult> calculateComHistoricalFixedCrosstalkFr
       "012_35 historical role topology must be explicitly acknowledged");
   for(size_t k=0;k<2;++k) {
     const auto& a=input.aggressors.cases[k];const auto& v=input.victimCases[k];
-    require(a.testCase==v.testCase&&a.decisionTimeSeconds==v.decisionTimeSeconds&&
-            a.ctleDcGainDb==input.victimEq.ctleDcGainDb&&
-            a.ctleDcGain2Db==input.victimEq.ctleDcGain2Db,
+    require(a.testCase==v.testCase&&sameFixedChoice(a.decisionTimeSeconds,v.decisionTimeSeconds)&&
+            sameFixedChoice(a.ctleDcGainDb,input.victimEq.ctleDcGainDb)&&
+            sameFixedChoice(a.ctleDcGain2Db,input.victimEq.ctleDcGain2Db),
             "012_35 fixed victim timing/RX EQ mismatch");
   }
   // Replay 012_34 from source instead of accepting caller-constructed results.
