@@ -60,4 +60,85 @@ Result<ComAggressorVoltageCasesData> calculateComAggressorReceiverVoltage(
     const ComAggressorVoltageInput& input, const Provenance& expectedPair,
     const SourceIdentity& live, const std::atomic_bool* cancelled = nullptr);
 
+// 012_35 bounded matched-board diagnostic. No package/die-plane equivalence.
+struct ComBoardAggressorCaseChoice {
+  std::array<double,5> txFfe{0.,0.,0.,1.,0.};
+  double relativeDelaySeconds=0.;
+  std::optional<double> declaredVoltsPerUnitSymbol;
+  std::string calibrationSource;
+  // Historical die-only declared calibration must match the replayed victim case.
+  std::optional<Provenance> dieCalibrationProvenance;
+  std::string receiverDecisionPlane, calibrationIdentity;
+};
+struct ComBoardAggressorChoice {
+  std::string id, channelId;
+  ComCoupling coupling=ComCoupling::Next;
+  bool repeatedPathDeclared=false;
+  std::array<ComBoardAggressorCaseChoice,2> cases;
+};
+struct ComBoardCrosstalkCaseChoice {
+  std::string testCase;
+  double decisionTimeSeconds=std::numeric_limits<double>::quiet_NaN();
+  double ctleDcGainDb=0.,ctleDcGain2Db=0.;
+};
+struct ComBoardCrosstalkInput {
+  bool inventoryConfirmed=false;
+  bool independentEquiprobablePam4Declared=false;
+  std::string statisticalAssumptionSource;
+  std::array<ComBoardCrosstalkCaseChoice,2> cases;
+  std::vector<ComBoardAggressorChoice> aggressors;
+};
+struct ComBoardAggressorResult {
+  ComInterferencePulse pulse;
+  std::string channelId, calibrationSource;
+  std::array<int,2> stimulusPorts{},responsePorts{};
+  std::optional<std::array<double,13>> declaredEquivalentV;
+  std::optional<double> observedPam4RmsV;
+  // Integrated one-sided, time-averaged rectangular-symbol PSD, V^2.
+  // Separate from observed sample variance; never a normative COM statistic.
+  std::optional<double> measuredBandPsdPowerV2;
+  std::string receiverDecisionPlane, calibrationIdentity;
+  double aggressorPackageMm=0., victimRxPackageMm=0.;
+};
+struct ComBoardCrosstalkCaseResult {
+  std::string testCase;
+  std::vector<double> timeSeconds;
+  std::vector<ComBoardAggressorResult> aggressors;
+  std::optional<double> observedIndependentPam4RmsV;
+  std::optional<double> independentMeasuredBandPsdPowerV2;
+  std::string victimSettingsIdentity;
+};
+struct ComBoardCrosstalkResult {
+  std::array<ComBoardCrosstalkCaseResult,2> cases;
+  std::string model="EXPLORATORY_MATCHED_BOARD_XTALK_NOT_DIE_PLANE";
+};
+// Both cases use actual mapped board Sdd at the forward victim far endpoint.
+// Cases label explicit timing/EQ, NOT qualified package networks. No PSD,
+// die-plane aggregate, unobserved tail or official COM output is generated.
+Result<ComBoardCrosstalkResult> calculateComMatchedBoardCrosstalkFromSource(
+    const SourceSnapshot& source,std::string_view victimId,
+    const SourceIdentity& observedLiveIdentity,const ComBoardCrosstalkInput& input,
+    Control* control=nullptr);
+
+// Explicitly historical draft overlay, not final PHY topology. All unselected
+// board ports are reference-matched; the chosen two differential endpoints
+// are package-loaded with full bidirectional reflections. This is not a
+// simultaneous multiport package termination model.
+inline constexpr std::string_view kHistoricalAggressorOverlay =
+    "IEEE_2020_DRAFT_ROLE_LENGTHS_MATCHED_UNUSED_PORTS";
+struct ComHistoricalFixedCrosstalkInput {
+  ComBoardCrosstalkInput aggressors;
+  Com120F8EqualizerChoice victimEq;
+  std::array<ComFixedVictimCaseChoice,2> victimCases;
+  std::string packageAssumption;
+};
+struct ComHistoricalFixedCrosstalkResult {
+  ComFixedVictimCases victim;
+  ComBoardCrosstalkResult crosstalk;
+};
+Result<ComHistoricalFixedCrosstalkResult> calculateComHistoricalFixedCrosstalkFromSource(
+    const SourceSnapshot& source,std::string_view victimId,
+    const SourceIdentity& observedLiveIdentity,const ComHistoricalFixedCrosstalkInput& input,
+    Control* control=nullptr);
+
 } // namespace si::channel
