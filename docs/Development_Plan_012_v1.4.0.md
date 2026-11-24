@@ -330,3 +330,7 @@ Source-backed fixed decision times, signed pulse and ideal six-tap residual, opt
 ### 012_37 bounded fixed-EQ FOM candidate — 2026-11-24 KST
 
 **PARTIAL / REFERENCE BLOCKED.** [Technical note](COM_Fixed_EQ_FOM_012_37.md): fixed synthetic C2C non-MMSE FOM, explicit amplitude/TX noise/zero and ownership contracts, independent Decimal Golden; actual 012_36 source replay blocked from qualified FOM. Final-head CI, Codex review, protected squash merge and push CI required. No DER/COM/optimizer or production promotion.
+
+### 012_38 bounded fixed-EQ DER/tail candidate — 2026-11-24 KST
+
+**PARTIAL / REFERENCE BLOCKED.** [Technical note](COM_Fixed_EQ_DER_Tail_012_38.md): strict lower-CDF bin crossing audit, explicit synthetic distribution/RMS and ownership bridge reusing 012_20, independent Golden and actual source rejection. No official A_ni or DER/COM promotion. Exact-head review/CI, protected merge and push CI required.
