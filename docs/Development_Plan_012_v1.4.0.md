@@ -313,3 +313,7 @@
 - 실제 코드: [CMakeLists.txt](../CMakeLists.txt), [core.hpp](../include/si/core.hpp), [trace.cpp](../src/trace.cpp), [tdr.cpp](../src/tdr.cpp), [window_ui.cpp](../src/window_ui.cpp).
 - Qt 공식: [QMainWindow/QMenuBar](https://doc.qt.io/qt-6/qmainwindow.html), [QPointer](https://doc.qt.io/qt-6/qpointer.html).
 - IEEE 공식: [COM ad hoc](https://www.ieee802.org/3/ad_hoc/COM/), [IEEE SA 802-COM](https://opensource.ieee.org/802-com).
+
+### 012_34 implementation candidate — 2026-11-24 KST
+
+Source-backed fixed decision times, signed pulse and ideal six-tap residual, optional explicitly declared receiver-equivalent voltage, and observed-window ISI are implemented for review. See [012_34 technical note](COM_Fixed_EQ_Victim_ISI_DFE_012_34.md). Qualification and completion depend on actual final HEAD review, CI, protected merge and post-merge evidence; final PHY reference remains BLOCKED. 012_35 is not started.

@@ -139,6 +139,11 @@ add_test(NAME channel_com_012_33_physical_contract
           "${CMAKE_BINARY_DIR}/com-012_33-source")
 set_tests_properties(channel_com_012_33_physical_contract PROPERTIES TIMEOUT 120)
 install(TARGETS si_com_physical_contract_012_33_tests RUNTIME DESTINATION tests)
+add_executable(si_com_fixed_victim_012_34_tests tests/channel_analysis/com_fixed_victim_012_34_tests.cpp)
+target_link_libraries(si_com_fixed_victim_012_34_tests PRIVATE si_channel_analysis)
+add_test(NAME channel_com_012_34_fixed_victim COMMAND si_com_fixed_victim_012_34_tests "${CMAKE_BINARY_DIR}/com-fixed-victim-012_34")
+set_tests_properties(channel_com_012_34_fixed_victim PROPERTIES TIMEOUT 120)
+install(TARGETS si_com_fixed_victim_012_34_tests RUNTIME DESTINATION tests)
 # 012_09: independent IEEE 93A causal propagation S/gamma oracles.
 add_executable(si_com_causal_package_tests tests/channel_analysis/com_causal_package_tests.cpp)
 target_link_libraries(si_com_causal_package_tests PRIVATE si_channel_analysis)
