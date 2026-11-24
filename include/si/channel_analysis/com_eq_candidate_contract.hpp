@@ -29,20 +29,20 @@ ComEqCandidate comEqCandidateAt(size_t rawOrdinal,
     const std::atomic_bool* cancelled = nullptr);
 ComEqIndices comEqIndicesFor(const Com120F8EqualizerChoice& initial);
 
-enum class ComEqAnchor { MuellerMuller, Peak, MaxDv };
-enum class ComEqPhaseOrder { FullSweep, Middle };
+enum class ComEqAnchor { Unspecified, MuellerMuller, Peak, MaxDv };
+enum class ComEqPhaseOrder { Unspecified, FullSweep, Middle };
 struct ComEqPhaseContract {
   // Explicit engineering configuration; no default reference assumption.
-  ComEqAnchor anchorMode;
-  ComEqPhaseOrder order;
-  int firstOffset, lastOffset;
-  uint64_t anchorOneBased, sampleCount;
+  ComEqAnchor anchorMode = ComEqAnchor::Unspecified;
+  ComEqPhaseOrder order = ComEqPhaseOrder::Unspecified;
+  int firstOffset = 0, lastOffset = 0;
+  uint64_t anchorOneBased = 0, sampleCount = 0;
   bool operator==(const ComEqPhaseContract&) const = default;
 };
 struct ComEqPhase {
-  int offset;
-  uint64_t zeroBased;
-  double secondsFromFirstSample;
+  int offset = 0;
+  uint64_t zeroBased = 0;
+  double secondsFromFirstSample = 0.;
   bool operator==(const ComEqPhase&) const = default;
 };
 // Returns only explicit offsets. No waveform/anchor detection or search.
