@@ -44,6 +44,7 @@ add_library(si_channel_analysis src/channel_analysis/common.cpp
                                 src/channel_analysis/com_receiver_noise.cpp
                                 src/channel_analysis/com_jitter.cpp
                                 src/channel_analysis/com_fixed_noise.cpp
+                                src/channel_analysis/com_fixed_fom.cpp
                                 src/channel_analysis/com_dfe.cpp
                                 src/channel_analysis/com_equalizer_search.cpp
                                 src/channel_analysis/com_voltage_ratio.cpp
@@ -155,6 +156,11 @@ target_link_libraries(si_com_fixed_noise_012_36_tests PRIVATE si_channel_analysi
 add_test(NAME channel_com_fixed_eq_noise_jitter COMMAND si_com_fixed_noise_012_36_tests "${CMAKE_BINARY_DIR}/com-fixed-noise-012_36")
 set_tests_properties(channel_com_fixed_eq_noise_jitter PROPERTIES TIMEOUT 120)
 install(TARGETS si_com_fixed_noise_012_36_tests RUNTIME DESTINATION tests)
+add_executable(si_com_fixed_fom_012_37_tests tests/channel_analysis/com_fixed_fom_012_37_tests.cpp)
+target_link_libraries(si_com_fixed_fom_012_37_tests PRIVATE si_channel_analysis)
+add_test(NAME channel_com_fixed_eq_fom COMMAND si_com_fixed_fom_012_37_tests)
+set_tests_properties(channel_com_fixed_eq_fom PROPERTIES TIMEOUT 30)
+install(TARGETS si_com_fixed_fom_012_37_tests RUNTIME DESTINATION tests)
 
 # 012_09: independent IEEE 93A causal propagation S/gamma oracles.
 add_executable(si_com_causal_package_tests tests/channel_analysis/com_causal_package_tests.cpp)
