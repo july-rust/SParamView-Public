@@ -3,6 +3,7 @@
 #include "si/channel_analysis/com_fixed_fom.hpp"
 #include "si/channel_analysis/com_fixed_tail.hpp"
 #include "si/channel_analysis/com_fixed_ratio.hpp"
+#include "si/channel_analysis/com_eq_search_qualification.hpp"
 #include <algorithm>
 #include <cmath>
 #include <filesystem>
@@ -132,6 +133,47 @@ int main(int argc,char** argv){try{
     demand(der.status==Status::NotEvaluated&&!der.value&&der.diagnostics.back().code=="REFERENCE_BLOCKED","DER replay blocker");
     const auto ratio=assessComFixedRatioSource(*candidate,test);
     demand(ratio.status==Status::NotEvaluated&&!ratio.value&&ratio.diagnostics.back().code=="REFERENCE_BLOCKED","ratio replay blocker");
+  }
+  // 012_42: negative Test1 integration boundary only. The real SourceSnapshot
+  // replay above is still historical/synthetic, not an approved PHY FOM.
+  // No physical score is constructed or relabelled as a synthetic score.
+  {
+    using E=ComEqSearchEnd;
+    Provenance p=joined.provenance;
+    // This is a gate-test context, not the identity of a computed EQ candidate.
+    p.settingsIdentity="012_42 negative gate fixture|case=TEST1|";
+    ComEqSearchSpec spec;
+    spec.ordinals={0};
+    spec.phaseContract={ComEqAnchor::Peak,ComEqPhaseOrder::FullSweep,0,0,5,10};
+    spec.initial={0,0};spec.evaluationBudget=1;spec.iterationBudget=1;
+    size_t calls=0;bool observedBlocked=false;
+    ComEqSyntheticEvaluator evaluate=[&](const ComEqCandidateKey&)->ComEqSyntheticScore{
+      ++calls;
+      const auto gate=assessComFixedFomSource(joined,"TEST1");
+      observedBlocked=gate.status==Status::NotEvaluated&&!gate.value&&
+        !gate.diagnostics.empty()&&gate.diagnostics.back().code=="REFERENCE_BLOCKED";
+      // A missing physical FOM is not zero, a penalty, or a valid score.
+      throw std::runtime_error("012_42 physical FOM unavailable");
+    };
+    auto search=[&]{
+      return qualifyComEqSearch(source,v.id,p,"TEST1",comEqReferenceVersion,
+        comEqReferenceCommit,spec,[&]{return live;},evaluate);
+    };
+    for(auto mode:{ComEqSearchMode::Exhaustive,ComEqSearchMode::Local}){
+      spec.mode=mode;
+      calls=0;observedBlocked=false;
+      spec.objectiveId="IEEE_COM_PHYSICAL_FOM";
+      const auto official=search();
+      demand(official.end==E::InvalidInput&&official.attempted==0&&
+        calls==0&&!official.initial&&!official.best,
+        "012_42 synthetic search rejects official objective before evaluation");
+      spec.objectiveId="SYNTHETIC:gate-rejection-only";
+      const auto blocked=search();
+      demand(blocked.end==E::NumericalFailure&&blocked.attempted==1&&
+        calls==1&&observedBlocked&&!blocked.initial&&!blocked.best&&
+        blocked.model=="NOT_IEEE_COM_SYNTHETIC_EQ_SEARCH",
+        "012_42 blocked physical FOM cannot publish a synthetic optimum");
+    }
   }
   for(const auto& c:joined.value->cases){
     demand(c.crosstalkObservedRmsV&&c.crosstalkPsdPowerV2&&!c.crosstalkSettingsIdentity.empty(),"historical ownership");
