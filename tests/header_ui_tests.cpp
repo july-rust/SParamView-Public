@@ -73,18 +73,28 @@ int main(int argc, char **argv) {
   }
 
   auto *analysisMenu = window.menuBar()->findChild<QMenu *>("channelAnalysisMenu");
-  if (!analysisMenu || analysisMenu->actions().size() != 4) {
-    std::cerr << "012_04 Analysis menu was not integrated into MainWindow\\n";
+  if (!analysisMenu || analysisMenu->actions().size() != 3) {
+    std::cerr << "012_43: MainWindow must expose exactly three analysis actions\n";
     return 10;
   }
+  const QStringList expected = {QStringLiteral("analysisActionILD"),
+                                QStringLiteral("analysisActionICN"),
+                                QStringLiteral("analysisActionEye")};
+  QStringList actual;
   for (const auto *action : analysisMenu->actions()) {
-    const bool implemented = action->objectName() == QStringLiteral("analysisActionILD") ||
-                             action->objectName() == QStringLiteral("analysisActionICN") ||
-                             action->objectName() == QStringLiteral("analysisActionEye");
-    if (action->isEnabled() != implemented) {
-      std::cerr << "012_08 activation contract: only verified ILD, ICN and Eye may be enabled\n";
+    actual.append(action->objectName());
+    if (!action->isEnabled()) {
+      std::cerr << "012_43: release analysis action is disabled\n";
       return 11;
     }
+  }
+  actual.sort();
+  QStringList sortedExpected = expected;
+  sortedExpected.sort();
+  if (actual != sortedExpected ||
+      window.findChild<QAction *>(QStringLiteral("analysisActionCOM"))) {
+    std::cerr << "012_43: missing, duplicate or deferred analysis action exposed\n";
+    return 12;
   }
   return 0;
 }
