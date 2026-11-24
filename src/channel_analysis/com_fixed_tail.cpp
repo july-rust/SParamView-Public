@@ -1,4 +1,5 @@
 #include "si/channel_analysis/com_fixed_tail.hpp"
+#include <algorithm>
 #include <cmath>
 #include <set>
 #include <utility>
@@ -99,19 +100,23 @@ ComTailGridCrossing syntheticStrictLowerCdfCrossing(const std::vector<double>& m
   require(!masses.empty()&&masses.size()<=8192&&firstBin>=-8192&&firstBin<=8192&&
     std::isnormal(binV)&&binV>0.&&std::isfinite(probability)&&probability>=1e-12&&probability<=.1,
     "012_38 invalid synthetic grid");
-  double cumulative=0.;std::optional<ComTailGridCrossing> crossing;
+  double cumulative=0.,checkedMass=0.,compensation=0.;std::optional<ComTailGridCrossing> crossing;
   for(size_t k=0;k<masses.size();++k){
     check(cancelled);
     const double mass=masses[k];
     require(std::isfinite(mass)&&mass>=0.&&mass<=1.,"012_38 invalid grid mass");
     const double v=static_cast<double>(firstBin+static_cast<int>(k))*binV;
     require(std::isfinite(v),"012_38 grid voltage overflow");
+    const double adjusted=mass-compensation;
+    const double total=checkedMass+adjusted;
+    compensation=(total-checkedMass)-adjusted;
+    checkedMass=total;
     const double before=cumulative;
     cumulative+=mass;
     if(!crossing&&cumulative>probability)
       crossing=ComTailGridCrossing{k,v,std::abs(v),before,cumulative};
   }
-  require(std::abs(cumulative-1.)<=1e-12&&crossing.has_value(),"012_38 incomplete grid mass");
+  require(std::abs(checkedMass-1.)<=std::min(1e-12,probability*1e-3)&&crossing.has_value(),"012_38 incomplete grid mass");
   check(cancelled);return *crossing;
 }
 } // namespace si::channel

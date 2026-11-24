@@ -39,6 +39,7 @@ Result<ComFixedTailData> assessComFixedTailSource(
 struct ComTailGridCrossing {
   size_t index=0;
   double signedVoltageV=0., magnitudeV=0., cdfBefore=0., cdfAt=0.;
+  std::string model="SYNTHETIC_STRICT_LOWER_CDF_NOT_IEEE_COM";
 };
 ComTailGridCrossing syntheticStrictLowerCdfCrossing(
     const std::vector<double>& masses,int firstBin,double binV,double probability,

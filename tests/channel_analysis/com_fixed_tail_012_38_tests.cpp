@@ -3,6 +3,7 @@
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
+#include <utility>
 using namespace si::channel;
 namespace {
 void demand(bool b,const char* s){if(!b)throw std::runtime_error(s);}
@@ -68,12 +69,21 @@ int main(){try{
   z=x;z.oneSidedProbability=.11;rejects([&]{run(z);});
   z=x;z.taps[0].voltageV=std::numeric_limits<double>::infinity();rejects([&]{run(z);});
   z=x;while(z.taps.size()<7)z.taps.push_back(z.taps[0]);rejects([&]{run(z);});
+  z=x;z.fom.cursorV*=1e-180;z.rjRmsV*=1e-180;
+  for(auto& n:z.fom.noise)n->rmsV*=1e-180;
+  for(auto& tap:z.taps)tap.voltageV*=1e-180;
+  rejects([&]{run(z);}); // legacy variance underflow must not pass
+  z=x;z.fom.cursorV*=1e180;z.rjRmsV*=1e180;
+  for(auto& n:z.fom.noise)n->rmsV*=1e180;
+  for(auto& tap:z.taps)tap.voltageV*=1e180;
+  rejects([&]{run(z);});
   auto g=syntheticStrictLowerCdfCrossing({.0625,.0625,.75,.125},-2,.01,.0625);
   demand(g.index==1&&g.signedVoltageV==-.01&&g.magnitudeV==.01&&g.cdfBefore==.0625&&g.cdfAt==.125,"strict equality");
   g=syntheticStrictLowerCdfCrossing({.0625,0.,.0625,.875},-3,.01,.0625);
   demand(g.index==2&&g.signedVoltageV==-.01,"zero-mass plateau");
   g=syntheticStrictLowerCdfCrossing({.0625,.9375},-1,.01,.01);
   demand(g.index==0&&g.cdfBefore==0.,"first bin");
+  rejects([&]{syntheticStrictLowerCdfCrossing({1.-5e-13},-1,.01,1e-12);});
   rejects([&]{syntheticStrictLowerCdfCrossing({.1,.8},-1,.01,.05);});
   rejects([&]{syntheticStrictLowerCdfCrossing({.1,-.1,1.},-1,.01,.05);});
   rejects([&]{syntheticStrictLowerCdfCrossing({.1,.9},2,std::numeric_limits<double>::max(),.05);});
