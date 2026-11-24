@@ -47,6 +47,7 @@ add_library(si_channel_analysis src/channel_analysis/common.cpp
                                 src/channel_analysis/com_fixed_fom.cpp
                                 src/channel_analysis/com_fixed_tail.cpp
                                 src/channel_analysis/com_fixed_ratio.cpp
+                                src/channel_analysis/com_eq_candidate_contract.cpp
                                 src/channel_analysis/com_dfe.cpp
                                 src/channel_analysis/com_equalizer_search.cpp
                                 src/channel_analysis/com_voltage_ratio.cpp
@@ -173,6 +174,11 @@ target_link_libraries(si_com_fixed_ratio_012_39_tests PRIVATE si_channel_analysi
 add_test(NAME channel_com_fixed_eq_ratio COMMAND si_com_fixed_ratio_012_39_tests)
 set_tests_properties(channel_com_fixed_eq_ratio PROPERTIES TIMEOUT 30)
 install(TARGETS si_com_fixed_ratio_012_39_tests RUNTIME DESTINATION tests)
+add_executable(si_com_eq_candidate_contract_tests tests/channel_analysis/com_eq_candidate_contract_tests.cpp)
+target_link_libraries(si_com_eq_candidate_contract_tests PRIVATE si_channel_analysis)
+add_test(NAME channel_com_eq_candidate_contract COMMAND si_com_eq_candidate_contract_tests "${CMAKE_BINARY_DIR}/com-eq-candidate-012_40")
+set_tests_properties(channel_com_eq_candidate_contract PROPERTIES TIMEOUT 30)
+install(TARGETS si_com_eq_candidate_contract_tests RUNTIME DESTINATION tests)
 
 # 012_09: independent IEEE 93A causal propagation S/gamma oracles.
 add_executable(si_com_causal_package_tests tests/channel_analysis/com_causal_package_tests.cpp)
