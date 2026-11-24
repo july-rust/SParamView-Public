@@ -36,6 +36,13 @@ const std::array<std::array<double,13>,4> g{{
 {-.010359376821260976,-.003913103749014516,.002872787165516664,-.0014308256182712438,.0009956844558741361,-.0007659293398005429,.000623129699098824,-.0005255118704050829,.000454444442395348,-.00040033892256374304,.0003577440499927685,-.00032332600926722796,.00029492880343489394},
 {-.002249911602443047,.0017372212811520731,-.001415416353511192,.0011945005449341929,-.0010333834920879352,.0009106449782460301,-.0008140155488242672,.0007359573245291658,-.0006715817873781127,.0006175789499521329,-.0005716273944619842,.0005320506541010591,-.0004976076771863335},
 {-.0006201585491416415,.00041025645393064433,-.00030394408498492345,.00024017854004421688,-.00019789586788964696,.0001678929871428105,-.00014554011996056095,.000128263738207871,-.00011452286814575618,.00010334010252333411,-.00009406634759716445,.00008625406731757426,-.00007958491435224492}}};
+const std::array<std::array<double,13>,4> dieGolden{{
+{-.00026384746028532417,.0001227527867050105,.0028980694599910783,.031446430530180577,.012665881457450696,-.00078992435382016404,.0016171398298877875,-.00045027383089263898,.0008445207289030915,-.00041580558940890742,.00065748800402105217,-.000037766416031101446,-.00073985478085744768},
+{-.00066277893244029711,.0012925089424234498,-.0015032036734836296,.0017639510816289264,-.0037108709570846722,-.0078555378022158937,.0019084600201087786,-.00091229342784574516,.00055174235020607706,-.00054121797875594378,.00035271712939374567,-.00032934432783939465,.00020077727589012365},
+{-.00062383039776067566,.00077336320736772911,-.000025167473004955463,.021864012740550422,.018097593373296184,.0016994031452044248,.0024752427640618519,.00010734843876800785,.0011570991737144835,-.00007376645458198509,.00072669016094357433,-.00011385826886338313,.00052529801505090822},
+{-.00042145831364841289,.00092278815806345546,-.0010882860209484469,.0013641358589908839,-.0034929958564043962,-.0060562739276036606,.00069473829816050928,-.00077056955573625739,.00025148998929380939,-.00044821545076277722,.00019697529709869358,-.00030446626413991229,.00016154953008880565}}};
+const double diePsd[2][2]={{2.5883818247527124e-5,4.517203400547889e-6},
+                          {7.2934768455975207e-5,3.0781069021215816e-7}};
 }
 int main(int argc,char** argv){try{
   demand(argc==2,"scratch directory");std::filesystem::path dir=argv[1];
@@ -65,11 +72,11 @@ int main(int argc,char** argv){try{
   for(size_t k=0;k<2;++k){
     const auto& c=r.value->cases[k];demand(c.aggressors.size()==2,"inventory");
     for(size_t j=0;j<2;++j){
-      const auto& a=c.aggressors[j];
-      demand(a.stimulusPorts[0]==(j==0?6:4)&&a.responsePorts[0]==2,"physical endpoint");
-      demand(a.declaredEquivalentV.has_value(),"declared voltage");
-      for(size_t i=0;i<13;++i){close(a.pulse.unitSymbolPulse[i],g[k*2+j][i]);
-        close((*a.declaredEquivalentV)[i],g[k*2+j][i]*scales[k][j]);}
+      const auto& path=c.aggressors[j];
+      demand(path.stimulusPorts[0]==(j==0?6:4)&&path.responsePorts[0]==2,"physical endpoint");
+      demand(path.declaredEquivalentV.has_value(),"declared voltage");
+      for(size_t i=0;i<13;++i){close(path.pulse.unitSymbolPulse[i],g[k*2+j][i]);
+        close((*path.declaredEquivalentV)[i],g[k*2+j][i]*scales[k][j]);}
     }
     demand(c.observedIndependentPam4RmsV.has_value(),"declared aggregation");
     close(*c.observedIndependentPam4RmsV,k==0?.004790269648063417:.0012057255533006953);
@@ -92,5 +99,67 @@ int main(int argc,char** argv){try{
   Control ctrl;ctrl.cancelled.store(true);bool cancel=false;
   try{(void)calculateComMatchedBoardCrosstalkFromSource(source,v.id,live,x,&ctrl);}catch(const si::Cancelled&){cancel=true;}
   demand(cancel,"cancel");demand(calculateCom({},ComSettings{}).status==Status::NotEvaluated,"production gate");
-  std::cout<<"012_35 matched-board candidate PASS (NOT_IEEE_COM)\n";return 0;
+  // Historical role-based package overlay and actual 012_34 victim replay.
+  ComHistoricalFixedCrosstalkInput hx;hx.aggressors=x;
+  hx.packageAssumption=std::string(kHistoricalAggressorOverlay);
+  auto physical=prepareCom120F8HistoricalCausalFromSource(source,v.id,hx.victimEq,live);
+  demand(physical.usable(),"victim physical");
+  for(size_t k=0;k<2;++k) {
+    auto& vc=hx.victimCases[k];auto& cc=hx.aggressors.cases[k];
+    cc.decisionTimeSeconds=k==0?210e-12:430e-12;
+    vc.testCase=cc.testCase;vc.decisionTimeSeconds=cc.decisionTimeSeconds;
+    vc.dfeTaps={.30,.05,-.04,.10,0.,.03};
+    si::channel::Result<ComVoltageScaleEvidence> evidence;
+    evidence.status=Status::Warning;evidence.provenance=physical.provenance;
+    ComVoltageScaleEvidence e;e.testCase=vc.testCase;e.voltsPerUnitSymbol=.2;
+    e.transmitterReferencePlane="synthetic victim die";e.receiverDecisionPlane="synthetic die decision";
+    e.normalizationIdentity="EXPLORATORY_VOLTS_PER_SIGNED_UNIT_SYMBOL";
+    e.calibrationIdentity="synthetic die scale";e.calibrationSourceIdentity="independent synthetic constants";
+    e.txEqualizerIdentity=e.rxEqualizerIdentity=physical.provenance.settingsIdentity;
+    evidence.value=e;vc.voltageScale=evidence;
+  }
+  auto victim=calculateComFixedVictimFromSource(source,v.id,hx.victimEq,live,hx.victimCases[0],hx.victimCases[1]);
+  demand(victim.usable(),"012_34 replay");
+  for(size_t k=0;k<2;++k)for(auto& ag:hx.aggressors.aggressors) {
+    auto& ac=ag.cases[k];ac.calibrationSource="synthetic die constant";
+    ac.dieCalibrationProvenance=victim.provenance;
+    ac.dieCalibrationProvenance->settingsIdentity=k==0?victim.value->test1.settingsIdentity:victim.value->test2.settingsIdentity;
+    ac.receiverDecisionPlane="synthetic die decision";ac.calibrationIdentity="synthetic die scale";
+  }
+  auto dieRun=[&](const auto& z){return calculateComHistoricalFixedCrosstalkFromSource(source,v.id,live,z);};
+  auto dr=dieRun(hx);
+  demand(dr.usable()&&dr.status==Status::Warning&&dr.value->crosstalk.model=="EXPLORATORY_HISTORICAL_DIE_XTALK_MATCHED_UNUSED_PORTS","die role model");
+  for(size_t k=0;k<2;++k){
+    const auto& dc=dr.value->crosstalk.cases[k];
+    const auto& vc=k==0?dr.value->victim.test1:dr.value->victim.test2;
+    demand(dc.victimSettingsIdentity==vc.settingsIdentity&&dc.timeSeconds==vc.pulse.timeSeconds,"victim replay identity");
+    for(size_t j=0;j<2;++j){
+      const auto& path=dc.aggressors[j];
+      close(path.aggressorPackageMm,j==0?(k==0?11.:29.):(k==0?13.:31.));
+      close(path.victimRxPackageMm,k==0?11.:29.);
+      demand(path.declaredEquivalentV&&path.measuredBandPsdPowerV2,"declared die scale and PSD");
+      for(size_t i=0;i<13;++i){
+        close(path.pulse.unitSymbolPulse[i],dieGolden[k*2+j][i]);
+        close((*path.declaredEquivalentV)[i],dieGolden[k*2+j][i]*scales[k][j]);
+      }
+      // Squared volts: independent tighter absolute tolerance than pulse V.
+      demand(std::abs(*path.measuredBandPsdPowerV2-diePsd[k][j])<5e-12,"independent die PSD Golden");
+    }
+    demand(dc.observedIndependentPam4RmsV&&dc.independentMeasuredBandPsdPowerV2,"die aggregate");
+    close(*dc.observedIndependentPam4RmsV,k==0?.0055010781860841025:.0085434143707076114);
+    demand(std::abs(*dc.independentMeasuredBandPsdPowerV2-(diePsd[k][0]+diePsd[k][1]))<5e-12,"independent aggregate PSD");
+  }
+  auto bad=hx;bad.packageAssumption.clear();rejects([&]{dieRun(bad);});
+  bad=hx;bad.aggressors.cases[0].decisionTimeSeconds+=1e-12;rejects([&]{dieRun(bad);});
+  bad=hx;bad.aggressors.cases[0].ctleDcGainDb=-1.;rejects([&]{dieRun(bad);});
+  bad=hx;bad.aggressors.aggressors[0].cases[0].dieCalibrationProvenance->mappingGeneration++;rejects([&]{dieRun(bad);});
+  bad=hx;bad.aggressors.aggressors[0].cases[0].receiverDecisionPlane="board";rejects([&]{dieRun(bad);});
+  bad=hx;bad.aggressors.aggressors[0].cases[0].dieCalibrationProvenance.reset();rejects([&]{dieRun(bad);});
+  bad=hx;auto& missingScale=bad.aggressors.aggressors[0].cases[0];missingScale.declaredVoltsPerUnitSymbol.reset();
+  missingScale.dieCalibrationProvenance.reset();missingScale.calibrationSource.clear();
+  missingScale.receiverDecisionPlane.clear();missingScale.calibrationIdentity.clear();
+  auto absent=dieRun(bad);demand(!absent.value->crosstalk.cases[0].observedIndependentPam4RmsV&&
+      !absent.value->crosstalk.cases[0].independentMeasuredBandPsdPowerV2,"no invented die aggregate");
+  live.mappingGeneration++;demand(dieRun(hx).status==Status::Stale,"die stale");
+  std::cout<<"012_35 board and historical die independent Goldens PASS (NOT_IEEE_COM)\n";return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<"\n";return 1;}}

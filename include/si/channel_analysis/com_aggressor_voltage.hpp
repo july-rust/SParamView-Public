@@ -66,6 +66,9 @@ struct ComBoardAggressorCaseChoice {
   double relativeDelaySeconds=0.;
   std::optional<double> declaredVoltsPerUnitSymbol;
   std::string calibrationSource;
+  // Historical die-only declared calibration must match the replayed victim case.
+  std::optional<Provenance> dieCalibrationProvenance;
+  std::string receiverDecisionPlane, calibrationIdentity;
 };
 struct ComBoardAggressorChoice {
   std::string id, channelId;
@@ -91,12 +94,19 @@ struct ComBoardAggressorResult {
   std::array<int,2> stimulusPorts{},responsePorts{};
   std::optional<std::array<double,13>> declaredEquivalentV;
   std::optional<double> observedPam4RmsV;
+  // Integrated one-sided, time-averaged rectangular-symbol PSD, V^2.
+  // Separate from observed sample variance; never a normative COM statistic.
+  std::optional<double> measuredBandPsdPowerV2;
+  std::string receiverDecisionPlane, calibrationIdentity;
+  double aggressorPackageMm=0., victimRxPackageMm=0.;
 };
 struct ComBoardCrosstalkCaseResult {
   std::string testCase;
   std::vector<double> timeSeconds;
   std::vector<ComBoardAggressorResult> aggressors;
   std::optional<double> observedIndependentPam4RmsV;
+  std::optional<double> independentMeasuredBandPsdPowerV2;
+  std::string victimSettingsIdentity;
 };
 struct ComBoardCrosstalkResult {
   std::array<ComBoardCrosstalkCaseResult,2> cases;
@@ -108,6 +118,27 @@ struct ComBoardCrosstalkResult {
 Result<ComBoardCrosstalkResult> calculateComMatchedBoardCrosstalkFromSource(
     const SourceSnapshot& source,std::string_view victimId,
     const SourceIdentity& observedLiveIdentity,const ComBoardCrosstalkInput& input,
+    Control* control=nullptr);
+
+// Explicitly historical draft overlay, not final PHY topology. All unselected
+// board ports are reference-matched; the chosen two differential endpoints
+// are package-loaded with full bidirectional reflections. This is not a
+// simultaneous multiport package termination model.
+inline constexpr std::string_view kHistoricalAggressorOverlay =
+    "IEEE_2020_DRAFT_ROLE_LENGTHS_MATCHED_UNUSED_PORTS";
+struct ComHistoricalFixedCrosstalkInput {
+  ComBoardCrosstalkInput aggressors;
+  Com120F8EqualizerChoice victimEq;
+  std::array<ComFixedVictimCaseChoice,2> victimCases;
+  std::string packageAssumption;
+};
+struct ComHistoricalFixedCrosstalkResult {
+  ComFixedVictimCases victim;
+  ComBoardCrosstalkResult crosstalk;
+};
+Result<ComHistoricalFixedCrosstalkResult> calculateComHistoricalFixedCrosstalkFromSource(
+    const SourceSnapshot& source,std::string_view victimId,
+    const SourceIdentity& observedLiveIdentity,const ComHistoricalFixedCrosstalkInput& input,
     Control* control=nullptr);
 
 } // namespace si::channel

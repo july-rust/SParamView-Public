@@ -1,4 +1,5 @@
 #include "si/channel_analysis/com_aggressor_voltage.hpp"
+#include "si/channel_analysis/com_causal_package.hpp"
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -236,11 +237,72 @@ Result<ComAggressorVoltageCasesData> calculateComAggressorReceiverVoltage(
     "aggressor independence. No statistical x-talk, COM dB or PHY verdict."});
   return out;
 }
-Result<ComBoardCrosstalkResult> calculateComMatchedBoardCrosstalkFromSource(
+namespace {
+// Read all 16 physical Sij for the two selected differential endpoints.
+// Other physical ports remain reference-matched, as in the 012_34 victim
+// two-port reduction. Reuse passive mixed-mode and causal package cascades;
+// never apply a scalar TX/RX gain to Sdd21 or claim full multiport loading.
+ComplexTrace historicalPath(const SourceSnapshot& source,const Channel& victim,
+    const Channel& aggressor,bool next,size_t caseIndex,const ComplexTrace& raw,
+    Control* control) {
+  const std::array<int,4> ports{next?aggressor.farP:aggressor.nearP,
+      next?aggressor.farN:aggressor.nearN,victim.farP,victim.farN};
+  require(std::unordered_set<int>(ports.begin(),ports.end()).size()==4,
+          "012_35 historical path requires distinct physical endpoints");
+  std::array<std::vector<Complex>,16> traces;
+  const size_t n=raw.frequencyHz.size();
+  for(size_t response=0;response<4;++response)
+    for(size_t stimulus=0;stimulus<4;++stimulus) {
+      if(control)control->check();
+      auto& s=traces[4*response+stimulus];
+      s=source.cache().trace({{ports[response],1.}},{{ports[stimulus],1.}},control);
+      require(s.size()==n,"012_35 historical physical grid mismatch");
+    }
+  const auto profile=final8023ck120F8();
+  const auto tx=historical8023ckC2cCausalCandidate(
+      next?profile.rxPackageLengthMm[caseIndex]:profile.txPackageLengthMm[caseIndex]);
+  const auto rx=historical8023ckC2cCausalCandidate(profile.rxPackageLengthMm[caseIndex]);
+  ComplexTrace loaded=raw;
+  for(size_t i=0;i<n;++i) {
+    if(control && !(i&255u))control->check();
+    ComPhysicalFourPort measured;measured.referenceOhm={50.,50.,50.,50.};
+    for(size_t j=0;j<16;++j)measured.scattering[j]=traces[j][i];
+    const auto board=extractDifferentialComNetwork(measured,0.).differential;
+    require(std::abs(board.s.s21-raw.transfer[i])<=1e-12,
+            "012_35 scalar and physical endpoint mapping disagree");
+    const double f=raw.frequencyHz[i];
+    const auto left=calculateComCausalPackage(tx,f,ComCausalPackageSide::TxDieToBoard);
+    const auto right=calculateComCausalPackage(rx,f,ComCausalPackageSide::RxBoardToDie);
+    loaded.transfer[i]=cascadeComScattering(cascadeComScattering(left,board),right).s.s21;
+  }
+  return loaded;
+}
+// For iid zero-mean equiprobable PAM4 symbols and a rectangular symbol
+// waveform: one-sided time-averaged PSD = 2*(5/9)*UI*sinc^2*|H|^2*scale^2.
+// Integrate only the measured band, not the sampled-window RMS or an IEEE
+// detector-error variance. The DC endpoint has trapezoid half weight.
+double measuredPsdPower(const std::vector<double>& f,const std::vector<Complex>& h,
+    double scale,double ui,const std::atomic_bool* cancelled) {
+  double sum=0.,previous=0.;
+  for(size_t i=0;i<f.size();++i) {
+    if(!(i&1023u))check(cancelled);
+    const double z=std::numbers::pi*f[i]*ui;
+    const double sinc=i?std::sin(z)/z:1.;
+    const double v=scaleSample(std::abs(h[i]),scale);
+    const double density=2.*(5./9.)*ui*std::pow(v*sinc,2);
+    require(std::isfinite(density)&&density>=0.,"012_35 invalid PSD density");
+    if(i)sum+=(f[i]-f[i-1])*(previous*.5+density*.5);
+    require(std::isfinite(sum),"012_35 PSD integral overflow");
+    previous=density;
+  }
+  return sum;
+}
+Result<ComBoardCrosstalkResult> calculateFixedCrosstalk(
     const SourceSnapshot& source,std::string_view victimId,
     const SourceIdentity& observedLiveIdentity,const ComBoardCrosstalkInput& input,
-    Control* control) {
+    Control* control,const Result<ComFixedVictimCases>* replay) {
   const auto* cancelled=control?&control->cancelled:nullptr;
+  // Phase 1: qualify current source, inventory, endpoint ownership and work budget.
   check(cancelled);
   const auto stale=[] {
     Result<ComBoardCrosstalkResult> r;
@@ -268,13 +330,15 @@ Result<ComBoardCrosstalkResult> calculateComMatchedBoardCrosstalkFromSource(
   std::vector<const ComBoardAggressorChoice*> order;
   for(const auto& a:input.aggressors) order.push_back(&a);
   std::sort(order.begin(),order.end(),[](auto a,auto b){return a->id<b->id;});
-  std::unordered_set<std::string> ids,paths;
+  std::unordered_set<std::string> ids;
+  std::unordered_map<std::string,bool> paths;
   std::vector<ComplexTrace> raw;
   std::ostringstream key;
   key.imbue(std::locale::classic());
   key<<std::hexfloat;
   const auto add=[&](std::string_view s){key<<s.size()<<':'<<s<<';';};
-  add("012_35-matched-board");add(victimId);
+  add(replay?kHistoricalAggressorOverlay:"012_35-matched-board");add(victimId);
+  if(replay)add(replay->provenance.settingsIdentity);
   key<<input.independentEquiprobablePam4Declared<<';';add(input.statisticalAssumptionSource);
   for(const auto* a:order) {
     check(cancelled);
@@ -288,19 +352,13 @@ Result<ComBoardCrosstalkResult> calculateComMatchedBoardCrosstalkFromSource(
       for(int q:{ch.nearP,ch.nearN,ch.farP,ch.farN})
         require(v!=q,"012_35 overlapping victim/aggressor ports");
     const bool next=a->coupling==ComCoupling::Next;
-    const std::string path=std::to_string(next?ch.farP:ch.nearP)+":"+
-                           std::to_string(next?ch.farN:ch.nearN);
-    // Every repeated physical path must be explicitly declared by each instance.
-    if(!paths.insert(path).second)
-      require(a->repeatedPathDeclared &&
-        std::all_of(order.begin(),order.end(),[&](const auto* other){
-          if(other==a)return true;
-          const auto& o=source.channel(other->channelId);
-          bool on=other->coupling==ComCoupling::Next;
-          return (on?o.farP:o.nearP)!=(next?ch.farP:ch.nearP) ||
-                 (on?o.farN:o.nearN)!=(next?ch.farN:ch.nearN) ||
-                 other->repeatedPathDeclared;
-        }),"012_35 undeclared repeated path");
+    const int sp=next?ch.farP:ch.nearP,sn=next?ch.farN:ch.nearN;
+    const std::string path=std::to_string(std::min(sp,sn))+":"+
+                           std::to_string(std::max(sp,sn));
+    // Canonical physical pair also detects an alias with swapped P/N.
+    const auto [prior,inserted]=paths.emplace(path,a->repeatedPathDeclared);
+    require(inserted||(prior->second&&a->repeatedPathDeclared),
+            "012_35 undeclared repeated path");
     auto trace=extract(source,victimId,next?Metric::NEXT:Metric::FEXT,next,
                        std::string_view(a->channelId),control);
     require(trace.frequencyHz==thru.frequencyHz && trace.stimulusOhm==100. &&
@@ -310,6 +368,8 @@ Result<ComBoardCrosstalkResult> calculateComMatchedBoardCrosstalkFromSource(
     add(a->id);add(a->channelId);key<<next<<';'<<a->repeatedPathDeclared<<';';
   }
   ComBoardCrosstalkResult data;
+  if(replay)data.model="EXPLORATORY_HISTORICAL_DIE_XTALK_MATCHED_UNUSED_PORTS";
+  // Phase 2: separate per-case EQ, absolute decision grid and complex transfer.
   for(size_t k=0;k<2;++k) {
     check(cancelled);
     const auto& choice=input.cases[k];
@@ -323,9 +383,17 @@ Result<ComBoardCrosstalkResult> calculateComMatchedBoardCrosstalkFromSource(
     out.testCase=which;
     add(which);key<<choice.decisionTimeSeconds<<';'<<rx.ctleDcGainDb<<';'<<rx.ctleDcGain2Db<<';';
     for(int t=-3;t<=9;++t)out.timeSeconds.push_back(choice.decisionTimeSeconds+t*ui);
+    const ComFixedVictimCaseData* victimCase=nullptr;
+    if(replay) {
+      victimCase=k==0?&replay->value->test1:&replay->value->test2;
+      require(victimCase->testCase==which && victimCase->pulse.timeSeconds==out.timeSeconds,
+              "012_35 victim decision grid mismatch");
+      out.victimSettingsIdentity=victimCase->settingsIdentity;
+    }
     ComPreparedData prepared;
     prepared.frequencyHz=thru.frequencyHz;
     prepared.conditionedThru=thru.transfer; // validation anchor only, never a victim decision
+    std::vector<std::optional<double>> powers;
     for(size_t j=0;j<order.size();++j) {
       check(cancelled);
       const auto& a=*order[j];const auto& ac=a.cases[k];
@@ -336,13 +404,29 @@ Result<ComBoardCrosstalkResult> calculateComMatchedBoardCrosstalkFromSource(
                 *ac.declaredVoltsPerUnitSymbol>0.&&bounded(ac.calibrationSource),
                 "012_35 invalid declared voltage calibration");
       else require(ac.calibrationSource.empty(),"012_35 calibration without voltage");
+      // Board evidence must not be reused at the die plane. For a declared
+      // die scale, bind the same actual source/case and victim decision-plane
+      // calibration; a caller declaration still cannot establish physical gain.
+      if(replay && ac.declaredVoltsPerUnitSymbol) {
+        auto expected=replay->provenance;
+        expected.settingsIdentity=victimCase->settingsIdentity;
+        require(victimCase->voltage && ac.dieCalibrationProvenance &&
+            sameSource(*ac.dieCalibrationProvenance,expected) &&
+            bounded(ac.receiverDecisionPlane) && bounded(ac.calibrationIdentity) &&
+            ac.receiverDecisionPlane==victimCase->voltage->before.receiverDecisionPlane &&
+            ac.calibrationIdentity==victimCase->voltage->before.calibrationIdentity,
+            "012_35 missing/stale die calibration or incompatible victim plane");
+      } else require(!ac.dieCalibrationProvenance && ac.receiverDecisionPlane.empty() &&
+                     ac.calibrationIdentity.empty(),"012_35 unexpected die calibration");
       auto eq=rx;eq.txFfe=ac.txFfe;
       validateCom120F8Equalizer(eq);
       for(double tap:ac.txFfe)key<<tap<<';';
       key<<ac.relativeDelaySeconds<<';'<<bool(ac.declaredVoltsPerUnitSymbol)<<';';
       if(ac.declaredVoltsPerUnitSymbol)key<<*ac.declaredVoltsPerUnitSymbol<<';';
-      add(ac.calibrationSource);
-      ComInput x;x.thru=thru;x.aggressors.push_back({a.id,a.coupling,raw[j]});
+      add(ac.calibrationSource);add(ac.receiverDecisionPlane);add(ac.calibrationIdentity);
+      const auto trace=replay?historicalPath(source,victim,source.channel(a.channelId),
+          a.coupling==ComCoupling::Next,k,raw[j],control):raw[j];
+      ComInput x;x.thru=thru;x.aggressors.push_back({a.id,a.coupling,trace});
       auto r=prepareCom120F8ReceiverSpectra(std::move(x),eq,{},cancelled);
       require(r.usable()&&r.value->aggressors.size()==1,"012_35 conditioning failed");
       auto spectrum=std::move(r.value->aggressors.front());
@@ -352,12 +436,19 @@ Result<ComBoardCrosstalkResult> calculateComMatchedBoardCrosstalkFromSource(
         spectrum.conditionedTransfer[i]*=com120F8TxTransitionFilter(f)*
           std::polar(1.,-2.*std::numbers::pi*f*ac.relativeDelaySeconds);
       }
+      // The PSD calculation uses the same once-conditioned complex spectrum.
+      powers.emplace_back();
+      if(input.independentEquiprobablePam4Declared&&ac.declaredVoltsPerUnitSymbol)
+        powers.back()=measuredPsdPower(prepared.frequencyHz,spectrum.conditionedTransfer,
+                                      *ac.declaredVoltsPerUnitSymbol,ui,cancelled);
       prepared.aggressors.push_back(std::move(spectrum));
     }
     auto r=calculateComInterferencePulses(prepared,out.timeSeconds,{},cancelled);
     require(r.usable(),"012_35 pulse primitive unavailable");
     bool totalAvailable=input.independentEquiprobablePam4Declared;
-    double total=0.;
+    // Phase 3: reconstruct signed pulses and independently declared volts.
+    // No DFE subtraction on aggressor samples, no PSD/RMS double counting.
+    double total=0.,totalPower=0.;
     for(size_t j=0;j<order.size();++j) {
       const auto& a=*order[j];const auto& ac=a.cases[k];const auto& ch=source.channel(a.channelId);
       ComBoardAggressorResult one;
@@ -368,6 +459,18 @@ Result<ComBoardCrosstalkResult> calculateComMatchedBoardCrosstalkFromSource(
       const bool next=a.coupling==ComCoupling::Next;
       one.stimulusPorts={next?ch.farP:ch.nearP,next?ch.farN:ch.nearN};
       one.responsePorts={victim.farP,victim.farN};
+      if(replay) {
+        const auto profile=final8023ck120F8();
+        one.aggressorPackageMm=next?profile.rxPackageLengthMm[k]:profile.txPackageLengthMm[k];
+        one.victimRxPackageMm=profile.rxPackageLengthMm[k];
+        one.receiverDecisionPlane=ac.receiverDecisionPlane;
+        one.calibrationIdentity=ac.calibrationIdentity;
+      }
+      one.measuredBandPsdPowerV2=powers[j];
+      if(powers[j]) {
+        totalPower+=*powers[j];
+        require(std::isfinite(totalPower),"012_35 total PSD overflow");
+      }
       if(ac.declaredVoltsPerUnitSymbol) {
         one.declaredEquivalentV.emplace();
         double rss=0.;
@@ -383,7 +486,10 @@ Result<ComBoardCrosstalkResult> calculateComMatchedBoardCrosstalkFromSource(
       } else totalAvailable=false;
       out.aggressors.push_back(std::move(one));
     }
-    if(totalAvailable)out.observedIndependentPam4RmsV=total;
+    if(totalAvailable) {
+      out.observedIndependentPam4RmsV=total;
+      out.independentMeasuredBandPsdPowerV2=totalPower;
+    }
   }
   check(cancelled);
   if(!source.current(observedLiveIdentity))return stale();
@@ -391,12 +497,54 @@ Result<ComBoardCrosstalkResult> calculateComMatchedBoardCrosstalkFromSource(
   Result<ComBoardCrosstalkResult> out;
   out.status=Status::Warning;out.value=std::move(data);
   out.provenance={id.sha256,id.revision,id.mappingIdentity,
-      "com-matched-board-fixed-crosstalk","012_35-board-1",key.str(),
+      replay?"com-historical-die-fixed-crosstalk":"com-matched-board-fixed-crosstalk",
+      replay?"012_35-die-1":"012_35-board-2",key.str(),
       id.workspaceGeneration,id.mappingGeneration};
   out.diagnostics.push_back({Severity::Warning,"NOT_IEEE_COM",
-      "Matched-board wave paths with declared conditioning, voltage and optional independent PAM4 assumption; observed 13 samples only."});
+      replay?"Historical draft package role lengths with matched unused board ports; declared voltage, observed samples and separate measured-band PSD only.":
+      "Matched-board wave paths with declared conditioning, voltage and optional independent PAM4 assumption; observed 13 samples and separate measured-band PSD."});
   out.diagnostics.push_back({Severity::Warning,"REFERENCE_BLOCKED",
-      "Aggressor package topology, die-plane linkage, physical calibration and official PSD/statistical definition unqualified."});
+      "Final PHY topology, physical calibration and official PSD/statistical definition unqualified. No normative COM."});
+  return out;
+}
+} // namespace
+
+Result<ComBoardCrosstalkResult> calculateComMatchedBoardCrosstalkFromSource(
+    const SourceSnapshot& source,std::string_view victimId,
+    const SourceIdentity& observedLiveIdentity,const ComBoardCrosstalkInput& input,
+    Control* control) {
+  return calculateFixedCrosstalk(source,victimId,observedLiveIdentity,input,control,nullptr);
+}
+
+Result<ComHistoricalFixedCrosstalkResult> calculateComHistoricalFixedCrosstalkFromSource(
+    const SourceSnapshot& source,std::string_view victimId,
+    const SourceIdentity& observedLiveIdentity,const ComHistoricalFixedCrosstalkInput& input,
+    Control* control) {
+  if(control)control->check();
+  Result<ComHistoricalFixedCrosstalkResult> out;
+  if(!source.current(observedLiveIdentity)){out.status=Status::Stale;return out;}
+  require(input.packageAssumption==kHistoricalAggressorOverlay &&
+      input.aggressors.inventoryConfirmed && input.aggressors.aggressors.size()<=kMaxAggressors,
+      "012_35 historical role topology must be explicitly acknowledged");
+  for(size_t k=0;k<2;++k) {
+    const auto& a=input.aggressors.cases[k];const auto& v=input.victimCases[k];
+    require(a.testCase==v.testCase&&a.decisionTimeSeconds==v.decisionTimeSeconds&&
+            a.ctleDcGainDb==input.victimEq.ctleDcGainDb&&
+            a.ctleDcGain2Db==input.victimEq.ctleDcGain2Db,
+            "012_35 fixed victim timing/RX EQ mismatch");
+  }
+  // Replay 012_34 from source instead of accepting caller-constructed results.
+  auto victim=calculateComFixedVictimFromSource(source,victimId,input.victimEq,
+       observedLiveIdentity,input.victimCases[0],input.victimCases[1],0.,control);
+  if(victim.status==Status::Stale){out.status=Status::Stale;return out;}
+  require(victim.usable()&&victim.status==Status::Warning,"012_35 victim replay unavailable");
+  auto xtalk=calculateFixedCrosstalk(source,victimId,observedLiveIdentity,
+                                   input.aggressors,control,&victim);
+  if(xtalk.status==Status::Stale){out.status=Status::Stale;return out;}
+  require(xtalk.usable(),"012_35 historical crosstalk unavailable");
+  out.status=Status::Warning;out.provenance=xtalk.provenance;
+  out.diagnostics=std::move(xtalk.diagnostics);
+  out.value=ComHistoricalFixedCrosstalkResult{std::move(*victim.value),std::move(*xtalk.value)};
   return out;
 }
 } // namespace si::channel
