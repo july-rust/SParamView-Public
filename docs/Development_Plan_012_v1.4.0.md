@@ -322,3 +322,7 @@ Source-backed fixed decision times, signed pulse and ideal six-tap residual, opt
 ### 012_35 historical fixed-EQ crosstalk candidate — 2026-11-24 KST
 
 **PARTIAL / REFERENCE BLOCKED.** [Technical note](COM_Fixed_EQ_Crosstalk_012_35.md): source-backed board-only diagnostic retained; explicit historical package role overlay, full selected four-port cascade and actual 012_34 replay, case-bound declared voltage, separate observed RMS and measured-band PSD. CI and review pending; final approved topology/calibration and normative definition blockers preserved.
+
+### 012_36 bounded fixed-EQ noise/jitter candidate — 2026-11-24 KST
+
+**PARTIAL / REFERENCE BLOCKED.** [Technical note](COM_Fixed_EQ_Noise_Jitter_012_36.md). Two declared finite-band receiver-local models and source-replayed local waveform; final-head CI/review and protected merge evidence required.
