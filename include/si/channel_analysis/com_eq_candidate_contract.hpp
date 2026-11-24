@@ -56,7 +56,7 @@ std::array<double,6> comEqDfe(const std::array<double,13>& normalized,
 bool comEqImproves(double score, double previous);
 struct ComEqCandidateKey {
   SourceIdentity source;
-  std::string settingsIdentity, testCase, referenceVersion, referenceCommit;
+  std::string victimId, settingsIdentity, testCase, referenceVersion, referenceCommit;
   ComEqIndices indices;
   ComEqPhaseContract phaseContract;
   ComEqPhase phase;
@@ -70,7 +70,7 @@ void validateComEqSource(const SourceIdentity& captured,
     std::string_view referenceCommit);
 // Binds only to an actual snapshot; validates case, live identity, candidate
 // and phase again. Consumers must recheck live identity before use.
-ComEqCandidateKey bindComEqCandidate(const SourceSnapshot& source,
+ComEqCandidateKey bindComEqCandidate(const SourceSnapshot& source, std::string_view victimId,
     const SourceIdentity& observed, const Provenance& provenance,
     std::string_view testCase, std::string_view referenceVersion,
     std::string_view referenceCommit, size_t rawOrdinal,
