@@ -154,19 +154,20 @@ void validateComEqSource(const SourceIdentity& captured,const SourceIdentity& ob
     p.settingsIdentity.find("|eq=")==std::string::npos,
     "012_40 missing or conflicting case/settings identity");
 }
-ComEqCandidateKey bindComEqCandidate(const SourceSnapshot& source,
+ComEqCandidateKey bindComEqCandidate(const SourceSnapshot& source, std::string_view victimId,
     const SourceIdentity& observed,const Provenance& p,std::string_view testCase,
     std::string_view version,std::string_view commit,size_t ordinal,
     const std::optional<ComEqCtleMask>& mask,const ComEqPhaseContract& c,
     const ComEqPhase& phase,const std::atomic_bool* cancelled) {
   check(cancelled);
   validateComEqSource(source.identity(),observed,p,testCase,version,commit);
+  (void)source.channel(victimId);
   const auto candidate=comEqCandidateAt(ordinal,mask,cancelled);
   require(candidate.choice.has_value(),"012_40 rejected candidate");
   (void)phaseFor(c,c.firstOffset); (void)phaseFor(c,c.lastOffset);
   require(phaseFor(c,phase.offset)==phase,"012_40 invalid phase identity");
   check(cancelled);
-  return {source.identity(),p.settingsIdentity,std::string(testCase),
+  return {source.identity(),std::string(victimId),p.settingsIdentity,std::string(testCase),
     std::string(version),std::string(commit),candidate.indices,c,phase,mask};
 }
 } // namespace si::channel
