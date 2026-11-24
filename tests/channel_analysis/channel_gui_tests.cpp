@@ -69,16 +69,24 @@ int main(int argc, char **argv) {
     QMainWindow main;
     AnalysisWindowManager manager(&main);
     manager.installMenu();
-    check(main.menuBar()->findChild<QMenu *>(QStringLiteral("channelAnalysisMenu")),
-          "Analysis menu missing");
-    for (int i = 0; i < featureCount; ++i) {
+    auto *analysisMenu = main.menuBar()->findChild<QMenu *>(QStringLiteral("channelAnalysisMenu"));
+    check(analysisMenu && analysisMenu->actions().size() == 3,
+          "Analysis menu must expose exactly ILD, ICN and Eye");
+    check(!manager.action(Feature::Com) && !manager.existingWindow(Feature::Com),
+          "Deferred COM must not expose an action or window");
+    manager.setEngineAvailable(Feature::Com, true);
+    check(!manager.action(Feature::Com) && !manager.openWindow(Feature::Com) &&
+          !manager.existingWindow(Feature::Com),
+          "Deferred COM must remain inaccessible even after enable request");
+    const int releaseFeatureCount = int(Feature::Com);
+    for (int i = 0; i < releaseFeatureCount; ++i) {
       auto *action = manager.action(static_cast<Feature>(i));
       check(action && !action->isEnabled(), "Unimplemented engine is exposed as ready");
     }
 
     manager.setContext(context());
     AnalysisWindow *windows[featureCount]{};
-    for (int i = 0; i < featureCount; ++i) {
+    for (int i = 0; i < releaseFeatureCount; ++i) {
       auto feature = static_cast<Feature>(i);
       windows[i] = manager.openWindow(feature);
       check(windows[i] && windows[i]->isWindow() && windows[i]->isVisible(),
@@ -89,7 +97,7 @@ int main(int argc, char **argv) {
       for (int j = 0; j < i; ++j)
         check(windows[i] != windows[j], "Distinct analysis features share a window");
     }
-    // The real menu actions stay disabled until a future engine registers.
+    // The three release menu actions stay disabled until an engine registers.
     // Only the isolated test manager enables the action to check focus/reuse.
     manager.setEngineAvailable(Feature::Ild, true);
     manager.action(Feature::Ild)->trigger();
@@ -123,18 +131,18 @@ int main(int argc, char **argv) {
     check(windows[2]->status() == S::Stale, "Older source result was not discarded");
 
     // Exceptions from worker threads are carried to the GUI without terminate.
-    check(windows[3]->startWork([](const std::atomic_bool &,
+    check(windows[1]->startWork([](const std::atomic_bool &,
                                    std::atomic_int &) -> WorkOutcome {
       throw std::runtime_error("synthetic engine failure");
     }), "Exception test job did not start");
     drain(manager.scheduler());
-    check(windows[3]->status() == S::Error, "Worker exception status not propagated");
-    check(windows[3]->startWork([](const std::atomic_bool &,
+    check(windows[1]->status() == S::Error, "Worker exception status not propagated");
+    check(windows[1]->startWork([](const std::atomic_bool &,
                                    std::atomic_int &) -> WorkOutcome {
       throw si::Cancelled();
     }),"Cancelled exception test did not start");
     drain(manager.scheduler());
-    check(windows[3]->status()==S::Cancelled,
+    check(windows[1]->status()==S::Cancelled,
           "Cooperative cancellation exception reported as ERROR");
 
 
@@ -170,7 +178,7 @@ int main(int argc, char **argv) {
           "Retired workspace was not removed after workers drained");
 
     manager.setContext(context());
-    for (int i = 0; i < featureCount; ++i) {
+    for (int i = 0; i < releaseFeatureCount; ++i) {
       auto *w = manager.existingWindow(static_cast<Feature>(i));
       check(w && w->isVisible(), "One feature close affected an unrelated window");
     }

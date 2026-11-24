@@ -12,6 +12,10 @@
 
 namespace si::gui {
 namespace {
+// 012_43: COM remains a preserved research engine, not a production feature.
+constexpr bool isReleaseFeature(Feature feature) noexcept {
+  return feature == Feature::Ild || feature == Feature::Icn || feature == Feature::Eye;
+}
 QString labelFor(Feature feature) {
   switch (feature) {
     case Feature::Ild: return QStringLiteral("ILD");
@@ -1732,6 +1736,7 @@ void AnalysisWindowManager::installMenu() {
   menu->setObjectName(QStringLiteral("channelAnalysisMenu"));
   for (int i = 0; i < featureCount; ++i) {
     const auto feature = static_cast<Feature>(i);
+    if (!isReleaseFeature(feature)) continue;
     auto *action = menu->addAction(labelFor(feature));
     const QStringList names = {QStringLiteral("ILD"), QStringLiteral("ICN"),
                                QStringLiteral("Eye"), QStringLiteral("COM")};
@@ -1780,11 +1785,13 @@ void AnalysisWindowManager::setEyeSourceProvider(EyeSourceProvider provider) {
   setEngineAvailable(Feature::Eye,bool(eyeProvider_));
 }
 void AnalysisWindowManager::setEngineAvailable(Feature feature, bool available) {
+  if (!isReleaseFeature(feature)) return;
   available_[int(feature)] = available;
   if (auto *action = actions_[int(feature)])
     action->setEnabled(available);
 }
 AnalysisWindow *AnalysisWindowManager::openWindow(Feature feature) {
+  if (!isReleaseFeature(feature)) return nullptr;
   const int index = int(feature);
   if (windows_[index]) {
     windows_[index]->show();

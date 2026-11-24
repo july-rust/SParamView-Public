@@ -168,11 +168,12 @@ public:
   // Keep an old project cache directory alive while any cancelled worker
   // may still own a SourceSnapshot backed by its files.
   void retireWorkspace(std::shared_ptr<QTemporaryDir> workspace);
-  // Deferred engine registration; all four actions remain disabled in 012_04.
+  // Register only release-supported engines; COM is deferred in 012_43.
   void setEngineAvailable(Feature feature, bool available);
   void setIldSourceProvider(IldSourceProvider provider);
   void setIcnSourceProvider(IcnSourceProvider provider);
   void setEyeSourceProvider(EyeSourceProvider provider);
+  // Returns nullptr for deferred or unsupported features.
   AnalysisWindow *openWindow(Feature feature);
   QAction *action(Feature feature) const { return actions_.at(int(feature)); }
   AnalysisWindow *existingWindow(Feature feature) const {
