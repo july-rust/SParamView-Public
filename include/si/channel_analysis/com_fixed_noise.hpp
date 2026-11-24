@@ -9,6 +9,7 @@ struct ComFixedNoiseChoice {
   ComFixedNoisePlane plane=ComFixedNoisePlane::RxFilterInput;
   double oneSidedPsdV2PerHz=std::numeric_limits<double>::quiet_NaN();
   std::string noiseSource, receiverDecisionPlane, independenceDeclaration;
+  bool independentRxRjDjDeclared=false;
   double diagnosticTailProbability=1e-5;
 };
 struct ComFixedNoiseInput {

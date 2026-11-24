@@ -1,4 +1,4 @@
-// 012_35 bounded source-backed matched-board diagnostics, not IEEE COM.
+// 012_36 bounded source-backed noise/jitter diagnostics, not IEEE COM.
 #include "si/channel_analysis/com_fixed_noise.hpp"
 #include <algorithm>
 #include <cmath>
@@ -47,7 +47,7 @@ int main(int argc,char** argv){try{
     auto& vc=x.victim[k];vc.testCase=k==0?"TEST1":"TEST2";
     vc.decisionTimeSeconds=k==0?210e-12:430e-12;
     vc.dfeTaps={.30,.05,-.04,.10,0.,.03};
-    Result<ComVoltageScaleEvidence> ev;ev.status=Status::Warning;ev.provenance=phys.provenance;
+    si::channel::Result<ComVoltageScaleEvidence> ev;ev.status=Status::Warning;ev.provenance=phys.provenance;
     ComVoltageScaleEvidence e;e.testCase=vc.testCase;e.voltsPerUnitSymbol=k==0?.2:.4;
     e.transmitterReferencePlane="synthetic TX die";e.receiverDecisionPlane="synthetic RX decision";
     e.normalizationIdentity="EXPLORATORY_VOLTS_PER_SIGNED_UNIT_SYMBOL";
@@ -58,6 +58,7 @@ int main(int argc,char** argv){try{
     n.oneSidedPsdV2PerHz=final8023ck120F8().oneSidedNoiseSpectralDensityV2PerGHz*1e-9;
     n.noiseSource="synthetic RX Gaussian";n.receiverDecisionPlane=e.receiverDecisionPlane;
     n.independenceDeclaration="synthetic independent Gaussian RJ and equal-weight DJ";
+    n.independentRxRjDjDeclared=true;
   }
   auto run=[&](const auto& y){return calculateComFixedNoiseFromSource(source,v.id,live,y);};
   auto r=run(x);demand(r.usable()&&r.status==Status::Warning,"bounded candidate");
@@ -106,6 +107,7 @@ int main(int argc,char** argv){try{
   y=x;y.noise[0].oneSidedPsdV2PerHz=std::numeric_limits<double>::infinity();rejects([&]{run(y);});
   y=x;y.noise[0].plane=static_cast<ComFixedNoisePlane>(99);rejects([&]{run(y);});
   y=x;y.noise[0].independenceDeclaration.clear();rejects([&]{run(y);});
+  y=x;y.noise[0].independentRxRjDjDeclared=false;rejects([&]{run(y);});
   y=x;y.noise[0].receiverDecisionPlane="wrong";rejects([&]{run(y);});
   y=x;y.victim[0].voltageScale.reset();rejects([&]{run(y);});
   y=x;y.victim[0].voltageScale->provenance.mappingGeneration++;rejects([&]{run(y);});

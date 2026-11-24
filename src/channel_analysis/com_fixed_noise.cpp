@@ -84,7 +84,7 @@ Result<ComFixedNoiseData> calculateComFixedNoiseFromSource(
     require(v.voltage.has_value(),"012_36 missing declared receiver voltage");
     const auto& scale=v.voltage->before;
     require(bounded(n.noiseSource)&&bounded(n.receiverDecisionPlane)&&
-      bounded(n.independenceDeclaration)&&n.receiverDecisionPlane==scale.receiverDecisionPlane,
+      n.independentRxRjDjDeclared&&bounded(n.independenceDeclaration)&&n.receiverDecisionPlane==scale.receiverDecisionPlane,
       "012_36 missing noise source, independence declaration or wrong receiver plane");
     require(n.plane==ComFixedNoisePlane::RxFilterInput||n.plane==ComFixedNoisePlane::CtleInput,
       "012_36 unsupported injection model");
