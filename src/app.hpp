@@ -239,6 +239,8 @@ private:
   void syncSettings();
   void applySettings();
   void editMapping();
+  bool confirmMapping(Revision &);
+  void openNextPath(QStringList, bool);
   bool reviewSignalType(Revision &);
   void chooseTerminations();
   void importMapping();
@@ -248,6 +250,7 @@ private:
   bool hasCurrentResult(si::Metric) const;
   std::vector<si::Job> requestedJobs(const std::vector<si::Metric> &) const;
   bool confirmProjectTransition();
+  void newWorkspace();
   void markDirty();
   void invalidateRevisionResults(const QString &);
   void refreshAnalysisContext();
