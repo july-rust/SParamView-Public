@@ -307,6 +307,123 @@ struct WorkspaceProbe {
   result["axes_selection_results_preserved"]=true;result["divider_adjustable"]=true;result["fullscreen_restored"]=!offscreen;
   result["metric_switch_without_analysis"]=true;result["passed"]=true;w.dirty=false;return result;
  }
+ static void fileWorkflowQualification(const QString &project, const QString &out) {
+   stage("012_48 file/workspace lifecycle");
+   const auto root=QDir(out).absoluteFilePath("file-workflow");
+   check(QDir().mkpath(root),"Cannot create workflow fixture directory");
+   const auto fixture=[&](const QString &name, const QByteArray &data) {
+     const auto path=QDir(root).filePath(name);
+     QFile f(path); check(f.open(QIODevice::WriteOnly|QIODevice::Truncate),"Cannot write workflow fixture");
+     check(f.write(data)==data.size(),"Short workflow fixture write"); f.close(); return path;
+   };
+   QByteArray touchstone="! Port 1 = U1-A X_N\n! Port 2 = U1-B X_P\n! Port 3 = J1-1 X_N\n! Port 4 = J2-1 X_P\n# GHz S RI R 50\n";
+   for(int point=1;point<=2;++point){
+     touchstone+=QByteArray::number(point)+" ";
+     for(int i=0;i<16;++i) touchstone+=".1 0 ";
+     touchstone+="\n";
+   }
+   const auto a=fixture("first.s4p",touchstone), b=fixture("skip.s4p",touchstone),
+              c=fixture("last.s4p",touchstone), invalid=fixture("bad.s4p","invalid\n");
+   MainWindow w, other;
+   const auto otherCache=other.workspaceCache->path();
+   const auto initialCache=w.workspaceCache->path();
+   check(initialCache!=otherCache,"Workspace caches not isolated");
+   auto *newAction=w.findChild<QAction*>("newWorkspaceAction");
+   check(newAction!=nullptr,"File/New action missing");
+   w.loadProject(project,false); settle(w);
+   check(!w.revisions.empty(),"Cannot load project for New test");
+   w.run({si::Metric::RL}); settle(w);
+   check(!w.results.empty(),"Missing prior result for New test");
+   const auto oldCache=w.workspaceCache->path();
+   const auto oldCount=w.revisions.size();
+   const auto oldResults=values(w);
+   w.dirty=true;
+   QMessageBox::StandardButton choice=QMessageBox::Cancel;
+   int prompts=0, warnings=0;
+   QTimer answers; answers.setInterval(10);
+   QObject::connect(&answers,&QTimer::timeout,&w,[&]{
+     auto *box=qobject_cast<QMessageBox*>(QApplication::activeModalWidget());
+     if(!box)return;
+     if(box->standardButtons().testFlag(QMessageBox::Discard)){
+       ++prompts; if(auto *button=box->button(choice))button->click();
+     }else if(auto *ok=box->button(QMessageBox::Ok)){++warnings;ok->click();}
+   });
+   answers.start(); newAction->trigger(); answers.stop();
+   check(prompts==1 && w.dirty && w.workspaceCache->path()==oldCache &&
+         w.revisions.size()==oldCount && values(w)==oldResults && QDir(oldCache).exists(),
+         "Cancel New mutated workspace");
+   // Explicit existing destination avoids native Save As automation.
+   w.projectPath=root; choice=QMessageBox::Save; answers.start();
+   newAction->trigger(); answers.stop();
+   check(prompts==2 && warnings==1 && w.dirty && w.workspaceCache->path()==oldCache &&
+         w.revisions.size()==oldCount && values(w)==oldResults,"Failed save lost workspace");
+   const auto saved=QDir(root).filePath("saved.siproject");
+   w.projectPath=saved; answers.start(); newAction->trigger(); answers.stop(); settle(w);
+   check(prompts==3 && QFileInfo(saved).isFile() && !w.dirty && w.revisions.empty() &&
+         w.results.empty() && w.lastJobs.empty() && w.lastRevisions.empty() &&
+         w.plot->snapshot.curves.empty() && w.table->rowCount()==0 &&
+         w.compareTable->rowCount()==0 && w.revisionBox->count()==0 &&
+         w.analysisWindows->context().sources.isEmpty() && w.projectPath.isEmpty() &&
+         w.projectName=="Untitled" && !QDir(oldCache).exists() &&
+         QDir(otherCache).exists(),"New/save/cache reset failed");
+   check(w.limitValues[0]->value()==-10 && w.limitValues[1]->value()==-3 &&
+         w.limitValues[2]->value()==-20 && w.limitValues[3]->value()==-20 &&
+         !w.tdrLimit->isChecked(),"New changed default limit contract");
+   check(sparamview::preferences::workingDirectory()==root,"New lost saved working directory");
+   const auto secondCache=w.workspaceCache->path();
+   newAction->trigger(); settle(w);
+   check(!QDir(secondCache).exists() && QDir(otherCache).exists(),"Repeated New cleanup failed");
+
+   QStringList reviewed;
+   int failures=0;
+   QTimer mapping; mapping.setInterval(10);
+   QObject::connect(&mapping,&QTimer::timeout,&w,[&]{
+     auto *d=qobject_cast<QDialog*>(QApplication::activeModalWidget());
+     if(!d)return;
+     if(auto *box=qobject_cast<QMessageBox*>(d)){
+       if(auto *ok=box->button(QMessageBox::Ok)){++failures;ok->click();}
+       return;
+     }
+     if(d->objectName()=="signalTypeDetectionDialog"){
+       auto *selector=d->findChild<QComboBox*>("signalTypeSelector");
+       if(selector)selector->setCurrentIndex(selector->findData("Differential"));
+       auto *buttons=d->findChild<QDialogButtonBox*>();
+       if(buttons && buttons->button(QDialogButtonBox::Ok))buttons->button(QDialogButtonBox::Ok)->click();
+     }else if(d->objectName()=="channelMappingDialog"){
+       const auto title=d->windowTitle();
+       reviewed<<title;
+       if(title.contains("skip")){d->reject();return;}
+       auto *grid=d->findChild<QTableWidget*>();
+       if(!grid||grid->rowCount()!=1){d->reject();return;}
+       grid->item(0,0)->setText(title.contains("first")?"MAP_A":"MAP_C");
+       if(title.contains("last")){
+         // Swap complete Near/Far differential pairs.
+         for(int k=1;k<=2;++k){
+           const auto value=grid->item(0,k)->text();
+           grid->item(0,k)->setText(grid->item(0,k+2)->text());
+           grid->item(0,k+2)->setText(value);
+         }
+       }
+       auto *buttons=d->findChild<QDialogButtonBox*>();
+       if(buttons && buttons->button(QDialogButtonBox::Save))buttons->button(QDialogButtonBox::Save)->click();
+     }
+   });
+   mapping.start();w.openPaths({a,b,invalid,c});settle(w);mapping.stop();
+   check(reviewed.size()==3 && reviewed[0].contains("first") && reviewed[1].contains("skip") &&
+         reviewed[2].contains("last") && failures==1,"Per-file mapping order/cancel/failure not respected");
+   check(w.revisions.size()==2 && w.revisions[0].source==a && w.revisions[1].source==c &&
+         w.revisions[0].confirmed && w.revisions[1].confirmed &&
+         w.revisions[0].channels.size()==1 && w.revisions[1].channels.size()==1 &&
+         w.revisions[0].channels[0].name=="MAP_A" && w.revisions[1].channels[0].name=="MAP_C" &&
+         w.revisions[0].channels[0].nearP==w.revisions[1].channels[0].farP,
+         "Independent mapping not preserved");
+   choice=QMessageBox::Discard; answers.start();newAction->trigger();answers.stop();settle(w);
+   check(w.revisions.empty() && QFileInfo(a).isFile() && QFileInfo(b).isFile() &&
+         QFileInfo(c).isFile() && QFileInfo(saved).isFile() && QDir(otherCache).exists(),
+         "Discard New removed source or other workspace");
+   // Isolate the work-directory preference from the existing layout suite.
+   {auto p=sparamview::preferences::store();p.remove("workspace/v1/lastDirectory");p.sync();}
+ }
  static void preferencesQualification(const QString &out) {
   using namespace sparamview::preferences;
   const double expected[] = {-10, -3, -20, -20};
@@ -399,6 +516,6 @@ int main(int argc,char**argv){
   WorkspaceProbe::stage("construct MainWindow");
   {MainWindow w;WorkspaceProbe::stage("MainWindow constructed");applyCompactAnalysisSettings(w);w.installHeaderProjectButtons();result=WorkspaceProbe::run(w,QString::fromLocal8Bit(argv[1]),out,size);}
   {MainWindow w;WorkspaceProbe::persistence(w);}
-  result["preferences_restored"]=true;result["012_47_preferences_qualified"]=true;QFile f(out+"/Workspace.json");check(f.open(QIODevice::WriteOnly),"Cannot save QA");f.write(QJsonDocument(result).toJson());std::cout<<QJsonDocument(result).toJson().constData();return 0;
+  result["preferences_restored"]=true;result["012_47_preferences_qualified"]=true;result["012_48_file_workflow_qualified"]=true;QFile f(out+"/Workspace.json");check(f.open(QIODevice::WriteOnly),"Cannot save QA");f.write(QJsonDocument(result).toJson());std::cout<<QJsonDocument(result).toJson().constData();return 0;
  }catch(const std::exception&e){std::cerr<<e.what()<<'\n';return 1;}
 }
