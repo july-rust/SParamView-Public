@@ -326,6 +326,7 @@ struct WorkspaceProbe {
               c=fixture("last.s4p",touchstone), invalid=fixture("bad.s4p","invalid\n");
    const auto se=fixture("mixed-size.s2p","# GHz S RI R 50\n1 .1 0 .8 0 .7 0 .2 0\n2 .1 0 .8 0 .7 0 .2 0\n");
    MainWindow w, other;
+   w.show(); settle(w);
    const auto otherCache=other.workspaceCache->path();
    const auto initialCache=w.workspaceCache->path();
    check(initialCache!=otherCache,"Workspace caches not isolated");
@@ -416,7 +417,7 @@ struct WorkspaceProbe {
          "Per-file mapping order/cancel/failure not respected");
    check(w.revisions.size()==3 && w.revisions[0].source==a && w.revisions[1].source==c &&
          w.revisions[2].source==se && w.revisions[2].cache->meta().ports==2 &&
-         w.revisions[2].confirmed && w.revisions[2].channels[0].name=="MAP_SE" &&
+         w.revisions[2].confirmed && w.revisions[2].channels.size()==1 && w.revisions[2].channels[0].name=="MAP_SE" &&
          w.revisions[0].confirmed && w.revisions[1].confirmed &&
          w.revisions[0].channels.size()==1 && w.revisions[1].channels.size()==1 &&
          w.revisions[0].channels[0].name=="MAP_A" && w.revisions[1].channels[0].name=="MAP_C" &&
@@ -534,6 +535,7 @@ int main(int argc,char**argv){
  try{
   QSize size(argc>3?QString::fromLocal8Bit(argv[3]).toInt():1440,argc>4?QString::fromLocal8Bit(argv[4]).toInt():980);
   WorkspaceProbe::preferencesQualification(out);
+  WorkspaceProbe::fileWorkflowQualification(QString::fromLocal8Bit(argv[1]),out);
   QJsonObject result;
   WorkspaceProbe::stage("construct MainWindow");
   {MainWindow w;WorkspaceProbe::stage("MainWindow constructed");applyCompactAnalysisSettings(w);w.installHeaderProjectButtons();result=WorkspaceProbe::run(w,QString::fromLocal8Bit(argv[1]),out,size);}
