@@ -133,6 +133,8 @@ private:
   AsyncScheduler *scheduler_ = nullptr;
   AnalysisContext context_;
   quint64 requestGeneration_ = 0;
+  QPointer<QDialog> eyeDcPrompt_;
+  void dismissEyeDcPrompt();
   si::channel::Status status_ = si::channel::Status::NotEvaluated;
   QComboBox *source_ = nullptr, *victim_ = nullptr, *aggressor_ = nullptr;
   QComboBox *direction_ = nullptr, *fitModel_ = nullptr;

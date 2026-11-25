@@ -17,3 +17,7 @@ Safety review: a materially inconsistent but real original DC is ambiguous (e.g.
 ## Initial compiled CI, df5c315
 
 Three-platform workflow 45717970816: core quality, release consistency and Windows ARM64 passed; Windows x64 and macOS failed the new GUI manual Eye test. Inspection shows selecting Custom intentionally clears the bit rate and reference frequency; the new test omitted restoring these required values. Restore both explicitly without changing product manual validation. CodeQL PR annotations 716–718: remove exact floating comparisons in the new spectrum branch and test, and use an explicit single-return optional source fixture. The revised head still requires CI and review; previous results do not qualify the new head. Codex found no major issues on df5c315 only.
+
+## Second compiled CI, 5d09c9e
+
+Core, Windows x64/ARM64, native ARM64 packaged gate, all CodeQL checks, version consistency and Codex review passed. macOS 83/84 passed; channel_analysis_window_lifecycle timed out at 90 s, with channel_eye_numerics passing. Likely nested native warning dialog/test auto-response incompatibility (exact hang location not logged). Replace synchronous QMessageBox with nonblocking Qt QDialog, explicit named consent buttons, and bounded event-loop tests for accept/cancel and stale source dismissal. Preserve frequency cutoff and default Cancel; no timeout increase or test bypass. Revised head requires all checks and review again.

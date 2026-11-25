@@ -1010,12 +1010,20 @@ QString AnalysisWindow::selectionIdentity() const {
   }
   return identity;
 }
+void AnalysisWindow::dismissEyeDcPrompt() {
+  if(eyeDcPrompt_) {
+    auto *dialog=eyeDcPrompt_.data();
+    eyeDcPrompt_.clear();
+    dialog->reject();
+  }
+}
 void AnalysisWindow::invalidateRequest() {
   clearIld();
   clearIcn();
   clearEye();
   const bool hadWork = scheduler_ && scheduler_->running(feature_);
   ++requestGeneration_;
+  dismissEyeDcPrompt();
   if (scheduler_) scheduler_->cancel(feature_);
   cancel_->setEnabled(false);
   progress_->setValue(0);
@@ -1034,6 +1042,7 @@ void AnalysisWindow::setContext(const AnalysisContext &context) {
   if (scheduler_) scheduler_->cancel(feature_);
   context_ = context;
   ++requestGeneration_;
+  dismissEyeDcPrompt();
   progress_->setValue(0);
   cancel_->setEnabled(false);
   QSignalBlocker sourceBlock(source_);
@@ -1093,13 +1102,37 @@ bool AnalysisWindow::startWork(AsyncWork work) {
         if(outcome.eyeDcConfirmation) {
           guard->setStatus(si::channel::Status::NotEvaluated,outcome.diagnostic);
           guard->progress_->setValue(0);
-          const auto answer=QMessageBox::warning(guard.data(),QStringLiteral("Eye DC extrapolation"),
-             outcome.diagnostic,QMessageBox::Ok|QMessageBox::Cancel,QMessageBox::Cancel);
-          if(!guard || requestGeneration!=guard->requestGeneration_ ||
-             contextGeneration!=guard->context_.generation || selected!=guard->selectionIdentity()) return;
-          if(answer==QMessageBox::Ok)
-            guard->launchEye(outcome.eyeAutoPreview,true);
-          else guard->setStatus(si::channel::Status::Cancelled,QStringLiteral("DC extrapolation cancelled"));
+          // A plain Qt dialog is consistent across native platforms, and open()
+          // avoids a nested event loop inside the worker-completion callback.
+          auto *dialog=new QDialog(guard.data());
+          dialog->setObjectName(QStringLiteral("eyeDcConsentDialog"));
+          dialog->setWindowTitle(QStringLiteral("Eye DC extrapolation"));
+          dialog->setAttribute(Qt::WA_DeleteOnClose);
+          dialog->setWindowModality(Qt::WindowModal);
+          auto *layout=new QVBoxLayout(dialog);
+          auto *message=new QLabel(outcome.diagnostic,dialog);
+          message->setWordWrap(true);
+          layout->addWidget(message);
+          auto *buttons=new QDialogButtonBox(QDialogButtonBox::Ok|QDialogButtonBox::Cancel,dialog);
+          buttons->button(QDialogButtonBox::Ok)->setText(QStringLiteral("Continue"));
+          buttons->button(QDialogButtonBox::Ok)->setAutoDefault(false);
+          buttons->button(QDialogButtonBox::Cancel)->setDefault(true);
+          layout->addWidget(buttons);
+          QObject::connect(buttons,&QDialogButtonBox::accepted,dialog,&QDialog::accept);
+          QObject::connect(buttons,&QDialogButtonBox::rejected,dialog,&QDialog::reject);
+          guard->eyeDcPrompt_=dialog;
+          const bool autoPreview=outcome.eyeAutoPreview;
+          QObject::connect(dialog,&QDialog::finished,guard.data(),
+            [guard,selected,requestGeneration,contextGeneration,autoPreview,dialog](int answer) {
+              if(!guard || guard->eyeDcPrompt_.data()!=dialog) return;
+              guard->eyeDcPrompt_.clear();
+              if(requestGeneration!=guard->requestGeneration_ ||
+                 contextGeneration!=guard->context_.generation ||
+                 selected!=guard->selectionIdentity()) return;
+              if(answer==QDialog::Accepted) guard->launchEye(autoPreview,true);
+              else guard->setStatus(si::channel::Status::Cancelled,QStringLiteral("DC extrapolation cancelled"));
+            });
+          dialog->open();
           return;
         }
         guard->progress_->setValue((outcome.status == si::channel::Status::Valid ||
@@ -1128,6 +1161,7 @@ bool AnalysisWindow::startWork(AsyncWork work) {
   return true;
 }
 void AnalysisWindow::cancelWork() {
+  dismissEyeDcPrompt();
   if (scheduler_) scheduler_->cancel(feature_);
   cancel_->setEnabled(false);
   setStatus(si::channel::Status::Cancelled,
@@ -1654,7 +1688,7 @@ bool AnalysisWindow::readManualEyeSettings(si::channel::EyeSettings &settings) {
 
 void AnalysisWindow::launchEye(bool autoPreview, bool acceptLimitedDc) {
   using namespace si::channel;
-  if(feature_!=Feature::Eye || !eyeProvider_)return;
+  if(feature_!=Feature::Eye || !eyeProvider_ || eyeDcPrompt_)return;
   clearEye();
   const int idx=source_->currentIndex(), selected=victim_->currentIndex();
   if(idx<0 || idx>=context_.sources.size() || selected<0) {
@@ -1976,6 +2010,7 @@ bool AnalysisWindow::saveEyePng(const QString &name) {
 }
 
 void AnalysisWindow::closeEvent(QCloseEvent *event) {
+  dismissEyeDcPrompt();
   if (scheduler_ && scheduler_->running(feature_)) cancelWork();
   progressPoll_.stop();
   QWidget::closeEvent(event);

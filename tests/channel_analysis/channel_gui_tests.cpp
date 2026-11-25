@@ -830,19 +830,21 @@ int main(int argc, char **argv) {
           "manual Eye must use same DC policy");
     setLowSource(10001);
     for(bool accept:{false,true}) {
-      bool seen=false;
-      QTimer responder;
-      QObject::connect(&responder,&QTimer::timeout,&responder,[&]{
-        if(auto *box=qobject_cast<QMessageBox *>(QApplication::activeModalWidget())) {
-          if(box->windowTitle()!="Eye DC extrapolation")return;
-          seen=true;
-          if(auto *button=box->button(accept?QMessageBox::Ok:QMessageBox::Cancel))button->click();
-        }
-      });
-      responder.start(10);
-      preview->click();drain(manager.scheduler());
-      responder.stop();
-      check(seen,"10 kHz+ preview must request consent");
+      preview->click();
+      QPointer<QDialog> prompt;
+      check(pumpUntil([&] {
+        prompt=eye->findChild<QDialog *>(QStringLiteral("eyeDcConsentDialog"));
+        return prompt && prompt->isVisible();
+      }),"10 kHz+ preview must request consent within bounded time");
+      auto *buttons=prompt->findChild<QDialogButtonBox *>();
+      check(buttons,"DC consent buttons missing");
+      auto *button=buttons->button(accept?QDialogButtonBox::Ok:QDialogButtonBox::Cancel);
+      check(button,"DC consent action missing");
+      button->click();
+      check(pumpUntil([&] {
+        return eye->status()==(accept?S::Warning:S::Cancelled) && manager.scheduler().inFlight()==0;
+      }),"DC consent decision did not complete within bounded time");
+      check(pumpUntil([&]{return prompt.isNull();}),"DC consent dialog not retired");
       if(accept) {
         check(eye->status()==S::Warning && eye->saveEyeCsv(ildDir.filePath("dc-ack.csv")),
               "accepted DC warning must run");
@@ -852,7 +854,18 @@ int main(int argc, char **argv) {
       } else check(eye->status()==S::Cancelled && !eye->saveEyeCsv(ildDir.filePath("dc-cancel.csv")),
                    "cancelled DC warning cannot export");
     }
+    // Changing the immutable source while consent is pending must dismiss it;
+    // an old confirmation cannot launch analysis on the new source.
+    preview->click();
+    QPointer<QDialog> stalePrompt;
+    check(pumpUntil([&]{
+      stalePrompt=eye->findChild<QDialog *>(QStringLiteral("eyeDcConsentDialog"));
+      return stalePrompt && stalePrompt->isVisible();
+    }),"pending DC confirmation missing");
     setLowSource(100000);
+    check(pumpUntil([&]{return stalePrompt.isNull();}) &&
+          !eye->saveEyeCsv(ildDir.filePath("dc-stale-consent.csv")),
+          "source change retained DC consent or allowed export");
     preview->click();drain(manager.scheduler());
     check(eye->status()==S::Error && !eye->saveEyeCsv(ildDir.filePath("dc-blocked.csv")) &&
           !eye->saveEyePng(ildDir.filePath("dc-blocked.png")),"100 kHz must block preview and exports");
