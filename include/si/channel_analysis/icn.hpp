@@ -34,6 +34,8 @@ struct IcnData {
   std::vector<IcnAggressorData> aggressors;
   double nextRmsV = 0, fextRmsV = 0, totalRmsV = 0;
   double actualStartHz = 0, actualStopHz = 0;
+  IcnSettings settings; // immutable calculation settings for reproducible export
+  std::string victimId, direction; // qualified GUI snapshot context, if available
   bool bandLimited = false;
   std::string model = "Generic IID NRZ, one-sided PSD, Gaussian 10-90 edge, one-pole RX";
 };

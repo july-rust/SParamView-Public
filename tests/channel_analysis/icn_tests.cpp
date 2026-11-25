@@ -2,6 +2,8 @@
 #include <cassert>
 #include <cmath>
 #include <iostream>
+#include <array>
+#include <limits>
 #include <stdexcept>
 using namespace si::channel;
 namespace {
@@ -59,6 +61,62 @@ int main() {
     auto uneven=calculateIcn({{"A",IcnEnd::Next,flat(0.1,true)}},s);
     require(uneven.usable() && uneven.value->frequencyHz.size()==4,
             "Nonuniform frequency");
+    // Independent long-double endpoint oracle: exact complex interpolation,
+    // nonuniform frequency, finite Gaussian edge and RX corner at 1 GHz.
+    auto clipped=s; clipped.startHz=0.25e9; clipped.stopHz=1.6e9;
+    clipped.riseTimeSeconds=80e-12; clipped.rxBandwidthHz=1e9;
+    auto complex=flat(0,true);
+    complex.frequencyHz={0,0.5e9,1e9,2e9};
+    complex.transfer={{0.1,0.2},{0.3,-0.2},{-0.1,0.4},{0.5,0.0}};
+    auto actual=calculateIcn({{"A",IcnEnd::Next,complex},{"B",IcnEnd::Fext,complex}},clipped);
+    require(actual.usable() && actual.status==Status::Warning,"Clipped complex ICN warning");
+    const auto &d=*actual.value;
+    const std::array<long double,4> f{0.25e9L,0.5e9L,1e9L,1.6e9L};
+    // 0.25 GHz: midpoint; 1.6 GHz: 60% through last interval.
+    const std::array<long double,4> re{0.2L,0.3L,-0.1L,0.26L};
+    const std::array<long double,4> im{0.0L,-0.2L,0.4L,0.16L};
+    const long double pi=std::acos(-1.0L);
+    long double integral=0, prev=0;
+    require(d.frequencyHz.size()==f.size(),"Exact clipped grid size");
+    for(size_t i=0;i<f.size();++i) {
+      const long double z=pi*f[i]/4e9L;
+      const long double edge=2*pi*f[i]*80e-12L/2.5631031310892007L;
+      const long double rx=f[i]/1e9L;
+      const long double psd=0.32L/4e9L*std::pow(std::sin(z)/z,2)*
+          std::exp(-edge*edge)/(1+rx*rx)*(re[i]*re[i]+im[i]*im[i]);
+      if(i) integral+=(prev+psd)*(f[i]-f[i-1])/2;
+      prev=psd;
+      close(d.frequencyHz[i],double(f[i]),1e-13,"Clipped bin");
+      require(std::abs(d.nextDensityV2Hz[i]-double(psd))<=1e-23+1e-12*double(psd),"Complex Gaussian RX PSD");
+      close(d.nextPowerDb[i],double(10*std::log10(re[i]*re[i]+im[i]*im[i])),1e-12,"Complex power");
+      close(d.nextCumulativeRmsV[i],double(std::sqrt(integral)),1e-12,"Cumulative NEXT oracle");
+      close(d.fextCumulativeRmsV[i],double(std::sqrt(integral)),1e-12,"Cumulative FEXT oracle");
+      close(d.totalCumulativeRmsV[i],double(std::sqrt(2*integral)),1e-12,"Cumulative total oracle");
+    }
+    close(d.totalRmsV,double(std::sqrt(2*integral)),1e-12,"Complex clipped total");
+    close(d.aggressors[0].powerPercent,50,1e-12,"Equal path percentage");
+    close(d.aggressors[1].powerPercent,50,1e-12,"Equal path percentage");
+    require(d.settings.riseTimeSeconds==clipped.riseTimeSeconds &&
+            d.settings.startHz==clipped.startHz,"Immutable result settings");
+    auto twice=clipped; twice.txPeakToPeakV*=2;
+    auto scaled=calculateIcn({{"A",IcnEnd::Next,complex}},twice);
+    for(size_t i=0;i<f.size();++i)
+      require(std::abs(scaled.value->nextDensityV2Hz[i]-4*d.nextDensityV2Hz[i])<=1e-22,
+              "PSD fourfold voltage scaling");
+    std::vector<IcnAggressorInput> many;
+    for(int i=0;i<32;++i) many.push_back({std::to_string(i),IcnEnd::Next,flat(0.1)});
+    close(calculateIcn(many,s).value->totalRmsV,single.value->totalRmsV*std::sqrt(32.),1e-12,"32 paths RSS");
+    auto rejects=[&](const std::vector<IcnAggressorInput>& a,const IcnSettings &cfg) {
+      try {(void)calculateIcn(a,cfg);return false;} catch(const si::Error&) {return true;}
+    };
+    many.push_back({"overflow",IcnEnd::Next,flat(0.1)});
+    require(rejects(many,s),"33 paths rejected");
+    auto outside=s; outside.startHz=3e9;outside.stopHz=4e9;
+    require(rejects({{"A",IcnEnd::Next,flat(.1)}},outside),"No overlap rejected");
+    auto mismatch=flat(.1);mismatch.responseOhm=75;
+    require(rejects({{"A",IcnEnd::Next,mismatch}},s),"Reference mismatch rejected");
+    require(rejects({{"A",IcnEnd::Next,flat(.1)},{"B",IcnEnd::Fext,flat(.1,true)}},s),"Grid mismatch rejected");
+    require(rejects({{"A",static_cast<IcnEnd>(9),flat(.1)}},s),"Invalid path type rejected");
     auto noDc=s;noDc.startHz=0;
     auto measured=flat(0.1);measured.frequencyHz.erase(measured.frequencyHz.begin());
     measured.transfer.erase(measured.transfer.begin());

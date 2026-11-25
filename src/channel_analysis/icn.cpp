@@ -62,6 +62,7 @@ Result<IcnData> calculateIcn(const std::vector<IcnAggressorInput> &aggressors,
   validateTrace(first);
   for (const auto &a : aggressors) {
     check(cancelled);
+    require(a.end==IcnEnd::Next || a.end==IcnEnd::Fext, "Invalid ICN path type");
     require(!a.id.empty() && unique.insert({a.id,a.end}).second,
             "Duplicate or empty ICN aggressor path");
     validateTrace(a.transfer);
@@ -78,6 +79,7 @@ Result<IcnData> calculateIcn(const std::vector<IcnAggressorInput> &aggressors,
   const double stop=std::min(s.stopHz,first.frequencyHz.back());
   require(stop>start, "ICN selected band has no measured overlap");
   IcnData d;
+  d.settings=s;
   d.actualStartHz=start;
   d.actualStopHz=stop;
   d.bandLimited = start!=s.startHz || stop!=s.stopHz || start>0;
@@ -128,8 +130,10 @@ Result<IcnData> calculateIcn(const std::vector<IcnAggressorInput> &aggressors,
   for (size_t k=0;k<n;++k) {
     if ((k&1023u)==0u) check(cancelled);
     // -300 dB is a *display floor*, never a nonzero noise-power substitution.
-    d.nextPowerDb[k]=10*std::log10(std::max(nextSum[k],1e-30));
-    d.fextPowerDb[k]=10*std::log10(std::max(fextSum[k],1e-30));
+    d.nextPowerDb[k]=10*std::log10(std::max(nonnegative(nextSum[k]),1e-30));
+    d.fextPowerDb[k]=10*std::log10(std::max(nonnegative(fextSum[k]),1e-30));
+    nonnegative(d.nextDensityV2Hz[k]*1e15); // plotted mV^2/GHz must be finite
+    nonnegative(d.fextDensityV2Hz[k]*1e15);
     if(k) {
       const double df=d.frequencyHz[k]-d.frequencyHz[k-1];
       nextPower+=nonnegative((d.nextDensityV2Hz[k-1]+d.nextDensityV2Hz[k])*0.5*df);
@@ -142,8 +146,9 @@ Result<IcnData> calculateIcn(const std::vector<IcnAggressorInput> &aggressors,
   d.nextRmsV=d.nextCumulativeRmsV.back();
   d.fextRmsV=d.fextCumulativeRmsV.back();
   d.totalRmsV=d.totalCumulativeRmsV.back();
+  nonnegative(d.totalRmsV*1000); // exported/displayed mV must be finite
   for(auto &a:d.aggressors)
-    a.powerPercent=d.totalRmsV>0 ? 100*std::pow(a.rmsV/d.totalRmsV,2):0;
+    a.powerPercent=nonnegative(d.totalRmsV>0 ? 100*std::pow(a.rmsV/d.totalRmsV,2):0);
   Result<IcnData> result;
   result.provenance=std::move(provenance);
   result.status=d.bandLimited?Status::Warning:Status::Valid;

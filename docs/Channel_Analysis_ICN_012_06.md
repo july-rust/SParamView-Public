@@ -6,6 +6,8 @@
 **Qualification:** **COMPLETE (Generic exploratory ICN/automated Qt scope):** [PR #42](https://github.com/july-rust/SParamView-Public/pull/42) merged `1bcf54008d3031c5b8ef634e4d2bef1479eee96a` to `integration/v1.4.0`, [CI 43775680490](https://github.com/july-rust/SParamView-Public/actions/runs/43775680490) Core Release & ASan/UBSan 34/34 each, Windows x64 53/53, macOS arm64 49/49, Windows ARM64 cross-build and native packaged gate PASS. Physical interactive GUI still requires 012_12.  
 **Conformance:** **NO IEEE 802.3 / SNIA SFF-TA-1002 / COM / MIPI conformance or PASS/FAIL**.
 
+**012_45 candidate:** retain generic independent-path RSS (not physical coherent noise or a specific receiver total); add nonzero-edge/RX/complex clipped-band and directional numerical CSV and asymmetric nonadjacent S8P differential oracles, immutable calculation settings, explicit CSV SI units and actual band display. Final qualification requires exact-head CI/review and integration post-merge evidence. Native interactive acceptance remains 012_50.
+
 ## Inputs and physical source checks
 
 - `SourceSnapshot::capture` recomputes SHA-256 on the original Touchstone file in the worker, verifies confirmed physical port mapping and generation.

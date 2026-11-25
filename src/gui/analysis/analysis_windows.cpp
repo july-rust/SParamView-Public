@@ -1273,9 +1273,11 @@ void AnalysisWindow::launchIcn() {
     }
     const auto &identity=snap.identity();
     si::channel::Provenance provenance{identity.sha256,identity.revision,
-      identity.mappingIdentity,"Generic uncorrelated NRZ ICN","012_06-v1",
+      identity.mappingIdentity,"Generic uncorrelated NRZ ICN","012_45-v2",
       settingsIdentity,identity.workspaceGeneration,identity.mappingGeneration};
     auto result=si::channel::calculateIcn(paths,settings,provenance,&cancel);
+    result.value->victimId=victimId;
+    result.value->direction=reverse?"reverse":"forward";
     if(cancel.load()) throw si::Cancelled();
     progress.store(100);
     WorkOutcome outcome;
@@ -1305,10 +1307,11 @@ void AnalysisWindow::showIcn(const WorkOutcome &outcome) {
   }
   if(icnContributions_) icnContributions_->setText(contributions.join(QStringLiteral(" | ")));
   setStatus(outcome.status,QStringLiteral(
-    "NEXT %1 mV RMS | FEXT %2 mV RMS | Total %3 mV RMS | %4 paths%5 — Generic NRZ, no standard PASS")
+    "NEXT %1 mV RMS | FEXT %2 mV RMS | Total %3 mV RMS | %4 paths%5 | %6–%7 GHz — Generic independent-path NRZ RSS, no standard PASS")
     .arg(d.nextRmsV*1000,0,'g',7).arg(d.fextRmsV*1000,0,'g',7)
     .arg(d.totalRmsV*1000,0,'g',7).arg(qulonglong(d.aggressors.size()))
-    .arg(d.bandLimited?QStringLiteral(" | BAND LIMITED"):QString()));
+    .arg(d.bandLimited?QStringLiteral(" | BAND LIMITED"):QString())
+    .arg(d.actualStartHz/1e9,0,'g',7).arg(d.actualStopHz/1e9,0,'g',7));
 }
 void AnalysisWindow::exportIcnCsv() {
   if(!icnResult_) return;
@@ -1346,6 +1349,17 @@ bool AnalysisWindow::saveIcnCsv(const QString &name) {
      <<"# algorithm,"<<safe(icnProvenance_.algorithm)<<"\n"
      <<"# version,"<<safe(icnProvenance_.version)<<"\n"
      <<"# model,"<<safe(d.model)<<"\n"
+     <<"# victim_id,"<<safe(d.victimId)<<"\n"
+     <<"# direction,"<<safe(d.direction)<<"\n"
+     <<"# correlation_assumption,independent_path_rss\n"
+     <<"# requested_start_hz,"<<n(d.settings.startHz)<<"\n"
+     <<"# requested_stop_hz,"<<n(d.settings.stopHz)<<"\n"
+     <<"# symbol_rate_baud,"<<n(d.settings.symbolRateHz)<<"\n"
+     <<"# tx_peak_to_peak_v,"<<n(d.settings.txPeakToPeakV)<<"\n"
+     <<"# rise_time_10_90_s,"<<n(d.settings.riseTimeSeconds)<<"\n"
+     <<"# rx_bandwidth_hz,"<<n(d.settings.rxBandwidthHz)<<"\n"
+     <<"# workspace_generation,"<<qulonglong(icnProvenance_.workspaceGeneration)<<"\n"
+     <<"# mapping_generation,"<<qulonglong(icnProvenance_.mappingGeneration)<<"\n"
      <<"# band_limited,"<<(d.bandLimited?"true":"false")<<"\n"
      <<"# actual_start_hz,"<<n(d.actualStartHz)<<"\n"
      <<"# actual_stop_hz,"<<n(d.actualStopHz)<<"\n"
