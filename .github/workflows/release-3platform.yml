@@ -138,7 +138,7 @@ jobs:
             build-core/Testing/Temporary/*.log
             build-san/Testing/Temporary/*.log
           if-no-files-found: error
-          retention-days: ${{ github.ref == 'refs/heads/main' && 14 || 1 }}
+          retention-days: 14
 
   windows:
     name: Windows ${{ matrix.arch }}
@@ -271,7 +271,7 @@ jobs:
           name: SParamView-v${{ needs.prepare.outputs.version }}-${{ matrix.arch }}-validation
           path: ${{ matrix.validation_dir }}/
           if-no-files-found: ignore
-          retention-days: ${{ github.ref == 'refs/heads/main' && 7 || 1 }}
+          retention-days: 14
           compression-level: 9
 
       - name: Upload runnable Windows bundle
@@ -281,7 +281,7 @@ jobs:
           name: SParamView-v${{ needs.prepare.outputs.version }}-Windows-${{ matrix.arch }}
           path: dist/SParamView-Windows-${{ matrix.arch }}/
           if-no-files-found: error
-          retention-days: ${{ github.ref == 'refs/heads/main' && 7 || 1 }}
+          retention-days: 14
           compression-level: 6
 
   windows-arm64-native:
@@ -408,7 +408,7 @@ jobs:
           name: SParamView-v${{ needs.prepare.outputs.version }}-Native-Windows-ARM64-validation
           path: ${{ runner.temp }}/native-arm64-v${{ needs.prepare.outputs.version }}/
           if-no-files-found: warn
-          retention-days: ${{ github.ref == 'refs/heads/main' && 14 || 1 }}
+          retention-days: 14
           compression-level: 9
 
   macos-arm64:
@@ -630,20 +630,6 @@ jobs:
           codesign --force --deep --sign - package/SParamView.app
           codesign --verify --deep --strict package/SParamView.app
 
-      - name: Upload macOS test evidence
-        if: always()
-        uses: actions/upload-artifact@v6
-        with:
-          name: SParamView-v${{ needs.prepare.outputs.version }}-macOS-validation
-          path: |
-            build-macos/Testing/Temporary/*.log
-            build-macos/workspace-test-macos/*.json
-            build-macos/failure-qualification/
-            build-macos/calc/
-            build-macos/excel-environment.txt
-          if-no-files-found: error
-          retention-days: ${{ github.ref == 'refs/heads/main' && 14 || 1 }}
-
       - name: Package Apple Silicon ZIP and DMG
         env:
           SPARAMVIEW_VERSION: ${{ needs.prepare.outputs.version }}
@@ -675,12 +661,41 @@ jobs:
           shasum -a 256 -c "$dmgname.sha256"
           ditto -x -k "$zipname" "$qa/extracted"
           hdiutil attach "$dmgname" -readonly -nobrowse -mountpoint "$mount"
+          evidence="$GITHUB_WORKSPACE/build-macos/package-qualification"
+          mkdir -p "$evidence"
+          cp "$zipname.sha256" "$dmgname.sha256" "$evidence/"
           for location in "$qa/extracted" "$mount"; do
             app="$location/SParamView.app"
             codesign --verify --deep --strict "$app"
             out="$(mktemp -d "$qa/selftest.XXXXXX")"
-            env -u QT_PLUGIN_PATH -u QT_QPA_PLATFORM_PLUGIN_PATH -u DYLD_LIBRARY_PATH -u DYLD_FRAMEWORK_PATH -u DYLD_FALLBACK_LIBRARY_PATH -u DYLD_FALLBACK_FRAMEWORK_PATH PATH=/usr/bin:/bin:/usr/sbin:/sbin QT_QPA_PLATFORM=cocoa "$app/Contents/MacOS/SParamView" --selftest "$GITHUB_WORKSPACE/examples" "$out"
+            env -u QT_PLUGIN_PATH -u QT_QPA_PLATFORM_PLUGIN_PATH -u DYLD_LIBRARY_PATH -u DYLD_FRAMEWORK_PATH -u DYLD_FALLBACK_LIBRARY_PATH -u DYLD_FALLBACK_FRAMEWORK_PATH PATH=/usr/bin:/bin:/usr/sbin:/sbin QT_QPA_PLATFORM=cocoa "$app/Contents/MacOS/SParamView" --selftest "$GITHUB_WORKSPACE/examples" "$out" 2>&1 | tee "$evidence/$(basename "$location").log"
+            cp -R "$out" "$evidence/$(basename "$location")-selftest"
           done
+          python3 - "$evidence" "$zipname" "$dmgname" <<'PYTHON'
+          import hashlib, json, os, pathlib, platform, sys
+          evidence=pathlib.Path(sys.argv[1])
+          packages={}
+          for name in sys.argv[2:]:
+              p=pathlib.Path(name)
+              packages[name]=dict(bytes=p.stat().st_size, sha256=hashlib.file_digest(p.open('rb'),'sha256').hexdigest())
+          (evidence/'mac-user-package-smoke.json').write_text(json.dumps(dict(commit=os.environ['GITHUB_SHA'],version=os.environ['SPARAMVIEW_VERSION'],machine=platform.machine(),packages=packages,zip_exit=0,dmg_exit=0),indent=2))
+          PYTHON
+
+
+      - name: Upload macOS test evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: SParamView-v${{ needs.prepare.outputs.version }}-macOS-validation
+          path: |
+            build-macos/Testing/Temporary/*.log
+            build-macos/workspace-test-macos/*.json
+            build-macos/failure-qualification/
+            build-macos/calc/
+            build-macos/excel-environment.txt
+            build-macos/package-qualification/
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Upload Apple Silicon package
         uses: actions/upload-artifact@v6
@@ -692,7 +707,7 @@ jobs:
             SParamView_macOS_AppleSilicon_arm64_v${{ needs.prepare.outputs.version }}.dmg
             SParamView_macOS_AppleSilicon_arm64_v${{ needs.prepare.outputs.version }}.dmg.sha256
           if-no-files-found: error
-          retention-days: ${{ github.ref == 'refs/heads/main' && 14 || 1 }}
+          retention-days: 14
           compression-level: 0
 
   release:

@@ -98,7 +98,7 @@ See [Temporary Cache Cleanup](Temporary_Cache_Cleanup.md) and [v1.2.5 Release No
 - **Standard representations:** Hz/kHz/MHz/GHz, RI/MA/DB, supported Full/Lower/Upper matrices, physical-port references, two-port ordering, and declared mixed-mode data. Correct P/N and Near/Far mapping still require verified physical evidence.
 - **Port-name comments:** `! Port 1 = J1-A1 NET_P` and vendor `! Port1_J1_A1::NET_P` are both recognized. A `!.DiffChannels` comment block is a vendor extension, **not** the standardized Touchstone `[Mixed-Mode Order]` keyword. Invalid, incomplete or conflicting endpoint/NET/polarity evidence is not silently trusted; confirm mapping manually.
 - **Cache lifecycle:** binary cache metadata schema changed in v1.3.0 to avoid reusing older missing port labels. The v1.2.5 owned-session temporary-file cleanup policy continues unchanged.
-- **Windows installed ZIP:** the root contains only `SParamView.exe` as an EXE, together with necessary Qt and MSVC runtime DLLs. The CLI lives at `tools/si_cli.exe`, test programs at `tests/si_*.exe`, and the packaged `Run_Windows_Verification.cmd` uses those locations.
+- **Windows installed ZIP:** the root contains only `SParamView.exe` as an EXE, together with necessary Qt and MSVC runtime DLLs. The CLI remains at `tools/si_cli.exe`. For v1.4.0 candidates, the separate optional full QA ZIP contains `tests/si_*.exe` and `Run_Windows_Verification.cmd`; the standard user ZIP does not contain these QA-only files.
 
 Official specification: [IBIS Touchstone v2.1](https://ibis.org/touchstone_ver2.1/touchstone_ver2_1.pdf). Release verification: [GitHub Actions v1.3.0](https://github.com/july-rust/SParamView-Public/actions/runs/40807027224).
 
@@ -118,7 +118,7 @@ SHA-256 files are also provided with the release. To verify download integrity, 
 
 ### 2.2 Windows
 
-Extract the ZIP package and run the root-level `SParamView.exe`; auxiliary command-line and test executables are in `tools/` and `tests/`. Windows reputation or security warnings may appear. Confirm that the file came from the official GitHub release, verify the SHA-256 value, and follow your organization’s security policy before running it.
+Extract the ZIP package and run the root-level `SParamView.exe`; the command-line tool is in `tools/`. Test executables and the verification command are in the separate full QA ZIP for v1.4.0 candidates. Windows reputation or security warnings may appear. Confirm that the file came from the official GitHub release, verify the SHA-256 value, and follow your organization’s security policy before running it.
 
 ### 2.3 macOS Apple Silicon
 

@@ -98,7 +98,7 @@ v1.2.0의 기능별 소스 분할은 내부 코드 구조 변경입니다. 사�
 - **수치 데이터 형식:** Hz/kHz/MHz/GHz, RI/MA/DB, Full/Lower/Upper 행렬, 포트 기준 임피던스, 2포트 순서 및 Mixed-Mode 순서 중 구현된 S-파라미터 범위를 지원합니다. P/N 및 Near/Far의 물리적 연결은 원본과 비교해 확인해야 합니다.
 - **포트 이름:** `! Port 1 = J1-A1 NET_P` 및 제조사 확장 `! Port1_J1_A1::NET_P` 주석을 읽습니다. `!.DiffChannels`는 공식 Touchstone 키워드가 아닌 제조사 주석으로, `[Mixed-Mode Order]`와 구별합니다. 포트 인덱스·NET·컴포넌트/핀·극성이 불일치하면 자동 확정하지 않고 수동 확인을 요구합니다.
 - **캐시:** v1.3.0에서 캐시 메타데이터 형식을 변경하여 이전 버전의 빈 포트 이름이 재사용되지 않도록 했습니다. 종료 시 임시 캐시를 안전하게 정리하는 v1.2.5 정책은 유지합니다.
-- **Windows 압축 배포본:** 최상위 EXE는 `SParamView.exe` 하나이며 Qt와 필수 MSVC DLL은 실행파일 옆에 둡니다. CLI는 `tools/si_cli.exe`, 테스트 실행파일은 `tests/si_*.exe`로 분리하고 `Run_Windows_Verification.cmd`는 새 위치를 사용합니다.
+- **Windows 압축 배포본:** 최상위 EXE는 `SParamView.exe` 하나이며 Qt와 필수 MSVC DLL은 실행파일 옆에 둡니다. CLI는 `tools/si_cli.exe`에 유지합니다. v1.4.0 후보부터 테스트 실행파일(`tests/si_*.exe`)과 `Run_Windows_Verification.cmd`는 별도 전체 QA ZIP에 포함하며 일반 사용자 ZIP에는 포함하지 않습니다.
 
 규격 출처: [IBIS Touchstone v2.1 공식 문서](https://ibis.org/touchstone_ver2.1/touchstone_ver2_1.pdf). [v1.3.0 CI 검증](https://github.com/july-rust/SParamView-Public/actions/runs/40807027224).
 
@@ -118,7 +118,7 @@ GitHub Releases에서 사용 중인 시스템에 맞는 패키지를 선택합�
 
 ### 2.2 Windows
 
-ZIP 파일의 압축을 해제한 뒤 최상위 `SParamView.exe`를 실행합니다. CLI와 테스트 EXE는 각각 `tools/` 및 `tests/`에 있습니다. 운영체제의 평판 또는 보안 경고가 표시될 수 있으므로, 다운로드 위치와 파일의 SHA-256을 확인한 뒤 조직의 보안 정책에 따라 실행 여부를 결정하십시오.
+ZIP 파일의 압축을 해제한 뒤 최상위 `SParamView.exe`를 실행합니다. CLI는 `tools/`에 있습니다. v1.4.0 후보의 테스트 EXE와 검증 명령은 별도 전체 QA ZIP에 포함됩니다. 운영체제의 평판 또는 보안 경고가 표시될 수 있으므로, 다운로드 위치와 파일의 SHA-256을 확인한 뒤 조직의 보안 정책에 따라 실행 여부를 결정하십시오.
 
 ### 2.3 macOS Apple Silicon
 

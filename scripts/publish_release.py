@@ -354,9 +354,20 @@ def main():
         shutil.copyfile(user, output/user.name)
         shutil.copyfile(qa, output/qa.name)
     import shutil
+    mac_receipts = list(Path('package/evidence').rglob('mac-user-package-smoke.json'))
+    if len(mac_receipts) != 1:
+        raise RuntimeError('Missing unique macOS ZIP/DMG native execution receipt')
+    mac = json.loads(mac_receipts[0].read_text(encoding='utf-8'))
+    check_provenance(mac, version, commit)
+    if mac.get('machine') != 'arm64' or mac.get('zip_exit') != 0 or mac.get('dmg_exit') != 0:
+        raise RuntimeError('macOS ZIP/DMG native execution failed')
     for extension in ('zip', 'dmg'):
         name = f'SParamView_macOS_AppleSilicon_arm64_v{version}.{extension}'
-        shutil.copyfile(Path('package/macos')/name, output/name)
+        source = Path('package/macos')/name
+        expected = mac['packages'][name]
+        if expected['sha256'] != sha(source) or expected['bytes'] != source.stat().st_size:
+            raise RuntimeError('macOS package receipt mismatch: '+name)
+        shutil.copyfile(source, output/name)
     with zipfile.ZipFile(output/f'SParamView_macOS_AppleSilicon_arm64_v{version}.zip') as archive:
         check_provenance(json.loads(archive.read('SParamView.app/Contents/Resources/build-provenance.json')), version, commit)
     for language in ('EN', 'KO'):
