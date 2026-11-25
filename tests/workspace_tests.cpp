@@ -627,7 +627,7 @@ struct WorkspaceProbe {
    // Eye. This lifetime probe is separate from the actual Eye runs above.
    // A bounded release guard prevents hangs even if an assertion throws.
    stage("012_49 held source snapshot retirement");
-   struct Gate { std::atomic_bool acquired{false}, release{false}; };
+   struct Gate { std::atomic_bool acquired{false}, release{false}, readOk{false}; };
    auto gate=std::make_shared<Gate>();
    struct ReleaseGate {
      std::shared_ptr<Gate> gate;
@@ -646,6 +646,7 @@ struct WorkspaceProbe {
        if(!gate->release.load())throw si::Error("Snapshot hold timed out");
        const auto trace=si::channel::extract(snapshot,"victim",si::Metric::IL);
        if(trace.frequencyHz.empty())throw si::Error("Retired source unreadable");
+       gate->readOk.store(true);
        return {Status::Valid,QStringLiteral("Held snapshot lifetime probe")};
      }),"Could not start held snapshot worker");
    }
@@ -660,6 +661,7 @@ struct WorkspaceProbe {
          manager.scheduler().inFlight()>0 && QDir(retired).exists(),
          "New removed cache before held source worker released");
    gate->release.store(true);drain();
+   check(gate->readOk.load(),"Held worker could not read retired source");
    QElapsedTimer cleanup;cleanup.start();
    while(QDir(retired).exists() && cleanup.elapsed()<5000) {
      QApplication::processEvents();QThread::msleep(10);
