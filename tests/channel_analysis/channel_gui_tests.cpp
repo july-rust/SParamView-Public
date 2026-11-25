@@ -331,11 +331,14 @@ int main(int argc, char **argv) {
       out<<std::setprecision(17)<<"# GHz S RI R 50\n";
       for(int f=0;f<=8;++f) {
         out<<f;
-        for(int sourcePort=0;sourcePort<4;++sourcePort)
-          for(int responsePort=0;responsePort<4;++responsePort) {
+        for(int responsePort=0;responsePort<4;++responsePort)
+          for(int sourcePort=0;sourcePort<4;++sourcePort) {
             double value=0;
-            if(sourcePort/2 != responsePort/2) value=0.08;
-            else if(sourcePort!=responsePort) value=0.85;
+            if(responsePort==0 && sourcePort==2) value=0.04;
+            if(responsePort==1 && sourcePort==2) value=0.08;
+            if(responsePort==1 && sourcePort==3) value=0.12;
+            if(responsePort==0 && sourcePort==3) value=0.16;
+            if(sourcePort/2==responsePort/2 && sourcePort!=responsePort) value=0.85;
             out<<" "<<value<<" 0";
           }
         out<<"\n";
@@ -401,6 +404,63 @@ int main(int argc, char **argv) {
           content.contains("# path_1_type,FEXT") &&
           content.contains("Total_Cumulative_RMS_mV") &&
           content.count('\n')>=25,"ICN CSV columns or provenances missing");
+    check(content.contains("# correlation_assumption,independent_path_rss") &&
+          content.contains("# symbol_rate_baud,4000000000") &&
+          content.contains("# requested_stop_hz,30000000000") &&
+          content.contains("# actual_stop_hz,8000000000") &&
+          content.contains("# band_limited,true"),"ICN reproducibility metadata missing");
+    auto verifyIcnRows=[&](QByteArray bytes,double next,double fext) {
+      bytes.replace("\r\n","\n");
+      const auto offset=bytes.indexOf("Frequency_GHz,NEXT_Power_dB");
+      check(offset>=0,"ICN numeric CSV header");
+      const auto rows=bytes.mid(offset).split('\n');
+      check(rows.size()==11 && rows.back().isEmpty(),"ICN exact CSV row count");
+      double integral=0,previous=0;
+      const double pi=std::acos(-1.);
+      for(int i=0;i<=8;++i) {
+        const auto fields=rows[i+1].split(',');
+        check(fields.size()==12,"ICN CSV numeric columns");
+        double v[12]{};
+        for(int k=0;k<12;++k) {bool ok=false;v[k]=fields[k].toDouble(&ok);
+          check(ok&&std::isfinite(v[k]),"ICN finite CSV value");}
+        const double f=i*1e9,x=pi*f/4e9;
+        const double sinc=i?std::sin(x)/x:1;
+        const double edge=2*pi*f*30e-12/2.5631031310892007;
+        const double density=.32/4e9*sinc*sinc*std::exp(-edge*edge)/(1+std::pow(f/10e9,2));
+        if(i)integral+=(previous+density)*.5e9;
+        previous=density;
+        check(std::abs(v[0]-i)<1e-10 &&
+          std::abs(v[1]-20*std::log10(next))<1e-9 &&
+          std::abs(v[2]-20*std::log10(fext))<1e-9 &&
+          std::abs(v[3]-density*next*next)<1e-22 &&
+          std::abs(v[4]-density*fext*fext)<1e-22 &&
+          std::abs(v[5]-1000*next*std::sqrt(integral))<1e-8 &&
+          std::abs(v[6]-1000*fext*std::sqrt(integral))<1e-8 &&
+          std::abs(v[7]-1000*std::hypot(next,fext)*std::sqrt(integral))<1e-8 &&
+          std::abs(v[8]-v[3])<1e-22 && std::abs(v[9]-v[5])<1e-8 &&
+          std::abs(v[10]-v[4])<1e-22 && std::abs(v[11]-v[6])<1e-8,
+          "ICN independent directional CSV oracle");
+      }
+    };
+    verifyIcnRows(content,.04,.08);
+    auto *icnDir=icn->findChild<QComboBox *>(QStringLiteral("analysisDirection"));
+    check(icnDir,"ICN direction control missing");
+    icnDir->setCurrentIndex(1);
+    check(icn->status()==S::Stale && !icnCsv->isEnabled() && !icnPng->isEnabled(),"ICN direction invalidation");
+    icn->runButton()->click();drain(manager.scheduler());
+    check(icn->status()==S::Warning,"ICN reverse band warning");
+    const auto revPath=ildDir.filePath(QStringLiteral("icn-reverse.csv"));
+    check(icn->saveIcnCsv(revPath),"ICN reverse export");
+    QFile icnRev(revPath);check(icnRev.open(QIODevice::ReadOnly),"ICN reverse readback");
+    verifyIcnRows(icnRev.readAll(),.12,.16);
+    auto *icnVpp=icn->findChild<QDoubleSpinBox *>(QStringLiteral("icnTxVpp"));
+    check(icnVpp,"ICN Vpp control missing");
+    icnVpp->setValue(0);icn->runButton()->click();drain(manager.scheduler());
+    check(icn->status()==S::Error && !icnCsv->isEnabled() && !icnPng->isEnabled() &&
+          !icn->saveIcnCsv(ildDir.filePath("invalid-icn.csv")),"Invalid ICN Vpp exported");
+    icnVpp->setValue(800);icnDir->setCurrentIndex(0);
+    icn->runButton()->click();drain(manager.scheduler());
+    check(icn->status()==S::Warning,"ICN recovery failed");
     QImage icnImage(icnPngPath);
     check(!icnImage.isNull() && icnImage.width()>200 && icnImage.height()>200,
           "ICN PNG not an actual rendered plot");
