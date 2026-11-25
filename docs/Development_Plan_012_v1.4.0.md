@@ -7,7 +7,7 @@
 | 012_43 | COM freeze, production isolation, targeted regression |
 | 012_44 | ILD final numerical and GUI/export qualification; restore locked bandwidth-weighted fit/band-integral RMS (candidate; exact-head evidence pending) |
 | 012_45 | ICN final numerical and GUI/export qualification (candidate; exact-head evidence pending) |
-| 012_46 | Eye final numerical and GUI/export qualification |
+| 012_46 | Eye final numerical and GUI/export qualification (candidate; exact-head evidence pending) |
 | 012_47 | UX defaults, New, last directory |
 | 012_48 | Sequential port setup, main-window state |
 | 012_49 | Integrated and legacy regression, project/cache lifecycle |

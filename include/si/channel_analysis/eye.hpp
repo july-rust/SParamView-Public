@@ -62,7 +62,12 @@ struct EyeData {
   double eyeHeightV = 0, eyeWidthSeconds = 0, eyeWidthUI = 0;
   double minimumHighV = 0, maximumLowV = 0;
   double minimumReceivedV = 0, maximumReceivedV = 0;
+  EyeSettings settings;
+  size_t frameBitCount = 0;
+  bool samplingPhaseThresholdOpen = false;
   bool bandLimited = false, simulated = true;
+  std::string victimId; // populated by the verified source adapter
+  bool reverse = false;
   std::string profileName, transferParameter;
   // Deterministic worst-case sampled high/low separation for the GIVEN
   // periodic bit sequence; never an eye-mask, statistical BER, or compliance.
