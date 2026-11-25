@@ -245,12 +245,12 @@ void MainWindow::task(std::function<void(si::Control *)> work,
             progress->hide();
             cancelButton->hide();
             watcher->deleteLater();
+            statusBar()->showMessage(state->cancelled ? "Cancelled · Ready"
+                                                      : "Ready");
             if (!failure->isEmpty())
               error(*failure);
             else if (!state->cancelled && done)
               done();
-            statusBar()->showMessage(state->cancelled ? "Cancelled · Ready"
-                                                      : "Ready");
           });
   taskPool.setMaxThreadCount(1);
   taskPool.setExpiryTimeout(-1);
