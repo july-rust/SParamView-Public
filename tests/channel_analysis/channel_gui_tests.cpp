@@ -195,7 +195,7 @@ int main(int argc, char **argv) {
         const double x=double(i)/16.0;
         const double loss=1.5+2.0*std::sqrt(x)+3.0*x+0.25*x*x;
         const double v=std::pow(10.0,-loss/20.0);
-        out<<i<<" 0 0 "<<v<<" 0 "<<v<<" 0 0 0\n";
+        out<<i<<" 0 0 "<<v<<" 0 "<<v*0.5<<" 0 0 0\n";
       }
     }
     auto cache=si::Cache::open(snp,
@@ -273,6 +273,48 @@ int main(int argc, char **argv) {
     check(!actualPng.isNull() && actualPng.width()>200 &&
           actualPng.height()>200,"PNG not a usable rendered plot");
 
+    auto *ildStatus=ild->findChild<QLabel *>(QStringLiteral("analysisStatus"));
+    check(ildStatus && ildStatus->text().contains("Band RMS") &&
+          ildStatus->text().contains("0–16 GHz"),"ILD actual band and RMS definition missing");
+    auto *seDirection=ild->findChild<QComboBox *>(QStringLiteral("analysisDirection"));
+    check(seDirection,"Single-ended ILD direction missing");
+    seDirection->setCurrentIndex(1);
+    check(ild->status()==S::Stale && !csv->isEnabled() && !png->isEnabled(),
+          "ILD direction change must invalidate outputs");
+    ild->runButton()->click();drain(manager.scheduler());
+    check(ild->status()==S::Valid,"Single-ended reverse ILD failed");
+    const auto reverseName=ildDir.filePath(QStringLiteral("ild-reverse.csv"));
+    check(ild->saveIldCsv(reverseName),"Single-ended reverse ILD CSV failed");
+    QFile reverseFile(reverseName);
+    check(reverseFile.open(QIODevice::ReadOnly),"Single-ended reverse CSV read failed");
+    auto reverseBytes=QByteArray(reverseFile.readAll()).replace("\r\n","\n");
+    check(reverseBytes.contains("# parameter,\"S12\""),"Single-ended reverse parameter");
+    const auto reverseAt=reverseBytes.indexOf(ildHeader);
+    check(reverseAt>=0,"Single-ended reverse CSV header");
+    auto reverseRows=reverseBytes.mid(reverseAt+ildHeader.size()).split('\n');
+    check(reverseRows.size()==18,"Single-ended reverse CSV row count");
+    for(int i=0;i<=16;++i) {
+      const auto fields=reverseRows[i].split(',');
+      check(fields.size()==4,"Reverse CSV columns");
+      bool ok=false,fitOk=false,resOk=false;
+      const double x=double(i)/16, expected=1.5+2*std::sqrt(x)+3*x+0.25*x*x+20*std::log10(2.0);
+      const double loss=fields[1].toDouble(&ok), fit=fields[2].toDouble(&fitOk),
+                   residual=fields[3].toDouble(&resOk);
+      check(ok&&fitOk&&resOk&&std::abs(loss-expected)<1e-8&&
+            std::abs(fit-expected)<1e-8&&std::abs(residual)<1e-8,"Reverse ILD independent oracle");
+    }
+    // Invalid unmeasured band must not publish or export previous data.
+    auto *ildStart=ild->findChild<QDoubleSpinBox *>(QStringLiteral("ildStartGhz"));
+    auto *ildStop=ild->findChild<QDoubleSpinBox *>(QStringLiteral("ildStopGhz"));
+    check(ildStart&&ildStop,"ILD range controls missing");
+    ildStart->setValue(20);ildStop->setValue(30);
+    ild->runButton()->click();drain(manager.scheduler());
+    check(ild->status()==S::Error && !csv->isEnabled() && !png->isEnabled() &&
+          !ild->saveIldCsv(ildDir.filePath("unmeasured-ild.csv")) &&
+          !ild->saveIldPng(ildDir.filePath("unmeasured-ild.png")),"Unmeasured ILD band exported");
+    ildStart->setValue(0);seDirection->setCurrentIndex(0);
+    ild->runButton()->click();drain(manager.scheduler());
+    check(ild->status()==S::Valid,"ILD did not recover after invalid band");
     numericContext.sources[0].sha256=QStringLiteral("stale-sha");
     manager.setContext(numericContext);
     check(ild->status()==S::Stale,"Context replacement failed to mark ILD STALE");

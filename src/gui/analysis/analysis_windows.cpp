@@ -568,6 +568,8 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
   }
   toGhz_->setValue(30);
   if (feature_ == Feature::Ild) {
+    fromGhz_->setObjectName(QStringLiteral("ildStartGhz"));
+    toGhz_->setObjectName(QStringLiteral("ildStopGhz"));
     fitModel_ = new QComboBox;
     fitModel_->setObjectName(QStringLiteral("ildFitModel"));
     fitModel_->addItems({QStringLiteral("Linear"), QStringLiteral("Root + linear"),

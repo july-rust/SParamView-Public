@@ -120,6 +120,12 @@ int main() {
   check(r.value->frequencyHz.size()==9,"frequency filtering");
   s.startHz=12e9;
   reject([&]{calculateIld(fromLoss(linear),s);},"reversed range");
+  s.startHz=20e9;s.stopHz=30e9;
+  reject([&]{calculateIld(fromLoss(linear),s);},"fully unmeasured band");
+  s.startHz=0;s.stopHz=30e9;
+  r=calculateIld(fromLoss(linear),s);
+  near(r.value->rangeStopHz,16e9,1e-5,"partial band intersection");
+  near(r.value->requestedStopHz,30e9,1e-5,"requested range provenance");
   s.startHz=0;s.stopHz=16e9;
   auto zero=fromLoss(linear);zero.transfer[7]={0,0};
   reject([&]{calculateIld(zero,s);},"zero transfer");
