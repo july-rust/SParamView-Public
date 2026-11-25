@@ -11,3 +11,5 @@ References: https://scikit-rf.readthedocs.io/en/latest/api/generated/skrf.networ
 Local git clone unavailable (DNS); exact-head CI and review required. No verified test results recorded here.
 
 Follow-up coverage: analytic delay, RC low-pass, AC high-pass and lossy-delay direct inverse DFT and convolution; actual Touchstone/GUI preview/manual, modal cancel/accept and CSV/PNG provenance. An unavailable model spread is explicitly exported as NOT_EVALUATED. All tests are added, not yet observed passing.
+
+Safety review: a materially inconsistent but real original DC is ambiguous (e.g. a physical pole below the observed band); do not silently overwrite it. Block in that case. A nonreal original DC violates Hermitian symmetry and may be replaced only with stable local estimates and LIMITED provenance. Added hidden AC pole and real-spike tests. Local independent NumPy analytic-grid precheck (not the built C++ application): delay/RC LP/RC HP model DC error below 1e-15; lossy-delay DC error 0.00010343, voltage RMSE 0.00003103 V; sampled height/width/delay changes negligible for these particular cases. Exact-head compiled tests still required.

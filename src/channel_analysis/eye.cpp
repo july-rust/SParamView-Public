@@ -176,6 +176,12 @@ EyeDcInfo inspectEyeDc(const ComplexTrace &trace) {
     return dc;
   }
   require(stable,"DC missing or suspect; low-frequency models disagree or data insufficient");
+  // A physically real but discrepant measured DC may be a genuine unobserved
+  // low-frequency pole/zero (e.g. AC coupling), not a corrupt source sample.
+  // Do not overwrite it based solely on extrapolation. Nonreal DC violates
+  // the real-system Hermitian contract and can be replaced if the fit is stable.
+  require(!original || !closeReal(trace.transfer[0]),
+          "Real DC conflicts with local extrapolation; cannot distinguish corrupt DC from an unobserved pole/zero");
   dc.effectiveStartHz=f;
   dc.value=estimate;
   dc.status=original?"CORRECTED DC":"EXTRAPOLATED DC";

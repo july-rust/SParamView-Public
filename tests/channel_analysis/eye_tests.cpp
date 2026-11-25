@@ -346,6 +346,16 @@ int main() {
     check(repaired.value->dc.status=="CORRECTED DC","corrupt DC corrected");
     close(repaired.value->dc.value,0.5,0.001,"corrected analytical DC");
     check(damaged.transfer.front()==Complex{0.9,0.2},"damaged source untouched");
+    // A real DC discrepancy alone is not proof of corruption: a real
+    // AC-coupled channel may have a pole well below the first measured f.
+    auto realSpike=good;realSpike.transfer.front()={0.9,0};
+    reject([&]{(void)calculateEye(realSpike,s);},"real DC ambiguity must not be silently corrected");
+    auto hiddenPole=good;
+    for(size_t i=0;i<hiddenPole.transfer.size();++i) {
+      const Complex x{0,hiddenPole.frequencyHz[i]/0.01};
+      hiddenPole.transfer[i]=x/(Complex{1,0}+x);
+    }
+    reject([&]{(void)calculateEye(hiddenPole,s);},"real AC-coupled zero DC must not become unity");
     auto blocked=lowTrace(100000,true);blocked.transfer.front()={0.5,0.2};
     reject([&]{(void)calculateEye(blocked,s);},"invalid original DC cannot bypass cutoff");
     auto unstable=lowTrace(1000);unstable.transfer[1]={0.2,0.4};
