@@ -2,9 +2,11 @@
 #include "si/core.hpp"
 #include "workers.hpp"
 #include "cache_session.hpp"
+#include "user_preferences.hpp"
 #include "gui/analysis/analysis_windows.hpp"
 #include <QtConcurrent>
 #include <QtWidgets>
+#include <QWindow>
 #include <functional>
 #include <set>
 
@@ -124,7 +126,8 @@ public:
   MainWindow();
   ~MainWindow() override;
   void openPaths(QStringList);
-  void loadProject(QString);
+  void loadProject(QString, bool rememberDirectory = true);
+  void showWithSavedWindowState();
   bool selftest(const QString &examples, const QString &output);
   bool validateProject(const QString &project, const QString &output);
   void installHeaderProjectButtons() {
@@ -150,7 +153,7 @@ public:
     openProject->setToolTip("Open an SParamView project (.siproject)");
     connect(openProject, &QPushButton::clicked, this, [this] {
       const auto path = QFileDialog::getOpenFileName(
-          this, "Project", {}, "SI Project (*.siproject)");
+          this, "Project", sparamview::preferences::workingDirectory(), "SI Project (*.siproject)");
       if (!path.isEmpty())
         loadProject(path);
     });
@@ -216,6 +219,8 @@ private:
   int workspaceMode = 0, savedWorkspaceTab = 0, directionMode = 0;
   bool normalChannelsVisible = true, normalSettingsVisible = true;
   bool fullscreenWasMaximized = false;
+  bool persistStartupWindow = false;
+  void saveStartupWindowState();
   QRect fullscreenNormalGeometry;
   QByteArray normalSplitState, normalHorizontalState;
   void setWorkspaceMode(int);

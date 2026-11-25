@@ -8,11 +8,11 @@
 | 012_44 | ILD final numerical and GUI/export qualification; restore locked bandwidth-weighted fit/band-integral RMS (candidate; exact-head evidence pending) |
 | 012_45 | ICN final numerical and GUI/export qualification (candidate; exact-head evidence pending) |
 | 012_46 | Eye final numerical and GUI/export qualification (candidate; exact-head evidence pending) |
-| 012_47 | UX defaults, New, last directory |
-| 012_48 | Sequential port setup, main-window state |
+| 012_47 | UX defaults, last directory, main-window state (requirements 01, 03, 06) |
+| 012_48 | New/workspace cache lifecycle, sequential individual port setup (02, 05) |
 | 012_49 | Integrated and legacy regression, project/cache lifecycle |
-| 012_50 | Windows x64, native Windows ARM64, macOS arm64 native execution |
-| 012_51 | Release candidate, package size, docs, license, SHA-256 |
+| 012_50 | Windows x64, native Windows ARM64, macOS arm64 native execution and package dependency/size optimization (04) |
+| 012_51 | Release candidate; final six-requirement audit, package size evidence, docs, license, SHA-256 |
 | 012_52 | Protected final main PR, post-merge CI, official release |
 
 All three release analyzers retain their prior numerical, fail-closed, GUI, export and independent verification requirements. Existing UX requests are retained. No measured BER or MIPI compliance claim from simulated eye; no arbitrary standards PASS for generic ILD/ICN. Exact PR-head required CI, review, protected squash integration merge and post-merge CI evidence are mandatory for 012_43 COMPLETE. No bypass. The official v1.3.5 tag/assets and main remain unchanged during this step.

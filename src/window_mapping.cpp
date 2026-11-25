@@ -203,6 +203,7 @@ void MainWindow::openPaths(QStringList paths) {
           projectName = revisions.front().name;
         dirty = true;
         auto &current = revisions.back();
+        sparamview::preferences::rememberFile(current.source);
         if (current.confirmed) {
           rebuildChannels();
           notice->setText("Touchstone data loaded. Mapping validated from " +
@@ -748,7 +749,7 @@ void MainWindow::importMapping() {
   if (i < 0 || busy)
     return;
   auto path =
-      QFileDialog::getOpenFileName(this, "Mapping CSV", {}, "CSV (*.csv)");
+      QFileDialog::getOpenFileName(this, "Mapping CSV", sparamview::preferences::workingDirectory(), "CSV (*.csv)");
   if (path.isEmpty())
     return;
   try {
@@ -774,6 +775,7 @@ void MainWindow::importMapping() {
     invalidateRevisionResults(revisions[size_t(i)].name);
     rebuildChannels();
     notice->setText("Mapping confirmed. Select channels and run analysis.");
+    sparamview::preferences::rememberFile(path);
   } catch (const std::exception &e) {
     error(qs(e.what()));
   }
@@ -784,12 +786,13 @@ void MainWindow::exportMapping() {
     return;
   auto path =
       withExtension(QFileDialog::getSaveFileName(this, "Mapping CSV",
-                                                 "mapping.csv", "CSV (*.csv)"),
+                                                 sparamview::preferences::saveSuggestion("mapping.csv"), "CSV (*.csv)"),
                     ".csv");
   if (path.isEmpty())
     return;
   try {
     si::writeMappingCsv(fp(path), revisions[size_t(i)].channels);
+    sparamview::preferences::rememberFile(path);
   } catch (const std::exception &e) {
     error(qs(e.what()));
   }

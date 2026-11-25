@@ -1,3 +1,4 @@
+#include "../../user_preferences.hpp"
 #include "gui/analysis/analysis_windows.hpp"
 #include <algorithm>
 #include <cmath>
@@ -1085,8 +1086,8 @@ void AnalysisWindow::showIld(const WorkOutcome &outcome) {
 void AnalysisWindow::exportIldCsv() {
   if(!ildResult_) return;
   const QString name=QFileDialog::getSaveFileName(this,QStringLiteral("Export ILD data"),
-                          QStringLiteral("ILD.csv"),QStringLiteral("CSV (*.csv)"));
-  if(!name.isEmpty()) saveIldCsv(name);
+                          sparamview::preferences::saveSuggestion(QStringLiteral("ILD.csv")),QStringLiteral("CSV (*.csv)"));
+  if(!name.isEmpty() && saveIldCsv(name)) sparamview::preferences::rememberFile(name);
 }
 bool AnalysisWindow::saveIldCsv(const QString &name) {
   if(!ildResult_ || name.isEmpty()) return false;
@@ -1139,8 +1140,8 @@ bool AnalysisWindow::saveIldCsv(const QString &name) {
 void AnalysisWindow::exportIldPng() {
   if(!ildResult_ || !ildGraph_) return;
   const QString name=QFileDialog::getSaveFileName(this,QStringLiteral("Export ILD plot"),
-                       QStringLiteral("ILD.png"),QStringLiteral("PNG (*.png)"));
-  if(!name.isEmpty()) saveIldPng(name);
+                       sparamview::preferences::saveSuggestion(QStringLiteral("ILD.png")),QStringLiteral("PNG (*.png)"));
+  if(!name.isEmpty() && saveIldPng(name)) sparamview::preferences::rememberFile(name);
 }
 bool AnalysisWindow::saveIldPng(const QString &name) {
   if(!ildResult_ || !ildGraph_ || name.isEmpty()) return false;
@@ -1318,9 +1319,9 @@ void AnalysisWindow::showIcn(const WorkOutcome &outcome) {
 void AnalysisWindow::exportIcnCsv() {
   if(!icnResult_) return;
   const QString name=QFileDialog::getSaveFileName(this,
-    QStringLiteral("Export ICN numerical data"),QStringLiteral("ICN.csv"),
+    QStringLiteral("Export ICN numerical data"),sparamview::preferences::saveSuggestion(QStringLiteral("ICN.csv")),
     QStringLiteral("CSV (*.csv)"));
-  if(!name.isEmpty()) saveIcnCsv(name);
+  if(!name.isEmpty() && saveIcnCsv(name)) sparamview::preferences::rememberFile(name);
 }
 bool AnalysisWindow::saveIcnCsv(const QString &name) {
   if(!icnResult_ || name.isEmpty() ||
@@ -1400,9 +1401,9 @@ bool AnalysisWindow::saveIcnCsv(const QString &name) {
 void AnalysisWindow::exportIcnPng() {
   if(!icnResult_) return;
   const QString name=QFileDialog::getSaveFileName(this,
-    QStringLiteral("Export ICN plot"),QStringLiteral("ICN.png"),
+    QStringLiteral("Export ICN plot"),sparamview::preferences::saveSuggestion(QStringLiteral("ICN.png")),
     QStringLiteral("PNG (*.png)"));
-  if(!name.isEmpty()) saveIcnPng(name);
+  if(!name.isEmpty() && saveIcnPng(name)) sparamview::preferences::rememberFile(name);
 }
 bool AnalysisWindow::saveIcnPng(const QString &name) {
   if(!icnResult_ || !icnGraph_ || name.isEmpty() ||
@@ -1597,9 +1598,9 @@ void AnalysisWindow::showEye(const WorkOutcome &outcome) {
 void AnalysisWindow::exportEyeCsv() {
   if(!eyeResult_)return;
   const QString name=QFileDialog::getSaveFileName(this,
-      QStringLiteral("Export simulated Eye numerical data"),QStringLiteral("Eye.csv"),
+      QStringLiteral("Export simulated Eye numerical data"),sparamview::preferences::saveSuggestion(QStringLiteral("Eye.csv")),
       QStringLiteral("CSV (*.csv)"));
-  if(!name.isEmpty())saveEyeCsv(name);
+  if(!name.isEmpty() && saveEyeCsv(name)) sparamview::preferences::rememberFile(name);
 }
 bool AnalysisWindow::saveEyeCsv(const QString &name) {
   using S=si::channel::Status;
@@ -1687,9 +1688,9 @@ bool AnalysisWindow::saveEyeCsv(const QString &name) {
 void AnalysisWindow::exportEyePng() {
   if(!eyeResult_)return;
   const QString name=QFileDialog::getSaveFileName(this,
-      QStringLiteral("Export simulated Eye graph"),QStringLiteral("Eye.png"),
+      QStringLiteral("Export simulated Eye graph"),sparamview::preferences::saveSuggestion(QStringLiteral("Eye.png")),
       QStringLiteral("PNG (*.png)"));
-  if(!name.isEmpty())saveEyePng(name);
+  if(!name.isEmpty() && saveEyePng(name)) sparamview::preferences::rememberFile(name);
 }
 bool AnalysisWindow::saveEyePng(const QString &name) {
   using S=si::channel::Status;

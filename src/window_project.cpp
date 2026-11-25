@@ -7,7 +7,7 @@ void MainWindow::saveProject(bool as) {
     if (path.isEmpty() || as)
       path =
           withExtension(QFileDialog::getSaveFileName(
-                            this, "Save Project", projectName + ".siproject",
+                            this, "Save Project", sparamview::preferences::saveSuggestion(projectName + ".siproject"),
                             "SI Project (*.siproject)"),
                         ".siproject");
     if (path.isEmpty())
@@ -59,13 +59,14 @@ void MainWindow::saveProject(bool as) {
         file.write(QJsonDocument(obj).toJson()) < 0 || !file.commit())
       throw si::Error("Project save failed");
     projectPath = path;
+    sparamview::preferences::rememberFile(path);
     dirty = false;
     notice->setText("Project saved: " + QFileInfo(path).fileName());
   } catch (const std::exception &e) {
     error(qs(e.what()));
   }
 }
-void MainWindow::loadProject(QString path) {
+void MainWindow::loadProject(QString path, bool rememberDirectory) {
   if (busy)
     return;
   try {
@@ -91,7 +92,7 @@ void MainWindow::loadProject(QString path) {
         source = r["absoluteSource"].toString();
       if (!QFileInfo::exists(source)) {
         source = QFileDialog::getOpenFileName(
-            this, "Locate Source File: " + r["name"].toString(), {},
+            this, "Locate Source File: " + r["name"].toString(), sparamview::preferences::workingDirectory(),
             "Touchstone (*.s*p *.ts)");
         if (source.isEmpty())
           return;
@@ -152,7 +153,7 @@ void MainWindow::loadProject(QString path) {
                                    "Saved SHA-256 matches fully verified current source";
           }
         },
-        [this, staged, loaded, settingsLoaded, path, obj] {
+        [this, staged, loaded, settingsLoaded, path, obj, rememberDirectory] {
           QScopedValueRollback<bool> restoring(restoringProject,true);
           // Cancel channel jobs before releasing or replacing source caches.
           if (analysisWindows) analysisWindows->setContext({});
@@ -219,6 +220,7 @@ void MainWindow::loadProject(QString path) {
           dirty = false;
           refreshAnalysisContext();
           notice->setText("Project restored. Reconfirm mapping for revisions whose source files have changed.");
+          if (rememberDirectory) sparamview::preferences::rememberFile(path);
         });
   } catch (const std::exception &e) {
     error(qs(e.what()));
@@ -230,10 +232,10 @@ void MainWindow::preset(bool save) {
       syncSettings();
     QString path =
         save ? withExtension(QFileDialog::getSaveFileName(
-                                 this, "Save Limit Preset", "SI_Rule.json",
+                                 this, "Save Limit Preset", sparamview::preferences::saveSuggestion("SI_Rule.json"),
                                  "JSON (*.json)"),
                              ".json")
-             : QFileDialog::getOpenFileName(this, "Load Limit Preset", {},
+             : QFileDialog::getOpenFileName(this, "Load Limit Preset", sparamview::preferences::workingDirectory(),
                                             "JSON (*.json)");
     if (path.isEmpty())
       return;
@@ -263,6 +265,7 @@ void MainWindow::preset(bool save) {
       applySettings();
       dirty = true;
     }
+    sparamview::preferences::rememberFile(path);
   } catch (const std::exception &e) {
     error(qs(e.what()));
   }

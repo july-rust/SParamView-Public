@@ -307,6 +307,71 @@ struct WorkspaceProbe {
   result["axes_selection_results_preserved"]=true;result["divider_adjustable"]=true;result["fullscreen_restored"]=!offscreen;
   result["metric_switch_without_analysis"]=true;result["passed"]=true;w.dirty=false;return result;
  }
+ static void preferencesQualification(const QString &out) {
+  using namespace sparamview::preferences;
+  const double expected[] = {-10, -3, -20, -20};
+  {
+   MainWindow w;
+   for (int i=0;i<4;++i) {
+    check(w.limitValues[i]->value()==expected[i],"Fresh GUI limit mismatch");
+    check(!w.limits[i]->isChecked(),"Fresh GUI limit unexpectedly enabled");
+   }
+   check(w.tolerance->value()==10 && !w.tdrLimit->isChecked(),"TDR symmetric tolerance default");
+   w.syncSettings();
+   const auto saved = settingsJson(w.settings);
+   const auto roundtrip = settingsFromJson(saved);
+   check(roundtrip.rl.constant==-10 && roundtrip.il.constant==-3 &&
+         roundtrip.next.constant==-20 && roundtrip.fext.constant==-20,
+         "Default GUI/model roundtrip");
+   auto legacy = saved;
+   auto limits = legacy["limits"].toArray();
+   auto old = limits[0].toObject();
+   old["constant"]=0; old["enabled"]=true;
+   limits[0]=old; legacy["limits"]=limits;
+   const auto loaded = settingsFromJson(legacy);
+   check(loaded.rl.constant==0 && loaded.rl.enabled,"Explicit legacy settings not preserved");
+  }
+  const auto dir=QDir(out).absoluteFilePath(QStringLiteral("Preference 한글 space"));
+  check(QDir().mkpath(dir),"Cannot create preference directory fixture");
+  const auto path=QDir(dir).filePath("sample.s2p");
+  QFile fixture(path);
+  check(fixture.open(QIODevice::WriteOnly),"Cannot create preference file");
+  fixture.close();
+  rememberFile(path);
+  check(workingDirectory()==dir && workingDirectory(true)==dir,"Working directory roundtrip");
+  check(saveSuggestion("report.csv")==QDir(dir).filePath("report.csv"),"Save suggestion");
+  rememberFile({});
+  check(workingDirectory()==dir,"Cancelled path changed working directory");
+  {auto p=store(); p.setValue("workspace/v1/lastDirectory",QDir(dir).filePath("missing"));p.sync();}
+  check(usableDirectory(workingDirectory()) && workingDirectory()!=QDir(dir).filePath("missing"),
+        "Missing directory fallback");
+  {auto p=store(); p.setValue("workspace/v1/lastDirectory",42);p.sync();}
+  check(usableDirectory(workingDirectory()),"Corrupt directory fallback");
+  const QRect monitor(-1280, 20, 1280, 700);
+  const auto centered=centeredNormalGeometry(QSize(900,500),monitor);
+  check(centered.size()==QSize(900,500) && centered.center()==monitor.center(),"Negative screen center");
+  const auto clipped=centeredNormalGeometry(QSize(8000,4000),monitor);
+  check(monitor.contains(clipped) && clipped.center()==monitor.center(),"Monitor bounds");
+  {auto p=store();p.remove("workspace/v1/windowNormalSize");p.remove("workspace/v1/windowMaximized");p.sync();}
+  check(readWindowState().maximized,"Missing window state must maximize");
+  {
+   MainWindow w; w.showWithSavedWindowState();
+   check(w.isMaximized(),"Fresh window not maximized");
+   w.close();
+  }
+  writeWindowState({QSize(900,600),false});
+  {const auto state=readWindowState();check(!state.maximized && state.normalSize==QSize(900,600),"Normal state roundtrip");}
+  {
+   MainWindow w;w.showWithSavedWindowState();
+   check(!w.isMaximized() && !w.isMinimized(),"Normal state not restored");
+   w.close();
+  }
+  writeWindowState({QSize(1000,700),true});
+  {const auto state=readWindowState();check(state.maximized && state.normalSize==QSize(1000,700),"Maximized state roundtrip");}
+  {auto p=store();p.setValue("workspace/v1/windowNormalSize","bad");p.sync();}
+  check(readWindowState().maximized && !readWindowState().normalSize.isValid(),"Corrupt state fallback");
+  {auto p=store();p.remove("workspace/v1/lastDirectory");p.remove("workspace/v1/windowNormalSize");p.remove("workspace/v1/windowMaximized");p.sync();}
+ }
  static void persistence(MainWindow&w) {
   check(w.tableTextSize->currentData().toInt()==18,"Table font preference not restored");
   check(w.workspaceMode==0,"Unexpected startup focus");
@@ -327,10 +392,11 @@ int main(int argc,char**argv){
 #endif
  try{
   QSize size(argc>3?QString::fromLocal8Bit(argv[3]).toInt():1440,argc>4?QString::fromLocal8Bit(argv[4]).toInt():980);
+  WorkspaceProbe::preferencesQualification(out);
   QJsonObject result;
   WorkspaceProbe::stage("construct MainWindow");
   {MainWindow w;WorkspaceProbe::stage("MainWindow constructed");applyCompactAnalysisSettings(w);w.installHeaderProjectButtons();result=WorkspaceProbe::run(w,QString::fromLocal8Bit(argv[1]),out,size);}
   {MainWindow w;WorkspaceProbe::persistence(w);}
-  result["preferences_restored"]=true;QFile f(out+"/Workspace.json");check(f.open(QIODevice::WriteOnly),"Cannot save QA");f.write(QJsonDocument(result).toJson());std::cout<<QJsonDocument(result).toJson().constData();return 0;
+  result["preferences_restored"]=true;result["012_47_preferences_qualified"]=true;QFile f(out+"/Workspace.json");check(f.open(QIODevice::WriteOnly),"Cannot save QA");f.write(QJsonDocument(result).toJson());std::cout<<QJsonDocument(result).toJson().constData();return 0;
  }catch(const std::exception&e){std::cerr<<e.what()<<'\n';return 1;}
 }

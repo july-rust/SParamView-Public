@@ -1,3 +1,44 @@
+void MainWindow::showWithSavedWindowState() {
+  using namespace sparamview::preferences;
+  persistStartupWindow = true;
+  const auto state = readWindowState();
+  auto *screen = QGuiApplication::screenAt(QCursor::pos());
+  if (!screen) screen = QGuiApplication::primaryScreen();
+  if (screen) {
+    // Associate the native window with the cursor's screen before showing it.
+    winId();
+    if (windowHandle()) windowHandle()->setScreen(screen);
+    const auto area = screen->availableGeometry();
+    const auto rect = centeredNormalGeometry(state.normalSize, area);
+    if (rect.isValid()) {
+      resize(rect.size());
+      move(rect.topLeft());
+      if (!state.maximized) {
+        QTimer::singleShot(0, this, [this, area] {
+          if (!isMaximized() && !isMinimized() && !isFullScreen())
+            move(pos() + area.center() - frameGeometry().center());
+        });
+      }
+    }
+  } else if (state.normalSize.isValid()) {
+    resize(state.normalSize);
+  }
+  if (state.maximized) showMaximized();
+  else showNormal();
+}
+
+void MainWindow::saveStartupWindowState() {
+  if (!persistStartupWindow) return;
+  const bool full = isFullScreen();
+  const bool maximized = full ? fullscreenWasMaximized : isMaximized();
+  QRect normal = full && fullscreenNormalGeometry.isValid()
+                    ? fullscreenNormalGeometry : normalGeometry();
+  if (!normal.isValid() && !isMinimized() && !full && !maximized)
+    normal = geometry();
+  // Do not replace a good preference with invalid/minimized geometry.
+  if (normal.isValid() && !normal.size().isEmpty())
+    sparamview::preferences::writeWindowState({normal.size(), maximized});
+}
 void MainWindow::updateActiveTouchstoneTitle() {
   QString title = "SParamView · " + qs(si::version);
   if (QString::fromLatin1(architectureName()) == "ARM64")
