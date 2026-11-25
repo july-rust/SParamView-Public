@@ -54,6 +54,8 @@ Result<IldData> calculateIld(const ComplexTrace &trace, const IldSettings &setti
   value.parameter = trace.parameter;
   value.modelName = modelLabel;
   value.frequencyScaleHz = scale;
+  value.requestedStartHz = settings.startHz;
+  value.requestedStopHz = settings.stopHz;
   value.rangeStartHz = *first;
   value.rangeStopHz = *(last - 1);
   value.frequencyHz.reserve(n);
@@ -62,6 +64,9 @@ Result<IldData> calculateIld(const ComplexTrace &trace, const IldSettings &setti
   value.deviationDb.reserve(n);
   // Construct a bounded, normalized matrix and solve with twice-reorthogonalized
   // modified Gram-Schmidt QR. Never invert the ill-conditioned normal equations.
+  // Trapezoidal cell weights, normalized by the actual measured span.
+  const double span = value.rangeStopHz - value.rangeStartHz;
+  std::vector<double> rootWeights(n);
   std::array<std::vector<double>,4> columns;
   for (size_t j=0;j<width;++j) columns[j].reserve(n);
   for (size_t i=0;i<n;++i) {
@@ -74,11 +79,15 @@ Result<IldData> calculateIld(const ComplexTrace &trace, const IldSettings &setti
     value.frequencyHz.push_back(f);
     value.insertionLossDb.push_back(loss);
     auto b=basis(f/scale, settings.model);
-    for(size_t j=0;j<width;++j) columns[j].push_back(b[j]);
+    const double left = i ? (f-trace.frequencyHz[offset+i-1])/span : 0.0;
+    const double right = i+1<n ? (trace.frequencyHz[offset+i+1]-f)/span : 0.0;
+    rootWeights[i]=std::sqrt(0.5*(left+right));
+    require(std::isfinite(rootWeights[i]) && rootWeights[i]>0,"Invalid ILD bandwidth weight");
+    for(size_t j=0;j<width;++j) columns[j].push_back(b[j]*rootWeights[i]);
   }
   std::array<std::array<double,4>,4> r{};
   const double threshold=1e-10;
-  const double initialNorm=std::sqrt(double(n));
+  const double initialNorm=1.0; // normalized cell weights sum to one
   for(size_t j=0;j<width;++j) {
     check(cancelled);
     for(size_t k=0;k<j;++k) {
@@ -99,7 +108,7 @@ Result<IldData> calculateIld(const ComplexTrace &trace, const IldSettings &setti
   std::array<double,4> c{};
   for(size_t j=0;j<width;++j) {
     check(cancelled);
-    for(size_t i=0;i<n;++i) c[j]+=columns[j][i]*value.insertionLossDb[i];
+    for(size_t i=0;i<n;++i) c[j]+=columns[j][i]*value.insertionLossDb[i]*rootWeights[i];
   }
   for(int j=int(width)-1;j>=0;--j) {
     double rhs=c[size_t(j)];
@@ -109,7 +118,9 @@ Result<IldData> calculateIld(const ComplexTrace &trace, const IldSettings &setti
   }
   value.minimumDb=std::numeric_limits<double>::infinity();
   value.maximumDb=-value.minimumDb;
-  double sumSquares=0;
+  double integral=0;
+  double previous=0;
+  value.peakFrequencyHz=value.frequencyHz.front();
   for(size_t i=0;i<n;++i) {
     if (!(i % 1024)) check(cancelled);
     const auto b=basis(value.frequencyHz[i]/scale, settings.model);
@@ -125,9 +136,14 @@ Result<IldData> calculateIld(const ComplexTrace &trace, const IldSettings &setti
       value.peakAbsoluteDb=std::abs(residual);
       value.peakFrequencyHz=value.frequencyHz[i];
     }
-    sumSquares+=residual*residual;
+    // Exact integral of squared piecewise-linear residual, divided by span.
+    if(i) {
+      const double fraction=(value.frequencyHz[i]-value.frequencyHz[i-1])/span;
+      integral+=fraction*(previous*previous+previous*residual+residual*residual)/3.0;
+    }
+    previous=residual;
   }
-  value.rmsDb=std::sqrt(sumSquares/double(n));
+  value.rmsDb=std::sqrt(integral);
   require(std::isfinite(value.rmsDb), "Invalid ILD RMS");
   Result<IldData> result;
   result.provenance=std::move(provenance);

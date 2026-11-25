@@ -195,7 +195,7 @@ int main(int argc, char **argv) {
         const double x=double(i)/16.0;
         const double loss=1.5+2.0*std::sqrt(x)+3.0*x+0.25*x*x;
         const double v=std::pow(10.0,-loss/20.0);
-        out<<i<<" 0 0 "<<v<<" 0 "<<v<<" 0 0 0\n";
+        out<<i<<" 0 0 "<<v<<" 0 "<<v*0.5<<" 0 0 0\n";
       }
     }
     auto cache=si::Cache::open(snp,
@@ -223,6 +223,9 @@ int main(int argc, char **argv) {
     auto *ild=manager.openWindow(Feature::Ild);
     check(manager.action(Feature::Ild)->isEnabled(), "ILD menu not enabled");
     check(ild->runButton()->isEnabled(), "Verified ILD Run disabled");
+    auto *ildModel=ild->findChild<QComboBox *>(QStringLiteral("ildFitModel"));
+    check(ildModel && ildModel->currentIndex()==1,"ILD default must be root-linear");
+    ildModel->setCurrentIndex(2); // fixture is an exact quadratic-root model
     ild->runButton()->click();
     drain(manager.scheduler());
     check(ild->status()==S::Valid, "Real ILD worker did not produce VALID result");
@@ -244,10 +247,74 @@ int main(int argc, char **argv) {
           csvBytes.contains("# fitting_model,"),
           "CSV numerical/provenance columns missing");
     check(csvBytes.count('\n')>=32,"CSV numeric row count suspicious");
+    check(csvBytes.contains("# fit_weighting,trapezoidal_bandwidth_cell") &&
+          csvBytes.contains("# rms_definition,band_integral_piecewise_linear") &&
+          csvBytes.contains("# peak_frequency_hz,") &&
+          csvBytes.contains("# requested_stop_hz,30000000000"),
+          "ILD export calculation contract incomplete");
+    auto normalizedIld=QByteArray(csvBytes).replace("\r\n","\n");
+    const QByteArray ildHeader="Frequency_GHz,IL_dB,Fitted_IL_dB,ILD_dB\n";
+    const auto ildAt=normalizedIld.indexOf(ildHeader);
+    check(ildAt>=0,"ILD CSV header missing");
+    const auto ildRows=normalizedIld.mid(ildAt+ildHeader.size()).split('\n');
+    check(ildRows.size()==18 && ildRows.back().isEmpty(),"ILD CSV exact row count");
+    for(int i=0;i<=16;++i) {
+      const auto fields=ildRows[i].split(',');
+      check(fields.size()==4,"ILD CSV column count");
+      bool fOk=false,ilOk=false,fitOk=false,resOk=false;
+      const double f=fields[0].toDouble(&fOk), il=fields[1].toDouble(&ilOk),
+                   fit=fields[2].toDouble(&fitOk), residual=fields[3].toDouble(&resOk);
+      const double x=double(i)/16, expected=1.5+2*std::sqrt(x)+3*x+0.25*x*x;
+      check(fOk&&ilOk&&fitOk&&resOk&&std::abs(f-i)<1e-9&&
+            std::abs(il-expected)<1e-8&&std::abs(fit-expected)<1e-8&&
+            std::abs(residual)<1e-8,"ILD CSV independent analytical numeric row");
+    }
     QImage actualPng(pngPath);
     check(!actualPng.isNull() && actualPng.width()>200 &&
           actualPng.height()>200,"PNG not a usable rendered plot");
 
+    auto *ildStatus=ild->findChild<QLabel *>(QStringLiteral("analysisStatus"));
+    check(ildStatus && ildStatus->text().contains("Band RMS") &&
+          ildStatus->text().contains("0–16 GHz"),"ILD actual band and RMS definition missing");
+    auto *seDirection=ild->findChild<QComboBox *>(QStringLiteral("analysisDirection"));
+    check(seDirection,"Single-ended ILD direction missing");
+    seDirection->setCurrentIndex(1);
+    check(ild->status()==S::Stale && !csv->isEnabled() && !png->isEnabled(),
+          "ILD direction change must invalidate outputs");
+    ild->runButton()->click();drain(manager.scheduler());
+    check(ild->status()==S::Valid,"Single-ended reverse ILD failed");
+    const auto reverseName=ildDir.filePath(QStringLiteral("ild-reverse.csv"));
+    check(ild->saveIldCsv(reverseName),"Single-ended reverse ILD CSV failed");
+    QFile reverseFile(reverseName);
+    check(reverseFile.open(QIODevice::ReadOnly),"Single-ended reverse CSV read failed");
+    auto reverseBytes=QByteArray(reverseFile.readAll()).replace("\r\n","\n");
+    check(reverseBytes.contains("# parameter,\"S12\""),"Single-ended reverse parameter");
+    const auto reverseAt=reverseBytes.indexOf(ildHeader);
+    check(reverseAt>=0,"Single-ended reverse CSV header");
+    auto reverseRows=reverseBytes.mid(reverseAt+ildHeader.size()).split('\n');
+    check(reverseRows.size()==18,"Single-ended reverse CSV row count");
+    for(int i=0;i<=16;++i) {
+      const auto fields=reverseRows[i].split(',');
+      check(fields.size()==4,"Reverse CSV columns");
+      bool ok=false,fitOk=false,resOk=false;
+      const double x=double(i)/16, expected=1.5+2*std::sqrt(x)+3*x+0.25*x*x+20*std::log10(2.0);
+      const double loss=fields[1].toDouble(&ok), fit=fields[2].toDouble(&fitOk),
+                   residual=fields[3].toDouble(&resOk);
+      check(ok&&fitOk&&resOk&&std::abs(loss-expected)<1e-8&&
+            std::abs(fit-expected)<1e-8&&std::abs(residual)<1e-8,"Reverse ILD independent oracle");
+    }
+    // Invalid unmeasured band must not publish or export previous data.
+    auto *ildStart=ild->findChild<QDoubleSpinBox *>(QStringLiteral("ildStartGhz"));
+    auto *ildStop=ild->findChild<QDoubleSpinBox *>(QStringLiteral("ildStopGhz"));
+    check(ildStart&&ildStop,"ILD range controls missing");
+    ildStart->setValue(20);ildStop->setValue(30);
+    ild->runButton()->click();drain(manager.scheduler());
+    check(ild->status()==S::Error && !csv->isEnabled() && !png->isEnabled() &&
+          !ild->saveIldCsv(ildDir.filePath("unmeasured-ild.csv")) &&
+          !ild->saveIldPng(ildDir.filePath("unmeasured-ild.png")),"Unmeasured ILD band exported");
+    ildStart->setValue(0);seDirection->setCurrentIndex(0);
+    ild->runButton()->click();drain(manager.scheduler());
+    check(ild->status()==S::Valid,"ILD did not recover after invalid band");
     numericContext.sources[0].sha256=QStringLiteral("stale-sha");
     manager.setContext(numericContext);
     check(ild->status()==S::Stale,"Context replacement failed to mark ILD STALE");
@@ -531,6 +598,34 @@ int main(int argc, char **argv) {
                             diffCache->meta().sha256,1,1};
     });
     manager.setContext(diffContext);
+    manager.setIldSourceProvider([diffCache,diffLane](int index)
+        ->std::optional<IldSourceInput> {
+      if(index!=0)return std::nullopt;
+      return IldSourceInput{diffCache,{diffLane},"D-PHY fixture revision",
+                            diffCache->meta().sha256,1,1};
+    });
+    ildModel->setCurrentIndex(0);
+    auto *ildDirection=ild->findChild<QComboBox *>(QStringLiteral("analysisDirection"));
+    check(ildDirection,"ILD direction control missing");
+    for(int reverse=0;reverse<=1;++reverse) {
+      ildDirection->setCurrentIndex(reverse);
+      ild->runButton()->click();drain(manager.scheduler());
+      check(ild->status()==S::Valid,"Differential ILD failed");
+      const auto name=ildDir.filePath(QStringLiteral("ild-diff-%1.csv").arg(reverse));
+      check(ild->saveIldCsv(name),"Differential ILD export failed");
+      QFile data(name);check(data.open(QIODevice::ReadOnly),"Differential ILD readback failed");
+      auto bytes=QByteArray(data.readAll()).replace("\r\n","\n");
+      check(bytes.contains(reverse?"Sdd12":"Sdd21"),"Differential ILD direction mismatch");
+      const auto at=bytes.indexOf(ildHeader);
+      check(at>=0,"Differential ILD header missing");
+      const auto rows=bytes.mid(at+ildHeader.size()).split('\n');
+      check(rows.size()==14,"Differential ILD row count");
+      for(int i=0;i<=12;++i) {
+        auto fields=rows[i].split(',');check(fields.size()==4,"Differential ILD columns");
+        bool ok=false;const double loss=fields[1].toDouble(&ok);
+        check(ok&&std::abs(loss+20*std::log10(0.8))<1e-8,"Differential ILD loss oracle");
+      }
+    }
     profile->setCurrentIndex(0);
     check(mode->currentIndex()==2 && std::abs(baud->value()-4.5)<1e-9 &&
           std::abs(reference->value()-2.25)<1e-9 &&

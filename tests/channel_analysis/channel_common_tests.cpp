@@ -1,4 +1,5 @@
 #include "si/channel_analysis/common.hpp"
+#include "si/channel_analysis/ild.hpp"
 #include <algorithm>
 #include <cmath>
 #include <filesystem>
@@ -128,6 +129,44 @@ void snapshotTests(const fs::path &root) {
   expect(close(fwd.transfer[0].real(),.5) &&
          close(rev.transfer[0].real(),.25),
          "actual 2-port directional samples");
+  IldSettings ild;ild.model=IldFitModel::Linear;ild.stopHz=4e9;
+  for(bool reverse:{false,true}) {
+    const auto result=calculateIld(extract(a,"victim",Metric::IL,reverse),ild);
+    expect(result.usable() && close(result.value->insertionLossDb[0],
+        -20*std::log10(reverse?.25:.5)) && result.value->rmsDb<1e-9,
+        "S2P directional ILD oracle");
+  }
+  // More than four physical ports, nonadjacent selected path, distinct directions.
+  const auto multi=root/"ild-multi.s6p";
+  {
+    std::ofstream out(multi);
+    out<<"# GHz S RI R 50\n";
+    // N>=3 Touchstone full matrix is row-major (response, stimulus).
+    for(int k=0;k<=4;++k) {
+      out<<k;
+      for(int response=0;response<6;++response) {
+        for(int stimulus=0;stimulus<6;++stimulus) {
+          double v=.01;
+          if(response==4&&stimulus==1)v=.5;
+          if(response==1&&stimulus==4)v=.25;
+          out<<" "<<v<<" 0";
+        }
+        out<<"\n";
+      }
+    }
+  }
+  auto multiCache=Cache::open(multi,root/"ild-multi-cache",nullptr,true);
+  Channel lane;lane.id="selected";lane.name="Selected";lane.nearP=1;lane.farP=4;
+  Channel other;other.id="other";other.name="Other";other.nearP=0;other.farP=3;
+  auto ms=SourceSnapshot::capture(multiCache,{other,lane},"multi-ild",1,1);
+  for(bool reverse:{false,true}) {
+    auto result=calculateIld(extract(ms,"selected",Metric::IL,reverse),ild);
+    expect(result.usable() && result.value->frequencyHz.size()==5,"S6P selected ILD result");
+    const double expected=-20*std::log10(reverse?.25:.5);
+    for(double loss:result.value->insertionLossDb)
+      expect(close(loss,expected),"S6P nonadjacent mapped directional ILD loss");
+    expect(result.value->rmsDb<1e-9,"S6P flat ILD");
+  }
   expect(close(fwd.stimulusOhm,50) && close(fwd.responseOhm,50),
          "source reference");
   reject([&] { extract(a,"missing",Metric::IL); }, "unconfirmed port mapping");
