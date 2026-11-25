@@ -567,6 +567,10 @@ int main(int argc, char **argv) {
           eyeContent.contains("# reference_frequency_ghz,") &&
           eyeContent.contains("Time_ps,TX_mV,RX_mV") &&
           eyeContent.contains("Overlay_Index,Phase_UI,Received_mV") &&
+          eyeContent.contains("# frame_bits,256") &&
+          eyeContent.contains("# overlay_count,64") &&
+          eyeContent.contains("# direction,Forward") &&
+          eyeContent.contains("# sampling_phase_threshold_open,") &&
           eyeContent.contains("SIMULATED_ONLY"),
           "Eye CSV missing numerical/provenance data");
     QImage eyeImage(eyePngPath);
@@ -575,6 +579,8 @@ int main(int argc, char **argv) {
     check(eyeImage.text(QStringLiteral("SourceSHA256")) ==
           QString::fromStdString(cache->meta().sha256) &&
           eyeImage.text(QStringLiteral("SettingsIdentity")).contains(QStringLiteral("EYE")) &&
+          eyeImage.text(QStringLiteral("Direction"))==QStringLiteral("Forward") &&
+          eyeImage.text(QStringLiteral("FrameBits"))==QStringLiteral("256") &&
           eyeImage.text(QStringLiteral("SimulationStatus")).contains(QStringLiteral("SIMULATED_ONLY")),
           "Eye PNG lost original source SHA, numerical settings or simulation disclaimer");
     // Windows QIODevice::Text emits CRLF; validate numerical samples after
@@ -625,14 +631,14 @@ int main(int argc, char **argv) {
         for(int sourcePort=0;sourcePort<4;++sourcePort)
           for(int responsePort=0;responsePort<4;++responsePort) {
             double v=0;
-            if((sourcePort==0&&responsePort==2) ||
-               (sourcePort==2&&responsePort==0) ||
-               (sourcePort==1&&responsePort==3) ||
-               (sourcePort==3&&responsePort==1))v=0.4;
+            if((sourcePort==0&&responsePort==1) ||
+               (sourcePort==2&&responsePort==3))v=0.4;
             if((sourcePort==0&&responsePort==3) ||
-               (sourcePort==3&&responsePort==0) ||
-               (sourcePort==1&&responsePort==2) ||
                (sourcePort==2&&responsePort==1))v=-0.4;
+            if((sourcePort==1&&responsePort==0) ||
+               (sourcePort==3&&responsePort==2))v=0.25;
+            if((sourcePort==1&&responsePort==2) ||
+               (sourcePort==3&&responsePort==0))v=-0.25;
             out<<" "<<v<<" 0";
           }
         out<<"\n";
@@ -643,7 +649,7 @@ int main(int argc, char **argv) {
       nullptr,true);
     si::Channel diffLane;
     diffLane.id="lane0";diffLane.name="Differential Lane 0";
-    diffLane.nearP=0;diffLane.nearN=1;diffLane.farP=2;diffLane.farN=3;
+    diffLane.nearP=0;diffLane.nearN=2;diffLane.farP=1;diffLane.farN=3;
     AnalysisContext diffContext;
     diffContext.activeSource=0;
     SourceItem diffSource;
@@ -686,7 +692,7 @@ int main(int argc, char **argv) {
       for(int i=0;i<=12;++i) {
         auto fields=rows[i].split(',');check(fields.size()==4,"Differential ILD columns");
         bool ok=false;const double loss=fields[1].toDouble(&ok);
-        check(ok&&std::abs(loss+20*std::log10(0.8))<1e-8,"Differential ILD loss oracle");
+        check(ok&&std::abs(loss+20*std::log10(reverse?0.5:0.8))<1e-8,"Differential ILD loss oracle");
       }
     }
     profile->setCurrentIndex(0);
@@ -710,9 +716,36 @@ int main(int argc, char **argv) {
     const QString diffCsvPath=ildDir.filePath(QStringLiteral("eye-diff-result.csv"));
     check(eye->saveEyeCsv(diffCsvPath),"Differential Eye CSV export failed");
     QFile diffRead(diffCsvPath);
-    check(diffRead.open(QIODevice::ReadOnly) &&
-          diffRead.readAll().contains("Sdd21"),
-          "Differential Eye did not preserve Sdd21 mode provenance");
+    check(diffRead.open(QIODevice::ReadOnly),"forward differential Eye readback");
+    const auto forwardEyeData=diffRead.readAll();
+    check(forwardEyeData.contains("Sdd21"),"Differential Eye did not preserve Sdd21 mode provenance");
+    auto eyeHeightFromCsv=[](const QByteArray &data) {
+      const QByteArray key("# eye_height_mv,");
+      const auto at=data.indexOf(key);
+      if(at<0)throw std::runtime_error("missing eye height");
+      bool ok=false;
+      const auto val=data.mid(at+key.size()).split('\n').front().trimmed().toDouble(&ok);
+      if(!ok || !std::isfinite(val))throw std::runtime_error("invalid eye height");
+      return val;
+    };
+    auto *eyeDirection=eye->findChild<QComboBox *>(QStringLiteral("analysisDirection"));
+    check(eyeDirection,"Eye direction control missing");
+    eyeDirection->setCurrentIndex(1);
+    check(eye->status()==S::Stale && !eyeCsv->isEnabled() && !eyePng->isEnabled(),
+          "Eye direction did not invalidate exports");
+    eye->runButton()->click();drain(manager.scheduler());
+    check(eye->status()==S::Warning,"reverse differential Eye failed");
+    const auto reverseEyePath=ildDir.filePath(QStringLiteral("eye-diff-reverse.csv"));
+    check(eye->saveEyeCsv(reverseEyePath),"reverse Eye export failed");
+    QFile reverseEyeRead(reverseEyePath);
+    check(reverseEyeRead.open(QIODevice::ReadOnly),"reverse Eye readback");
+    const auto reverseEyeData=reverseEyeRead.readAll();
+    check(reverseEyeData.contains("Sdd12") && reverseEyeData.contains("# direction,Reverse") &&
+          reverseEyeData.contains("# victim_id,\"lane0\""),"reverse Eye provenance");
+    const double forwardHeight=eyeHeightFromCsv(forwardEyeData);
+    const double reverseHeight=eyeHeightFromCsv(reverseEyeData);
+    check(forwardHeight>0 && std::abs(reverseHeight-forwardHeight*0.625)<1e-7,
+          "asymmetric nonadjacent Eye amplitude oracle");
     // Requested upper cap cannot silently exceed the measured source.
     cap->setValue(15);
     eye->runButton()->click();

@@ -194,6 +194,14 @@ Result<EyeData> calculateEye(const ComplexTrace &trace, const EyeSettings &s,
   }
   const size_t n=s.fftLength, spp=s.samplesPerUI, bitCount=n/spp;
   const double dt=1.0/sampleRate;
+  const double ui=1.0/s.bitRateHz;
+  require(positive(dt) && positive(ui) && positive(sampleRate/double(n)) &&
+          std::isfinite(double(n)*dt*1e12) && std::isfinite(ui*1e12),
+          "Eye time grid exceeds finite display range");
+  for(double v:{e.txLowV,e.txHighV,e.rxThresholdV,e.rxInputMinimumV,e.rxInputMaximumV})
+    require(std::isfinite(v*1000), "Eye electrical value exceeds finite mV range");
+  require(std::isfinite((e.txHighV-e.txLowV)*1000),
+          "Eye voltage swing exceeds finite mV range");
   const auto bits=sequence(s,bitCount);
   bool active=false;
   auto h=spectrum(trace,s.analysisStopHz,sampleRate,n,cancelled,active);
@@ -204,20 +212,25 @@ Result<EyeData> calculateEye(const ComplexTrace &trace, const EyeSettings &s,
   double peak=0, total=0, negativeTail=0;
   for(size_t i=0;i<n;++i) {
     if (!(i&1023u)) check(cancelled);
+    require(finite(impulseFft[i]), "Nonfinite eye impulse");
     const double mag=std::norm(impulseFft[i]);
     total+=mag;
     if(mag>peak) {peak=mag;delay=i;}
     if(i>=n-2*spp) negativeTail+=mag;
   }
-  require(total>1e-26 && delay<=n/4,
+  require(std::isfinite(total) && std::isfinite(negativeTail) &&
+          total>1e-26 && delay<=n/4,
           "Eye transfer has zero energy or unresolved circular/negative delay");
   EyeData data;
+  data.settings=s;
+  data.frameBitCount=bitCount;
+  data.reverse=(trace.parameter=="S12" || trace.parameter=="Sdd12");
   data.profileName=eyeProfileName(s.profile);
   data.transferParameter=trace.parameter;
   data.bitRateHz=s.bitRateHz;
   data.referenceFrequencyHz=s.referenceFrequencyHz;
   data.analysisStopHz=s.analysisStopHz;
-  data.unitIntervalSeconds=1.0/s.bitRateHz;
+  data.unitIntervalSeconds=ui;
   data.timeStepSeconds=dt;
   data.estimatedDelaySeconds=double(delay)*dt;
   data.bandLimited=s.analysisStopHz<0.5*sampleRate;
@@ -273,6 +286,12 @@ Result<EyeData> calculateEye(const ComplexTrace &trace, const EyeSettings &s,
   }
   data.eyeHeightV=best;
   data.samplingPhaseUI=double(bestPhase)/double(spp);
+  data.samplingPhaseThresholdOpen=opens[bestPhase];
+  require(std::isfinite(best*1000) &&
+          std::isfinite(data.minimumReceivedV*1000) &&
+          std::isfinite(data.maximumReceivedV*1000) &&
+          std::isfinite((data.maximumReceivedV-data.minimumReceivedV)*1000),
+          "Eye result exceeds finite mV range");
   // Largest circular interval of valid phases; sampled-time estimate only.
   size_t run=0,longest=0;
   for(size_t p=0;p<2*spp;++p) {
@@ -309,9 +328,14 @@ Result<EyeData> calculateEye(const ComplexTrace &trace, const EyeSettings &s,
   if(active)
     result.diagnostics.push_back({Severity::Warning,"GAIN_ABOVE_UNITY",
       "Transfer magnitude exceeds unity; passivity has not been independently verified"});
+  if(!data.samplingPhaseThresholdOpen && data.eyeWidthUI>0)
+    result.diagnostics.push_back({Severity::Warning,"MAX_HEIGHT_PHASE_NOT_THRESHOLD_OPEN",
+      "Maximum separation phase does not satisfy the declared threshold; not a valid decision phase"});
   if(data.eyeHeightV<=0 || data.eyeWidthUI==0)
     result.diagnostics.push_back({Severity::Warning,"CLOSED_EYE",
       "Simulated eye is closed at declared RX threshold; no numerical pass/fail compliance"});
+  result.diagnostics.push_back({Severity::Info,"PERIODIC_FRAME",
+    "Finite repeated FFT frame; sampled width and pattern-dependent separation, not continuous-time or statistical eye"});
   result.value=std::move(data);
   return result;
 }

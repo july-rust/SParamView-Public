@@ -142,7 +142,6 @@ private:
   QWidget *eyeGraph_ = nullptr;
   EyeSourceProvider eyeProvider_;
   std::shared_ptr<const si::channel::EyeData> eyeResult_;
-  si::channel::EyeSettings eyeSettings_;
   si::channel::Provenance eyeProvenance_;
   QString eyeSourceFilename_;
   QLabel *statusLabel_ = nullptr, *graphPlaceholder_ = nullptr;

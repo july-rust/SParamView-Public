@@ -1,5 +1,8 @@
 #include "si/channel_analysis/eye.hpp"
 #include <atomic>
+#include <algorithm>
+#include <complex>
+#include <vector>
 #include <cmath>
 #include <iostream>
 #include <limits>
@@ -197,6 +200,117 @@ int main() {
     try {(void)calculateEye(thru(),s,{},&cancelled);}
     catch(const Cancelled&) {cancelledFlag=true;}
     check(cancelledFlag,"cancellation must propagate");
+    // Independent two-tap circular convolution: no production FFT or metric
+    // helper used for the oracle. First tap 0.75, one-UI echo 0.25.
+    auto echo=s; echo.fftLength=1024; echo.pattern=EyePattern::CustomBits;
+    echo.customBits={0,0,1,1,0,1,0,1,1,0,0,1,0,1,1,0};
+    const size_t count=echo.fftLength, spp=echo.samplesPerUI;
+    const double fs=echo.bitRateHz*double(spp);
+    ComplexTrace taps; taps.parameter="Sdd21";
+    taps.stimulusOhm=taps.responseOhm=100;
+    const double pi=std::acos(-1.);
+    for(size_t k=0;k<=count/2;++k) {
+      const double f=fs*double(k)/double(count);
+      taps.frequencyHz.push_back(f);
+      taps.transfer.push_back(0.75+0.25*std::polar(1.,-2*pi*double(k*spp)/double(count)));
+    }
+    auto echoed=calculateEye(taps,echo);
+    const auto &ed=*echoed.value;
+    for(size_t i=0;i<count;++i) {
+      const double x=echo.customBits[(i/spp)%echo.customBits.size()]?0.2:-0.2;
+      const size_t prev=(i+count-spp)%count;
+      const double xp=echo.customBits[(prev/spp)%echo.customBits.size()]?0.2:-0.2;
+      close(ed.transmittedV[i],x,1e-12,"custom pattern");
+      close(ed.receivedV[i],0.75*x+0.25*xp,1e-10,"two-tap direct convolution");
+      close(ed.impulse.values[i],i==0?0.75:i==spp?0.25:0,1e-10,"two-tap impulse");
+      const double pulse=(i<spp?0.75:0)+(i>=spp && i<2*spp?0.25:0);
+      close(ed.unitPulse.values[i],pulse,1e-10,"two-tap pulse");
+    }
+    close(ed.eyeHeightV,0.2,1e-10,"two-tap worst separation");
+    close(ed.eyeWidthUI,1,1e-12,"two-tap threshold width");
+    check(ed.frameBitCount==count/spp && ed.overlayV.size()==64 &&
+          ed.settings.customBits==echo.customBits && ed.samplingPhaseThresholdOpen,
+          "immutable settings and frame/overlay distinction");
+    auto closed=echo; closed.electrical.rxThresholdV=0.15;
+    const auto shut=calculateEye(taps,closed);
+    close(shut.value->eyeHeightV,0.2,1e-10,"height independent of threshold");
+    close(shut.value->eyeWidthUI,0,1e-12,"closed threshold width");
+    check(!shut.value->samplingPhaseThresholdOpen,"closed threshold phase");
+    // Independent direct inverse DFT on a clipped, nonuniform complex trace.
+    auto nonuniform=echo; nonuniform.analysisStopHz=9.3e9;
+    ComplexTrace irregular; irregular.parameter="Sdd21";
+    irregular.stimulusOhm=irregular.responseOhm=100;
+    irregular.frequencyHz={0,0.7e9,2.1e9,4.9e9,8.3e9,11.4e9,16e9};
+    irregular.transfer={{0.9,0},{0.85,-0.1},{0.7,-0.25},{0.45,-0.3},{0.25,-0.2},{0.1,-0.1},{0.05,0}};
+    const auto nr=calculateEye(irregular,nonuniform);
+    const auto &nd=*nr.value;
+    std::vector<double> oracle(count,0);
+    for(size_t k=0;k<=count/2;++k) {
+      const double f=fs*double(k)/double(count);
+      if(f>nonuniform.analysisStopHz)break;
+      auto upper=std::upper_bound(irregular.frequencyHz.begin(),irregular.frequencyHz.end(),f);
+      const size_t idx=size_t(upper-irregular.frequencyHz.begin())-1;
+      const double fraction=(f-irregular.frequencyHz[idx])/(irregular.frequencyHz[idx+1]-irregular.frequencyHz[idx]);
+      const auto z=irregular.transfer[idx]+fraction*(irregular.transfer[idx+1]-irregular.transfer[idx]);
+      for(size_t i=0;i<count;++i)
+        oracle[i]+=(k==0?z.real():2*std::real(z*std::polar(1.,2*pi*double(k*i)/double(count))))/double(count);
+    }
+    for(size_t i=0;i<count;++i) {
+      close(nd.impulse.values[i],oracle[i],2e-12,"direct nonuniform DFT");
+      double y=0,pulse=0;
+      for(size_t j=0;j<count;++j) {
+        const size_t at=(i+count-j)%count;
+        const double x=echo.customBits[(at/spp)%echo.customBits.size()]?0.2:-0.2;
+        y+=oracle[j]*x;
+        if(at<spp)pulse+=oracle[j];
+      }
+      close(nd.receivedV[i],y,2e-11,"direct nonuniform convolution");
+      close(nd.unitPulse.values[i],pulse,2e-11,"direct nonuniform pulse");
+    }
+    // Independently enumerate all phase metrics from oracle-aligned waveform.
+    const auto delayIndex=size_t(std::max_element(oracle.begin(),oracle.end(),
+      [](double a,double b){return std::abs(a)<std::abs(b);})-oracle.begin());
+    close(nd.estimatedDelaySeconds,double(delayIndex)/fs,1e-18,"nonuniform delay");
+    double bestHeight=-1e9; std::vector<bool> valid(spp);
+    for(size_t phase=0;phase<spp;++phase) {
+      double hi=1e9,lo=-1e9;
+      for(size_t symbol=0;symbol<count/spp;++symbol) {
+        const double v=nd.receivedV[(symbol*spp+delayIndex+phase)%count];
+        if(echo.customBits[symbol%echo.customBits.size()])hi=std::min(hi,v);
+        else lo=std::max(lo,v);
+      }
+      bestHeight=std::max(bestHeight,hi-lo); valid[phase]=hi>0 && lo<0;
+    }
+    size_t width=0;
+    for(size_t start=0;start<spp;++start) {
+      size_t len=0; while(len<spp && valid[(start+len)%spp])++len;
+      width=std::max(width,len);
+    }
+    close(nd.eyeHeightV,bestHeight,1e-10,"independent height");
+    close(nd.eyeWidthUI,double(width)/double(spp),1e-12,"independent circular width");
+    close(nd.eyeWidthSeconds,double(width)/double(spp)/echo.bitRateHz,1e-18,"width seconds");
+    // Independent PRBS recurrence and period check (x^7+x^6+1).
+    std::vector<int> prbs(256,0); prbs[0]=1;
+    for(size_t i=7;i<prbs.size();++i)prbs[i]=prbs[i-7]^prbs[i-6];
+    for(size_t i=0;i<prbs.size();++i)
+      close(ideal.value->transmittedV[i*s.samplesPerUI],prbs[i]?0.2:-0.2,1e-12,"PRBS recurrence");
+    check(std::count(prbs.begin(),prbs.begin()+127,1)==64 &&
+          std::equal(prbs.begin(),prbs.begin()+127,prbs.begin()+127),"PRBS127 period");
+    for(size_t period=1;period<127;++period)
+      check(!std::equal(prbs.begin(),prbs.begin()+127,prbs.begin()+period),"PRBS short period");
+    auto maxGrid=s; maxGrid.fftLength=65536; maxGrid.samplesPerUI=128;
+    maxGrid.analysisStopHz=16e9;
+    auto maxResult=calculateEye(thru(),maxGrid);
+    check(maxResult.usable() && maxResult.value->receivedV.size()==65536 &&
+          maxResult.value->overlayV.size()==64,"bounded maximum FFT");
+    auto tiny=s; tiny.bitRateHz=1e-310; tiny.referenceFrequencyHz=5e-311;
+    tiny.analysisStopHz=2e-310;
+    reject([&]{(void)calculateEye(thru(),tiny);},"nonrepresentable time grid");
+    auto huge=s; huge.electrical.txHighV=1e308;
+    reject([&]{(void)calculateEye(thru(),huge);},"nonrepresentable mV");
+    auto imaginary=thru(); imaginary.transfer.front()={1,0.5};
+    reject([&]{(void)calculateEye(imaginary,s);},"nonreal DC");
+    std::cout<<"012_46 Eye independent DFT, convolution, metrics, PRBS and resource PASS\n";
     std::cout<<"012_07 Eye deterministic golden, phase and fail-closed PASS\n";
     return 0;
   }catch(const std::exception &e) {
