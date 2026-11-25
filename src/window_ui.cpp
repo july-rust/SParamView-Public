@@ -263,11 +263,11 @@ MainWindow::MainWindow() {
       "Open Touchstone...", QKeySequence::Open, this,
       [this] {
         openPaths(QFileDialog::getOpenFileNames(
-            this, "Select Touchstone Files", {},
+            this, "Select Touchstone Files", sparamview::preferences::workingDirectory(),
             "Touchstone (*.s*p *.ts);;All files (*)"));
       });
   file->addAction("Open Project...", this, [this] {
-    auto p = QFileDialog::getOpenFileName(this, "Project", {},
+    auto p = QFileDialog::getOpenFileName(this, "Project", sparamview::preferences::workingDirectory(),
                                           "SI Project (*.siproject)");
     if (!p.isEmpty())
       loadProject(p);
@@ -380,7 +380,7 @@ MainWindow::MainWindow() {
   banner->addStretch();
   button("+ Open Touchstone", banner, [this] {
     openPaths(QFileDialog::getOpenFileNames(
-        this, "Touchstone", {}, "Touchstone (*.s*p *.ts);;All files (*)"));
+        this, "Touchstone", sparamview::preferences::workingDirectory(), "Touchstone (*.s*p *.ts);;All files (*)"));
   });
   button("Open Sample", banner, [this] { loadDemo(); });
   button("Export XLSX", banner, [this] { exportXlsx(); });
@@ -518,7 +518,11 @@ MainWindow::MainWindow() {
     else
       run({metric});
   });
-    limitValues[i] = spin(-600,100,2); limitValues[i]->setSuffix(" dB"); limitValues[i]->setMaximumWidth(86);
+    limitValues[i] = spin(-600,100,2);
+    const si::Limit *defaults[] = {&settings.rl, &settings.il, &settings.next, &settings.fext};
+    limitValues[i]->setValue(defaults[i]->constant);
+    limits[i]->setChecked(defaults[i]->enabled);
+    limitValues[i]->setSuffix(" dB"); limitValues[i]->setMaximumWidth(86);
     row->addWidget(limits[i]); row->addWidget(metricButtons[i]); row->addWidget(new QLabel(operators[i])); row->addWidget(limitValues[i]); controls->addWidget(segment,1);
   }
   auto tdrSegment = new QWidget; auto tdrRow = new QHBoxLayout(tdrSegment); tdrRow->setContentsMargins(4,0,4,0); tdrRow->setSpacing(3);
@@ -532,7 +536,7 @@ MainWindow::MainWindow() {
   else
     run({metric});
 });
-  tolerance = spin(0,1000,1); tolerance->setValue(10); tolerance->setSuffix(" %"); tolerance->setMaximumWidth(72);
+  tolerance = spin(0,1000,1); tolerance->setValue(settings.tolerancePercent); tdrLimit->setChecked(settings.tdrLimitEnabled); tolerance->setSuffix(" %"); tolerance->setMaximumWidth(72);
   target = spin(0,10000,1); target->setSpecialValueText("Auto Z₀"); target->setSuffix(" Ω"); target->setMaximumWidth(92);
   auto tdrOptions = new QToolButton; tdrOptions->setText("⚙"); tdrOptions->setToolTip("TDR options: reference impedance, terminations and reflection coefficient"); connect(tdrOptions, &QToolButton::clicked, this, [this] { chooseTerminations(); });
   terminationSummary = new QLabel; terminationSummary->setMaximumWidth(72); tdrReflection = new QCheckBox; tdrReflection->hide();

@@ -36,6 +36,16 @@ int main(int argc, char **argv) {
   fs::create_directories(dir);
   TestDirectoryCleanup cleanup{dir};
   try {
+    // A small buffered write can report success until close flushes it.
+    // /dev/full is available on Linux; never create or replace this device.
+#ifdef __linux__
+    if (fs::exists("/dev/full")) {
+      bool failed = false;
+      try { writeMappingCsv("/dev/full", {}); }
+      catch (const Error &) { failed = true; }
+      require(failed, "Buffered mapping CSV write failure was not reported");
+    }
+#endif
     const std::vector<std::string> values{
         "plain", "=1+2", "+SUM(1,2)", "-1+2", "@SUM(1,2)",
         " =1+2", "\t=1+2", "\r\n=1+2", "\xef\xbc\x9d" "1+2",

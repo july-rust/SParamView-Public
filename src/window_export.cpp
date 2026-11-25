@@ -24,9 +24,8 @@ void MainWindow::exportXlsx() {
   QString path = withExtension(
       QFileDialog::getSaveFileName(
           this, "Save Excel Workbook",
-          projectName + "_SI_Analysis_" +
-              QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss") +
-              ".xlsx",
+          sparamview::preferences::saveSuggestion(projectName + "_SI_Analysis_" +
+              QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss") + ".xlsx"),
           "Excel (*.xlsx)"),
       ".xlsx");
   if (path.isEmpty())
@@ -47,6 +46,7 @@ void MainWindow::exportXlsx() {
       },
       [this, path] {
         notice->setText("Excel workbook saved: " + QFileInfo(path).fileName());
+        sparamview::preferences::rememberFile(path);
       });
 }
 void MainWindow::savePng() {
@@ -54,13 +54,14 @@ void MainWindow::savePng() {
     return;
   QString path =
       withExtension(QFileDialog::getSaveFileName(this, "Save Plot",
-                                                 "SI_Graph.png", "PNG (*.png)"),
+                                                 sparamview::preferences::saveSuggestion("SI_Graph.png"), "PNG (*.png)"),
                     ".png");
   if (path.isEmpty())
     return;
   auto snap = plot->snapshot;
   task(
-      [path, snap](si::Control *c) { savePngFile(path, graphImage(snap), c); });
+      [path, snap](si::Control *c) { savePngFile(path, graphImage(snap), c); },
+      [path] { sparamview::preferences::rememberFile(path); });
 }
 void MainWindow::saveCsv() {
   if (busy)
@@ -80,7 +81,7 @@ void MainWindow::saveCsv() {
   QString path = withExtension(
       QFileDialog::getSaveFileName(
           this, "Raw CSV",
-          qs(r.channel) + "_" + qs(si::name(r.metric)) + ".csv", "CSV (*.csv)"),
+          sparamview::preferences::saveSuggestion(qs(r.channel) + "_" + qs(si::name(r.metric)) + ".csv"), "CSV (*.csv)"),
       ".csv");
   if (path.isEmpty())
     return;
@@ -88,7 +89,7 @@ void MainWindow::saveCsv() {
     auto t = si::loadTrace(*job.cache, job.victim, job.metric, exportSettings,
                            job.aggressor ? &*job.aggressor : nullptr, c, job.termination);
     si::exportRawCsv(fp(path), t, job.metric, exportSettings, c);
-  });
+  }, [path] { sparamview::preferences::rememberFile(path); });
 }
 void MainWindow::compareRevisions() {
   if (busy)
@@ -219,7 +220,7 @@ void MainWindow::loadDemo() {
     error("Cannot find examples/demo.siproject.");
     return;
   }
-  loadProject(base);
+  loadProject(base, false);
 }
 void MainWindow::dragEnterEvent(QDragEnterEvent *e) {
   if (e->mimeData()->hasUrls() && !busy)
@@ -241,6 +242,7 @@ void MainWindow::closeEvent(QCloseEvent *e) {
     return;
   }
   if (!confirmProjectTransition()) {e->ignore();return;}
+  saveStartupWindowState();
   saveWorkspaceLayout();
   e->accept();
 }

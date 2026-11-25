@@ -22,6 +22,7 @@ int main(int argc, char **argv) {
       QApplication::setApplicationName("SParamView");
       QApplication::setOrganizationName("SParamView");
       QApplication::setApplicationVersion(si::version);
+      app.setProperty("sparamview.automated", automated);
 #ifdef SPARAMVIEW_QUALIFICATION_BUILD
       qualification::afterApp(app);
 #endif
@@ -36,7 +37,8 @@ int main(int argc, char **argv) {
       MainWindow window;
       applyCompactAnalysisSettings(window);
       window.installHeaderProjectButtons();
-      window.show();
+      if (automated) window.show();
+      else window.showWithSavedWindowState();
 #ifdef SPARAMVIEW_QUALIFICATION_BUILD
       qualification::afterWindow(app);
 #endif

@@ -100,7 +100,8 @@ struct Settings {
   int markers = 3;
   double prominence = 0.15;
   std::vector<double> manualMarkersHz;
-  Limit rl, il, next, fext;
+  Limit rl{false, -10, {}}, il{false, -3, {}},
+      next{false, -20, {}}, fext{false, -20, {}};
   double targetOhm =
       0; // 0: automatic 50 SE / 100 differential, NEVER changes reference
   bool tdrLimitEnabled = false;
