@@ -337,7 +337,8 @@ int main() {
       close(actual.value->eyeWidthUI,1,0.01,"analytic gain width");
       for(size_t i=0;i<actual.value->receivedV.size();++i)
         close(actual.value->receivedV[i],0.5*actual.value->transmittedV[i],1e-10,"independent gain waveform");
-      check(t.frequencyHz.front()==f && t.transfer.front()==Complex{0.5,0},"source remains immutable");
+      close(t.frequencyHz.front(),f,0,"original frequency remains immutable");
+      close(std::abs(t.transfer.front()-Complex{0.5,0}),0,0,"original complex sample remains immutable");
     }
     auto good=lowTrace(1000,true);
     check(inspectEyeDc(good).status=="ORIGINAL DC","original DC preserved");
@@ -345,7 +346,7 @@ int main() {
     auto repaired=calculateEye(damaged,s);
     check(repaired.value->dc.status=="CORRECTED DC","corrupt DC corrected");
     close(repaired.value->dc.value,0.5,0.001,"corrected analytical DC");
-    check(damaged.transfer.front()==Complex{0.9,0.2},"damaged source untouched");
+    close(std::abs(damaged.transfer.front()-Complex{0.9,0.2}),0,0,"damaged source untouched");
     // A real DC discrepancy alone is not proof of corruption: a real
     // AC-coupled channel may have a pole well below the first measured f.
     auto realSpike=good;realSpike.transfer.front()={0.9,0};

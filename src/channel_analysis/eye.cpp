@@ -61,20 +61,18 @@ std::vector<Complex> spectrum(const ComplexTrace &trace, double cap,
     if (f > cap) break; // stated ideal zero-above-cap *simulation*; no S extrapolation
     if(k==0) {
       h[k]={dc.value,0};
-    } else if(f<dc.firstPositiveHz) {
+    } else if(f<=dc.firstPositiveHz) {
       const size_t first=trace.frequencyHz.front()==0?1:0;
       const double a=f/dc.firstPositiveHz;
       h[k]=(1-a)*Complex{dc.value,0}+a*trace.transfer[first];
     } else {
       if(j==0 && trace.frequencyHz.front()==0) j=1;
-      while (j+1 < trace.frequencyHz.size() && trace.frequencyHz[j+1] < f) ++j;
-      if(f==trace.frequencyHz[j]) h[k]=trace.transfer[j];
-      else {
-        require(j+1<trace.frequencyHz.size(), "Eye source spectrum does not cover cap");
-        const double f0=trace.frequencyHz[j], f1=trace.frequencyHz[j+1];
-        const double a=(f-f0)/(f1-f0);
-        h[k]=(1-a)*trace.transfer[j]+a*trace.transfer[j+1];
-      }
+      while (j+2 < trace.frequencyHz.size() && trace.frequencyHz[j+1] < f) ++j;
+      require(j+1<trace.frequencyHz.size() && f<=trace.frequencyHz[j+1],
+              "Eye source spectrum does not cover cap");
+      const double f0=trace.frequencyHz[j], f1=trace.frequencyHz[j+1];
+      const double a=(f-f0)/(f1-f0);
+      h[k]=(1-a)*trace.transfer[j]+a*trace.transfer[j+1];
     }
     require(finite(h[k]), "Invalid interpolated transfer value");
     if (std::abs(h[k]) > 1.0001) active=true;

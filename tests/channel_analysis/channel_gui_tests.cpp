@@ -797,9 +797,9 @@ int main(int argc, char **argv) {
       ctx.sources[0].sha256=QString::fromStdString(low->meta().sha256);
       ctx.sources[0].revision="DC fixture "+key;
       const auto revision=ctx.sources[0].revision.toStdString();
-      manager.setEyeSourceProvider([low,channel,revision](int index)->std::optional<IldSourceInput>{
-        if(index!=0)return std::nullopt;
-        return IldSourceInput{low,{channel},revision,low->meta().sha256,1,1};
+      const IldSourceInput fixture{low,{channel},revision,low->meta().sha256,1,1};
+      manager.setEyeSourceProvider([fixture](int index) -> std::optional<IldSourceInput> {
+        return index==0 ? std::optional<IldSourceInput>{fixture} : std::optional<IldSourceInput>{};
       });
       manager.setContext(ctx);
     };
@@ -817,7 +817,12 @@ int main(int argc, char **argv) {
     const QImage lowImage(lowPng);
     check(lowImage.text("DCStatus")=="EXTRAPOLATED DC" &&
           lowImage.text("EffectiveStartHz")=="1000","DC PNG provenance");
-    profile->setCurrentIndex(8);mode->setCurrentIndex(1);cap->setValue(10);
+    // Custom profile intentionally clears rates/electrical fields; explicitly
+    // restore the manual NRZ settings rather than relying on the previous PHY.
+    profile->setCurrentIndex(8);mode->setCurrentIndex(1);
+    baud->setValue(4.5);reference->setValue(2.25);cap->setValue(10);
+    check(std::abs(baud->value()-4.5)<1e-9 && std::abs(reference->value()-2.25)<1e-9,
+          "explicit manual DC fixture rate");
     for(int i=0;i<electricalNames.size();++i)
       eye->findChild<QLineEdit *>(electricalNames[i])->setText(electricalValues[i]);
     eye->runButton()->click();drain(manager.scheduler());
