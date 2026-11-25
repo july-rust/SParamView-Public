@@ -496,6 +496,7 @@ struct WorkspaceProbe {
      {"ui",QJsonObject{{"revision",0},{"group","Fixture"},
        {"selected",QJsonArray{"victim","aggressor"}},{"metric",0}}}}).toJson());
    MainWindow w;
+   w.show();settle(w);
    w.loadProject(project,false);settle(w);
    check(w.revisions.size()==2 && w.revisions[0].confirmed && w.revisions[1].confirmed,
          "Integration project did not restore two confirmed mappings");
@@ -539,6 +540,9 @@ struct WorkspaceProbe {
    fit->setCurrentIndex(0);ildStop->setValue(10);
    profile->setCurrentIndex(int(si::channel::EyeProfile::Custom));
    mode->setCurrentIndex(1);baud->setValue(4.5);cap->setValue(10);
+   auto *reference=eye->findChild<QDoubleSpinBox*>("eyeReferenceGhz");
+   check(reference && std::abs(reference->value()-2.25)<1e-9,
+         "Integrated Eye Nyquist reference mismatch");
    const char *fields[]={"eyeTxLowMv","eyeTxHighMv","eyeTxSourceOhm",
      "eyeRxTerminationOhm","eyeRxThresholdMv","eyeRxMinimumMv","eyeRxMaximumMv"};
    const char *electrical[]={"0","400","50","50","180","-500","1000"};
