@@ -5,6 +5,7 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QSaveFile>
+#include <QStatusBar>
 #include <QFileDialog>
 #include <QTextStream>
 #include <exception>
@@ -1769,8 +1770,10 @@ AnalysisWindowManager::AnalysisWindowManager(QMainWindow *owner)
     if (scheduler_.inFlight() != 0) return;
     retirementPoll_.stop();
     for (auto &workspace : retiredWorkspaces_)
-      if (workspace && !workspace->remove())
+      if (workspace && !workspace->remove()) {
         qWarning() << "SParamView: retired analysis workspace cleanup deferred";
+        owner_->statusBar()->showMessage("Previous cache could not be removed; cleanup will be retried on exit.");
+      }
     retiredWorkspaces_.clear();
   });
 }
@@ -1810,8 +1813,10 @@ void AnalysisWindowManager::setContext(AnalysisContext context) {
 void AnalysisWindowManager::retireWorkspace(std::shared_ptr<QTemporaryDir> workspace) {
   if (!workspace) return;
   if (scheduler_.inFlight() == 0) {
-    if (!workspace->remove())
+    if (!workspace->remove()) {
       qWarning() << "SParamView: retired workspace cleanup deferred";
+      owner_->statusBar()->showMessage("Previous cache could not be removed; cleanup will be retried on exit.");
+    }
     return;
   }
   retiredWorkspaces_.push_back(std::move(workspace));

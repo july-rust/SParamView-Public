@@ -89,7 +89,9 @@ int main(int argc,char**argv){
     }dialog->reject();
    }mappingSeen=true;
   }
-  if((mappingSeen&&!NavigationProbe::busy(w))||clock.elapsed()>30000||!failure.isEmpty()){
+  // The dialog closes inside the import completion callback. Check the
+  // published revision only after that callback has returned to the event loop.
+  if((mappingSeen&&!NavigationProbe::busy(w)&&NavigationProbe::revisions(w).size()==size_t(paths.size()))||clock.elapsed()>30000||!failure.isEmpty()){
    done=true;timer.stop();auto &revs=NavigationProbe::revisions(w);bool ok=failure.isEmpty()&&mappingSeen&&revs.size()==size_t(paths.size());
    if(saved)ok=ok&&revs.back().confirmed&&revs.back().channels.size()==1&&revs.back().mappingWarning.isEmpty();
    if(mode=="signaltype")ok=ok&&signalSeen&&revs.back().signalTypeReviewed&&revs.back().signalType=="Differential";
