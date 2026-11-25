@@ -442,6 +442,7 @@ int main(int argc, char **argv) {
           "ICN independent directional CSV oracle");
       }
     };
+    check(content.contains("# victim_id,\"victim\"") && content.contains("# direction,\"forward\""),"ICN forward provenance");
     verifyIcnRows(content,.04,.08);
     auto *icnDir=icn->findChild<QComboBox *>(QStringLiteral("analysisDirection"));
     check(icnDir,"ICN direction control missing");
@@ -452,7 +453,9 @@ int main(int argc, char **argv) {
     const auto revPath=ildDir.filePath(QStringLiteral("icn-reverse.csv"));
     check(icn->saveIcnCsv(revPath),"ICN reverse export");
     QFile icnRev(revPath);check(icnRev.open(QIODevice::ReadOnly),"ICN reverse readback");
-    verifyIcnRows(icnRev.readAll(),.12,.16);
+    const auto revContent=icnRev.readAll();
+    check(revContent.contains("# direction,\"reverse\""),"ICN reverse provenance");
+    verifyIcnRows(revContent,.12,.16);
     auto *icnVpp=icn->findChild<QDoubleSpinBox *>(QStringLiteral("icnTxVpp"));
     check(icnVpp,"ICN Vpp control missing");
     icnVpp->setValue(0);icn->runButton()->click();drain(manager.scheduler());

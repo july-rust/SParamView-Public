@@ -1276,6 +1276,8 @@ void AnalysisWindow::launchIcn() {
       identity.mappingIdentity,"Generic uncorrelated NRZ ICN","012_45-v2",
       settingsIdentity,identity.workspaceGeneration,identity.mappingGeneration};
     auto result=si::channel::calculateIcn(paths,settings,provenance,&cancel);
+    result.value->victimId=victimId;
+    result.value->direction=reverse?"reverse":"forward";
     if(cancel.load()) throw si::Cancelled();
     progress.store(100);
     WorkOutcome outcome;
@@ -1347,6 +1349,8 @@ bool AnalysisWindow::saveIcnCsv(const QString &name) {
      <<"# algorithm,"<<safe(icnProvenance_.algorithm)<<"\n"
      <<"# version,"<<safe(icnProvenance_.version)<<"\n"
      <<"# model,"<<safe(d.model)<<"\n"
+     <<"# victim_id,"<<safe(d.victimId)<<"\n"
+     <<"# direction,"<<safe(d.direction)<<"\n"
      <<"# correlation_assumption,independent_path_rss\n"
      <<"# requested_start_hz,"<<n(d.settings.startHz)<<"\n"
      <<"# requested_stop_hz,"<<n(d.settings.stopHz)<<"\n"

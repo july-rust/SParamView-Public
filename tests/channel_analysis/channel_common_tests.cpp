@@ -1,5 +1,6 @@
 #include "si/channel_analysis/common.hpp"
 #include "si/channel_analysis/ild.hpp"
+#include "si/channel_analysis/icn.hpp"
 #include <algorithm>
 #include <cmath>
 #include <filesystem>
@@ -166,6 +167,60 @@ void snapshotTests(const fs::path &root) {
     for(double loss:result.value->insertionLossDb)
       expect(close(loss,expected),"S6P nonadjacent mapped directional ILD loss");
     expect(result.value->rmsDb<1e-9,"S6P flat ILD");
+  }
+  // 012_45: asymmetric differential physical paths in a row-major S8P.
+  // The four terms of each 2x2 block are (+h/2,-h/2,-h/2,+h/2).
+  // Nonadjacent mapping deliberately prevents an adjacent-port shortcut.
+  const auto icnFile=root/"icn-differential.s8p";
+  {
+    std::ofstream out(icnFile);
+    out<<"# GHz S RI R 50\n";
+    const int vp[2][2]={{0,4},{1,5}};
+    const int ap[2][2]={{2,6},{3,7}};
+    const double gains[2][2]={{.04,.16},{.08,.12}};
+    for(int k=0;k<=4;++k) {
+      out<<k;
+      for(int r=0;r<8;++r) for(int s=0;s<8;++s) {
+        double re=0,im=0;
+        for(int v=0;v<2;++v) for(int a=0;a<2;++a)
+          for(int rp=0;rp<2;++rp) for(int sp=0;sp<2;++sp)
+            if(r==vp[v][rp] && s==ap[a][sp]) {
+              re=gains[v][a]*(rp==sp?.5:-.5);
+              im=re*.5;
+            }
+        out<<" "<<re<<" "<<im;
+      }
+      out<<"\n";
+    }
+  }
+  auto icnCache=Cache::open(icnFile,root/"icn-differential-cache",nullptr,true);
+  Channel v;v.id="V";v.name="Victim";v.nearP=0;v.nearN=4;v.farP=1;v.farN=5;
+  Channel ag;ag.id="A";ag.name="Aggressor";ag.nearP=2;ag.nearN=6;ag.farP=3;ag.farN=7;
+  auto icnSnap=SourceSnapshot::capture(icnCache,{v,ag},"icn-diff",1,1);
+  IcnSettings cfg;cfg.stopHz=4e9;
+  for(bool reverse:{false,true}) {
+    auto n=extract(icnSnap,"V",Metric::NEXT,reverse,"A");
+    auto f=extract(icnSnap,"V",Metric::FEXT,reverse,"A");
+    const double ng=reverse?.12:.04,fg=reverse?.16:.08;
+    for(const auto &z:n.transfer) expect(std::abs(z-Complex(ng,ng*.5))<1e-10,"S8P differential NEXT physical path");
+    for(const auto &z:f.transfer) expect(std::abs(z-Complex(fg,fg*.5))<1e-10,"S8P differential FEXT physical path");
+    expect(close(n.stimulusOhm,100) && close(n.responseOhm,100) &&
+           close(f.stimulusOhm,100) && close(f.responseOhm,100),"S8P matched differential reference");
+    auto icn=calculateIcn({{"A",IcnEnd::Next,n},{"A",IcnEnd::Fext,f}},cfg);
+    expect(icn.usable(),"S8P differential ICN usable");
+    double power=0,prev=0;
+    for(int k=0;k<=4;++k) {
+      const double hz=k*1e9,x=std::numbers::pi*hz/4e9;
+      const double sinc=k?std::sin(x)/x:1;
+      const double edge=2*std::numbers::pi*hz*30e-12/2.5631031310892007;
+      const double density=.32/4e9*sinc*sinc*std::exp(-edge*edge)/(1+std::pow(hz/10e9,2));
+      if(k)power+=(prev+density)*.5e9;
+      prev=density;
+    }
+    expect(close(icn.value->nextRmsV,std::sqrt(power*1.25)*ng) &&
+           close(icn.value->fextRmsV,std::sqrt(power*1.25)*fg) &&
+           close(icn.value->totalRmsV,std::sqrt(power*1.25)*std::hypot(ng,fg)),
+           "S8P differential ICN independent RMS");
   }
   expect(close(fwd.stimulusOhm,50) && close(fwd.responseOhm,50),
          "source reference");
