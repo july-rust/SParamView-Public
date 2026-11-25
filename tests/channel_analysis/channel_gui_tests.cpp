@@ -844,7 +844,10 @@ int main(int argc, char **argv) {
       check(pumpUntil([&] {
         return eye->status()==(accept?S::Warning:S::Cancelled) && manager.scheduler().inFlight()==0;
       }),"DC consent decision did not complete within bounded time");
-      check(pumpUntil([&]{return prompt.isNull();}),"DC consent dialog not retired");
+      check(pumpUntil([&]{
+        QCoreApplication::sendPostedEvents(nullptr,QEvent::DeferredDelete);
+        return prompt.isNull();
+      }),"DC consent dialog not retired");
       if(accept) {
         check(eye->status()==S::Warning && eye->saveEyeCsv(ildDir.filePath("dc-ack.csv")),
               "accepted DC warning must run");
@@ -863,7 +866,10 @@ int main(int argc, char **argv) {
       return stalePrompt && stalePrompt->isVisible();
     }),"pending DC confirmation missing");
     setLowSource(100000);
-    check(pumpUntil([&]{return stalePrompt.isNull();}) &&
+    check(pumpUntil([&]{
+          QCoreApplication::sendPostedEvents(nullptr,QEvent::DeferredDelete);
+          return stalePrompt.isNull();
+        }) &&
           !eye->saveEyeCsv(ildDir.filePath("dc-stale-consent.csv")),
           "source change retained DC consent or allowed export");
     preview->click();drain(manager.scheduler());
