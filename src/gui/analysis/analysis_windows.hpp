@@ -100,6 +100,7 @@ protected:
   void closeEvent(QCloseEvent *event) override;
 
 private:
+  void fitToScreen();
   void invalidateRequest();
   void setStatus(si::channel::Status status, const QString &details);
   QString selectionIdentity() const;
@@ -114,7 +115,7 @@ private:
   void exportIcnPng();
   void clearIcn();
   void populateIcnAggressors();
-  void launchEye();
+  void launchEye(bool autoPreview = false);
   void showEye(const WorkOutcome &outcome);
   void clearEye();
   void exportEyeCsv();
@@ -154,7 +155,7 @@ private:
   std::shared_ptr<const si::channel::IldData> ildResult_;
   si::channel::Provenance ildProvenance_;
   QProgressBar *progress_ = nullptr;
-  QPushButton *run_ = nullptr, *cancel_ = nullptr, *csv_ = nullptr, *png_ = nullptr;
+  QPushButton *run_ = nullptr, *cancel_ = nullptr, *csv_ = nullptr, *png_ = nullptr, *eyePreview_ = nullptr;
   QTimer progressPoll_;
 };
 
