@@ -628,8 +628,10 @@ int main(int argc, char **argv) {
       out<<"# GHz S RI R 50\n";
       for(int f=0;f<=12;++f) {
         out<<f;
-        for(int sourcePort=0;sourcePort<4;++sourcePort)
-          for(int responsePort=0;responsePort<4;++responsePort) {
+        // Touchstone full matrix for N >= 3: response row, stimulus column.
+        // A reciprocal fixture would conceal a transposed file.
+        for(int responsePort=0;responsePort<4;++responsePort)
+          for(int sourcePort=0;sourcePort<4;++sourcePort) {
             double v=0;
             if((sourcePort==0&&responsePort==1) ||
                (sourcePort==2&&responsePort==3))v=0.4;
