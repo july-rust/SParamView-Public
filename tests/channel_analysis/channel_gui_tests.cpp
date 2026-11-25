@@ -376,12 +376,26 @@ int main(int argc, char **argv) {
     check(items && items->count()==2,"Expected NEXT and FEXT aggressor choices");
     items->item(0)->setCheckState(Qt::Checked);
     items->item(1)->setCheckState(Qt::Checked);
-    icn->runButton()->click();
-    check(icn->status()==S::NotEvaluated,
-          "Multiple aggressors must require explicit RSS assumption");
     auto *rss=icn->findChild<QCheckBox *>(QStringLiteral("icnIndependentAssumption"));
-    check(rss && !rss->isChecked(),"RSS assumption must not be pre-accepted");
+    check(rss && rss->isChecked() && rss->text().contains("assumed"),"Default exploratory RSS assumption must be visible");
+    icn->runButton()->click();drain(manager.scheduler());
+    check(icn->status()==S::Valid || icn->status()==S::Warning,"Default multi-path ICN failed");
+    rss->setChecked(false);
+    icn->runButton()->click();
+    check(icn->status()==S::NotEvaluated,"Disabling RSS must still block multiple paths");
     rss->setChecked(true);
+    auto *scroll=icn->findChild<QScrollArea *>(QStringLiteral("analysisPageScroll"));
+    auto *toggle=icn->findChild<QToolButton *>(QStringLiteral("analysisSettingsToggle"));
+    check(scroll && toggle,"Scrollable/collapsible analysis layout missing");
+    icn->resize(640,480);QCoreApplication::processEvents();
+    check(icn->height()<=480 && icn->width()<=640,"ICN small-window size constrained by contents");
+    toggle->setChecked(false);QCoreApplication::processEvents();
+    check(icn->findChild<QScrollArea *>(QStringLiteral("analysisSettingsScroll"))->isHidden(),"Collapse settings failed");
+    toggle->setChecked(true);
+    auto *icnView=icn->findChild<QComboBox *>(QStringLiteral("icnPlotView"));
+    check(icnView && icnView->currentIndex()==3,"Default compact cumulative plot missing");
+    icnView->setCurrentIndex(0);
+    icnView->setCurrentIndex(3);
     icn->runButton()->click();
     drain(manager.scheduler());
     check(icn->status()==S::Valid || icn->status()==S::Warning,
@@ -505,6 +519,14 @@ int main(int argc, char **argv) {
     eye->runButton()->click();
     check(eye->status()==S::NotEvaluated,
           "MIPI preset without verified electrical inputs must fail closed");
+    auto *preview=eye->findChild<QPushButton *>(QStringLiteral("eyeAutoPreview"));
+    check(preview && preview->isEnabled(),"Auto Preview unavailable");
+    preview->click();drain(manager.scheduler());
+    check(eye->status()==S::Warning,"Auto Preview did not simulate verified DC source");
+    const auto previewCsv=ildDir.filePath(QStringLiteral("auto-preview-eye.csv"));
+    check(eye->saveEyeCsv(previewCsv),"Auto Preview CSV failed");
+    QFile previewData(previewCsv);
+    check(previewData.open(QIODevice::ReadOnly) && previewData.readAll().contains("# input_mode,AUTO_PREVIEW_ASSUMED"),"Assumptions missing from preview export");
     profile->setCurrentIndex(8); // Custom: single-ended s2p fixture
     mode->setCurrentIndex(1);
     baud->setValue(4.5);

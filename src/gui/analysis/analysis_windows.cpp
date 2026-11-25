@@ -8,6 +8,10 @@
 #include <QStatusBar>
 #include <QFileDialog>
 #include <QTextStream>
+#include <QScreen>
+#include <QCursor>
+#include <QWindow>
+#include <QShowEvent>
 #include <exception>
 #include <stdexcept>
 #include <utility>
@@ -146,8 +150,8 @@ protected:
       p.drawText(QRectF(4,area.bottom()-20,padX-10,20),Qt::AlignRight,
         QString::number(low,'g',4));
       p.drawText(QRectF(area.left(),area.top()-20,area.width(),18),Qt::AlignLeft,
-        panel==0?QStringLiteral("Insertion loss (dB) — raw / fitted")
-                :QStringLiteral("ILD(f) (dB) — raw minus fitted"));
+        panel==0?QStringLiteral("Insertion loss (dB) — raw blue / fitted orange")
+                :QStringLiteral("ILD (dB) — near zero is better; dotted line: peak"));
       p.drawText(QRectF(area.left(),area.bottom()+2,area.width(),18),Qt::AlignLeft,
         QString::number(f0/1e9,'g',5)+QStringLiteral(" GHz"));
       p.drawText(QRectF(area.left(),area.bottom()+2,area.width(),18),Qt::AlignRight,
@@ -175,6 +179,17 @@ protected:
         if((n-1)%stride)vertex(n-1);
         p.setPen(QPen(color,1.7)); p.drawPath(path);
       };
+      if(panel==1) {
+        const double zero=area.bottom()-(0.0-low)/(high-low)*area.height();
+        p.setPen(QPen(palette().mid().color(),1,Qt::DashLine));
+        p.drawLine(QPointF(area.left(),zero),QPointF(area.right(),zero));
+        const double fx=d.peakFrequencyHz;
+        if(fx>=f0 && fx<=f1) {
+          const double x=area.left()+(fx-f0)/(f1-f0)*area.width();
+          p.setPen(QPen(QColor("#c75b44"),1,Qt::DotLine));
+          p.drawLine(QPointF(x,area.top()),QPointF(x,area.bottom()));
+        }
+      }
       if(panel==0) {
         drawSeries(d.insertionLossDb,QColor("#176eae"));
         drawSeries(d.fittedLossDb,QColor("#e26c32"));
@@ -198,6 +213,12 @@ public:
     data_=std::move(data);
     update();
   }
+  void setPanel(int selection) {
+    panel_=std::clamp(selection,0,3);
+    setMinimumHeight(panel_==0?410:245);
+    updateGeometry();
+    update();
+  }
 protected:
   void paintEvent(QPaintEvent *) override {
     QPainter p(this);
@@ -213,14 +234,18 @@ protected:
     const double f0=d.frequencyHz.front(), f1=d.frequencyHz.back();
     const size_t n=d.frequencyHz.size();
     if(!(f1>f0)) return;
-    for(int panel=0;panel<3;++panel) {
-      const double heightPer=double(height())/3.0;
-      QRectF area(80,25+heightPer*panel,std::max(60,width()-100),
+    const int panels=panel_==0?3:1;
+    for(int slot=0;slot<panels;++slot) {
+      const int panel=panel_==0?slot:panel_-1;
+      const double heightPer=double(height())/panels;
+      QRectF area(80,25+heightPer*slot,std::max(60,width()-100),
                   std::max(28.0,heightPer-45));
-      const int seriesCount=panel==0 ? 2 : 2+int(d.aggressors.size());
+      const int pathOffset=panel==2?3:2;
+      const int seriesCount=panel==0 ? 2 : pathOffset+int(d.aggressors.size());
       auto sample=[&](size_t i,int which)->double {
-        if(which>=2) {
-          const auto &a=d.aggressors[size_t(which-2)];
+        if(panel==2 && which==2) return d.totalCumulativeRmsV[i]*1000.0;
+        if(which>=pathOffset) {
+          const auto &a=d.aggressors[size_t(which-pathOffset)];
           return panel==1?a.spectralDensityV2Hz[i]*1e15:a.cumulativeRmsV[i]*1000.0;
         }
         if(panel==0) return which?d.fextPowerDb[i]:d.nextPowerDb[i];
@@ -238,9 +263,9 @@ protected:
       p.setPen(QPen(palette().mid().color(),1));
       p.drawRect(area);
       p.setPen(palette().text().color());
-      const QString title=panel==0?QStringLiteral("NEXT / FEXT power sum (dB, -300 dB zero floor)")
-        :panel==1?QStringLiteral("Weighted noise PSD (mV²/GHz)")
-                 :QStringLiteral("Cumulative NEXT / FEXT RMS (mV)");
+      const QString title=panel==0?QStringLiteral("Power sum (dB) — zero floor −300 dB")
+        :panel==1?QStringLiteral("Weighted PSD (mV²/GHz) — lower is better")
+                 :QStringLiteral("Cumulative RMS (mV) — lower is better");
       p.drawText(QRectF(area.left(),area.top()-21,area.width(),18),Qt::AlignLeft,title);
       p.drawText(QRectF(2,area.top(),75,20),Qt::AlignRight,QString::number(high,'g',4));
       p.drawText(QRectF(2,area.bottom()-19,75,20),Qt::AlignRight,QString::number(low,'g',4));
@@ -272,15 +297,23 @@ protected:
         vertex(n-1);
         const QColor color=which==0?QColor("#236db6"):
           which==1?QColor("#d47a24"):
-          QColor::fromHsv((int(which)-2)*53%360,180,180);
-        p.setPen(QPen(color,which<2?1.8:1.15));
+          panel==2 && which==2?palette().text().color():
+          QColor::fromHsv((int(which)-pathOffset)*53%360,180,180);
+        p.setPen(QPen(color,which<pathOffset?1.8:1.15));
         p.drawPath(path);
       }
       p.restore();
+      // Compact legend that remains in the exported plot.
+      const QString legend=panel==2?QStringLiteral("NEXT (blue)  |  FEXT (orange)  |  Total (foreground)"):
+        QStringLiteral("NEXT (blue)  |  FEXT (orange)");
+      p.setPen(palette().text().color());
+      if(area.width()>470)
+        p.drawText(QRectF(area.left(),area.bottom()+3,area.width(),18),Qt::AlignHCenter,legend);
     }
   }
 private:
   std::shared_ptr<const si::channel::IcnData> data_;
+  int panel_=0;
 };
 
 class EyePlotWidget final : public QWidget {
@@ -340,7 +373,7 @@ protected:
     const QString title=QStringLiteral("Simulated Channel Eye — Not Measured / Not PHY Compliance");
     p.drawText(QRectF(8,3,width()-16,24),Qt::AlignCenter,title);
     if(!data_) {
-      p.drawText(rect(),Qt::AlignCenter,QStringLiteral("Enter verified electrical conditions and Run Eye"));
+      p.drawText(rect(),Qt::AlignCenter,QStringLiteral("Auto Preview or enter verified settings and Run Manual"));
       return;
     }
     const auto &d=*data_;
@@ -547,13 +580,44 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
   setAttribute(Qt::WA_DeleteOnClose);
   setObjectName(QStringLiteral("channelAnalysisWindow") + labelFor(feature));
   setWindowTitle(QStringLiteral("SParamView · ") + labelFor(feature));
-  resize(feature_==Feature::Eye?1120:940, feature_==Feature::Eye?840:640);
-  auto *outer = new QVBoxLayout(this);
+  setMinimumSize(300,240);
+  auto *frameLayout=new QVBoxLayout(this);
+  frameLayout->setContentsMargins(0,0,0,0);
+  auto *pageScroll=new QScrollArea(this);
+  pageScroll->setObjectName(QStringLiteral("analysisPageScroll"));
+  pageScroll->setWidgetResizable(true);
+  auto *page=new QWidget;
+  auto *outer = new QVBoxLayout(page);
+  pageScroll->setWidget(page);
+  frameLayout->addWidget(pageScroll);
   auto *header = new QLabel(QStringLiteral("<b>") + labelFor(feature_) +
        QStringLiteral("</b> — Channel Analysis"));
   header->setTextFormat(Qt::RichText);
   outer->addWidget(header);
-  auto *form = new QFormLayout;
+  auto *guide=new QLabel;
+  guide->setObjectName(QStringLiteral("analysisInterpretation"));
+  guide->setWordWrap(true);
+  guide->setText(feature_==Feature::Ild?QStringLiteral(
+    "Reading ILD: deviation near 0 dB means smoother loss relative to its fitted trend. Large absolute peaks deserve investigation; low ILD alone does not mean low insertion loss. No standard PASS limit."):
+    feature_==Feature::Icn?QStringLiteral(
+    "Reading ICN: lower RMS and weighted PSD are preferable under identical TX/RX and band settings. Steep cumulative growth identifies noisy bands; compare path contributions. RSS assumes independent paths, not measured correlation. No standard PASS limit."):
+    QStringLiteral("Reading Eye: larger eye height and width imply more simulated decision margin; closed or overlapping levels indicate risk. Threshold and sampling lines are model conditions, not a PHY mask or BER measurement."));
+  outer->addWidget(guide);
+  auto *settingsToggle=new QToolButton;
+  settingsToggle->setObjectName(QStringLiteral("analysisSettingsToggle"));
+  settingsToggle->setText(QStringLiteral("Settings"));
+  settingsToggle->setCheckable(true);
+  settingsToggle->setChecked(true);
+  settingsToggle->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+  settingsToggle->setArrowType(Qt::DownArrow);
+  outer->addWidget(settingsToggle);
+  auto *panel=new QWidget;
+  auto *form = new QFormLayout(panel);
+  form->setRowWrapPolicy(QFormLayout::WrapLongRows);
+  form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+  connect(settingsToggle,&QToolButton::toggled,settingsToggle,[settingsToggle](bool checked){
+    settingsToggle->setArrowType(checked?Qt::DownArrow:Qt::RightArrow);
+  });
   source_ = new QComboBox;
   source_->setObjectName(QStringLiteral("analysisSource"));
   victim_ = new QComboBox;
@@ -585,9 +649,10 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     icnAggressors_=new QListWidget;
     icnAggressors_->setObjectName(QStringLiteral("icnAggressorList"));
     icnAggressors_->setMinimumHeight(100);
-    icnIndependent_=new QCheckBox(QStringLiteral("I confirm selected aggressors are modeled as uncorrelated (RSS)"));
+    icnIndependent_=new QCheckBox(QStringLiteral("Use independent-path RSS model (assumed, not measured)"));
+    icnIndependent_->setToolTip(QStringLiteral("Default exploratory model; uncheck to disallow multi-path RSS. Physical correlation is not established, including NEXT/FEXT from the same aggressor."));
     icnIndependent_->setObjectName(QStringLiteral("icnIndependentAssumption"));
-    icnIndependent_->setChecked(false);
+    icnIndependent_->setChecked(true);
     icnBaud_=new QDoubleSpinBox;
     icnBaud_->setObjectName(QStringLiteral("icnSymbolRate"));
     icnBaud_->setRange(0.001,1000);icnBaud_->setDecimals(3);
@@ -697,17 +762,14 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     form->addRow(QStringLiteral("Gaussian rise time"),icnRise_);
     form->addRow(QStringLiteral("RX 3 dB bandwidth"),icnRx_);
   }
-  if(feature_==Feature::Eye) {
-    auto *panel=new QWidget;
-    panel->setLayout(form);
-    auto *scroll=new QScrollArea;
-    scroll->setObjectName(QStringLiteral("eyeSettingsScroll"));
-    scroll->setWidgetResizable(true);
-    scroll->setWidget(panel);
-    scroll->setMinimumHeight(220);
-    scroll->setMaximumHeight(340);
-    outer->addWidget(scroll);
-  } else outer->addLayout(form);
+  auto *settingsScroll=new QScrollArea;
+  settingsScroll->setObjectName(feature_==Feature::Eye?QStringLiteral("eyeSettingsScroll"):QStringLiteral("analysisSettingsScroll"));
+  settingsScroll->setWidgetResizable(true);
+  settingsScroll->setWidget(panel);
+  settingsScroll->setMinimumHeight(100);
+  settingsScroll->setMaximumHeight(280);
+  outer->addWidget(settingsScroll);
+  connect(settingsToggle,&QToolButton::toggled,settingsScroll,&QWidget::setVisible);
   auto *controls = new QHBoxLayout;
   run_ = new QPushButton(QStringLiteral("Run"));
   run_->setObjectName(QStringLiteral("analysisRun"));
@@ -716,6 +778,16 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
   cancel_ = new QPushButton(QStringLiteral("Cancel"));
   cancel_->setObjectName(QStringLiteral("analysisCancel"));
   cancel_->setEnabled(false);
+  if(feature_==Feature::Eye) {
+    eyePreview_=new QPushButton(QStringLiteral("Auto Preview"));
+    eyePreview_->setObjectName(QStringLiteral("eyeAutoPreview"));
+    eyePreview_->setToolTip(QStringLiteral("Assumed matched, 400 mVpp NRZ preview; uses measured phase/DC and bandwidth, not actual PHY settings."));
+    eyePreview_->setAutoDefault(false);
+    eyePreview_->setEnabled(false);
+    controls->addWidget(eyePreview_);
+    run_->setText(QStringLiteral("Run Manual"));
+    connect(eyePreview_,&QPushButton::clicked,this,[this]{launchEye(true);});
+  }
   controls->addWidget(run_);
   controls->addWidget(cancel_);
   progress_ = new QProgressBar;
@@ -740,7 +812,16 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     outer->addWidget(ildGraph_,2);
   } else if(feature_==Feature::Icn) {
     graphPlaceholder_->hide();
+    auto *view=new QComboBox;
+    view->setObjectName(QStringLiteral("icnPlotView"));
+    view->addItems({QStringLiteral("All three graphs"),QStringLiteral("NEXT/FEXT power sum"),QStringLiteral("Weighted noise PSD"),QStringLiteral("Cumulative RMS (including total)")});
+    view->setCurrentIndex(3);
+    outer->addWidget(view);
     icnGraph_=new IcnPlotWidget(this);
+    static_cast<IcnPlotWidget *>(icnGraph_)->setPanel(3);
+    connect(view,&QComboBox::currentIndexChanged,this,[this](int v){
+      static_cast<IcnPlotWidget *>(icnGraph_)->setPanel(v);
+    });
     outer->addWidget(icnGraph_,2);
     icnContributions_=new QLabel(QStringLiteral("Select NEXT/FEXT paths to display individual contributions."));
     icnContributions_->setObjectName(QStringLiteral("icnContributions"));
@@ -847,6 +928,47 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
       progress_->setValue(scheduler_->progress(feature_));
     else progressPoll_.stop();
   });
+  fitToScreen();
+}
+void AnalysisWindow::showEvent(QShowEvent *event) {
+  QWidget::showEvent(event);
+  if(auto *handle=windowHandle()) {
+    connect(handle,&QWindow::screenChanged,this,&AnalysisWindow::watchScreen,Qt::UniqueConnection);
+    watchScreen(handle->screen());
+  }
+}
+void AnalysisWindow::watchScreen(QScreen *screen) {
+  QObject::disconnect(screenGeometryConnection_);
+  if(!screen) return;
+  screenGeometryConnection_=connect(screen,&QScreen::availableGeometryChanged,this,[this,screen](const QRect &){
+    clampToScreen(screen);
+  });
+  clampToScreen(screen);
+}
+void AnalysisWindow::clampToScreen(QScreen *screen) {
+  if(!screen || isMaximized() || isFullScreen()) return;
+  const QRect available=screen->availableGeometry();
+  const QSize limit(std::max(minimumWidth(),available.width()-40),
+                    std::max(minimumHeight(),available.height()-80));
+  const QSize fitted=size().boundedTo(limit);
+  if(fitted!=size()) resize(fitted);
+  // Only move when the frame is actually outside the available work area.
+  const QRect frame=frameGeometry();
+  if(!available.contains(frame)) {
+    const QPoint bounded(std::clamp(frame.left(),available.left(),std::max(available.left(),available.right()-frame.width()+1)),
+                         std::clamp(frame.top(),available.top(),std::max(available.top(),available.bottom()-frame.height()+1)));
+    move(pos()+bounded-frame.topLeft());
+  }
+}
+void AnalysisWindow::fitToScreen() {
+  auto *screen=QGuiApplication::screenAt(QCursor::pos());
+  if(!screen) screen=QGuiApplication::primaryScreen();
+  if(!screen) return;
+  const QRect available=screen->availableGeometry();
+  const QSize preferred(feature_==Feature::Eye?1120:940,feature_==Feature::Eye?840:720);
+  const QSize bounded=preferred.boundedTo(QSize(std::max(300,available.width()-40),std::max(240,available.height()-80)));
+  resize(bounded);
+  move(available.x()+(available.width()-width())/2,available.y()+(available.height()-height())/2);
 }
 void AnalysisWindow::setStatus(si::channel::Status status, const QString &details) {
   status_ = status;
@@ -871,7 +993,7 @@ QString AnalysisWindow::selectionIdentity() const {
         identity+=QStringLiteral("|X")+QString::number(item->data(Qt::UserRole).toInt())+
                   QStringLiteral("/") + QString::number(item->data(Qt::UserRole+1).toInt());
     }
-    identity+=icnIndependent_->isChecked()?QStringLiteral("|RSS_ACK"):QStringLiteral("|RSS_NOT_ACK");
+    identity+=icnIndependent_->isChecked()?QStringLiteral("|RSS_ASSUMED"):QStringLiteral("|RSS_DISABLED");
     for(auto *spin:{icnBaud_,icnVpp_,icnRise_,icnRx_})
       identity+=QStringLiteral("|")+QString::number(spin->value(),'g',17);
   }
@@ -944,7 +1066,7 @@ bool AnalysisWindow::startWork(AsyncWork work) {
     return false;
   const auto &item = context_.sources[index];
   if (!item.mappingConfirmed || item.sha256.isEmpty() || item.mappingDigest.isEmpty() ||
-      victim_->currentText().isEmpty() || fromGhz_->value() >= toGhz_->value()) {
+      victim_->currentText().isEmpty() || (feature_!=Feature::Eye && fromGhz_->value() >= toGhz_->value())) {
     setStatus(si::channel::Status::InvalidSource,
               QStringLiteral("Confirmed source, mapping and frequency band required"));
     return false;
@@ -1229,7 +1351,7 @@ void AnalysisWindow::launchIcn() {
   }
   if(chosen.size()>1 && !icnIndependent_->isChecked()) {
     setStatus(si::channel::Status::NotEvaluated,
-      QStringLiteral("Multiple aggressors require explicitly confirming the uncorrelated RSS assumption"));
+      QStringLiteral("Multiple paths require the independent-path RSS model. Enable the model or select one path."));
     return;
   }
   const auto input=icnProvider_(idx);
@@ -1286,7 +1408,7 @@ void AnalysisWindow::launchIcn() {
     progress.store(100);
     WorkOutcome outcome;
     outcome.status=result.status;
-    outcome.diagnostic=QStringLiteral("Generic NRZ band-limited ICN; not IEEE/SNIA compliance");
+    outcome.diagnostic=QStringLiteral("Generic NRZ band-limited ICN; assumed independent paths, not IEEE/SNIA compliance");
     outcome.icn=std::make_shared<si::channel::IcnData>(std::move(*result.value));
     outcome.provenance=std::move(result.provenance);
     return outcome;
@@ -1309,7 +1431,16 @@ void AnalysisWindow::showIcn(const WorkOutcome &outcome) {
       .arg(QString::fromStdString(a.id)).arg(a.rmsV*1000,0,'g',6)
       .arg(a.powerPercent,0,'g',5);
   }
-  if(icnContributions_) icnContributions_->setText(contributions.join(QStringLiteral(" | ")));
+  if(icnContributions_) {
+    const auto worst=std::max_element(d.aggressors.begin(),d.aggressors.end(),
+      [](const auto &a,const auto &b){return a.powerPercent<b.powerPercent;});
+    QString summary;
+    if(worst!=d.aggressors.end() && d.totalRmsV>0)
+      summary=QStringLiteral("Largest contribution: %1 %2 (%3% of noise power).\n")
+        .arg(worst->end==si::channel::IcnEnd::Next?QStringLiteral("NEXT"):QStringLiteral("FEXT"))
+        .arg(QString::fromStdString(worst->id)).arg(worst->powerPercent,0,'g',5);
+    icnContributions_->setText(summary+contributions.join(QStringLiteral(" | ")));
+  }
   setStatus(outcome.status,QStringLiteral(
     "NEXT %1 mV RMS | FEXT %2 mV RMS | Total %3 mV RMS | %4 paths%5 | %6–%7 GHz — Generic independent-path NRZ RSS, no standard PASS")
     .arg(d.nextRmsV*1000,0,'g',7).arg(d.fextRmsV*1000,0,'g',7)
@@ -1443,6 +1574,7 @@ void AnalysisWindow::setEyeSourceProvider(EyeSourceProvider provider) {
   eyeProvider_=std::move(provider);
   if(feature_==Feature::Eye) {
     run_->setEnabled(bool(eyeProvider_));
+    if(eyePreview_) eyePreview_->setEnabled(bool(eyeProvider_));
     run_->setToolTip(eyeProvider_?QStringLiteral(
       "Run phase-preserving simulated NRZ Eye with explicit electrical conditions")
       :QStringLiteral("Verified Eye source provider unavailable"));
@@ -1458,7 +1590,57 @@ void AnalysisWindow::clearEye() {
     csv_->setEnabled(false); png_->setEnabled(false);
   }
 }
-void AnalysisWindow::launchEye() {
+// Manual analysis never inherits assumed preview values. Validate user-provided
+// electrical conditions before scheduling work, keeping widgets on the GUI thread.
+bool AnalysisWindow::readManualEyeSettings(si::channel::EyeSettings &settings) {
+  using namespace si::channel;
+  if(eyeMode_->currentIndex()==0 || eyeBitRate_->value()<=0 ||
+     eyeReference_->value()<=0 || toGhz_->value()<=0) {
+    setStatus(Status::NotEvaluated,QStringLiteral(
+      "Explicit signal mode, bit rate, reference frequency and analysis cap required"));
+    return false;
+  }
+  settings=eyeProfile(static_cast<EyeProfile>(eyeProfile_->currentIndex()));
+  settings.mode=static_cast<EyeMode>(eyeMode_->currentIndex());
+  settings.pattern=static_cast<EyePattern>(eyePattern_->currentData().toInt());
+  settings.bitRateHz=eyeBitRate_->value()*1e9;
+  settings.referenceFrequencyHz=eyeReference_->value()*1e9;
+  settings.analysisStopHz=toGhz_->value()*1e9;
+  settings.fftLength=size_t(eyeFft_->currentText().toULongLong());
+  settings.samplesPerUI=size_t(eyeSamples_->currentText().toULongLong());
+  if(settings.pattern==EyePattern::CustomBits) {
+    const QByteArray bits=eyeBits_->text().trimmed().toLatin1();
+    settings.customBits.reserve(size_t(bits.size()));
+    for(const char ch:bits) {
+      if(ch!='0' && ch!='1') {
+        setStatus(Status::NotEvaluated,QStringLiteral("Custom pattern must contain only 0 and 1"));
+        return false;
+      }
+      settings.customBits.push_back(uint8_t(ch-'0'));
+    }
+  }
+  std::array<double,7> electrical{};
+  for(size_t i=0;i<electrical.size();++i) {
+    const QString raw=eyeElectrical_[i]->text().trimmed();
+    if(raw.isEmpty()) {
+      setStatus(Status::NotEvaluated,QStringLiteral(
+        "All TX/RX incident voltages, source/termination and RX range are required"));
+      return false;
+    }
+    bool ok=false;
+    electrical[i]=raw.toDouble(&ok);
+    if(!ok || !std::isfinite(electrical[i])) {
+      setStatus(Status::Error,QStringLiteral("Invalid finite TX/RX electrical input"));
+      return false;
+    }
+  }
+  settings.electrical={electrical[0]*1e-3,electrical[1]*1e-3,
+    electrical[2],electrical[3],electrical[4]*1e-3,
+    electrical[5]*1e-3,electrical[6]*1e-3};
+  return true;
+}
+
+void AnalysisWindow::launchEye(bool autoPreview) {
   using namespace si::channel;
   if(feature_!=Feature::Eye || !eyeProvider_)return;
   clearEye();
@@ -1478,70 +1660,47 @@ void AnalysisWindow::launchEye() {
     setStatus(Status::InvalidSource,QStringLiteral("Source SHA/revision changed; refresh analysis"));
     return;
   }
-  if(eyeMode_->currentIndex()==0 || eyeBitRate_->value()<=0 ||
-     eyeReference_->value()<=0 || toGhz_->value()<=0) {
-    setStatus(Status::NotEvaluated,QStringLiteral(
-      "Explicit signal mode, bit rate, reference frequency and analysis cap required"));
-    return;
-  }
-  EyeSettings settings=eyeProfile(
-    static_cast<EyeProfile>(eyeProfile_->currentIndex()));
-  settings.mode=static_cast<EyeMode>(eyeMode_->currentIndex());
-  settings.pattern=static_cast<EyePattern>(eyePattern_->currentData().toInt());
-  settings.bitRateHz=eyeBitRate_->value()*1e9;
-  settings.referenceFrequencyHz=eyeReference_->value()*1e9;
-  settings.analysisStopHz=toGhz_->value()*1e9;
-  settings.fftLength=size_t(eyeFft_->currentText().toULongLong());
-  settings.samplesPerUI=size_t(eyeSamples_->currentText().toULongLong());
-  if(settings.pattern==EyePattern::CustomBits) {
-    const QByteArray bits=eyeBits_->text().trimmed().toLatin1();
-    settings.customBits.reserve(size_t(bits.size()));
-    for(const char ch:bits) {
-      if(ch!='0' && ch!='1') {
-        setStatus(Status::NotEvaluated,QStringLiteral("Custom pattern must contain only 0 and 1"));
-        return;
-      }
-      settings.customBits.push_back(uint8_t(ch-'0'));
-    }
-  }
-  std::array<double,7> electrical{};
-  for(size_t i=0;i<electrical.size();++i) {
-    const QString raw=eyeElectrical_[i]->text().trimmed();
-    if(raw.isEmpty()) {
-      setStatus(Status::NotEvaluated,QStringLiteral(
-        "All TX/RX incident voltages, source/termination and RX range are required"));
-      return;
-    }
-    bool ok=false;
-    electrical[i]=raw.toDouble(&ok);
-    if(!ok || !std::isfinite(electrical[i])) {
-      setStatus(Status::Error,QStringLiteral("Invalid finite TX/RX electrical input"));
-      return;
-    }
-  }
-  settings.electrical={electrical[0]*1e-3,electrical[1]*1e-3,
-    electrical[2],electrical[3],electrical[4]*1e-3,
-    electrical[5]*1e-3,electrical[6]*1e-3};
+  // Preview deliberately bypasses only the manual input form, never source
+  // validation or the shared numerical engine's DC/impedance/band checks.
+  EyeSettings settings;
+  if(!autoPreview && !readManualEyeSettings(settings)) return;
   const QString sourceFile=QFileInfo(QString::fromUtf8(input->cache->meta().source.c_str())).fileName();
   const std::string victimId=source.channelIds[selected].toStdString();
   const bool reverse=direction_->currentIndex()==1;
-  const std::string settingsIdentity=selectionIdentity().toStdString();
-  startWork([input=*input,victimId,reverse,settings,settingsIdentity,sourceFile]
-       (const std::atomic_bool &cancel,std::atomic_int &progress)->WorkOutcome {
+  const std::string settingsIdentity=selectionIdentity().toStdString()+
+    (autoPreview?"|AUTO_PREVIEW_ASSUMED_MATCHED_400mVpp":"|MANUAL");
+  startWork([input=*input,victimId,reverse,settings,settingsIdentity,sourceFile,autoPreview]
+       (const std::atomic_bool &cancel,std::atomic_int &progress) mutable ->WorkOutcome {
     if(cancel.load()) throw si::Cancelled();
     progress.store(5);
+    // Revalidate the immutable source in the worker; user selections may have
+    // changed since the job was queued. The scheduler also checks generation.
     auto snapshot=SourceSnapshot::capture(input.cache,input.mapping,
         input.revision,input.workspaceGeneration,input.mappingGeneration);
     if(snapshot.identity().sha256!=input.expectedSha)
       throw si::Error("Eye source SHA changed since selection");
-    if(snapshot.channel(victimId).differential() !=
-       (settings.mode==EyeMode::Differential))
+    const bool differential=snapshot.channel(victimId).differential();
+    if(!autoPreview && differential != (settings.mode==EyeMode::Differential))
       throw si::Error("Eye single-ended/differential mode disagrees with mapped channel");
     if(cancel.load()) throw si::Cancelled();
     progress.store(35);
     const auto trace=extract(snapshot,victimId,si::Metric::IL,reverse);
+    if(autoPreview) {
+      // A transparent engineering example, never an inferred PHY.
+      if(trace.frequencyHz.front()!=0)
+        throw si::Error("Auto Preview needs measured DC (0 Hz); no silent extrapolation.");
+      const double cap=std::min(10e9,trace.frequencyHz.back());
+      settings.profile=EyeProfile::Custom;
+      settings.mode=differential?EyeMode::Differential:EyeMode::SingleEnded;
+      settings.pattern=EyePattern::Prbs7;
+      settings.bitRateHz=std::min(4.5e9,cap/1.5);
+      settings.referenceFrequencyHz=settings.bitRateHz/2;
+      settings.analysisStopHz=cap;
+      settings.electrical={-0.2,0.2,trace.stimulusOhm,trace.responseOhm,0,-1,1};
+    }
     if(cancel.load()) throw si::Cancelled();
     progress.store(60);
+    // Retain the actual source identity and the explicit preview/manual input mode.
     const auto &id=snapshot.identity();
     Provenance provenance{id.sha256,id.revision,id.mappingIdentity,
       "Phase-preserving deterministic NRZ Eye","012_46-v2",
@@ -1555,6 +1714,7 @@ void AnalysisWindow::launchEye() {
       diagnostics<<QString::fromStdString(d.code);
     outcome.diagnostic=QStringLiteral(
       "Simulated only — Not measured, no BER or PHY compliance; ")+
+      (autoPreview?QStringLiteral("AUTO PREVIEW: assumed 400 mVpp, matched reference Z, PRBS7; "):QString())+
       diagnostics.join(QStringLiteral(", "));
     if(result.usable()) {
       result.value->victimId=victimId;
@@ -1575,7 +1735,10 @@ void AnalysisWindow::showEye(const WorkOutcome &outcome) {
   plot->setData(eyeResult_,eyeResult_->settings.electrical.rxThresholdV);
   plot->setView(eyeView_->currentIndex());
   const auto &d=*eyeResult_;
-  eyeMetrics_->setText(QStringLiteral(
+  const bool preview=eyeProvenance_.settingsIdentity.ends_with("|AUTO_PREVIEW_ASSUMED_MATCHED_400mVpp");
+  const QString assumption=preview?QStringLiteral("AUTO PREVIEW — assumed TX ±200 mV, matched Zref %1 / %2 ohm, threshold 0 mV, RX ±1000 mV, PRBS7. Not actual PHY settings.\n")
+    .arg(d.settings.electrical.txSourceOhm).arg(d.settings.electrical.rxTerminationOhm):QStringLiteral("MANUAL SETTINGS\n");
+  eyeMetrics_->setText(assumption+QStringLiteral(
     "Simulated Channel Eye — Not Measured / Not PHY Compliance\n"
     "Height %1 mV | Width %2 ps (%3 UI) | Max-height phase %4 UI | Delay %5 ps\n"
     "Low maximum %6 mV | High minimum %7 mV | Received [%8, %9] mV\n"
@@ -1592,7 +1755,9 @@ void AnalysisWindow::showEye(const WorkOutcome &outcome) {
       .arg(d.reverse?QStringLiteral("Reverse"):QStringLiteral("Forward"))
       .arg(qulonglong(d.frameBitCount)).arg(qulonglong(d.overlayV.size()))
       .arg(qulonglong(d.settings.samplesPerUI))
-      .arg(d.samplingPhaseThresholdOpen?QStringLiteral("OPEN"):QStringLiteral("NOT OPEN")));
+      .arg(d.samplingPhaseThresholdOpen?QStringLiteral("OPEN"):QStringLiteral("NOT OPEN"))+
+    (d.samplingPhaseThresholdOpen?QStringLiteral("\nDecision margin exists at selected phase under this model (not a mask PASS)."):
+      QStringLiteral("\nAttention: threshold not open at selected phase under this model.")));
   csv_->setEnabled(true);png_->setEnabled(true);
   setStatus(outcome.status,outcome.diagnostic);
 }
@@ -1628,6 +1793,7 @@ bool AnalysisWindow::saveEyeCsv(const QString &name) {
   };
   const auto n=[](double v){return QString::number(v,'g',17);};
   out<<"# warning,\"Simulated Channel Eye — Not Measured / Not PHY Compliance\"\n"
+     <<"# input_mode,"<<(eyeProvenance_.settingsIdentity.ends_with("|AUTO_PREVIEW_ASSUMED_MATCHED_400mVpp")?"AUTO_PREVIEW_ASSUMED":"MANUAL")<<"\n"
      <<"# source_filename,"<<safe(eyeSourceFilename_.toStdString())<<"\n"
      <<"# source_sha256,"<<safe(eyeProvenance_.sourceSha256)<<"\n"
      <<"# revision,"<<safe(eyeProvenance_.revision)<<"\n"
@@ -1703,7 +1869,7 @@ bool AnalysisWindow::saveEyePng(const QString &name) {
     return false;
   }
   // Visible footer plus PNG tEXt metadata make standalone exports auditable.
-  constexpr int footerHeight=116;
+  constexpr int footerHeight=152;
   QImage output(graph.width(),graph.height()+footerHeight,
                 QImage::Format_ARGB32_Premultiplied);
   output.fill(palette().base().color());
@@ -1718,6 +1884,8 @@ bool AnalysisWindow::saveEyePng(const QString &name) {
     "File: %1 | Revision: %2 | Channel: %3 | %4\n"
     "SHA-256: %5\n"
     "Profile: %6 | Bit rate: %7 Gbps | Reference: %8 GHz | Cap: %9 GHz");
+  const QString inputMode=eyeProvenance_.settingsIdentity.ends_with("|AUTO_PREVIEW_ASSUMED_MATCHED_400mVpp")?
+    QStringLiteral("\nAUTO PREVIEW: assumed 400 mVpp / matched Zref / PRBS7; not actual PHY settings."):QStringLiteral("\nMANUAL SETTINGS");
   const QString labeled=caption.arg(eyeSourceFilename_,
      QString::fromStdString(eyeProvenance_.revision),
      QString::fromStdString(eyeResult_->victimId),
@@ -1726,7 +1894,7 @@ bool AnalysisWindow::saveEyePng(const QString &name) {
      QString::fromStdString(eyeResult_->profileName),
      QString::number(eyeResult_->bitRateHz/1e9,'g',7),
      QString::number(eyeResult_->referenceFrequencyHz/1e9,'g',7),
-     QString::number(eyeResult_->analysisStopHz/1e9,'g',7));
+     QString::number(eyeResult_->analysisStopHz/1e9,'g',7))+inputMode;
   p.drawText(QRect(10,graph.height()+4,output.width()-20,footerHeight-8),
              Qt::AlignLeft|Qt::TextWordWrap,labeled);
   p.end();
@@ -1748,6 +1916,7 @@ bool AnalysisWindow::saveEyePng(const QString &name) {
   output.setText(QStringLiteral("Direction"),eyeResult_->reverse?QStringLiteral("Reverse"):QStringLiteral("Forward"));
   output.setText(QStringLiteral("FrameBits"),QString::number(qulonglong(eyeResult_->frameBitCount)));
   output.setText(QStringLiteral("PhaseThresholdOpen"),eyeResult_->samplingPhaseThresholdOpen?QStringLiteral("true"):QStringLiteral("false"));
+  output.setText(QStringLiteral("InputMode"),inputMode.trimmed());
   output.setText(QStringLiteral("SimulationStatus"),
                  QStringLiteral("SIMULATED_ONLY / NOT_PHY_COMPLIANCE"));
   QSaveFile file(name);
