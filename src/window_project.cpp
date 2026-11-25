@@ -10,9 +10,9 @@ void MainWindow::newWorkspace() {
     return;
   }
   if (!confirmProjectTransition()) return;
-  auto staged = std::make_shared<QTemporaryDir>(
+  auto newWorkspaceDir = std::make_shared<QTemporaryDir>(
       QDir(cacheSession.path()).filePath("workspace-XXXXXX"));
-  if (!staged->isValid()) {
+  if (!newWorkspaceDir->isValid()) {
     error("Cannot create new private workspace cache.");
     return;
   }
@@ -29,8 +29,8 @@ void MainWindow::newWorkspace() {
   lastJobs.clear();
   lastRevisions.clear();
   revisions.clear();
-  auto previousWorkspace = std::move(workspaceCache);
-  workspaceCache = std::move(staged);
+  auto retiredNewWorkspace = std::move(workspaceCache);
+  workspaceCache = std::move(newWorkspaceDir);
   projectName = "Untitled";
   projectPath.clear();
   settings = si::Settings{};
@@ -53,8 +53,8 @@ void MainWindow::newWorkspace() {
   dirty = false;
   // Retire only the old owned workspace. The analysis manager waits for
   // outstanding worker handles before removing it (especially on Windows).
-  if (analysisWindows) analysisWindows->retireWorkspace(std::move(previousWorkspace));
-  else if (!previousWorkspace->remove())
+  if (analysisWindows) analysisWindows->retireWorkspace(std::move(retiredNewWorkspace));
+  else if (!retiredNewWorkspace->remove())
     qWarning() << "SParamView: retired workspace cleanup deferred";
   notice->setText("New workspace ready. Previous workspace cache retired; cleanup may be deferred until worker handles are released.");
 }
@@ -115,10 +115,10 @@ void MainWindow::saveProject(bool as) {
                            {"directionMode", directionMode},
                            {"geometry",
                             QString::fromLatin1(saveGeometry().toBase64())}}}};
-    const auto serialized = QJsonDocument(obj).toJson();
+    const auto projectJsonBytes = QJsonDocument(obj).toJson();
     QSaveFile file(path);
     if (!file.open(QIODevice::WriteOnly) ||
-        file.write(serialized) != serialized.size() || !file.commit())
+        file.write(projectJsonBytes) != projectJsonBytes.size() || !file.commit())
       throw si::Error("Project save failed");
     projectPath = path;
     sparamview::preferences::rememberFile(path);
