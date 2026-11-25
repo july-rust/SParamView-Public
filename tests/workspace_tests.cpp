@@ -324,6 +324,7 @@ struct WorkspaceProbe {
    }
    const auto a=fixture("first.s4p",touchstone), b=fixture("skip.s4p",touchstone),
               c=fixture("last.s4p",touchstone), invalid=fixture("bad.s4p","invalid\n");
+   const auto se=fixture("mixed-size.s2p","# GHz S RI R 50\n1 .1 0 .8 0 .7 0 .2 0\n2 .1 0 .8 0 .7 0 .2 0\n");
    MainWindow w, other;
    const auto otherCache=other.workspaceCache->path();
    const auto initialCache=w.workspaceCache->path();
@@ -376,6 +377,7 @@ struct WorkspaceProbe {
 
    QStringList reviewed;
    int failures=0;
+   bool cancelEveryMapping=false;
    QTimer mapping; mapping.setInterval(10);
    QObject::connect(&mapping,&QTimer::timeout,&w,[&]{
      auto *d=qobject_cast<QDialog*>(QApplication::activeModalWidget());
@@ -386,16 +388,16 @@ struct WorkspaceProbe {
      }
      if(d->objectName()=="signalTypeDetectionDialog"){
        auto *selector=d->findChild<QComboBox*>("signalTypeSelector");
-       if(selector)selector->setCurrentIndex(selector->findData("Differential"));
+       if(selector)selector->setCurrentIndex(selector->findData(d->windowTitle().contains("mixed-size")?"Single-ended":"Differential"));
        auto *buttons=d->findChild<QDialogButtonBox*>();
        if(buttons && buttons->button(QDialogButtonBox::Ok))buttons->button(QDialogButtonBox::Ok)->click();
      }else if(d->objectName()=="channelMappingDialog"){
        const auto title=d->windowTitle();
        reviewed<<title;
-       if(title.contains("skip")){d->reject();return;}
+       if(cancelEveryMapping || title.contains("skip")){d->reject();return;}
        auto *grid=d->findChild<QTableWidget*>();
        if(!grid||grid->rowCount()!=1){d->reject();return;}
-       grid->item(0,0)->setText(title.contains("first")?"MAP_A":"MAP_C");
+       grid->item(0,0)->setText(title.contains("mixed-size")?"MAP_SE":title.contains("first")?"MAP_A":"MAP_C");
        if(title.contains("last")){
          // Swap complete Near/Far differential pairs.
          for(int k=1;k<=2;++k){
@@ -408,18 +410,38 @@ struct WorkspaceProbe {
        if(buttons && buttons->button(QDialogButtonBox::Save))buttons->button(QDialogButtonBox::Save)->click();
      }
    });
-   mapping.start();w.openPaths({a,b,invalid,c});settle(w);mapping.stop();
-   check(reviewed.size()==3 && reviewed[0].contains("first") && reviewed[1].contains("skip") &&
-         reviewed[2].contains("last") && failures==1,"Per-file mapping order/cancel/failure not respected");
-   check(w.revisions.size()==2 && w.revisions[0].source==a && w.revisions[1].source==c &&
+   mapping.start();w.openPaths({a,b,invalid,c,se});settle(w);mapping.stop();
+   check(reviewed.size()==4 && reviewed[0].contains("first") && reviewed[1].contains("skip") &&
+         reviewed[2].contains("last") && reviewed[3].contains("mixed-size") && failures==1,
+         "Per-file mapping order/cancel/failure not respected");
+   check(w.revisions.size()==3 && w.revisions[0].source==a && w.revisions[1].source==c &&
+         w.revisions[2].source==se && w.revisions[2].cache->meta().ports==2 &&
+         w.revisions[2].confirmed && w.revisions[2].channels[0].name=="MAP_SE" &&
          w.revisions[0].confirmed && w.revisions[1].confirmed &&
          w.revisions[0].channels.size()==1 && w.revisions[1].channels.size()==1 &&
          w.revisions[0].channels[0].name=="MAP_A" && w.revisions[1].channels[0].name=="MAP_C" &&
          w.revisions[0].channels[0].nearP==w.revisions[1].channels[0].farP,
          "Independent mapping not preserved");
+   // All individually cancelled batch entries must leave the current workspace untouched.
+   const auto beforeCancelledBatch=w.revisions.size();
+   const auto beforeDirectory=sparamview::preferences::workingDirectory();
+   cancelEveryMapping=true;reviewed.clear();
+   mapping.start();w.openPaths({a,c});settle(w);mapping.stop();
+   check(reviewed.size()==2 && w.revisions.size()==beforeCancelledBatch &&
+         sparamview::preferences::workingDirectory()==beforeDirectory,
+         "All-cancelled batch registered a revision or changed preferences");
+   cancelEveryMapping=false;
+   w.revisionBox->setCurrentIndex(0);w.run({si::Metric::RL});settle(w);
+   check(!w.results.empty() && !w.lastRevisions.empty(),"Expected old analysis snapshot");
+   const auto oldName=w.revisions[0].name;
+   w.invalidateRevisionResults(oldName);
+   check(std::none_of(w.results.begin(),w.results.end(),[&](const si::Result &r){return r.revision==ss(oldName);}) &&
+         std::none_of(w.lastJobs.begin(),w.lastJobs.end(),[&](const si::Job &j){return j.revision==ss(oldName);}) &&
+         std::none_of(w.lastRevisions.begin(),w.lastRevisions.end(),[&](const Revision &r){return r.name==oldName;}),
+         "Invalidated mapping retained stale report data");
    choice=QMessageBox::Discard; answers.start();newAction->trigger();answers.stop();settle(w);
    check(w.revisions.empty() && QFileInfo(a).isFile() && QFileInfo(b).isFile() &&
-         QFileInfo(c).isFile() && QFileInfo(saved).isFile() && QDir(otherCache).exists(),
+         QFileInfo(c).isFile() && QFileInfo(se).isFile() && QFileInfo(saved).isFile() && QDir(otherCache).exists(),
          "Discard New removed source or other workspace");
    // Isolate the work-directory preference from the existing layout suite.
    {auto p=sparamview::preferences::store();p.remove("workspace/v1/lastDirectory");p.sync();}
