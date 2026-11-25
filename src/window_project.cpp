@@ -115,9 +115,10 @@ void MainWindow::saveProject(bool as) {
                            {"directionMode", directionMode},
                            {"geometry",
                             QString::fromLatin1(saveGeometry().toBase64())}}}};
+    const auto serialized = QJsonDocument(obj).toJson();
     QSaveFile file(path);
     if (!file.open(QIODevice::WriteOnly) ||
-        file.write(QJsonDocument(obj).toJson()) < 0 || !file.commit())
+        file.write(serialized) != serialized.size() || !file.commit())
       throw si::Error("Project save failed");
     projectPath = path;
     sparamview::preferences::rememberFile(path);
