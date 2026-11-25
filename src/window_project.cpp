@@ -1,3 +1,64 @@
+void MainWindow::newWorkspace() {
+  if (busy) return;
+  // Refuse to retire a directory that no longer belongs to this session.
+  const QFileInfo current(workspaceCache->path());
+  const auto session = QDir(cacheSession.path()).canonicalPath();
+  if (session.isEmpty() || !current.isDir() || current.isSymLink() ||
+      !current.fileName().startsWith("workspace-") ||
+      current.canonicalFilePath() != QDir(session).filePath(current.fileName())) {
+    error("Cannot verify current workspace cache ownership.");
+    return;
+  }
+  if (!confirmProjectTransition()) return;
+  auto staged = std::make_shared<QTemporaryDir>(
+      QDir(cacheSession.path()).filePath("workspace-XXXXXX"));
+  if (!staged->isValid()) {
+    error("Cannot create new private workspace cache.");
+    return;
+  }
+  QScopedValueRollback<bool> restoring(restoringProject, true);
+  // Cancel and invalidate callbacks before releasing any source handles.
+  if (analysisWindows) analysisWindows->setContext({});
+  ++viewGeneration;
+  pendingView.reset();
+  if (viewControl) viewControl->cancelled = true;
+  viewPool.waitForDone();
+  viewFuture = QFuture<void>{};
+  plot->snapshot.curves.clear();
+  results.clear();
+  lastJobs.clear();
+  lastRevisions.clear();
+  revisions.clear();
+  auto previousWorkspace = std::move(workspaceCache);
+  workspaceCache = std::move(staged);
+  projectName = "Untitled";
+  projectPath.clear();
+  settings = si::Settings{};
+  settings.tdrStopSeconds = 3e-9;
+  lastSettings = settings;
+  { QSignalBlocker blocker(revisionBox); revisionBox->clear(); }
+  search->clear();
+  selectionInfo->clear();
+  compareTable->clear();
+  compareTable->setRowCount(0);
+  compareTable->setColumnCount(0);
+  rebuildChannels();
+  applySettings();
+  setDirectionMode(0);
+  showMetric(si::Metric::RL);
+  updateActiveTouchstoneTitle();
+  refreshResults();
+  refreshPlot();
+  refreshAnalysisContext();
+  dirty = false;
+  // Retire only the old owned workspace. The analysis manager waits for
+  // outstanding worker handles before removing it (especially on Windows).
+  if (analysisWindows) analysisWindows->retireWorkspace(std::move(previousWorkspace));
+  else if (!previousWorkspace->remove())
+    qWarning() << "SParamView: retired workspace cleanup deferred";
+  notice->setText("New workspace ready. Previous workspace cache retired; cleanup may be deferred until worker handles are released.");
+}
+
 void MainWindow::saveProject(bool as) {
   if (busy || revisions.empty())
     return;
