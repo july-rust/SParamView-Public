@@ -46,6 +46,107 @@ def check_provenance(data, version, commit):
         raise RuntimeError('Package provenance does not match release version and build commit')
 
 
+
+def stage_windows_packages(folder, output, version, arch):
+    """Same-source full QA archive and slim user archive, reproducible ZIPs."""
+    folder, output = Path(folder), Path(output)
+    output.mkdir(parents=True, exist_ok=True)
+    required = ('SParamView.exe', 'tools/si_cli.exe', 'tests/si_v130_touchstone_tests.exe',
+                'Run_Windows_Verification.cmd', 'platforms/qwindows.dll', 'build-provenance.json',
+                'LICENSE', 'COPYRIGHT.txt')
+    for name in required:
+        if not (folder / name).is_file():
+            raise RuntimeError('Missing Windows bundle member: ' + name)
+    if sorted(p.name for p in folder.glob('*.exe')) != ['SParamView.exe']:
+        raise RuntimeError('Unexpected Windows root executable')
+    provenance = json.loads((folder/'build-provenance.json').read_text(encoding='utf-8-sig'))
+    check_provenance(provenance, version, os.environ['GITHUB_SHA'])
+    entries = []
+    user = output/f'SParamView_Windows_{arch}_v{version}.zip'
+    qa = output/f'SParamView_Windows_{arch}_QA_v{version}.zip'
+    with zipfile.ZipFile(user, 'w') as u, zipfile.ZipFile(qa, 'w') as q:
+        for path in sorted(folder.rglob('*')):
+            if not path.is_file():
+                continue
+            rel = path.relative_to(folder)
+            excluded = rel.parts[0] == 'tests' or rel.as_posix() == 'Run_Windows_Verification.cmd'
+            entries.append(dict(path=rel.as_posix(), bytes=path.stat().st_size,
+                                sha256=sha(path), classification='QA_ONLY' if excluded else 'RETAINED'))
+            add_file(q, path, rel)
+            if not excluded:
+                add_file(u, path, rel)
+    manifest = dict(version=version, commit=provenance['commit'], platform=arch,
+                    files=entries, packages={p.name:dict(bytes=p.stat().st_size, sha256=sha(p))
+                                             for p in (user, qa)},
+                    full_uncompressed_bytes=sum(e['bytes'] for e in entries),
+                    user_uncompressed_bytes=sum(e['bytes'] for e in entries if e['classification']=='RETAINED'))
+    (output/'inventory.json').write_text(json.dumps(manifest, indent=2)+'\n', encoding='utf-8')
+    return manifest
+
+
+def verify_windows_candidate(folder, version, commit, arch):
+    folder = Path(folder)
+    inventory = json.loads((folder/'inventory.json').read_text(encoding='utf-8'))
+    check_provenance(inventory, version, commit)
+    if inventory['platform'] != arch:
+        raise RuntimeError('Wrong Windows candidate architecture')
+    user = folder/f'SParamView_Windows_{arch}_v{version}.zip'
+    qa = folder/f'SParamView_Windows_{arch}_QA_v{version}.zip'
+    entries = {e['path']:e for e in inventory['files']}
+    for package, full in ((user, False), (qa, True)):
+        expected = inventory['packages'][package.name]
+        if expected['sha256'] != sha(package) or expected['bytes'] != package.stat().st_size:
+            raise RuntimeError('Windows package digest mismatch: '+package.name)
+        wanted = {n for n,e in entries.items() if full or e['classification']=='RETAINED'}
+        with zipfile.ZipFile(package) as z:
+            if len(z.namelist()) != len(wanted) or set(z.namelist()) != wanted:
+                raise RuntimeError('Windows package member mismatch: '+package.name)
+            for name in wanted:
+                if hashlib.sha256(z.read(name)).hexdigest() != entries[name]['sha256']:
+                    raise RuntimeError('Windows member digest mismatch: '+name)
+            check_provenance(json.loads(z.read('build-provenance.json').decode('utf-8-sig')), version, commit)
+            if not full and any(n.startswith('tests/') or n=='Run_Windows_Verification.cmd' for n in wanted):
+                raise RuntimeError('QA files leaked into user package')
+            if 'SParamView.exe' not in wanted or 'tools/si_cli.exe' not in wanted:
+                raise RuntimeError('Required user executable missing')
+    return user, qa
+
+
+def smoke_windows_candidate(folder, version, arch, evidence):
+    """Run the exact user ZIP, without SDK/build-tree Qt search paths."""
+    import platform
+    import shutil
+    folder, evidence = Path(folder).resolve(), Path(evidence).resolve()
+    evidence.mkdir(parents=True, exist_ok=True)
+    user, _ = verify_windows_candidate(folder, version, os.environ['GITHUB_SHA'], arch)
+    machine = platform.machine().lower()
+    expected = {'x64':('amd64','x86_64'), 'ARM64':('arm64','aarch64')}[arch]
+    if os.name != 'nt' or machine not in expected:
+        raise RuntimeError('Native Windows architecture required: '+machine)
+    with tempfile.TemporaryDirectory(prefix='sparamview-user-') as temp:
+        root = Path(temp)/'app'
+        with zipfile.ZipFile(user) as archive:
+            archive.extractall(root)
+        env = {k:v for k,v in os.environ.items() if not k.upper().startswith(('QT_', 'QML'))}
+        system = Path(os.environ['SystemRoot'])
+        env['PATH'] = os.pathsep.join(map(str,(root, system/'System32',system)))
+        env['QT_QPA_PLATFORM'] = 'windows'
+        env['LOCALAPPDATA'] = str(Path(temp)/'local')
+        env['APPDATA'] = str(Path(temp)/'roaming')
+        env['USERPROFILE'] = str(Path(temp)/'profile')
+        for name in ('LOCALAPPDATA','APPDATA','USERPROFILE'):
+            Path(env[name]).mkdir()
+        command = [str(root/'SParamView.exe'), '--selftest', str(root/'examples'), str(evidence/'selftest')]
+        with (evidence/'user-smoke.log').open('wb') as log:
+            result = subprocess.run(command, cwd=root, env=env, stdout=log, stderr=subprocess.STDOUT, timeout=180)
+        receipt = dict(commit=os.environ['GITHUB_SHA'], version=version, platform=arch, machine=machine,
+                       package=user.name, sha256=sha(user), exit=result.returncode,
+                       test='native windows platform, extracted user ZIP, SDK paths removed')
+        (evidence/'user-package-smoke.json').write_text(json.dumps(receipt,indent=2)+'\n',encoding='utf-8')
+        if result.returncode:
+            raise RuntimeError('User ZIP selftest failed')
+
+
 def write_validation_evidence(destination, roots):
     # Retain executable evidence, including GUI screenshots and CSV inputs/
     # outputs. Disposable office profiles are not verification evidence.
@@ -243,19 +344,15 @@ def main():
     output.mkdir(exist_ok=True)
     for arch in ('x64', 'ARM64'):
         folder = Path('package/windows-' + arch.lower())
-        check_provenance(json.loads((folder/'build-provenance.json').read_text(encoding='utf-8-sig')), version, commit)
-        # Fail closed if an old flat layout leaks test/CLI binaries to the root.
-        top_level_exes = sorted(p.name for p in folder.glob('*.exe'))
-        if top_level_exes != ['SParamView.exe']:
-            raise RuntimeError(f'Unexpected root executables in {arch}: {top_level_exes}')
-        for relative in ('tools/si_cli.exe', 'tests/si_v130_touchstone_tests.exe'):
-            if not (folder / relative).is_file():
-                raise RuntimeError(f'Missing relocated Windows executable ({arch}): {relative}')
-        target = output/f'SParamView_Windows_{arch}_v{version}.zip'
-        with zipfile.ZipFile(target, 'w', zipfile.ZIP_DEFLATED, compresslevel=6) as archive:
-            for path in sorted(folder.rglob('*')):
-                if path.is_file():
-                    add_file(archive, path, path.relative_to(folder))
+        user, qa = verify_windows_candidate(folder, version, commit, arch)
+        evidence_root = Path('package/evidence')
+        receipts = [json.loads(p.read_text(encoding='utf-8')) for p in evidence_root.rglob('user-package-smoke.json')]
+        matching = [r for r in receipts if r.get('platform') == arch]
+        if len(matching) != 1 or matching[0].get('commit') != commit or matching[0].get('version') != version or matching[0].get('sha256') != sha(user) or matching[0].get('exit') != 0:
+            raise RuntimeError('Missing exact user ZIP native execution receipt: '+arch)
+        import shutil
+        shutil.copyfile(user, output/user.name)
+        shutil.copyfile(qa, output/qa.name)
     import shutil
     for extension in ('zip', 'dmg'):
         name = f'SParamView_macOS_AppleSilicon_arm64_v{version}.{extension}'
@@ -312,4 +409,10 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1] == '--stage-windows':
+        stage_windows_packages(Path(sys.argv[2]), Path(sys.argv[3]), sys.argv[4], sys.argv[5])
+    elif len(sys.argv) > 1 and sys.argv[1] == '--smoke-windows':
+        smoke_windows_candidate(Path(sys.argv[2]), sys.argv[3], sys.argv[4], Path(sys.argv[5]))
+    else:
+        main()
