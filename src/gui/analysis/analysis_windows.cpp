@@ -572,7 +572,7 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     fitModel_->setObjectName(QStringLiteral("ildFitModel"));
     fitModel_->addItems({QStringLiteral("Linear"), QStringLiteral("Root + linear"),
                          QStringLiteral("Root + linear + quadratic")});
-    fitModel_->setCurrentIndex(2);
+    fitModel_->setCurrentIndex(1);
     form->addRow(QStringLiteral("ILD fit model"),fitModel_);
   }
   if(feature_ == Feature::Icn) {
@@ -1050,7 +1050,7 @@ void AnalysisWindow::launchIld() {
     progress.store(65);
     const auto &identity=snapshot.identity();
     si::channel::Provenance provenance{identity.sha256,identity.revision,
-      identity.mappingIdentity,"Generic ILD least-squares","012_05-v1",
+      identity.mappingIdentity,"Generic ILD bandwidth-weighted least-squares","012_44-v2",
       fitIdentity,identity.workspaceGeneration,identity.mappingGeneration};
     auto output=si::channel::calculateIld(trace,cfg,provenance,&cancel);
     if(cancel.load()) return {si::channel::Status::Cancelled,QStringLiteral("Cancelled")};
@@ -1073,9 +1073,10 @@ void AnalysisWindow::showIld(const WorkOutcome &outcome) {
   csv_->setEnabled(true);
   png_->setEnabled(true);
   const auto &d=*ildResult_;
-  setStatus(outcome.status,QStringLiteral("RMS %1 dB | peak abs %2 dB @ %3 GHz | %4 samples. Exploratory: no standard PASS")
+  setStatus(outcome.status,QStringLiteral("Band RMS %1 dB | peak abs %2 dB @ %3 GHz | %4 samples | %5–%6 GHz. Bandwidth-weighted fit; no standard PASS")
     .arg(d.rmsDb,0,'g',6).arg(d.peakAbsoluteDb,0,'g',6)
-    .arg(d.peakFrequencyHz/1e9,0,'g',7).arg(qulonglong(d.frequencyHz.size())));
+    .arg(d.peakFrequencyHz/1e9,0,'g',7).arg(qulonglong(d.frequencyHz.size()))
+    .arg(d.rangeStartHz/1e9,0,'g',7).arg(d.rangeStopHz/1e9,0,'g',7));
 }
 void AnalysisWindow::exportIldCsv() {
   if(!ildResult_) return;
@@ -1111,8 +1112,13 @@ bool AnalysisWindow::saveIldCsv(const QString &name) {
      <<"# frequency_normalization_hz,"<<QString::number(d.frequencyScaleHz,'g',17)<<"\n"
      <<"# fit_start_hz,"<<QString::number(d.rangeStartHz,'g',17)<<"\n"
      <<"# fit_stop_hz,"<<QString::number(d.rangeStopHz,'g',17)<<"\n"
+     <<"# requested_start_hz,"<<QString::number(d.requestedStartHz,'g',17)<<"\n"
+     <<"# requested_stop_hz,"<<QString::number(d.requestedStopHz,'g',17)<<"\n"
+     <<"# fit_weighting,trapezoidal_bandwidth_cell\n"
+     <<"# rms_definition,band_integral_piecewise_linear\n"
      <<"# rms_db,"<<QString::number(d.rmsDb,'g',17)<<"\n"
-     <<"# peak_abs_db,"<<QString::number(d.peakAbsoluteDb,'g',17)<<"\n";
+     <<"# peak_abs_db,"<<QString::number(d.peakAbsoluteDb,'g',17)<<"\n"
+     <<"# peak_frequency_hz,"<<QString::number(d.peakFrequencyHz,'g',17)<<"\n";
   for(size_t i=0;i<d.coefficients.size();++i)
     out<<"# a"<<i<<","<<QString::number(d.coefficients[i],'g',17)<<"\n";
   out<<"Frequency_GHz,IL_dB,Fitted_IL_dB,ILD_dB\n";

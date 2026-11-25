@@ -1,5 +1,7 @@
 # 012_05 — ILD engine and GUI contract (v1.4.0 integration)
 
+**012_44 amendment (qualification pending exact-head CI):** The locked requirements specify bandwidth-weighted least squares and band-integral RMS; the original 012_05 unweighted implementation below is historical. The 012_44 candidate uses normalized trapezoidal cell weights in QR, default Root + Linear, and exact integration of the squared piecewise-linear residual over the actual measured band. The three original models remain selectable. The CSV identifies the weighting, RMS definition, requested and actual ranges, and peak frequency. Zero residual chooses the first measured frequency. Generic ILD remains non-normative; no IEEE FOM or compliance claim. Independent weighted linear, nonuniform, exact-model and CSV/S4P oracles are proposed; actual execution evidence is required before completion.
+
 **Release baseline:** official v1.3.5 unchanged.  
 **Development target:** integration/v1.4.0.  
 **Numerical status:** **COMPLETE** for exploratory generic ILD scope. PR #40 squash-merged to `integration/v1.4.0` as `90a59ada15a9c17aa787ffb317fcafefb4285c75`; [CI 43766947020](https://github.com/july-rust/SParamView-Public/actions/runs/43766947020) passed Core 33/33 Release + 33/33 ASan/UBSan, Windows x64 52/52, macOS arm64 48/48 and native Windows ARM64 packaged gate. Real hardware interactive UI remains 012_12.  

@@ -223,6 +223,9 @@ int main(int argc, char **argv) {
     auto *ild=manager.openWindow(Feature::Ild);
     check(manager.action(Feature::Ild)->isEnabled(), "ILD menu not enabled");
     check(ild->runButton()->isEnabled(), "Verified ILD Run disabled");
+    auto *ildModel=ild->findChild<QComboBox *>(QStringLiteral("ildFitModel"));
+    check(ildModel && ildModel->currentIndex()==1,"ILD default must be root-linear");
+    ildModel->setCurrentIndex(2); // fixture is an exact quadratic-root model
     ild->runButton()->click();
     drain(manager.scheduler());
     check(ild->status()==S::Valid, "Real ILD worker did not produce VALID result");
@@ -244,6 +247,28 @@ int main(int argc, char **argv) {
           csvBytes.contains("# fitting_model,"),
           "CSV numerical/provenance columns missing");
     check(csvBytes.count('\n')>=32,"CSV numeric row count suspicious");
+    check(csvBytes.contains("# fit_weighting,trapezoidal_bandwidth_cell") &&
+          csvBytes.contains("# rms_definition,band_integral_piecewise_linear") &&
+          csvBytes.contains("# peak_frequency_hz,") &&
+          csvBytes.contains("# requested_stop_hz,30000000000"),
+          "ILD export calculation contract incomplete");
+    auto normalizedIld=QByteArray(csvBytes).replace("\r\n","\n");
+    const QByteArray ildHeader="Frequency_GHz,IL_dB,Fitted_IL_dB,ILD_dB\n";
+    const auto ildAt=normalizedIld.indexOf(ildHeader);
+    check(ildAt>=0,"ILD CSV header missing");
+    const auto ildRows=normalizedIld.mid(ildAt+ildHeader.size()).split('\n');
+    check(ildRows.size()==18 && ildRows.back().isEmpty(),"ILD CSV exact row count");
+    for(int i=0;i<=16;++i) {
+      const auto fields=ildRows[i].split(',');
+      check(fields.size()==4,"ILD CSV column count");
+      bool fOk=false,ilOk=false,fitOk=false,resOk=false;
+      const double f=fields[0].toDouble(&fOk), il=fields[1].toDouble(&ilOk),
+                   fit=fields[2].toDouble(&fitOk), residual=fields[3].toDouble(&resOk);
+      const double x=double(i)/16, expected=1.5+2*std::sqrt(x)+3*x+0.25*x*x;
+      check(fOk&&ilOk&&fitOk&&resOk&&std::abs(f-i)<1e-9&&
+            std::abs(il-expected)<1e-8&&std::abs(fit-expected)<1e-8&&
+            std::abs(residual)<1e-8,"ILD CSV independent analytical numeric row");
+    }
     QImage actualPng(pngPath);
     check(!actualPng.isNull() && actualPng.width()>200 &&
           actualPng.height()>200,"PNG not a usable rendered plot");
@@ -531,6 +556,34 @@ int main(int argc, char **argv) {
                             diffCache->meta().sha256,1,1};
     });
     manager.setContext(diffContext);
+    manager.setIldSourceProvider([diffCache,diffLane](int index)
+        ->std::optional<IldSourceInput> {
+      if(index!=0)return std::nullopt;
+      return IldSourceInput{diffCache,{diffLane},"D-PHY fixture revision",
+                            diffCache->meta().sha256,1,1};
+    });
+    ildModel->setCurrentIndex(0);
+    auto *ildDirection=ild->findChild<QComboBox *>(QStringLiteral("analysisDirection"));
+    check(ildDirection,"ILD direction control missing");
+    for(int reverse=0;reverse<=1;++reverse) {
+      ildDirection->setCurrentIndex(reverse);
+      ild->runButton()->click();drain(manager.scheduler());
+      check(ild->status()==S::Valid,"Differential ILD failed");
+      const auto name=ildDir.filePath(QStringLiteral("ild-diff-%1.csv").arg(reverse));
+      check(ild->saveIldCsv(name),"Differential ILD export failed");
+      QFile data(name);check(data.open(QIODevice::ReadOnly),"Differential ILD readback failed");
+      auto bytes=QByteArray(data.readAll()).replace("\r\n","\n");
+      check(bytes.contains(reverse?"Sdd12":"Sdd21"),"Differential ILD direction mismatch");
+      const auto at=bytes.indexOf(ildHeader);
+      check(at>=0,"Differential ILD header missing");
+      const auto rows=bytes.mid(at+ildHeader.size()).split('\n');
+      check(rows.size()==14,"Differential ILD row count");
+      for(int i=0;i<=12;++i) {
+        auto fields=rows[i].split(',');check(fields.size()==4,"Differential ILD columns");
+        bool ok=false;const double loss=fields[1].toDouble(&ok);
+        check(ok&&std::abs(loss+20*std::log10(0.8))<1e-8,"Differential ILD loss oracle");
+      }
+    }
     profile->setCurrentIndex(0);
     check(mode->currentIndex()==2 && std::abs(baud->value()-4.5)<1e-9 &&
           std::abs(reference->value()-2.25)<1e-9 &&
