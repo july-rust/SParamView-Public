@@ -447,6 +447,246 @@ struct WorkspaceProbe {
    // Isolate the work-directory preference from the existing layout suite.
    {auto p=sparamview::preferences::store();p.remove("workspace/v1/lastDirectory");p.sync();}
  }
+
+ static void integratedAnalysisQualification(const QString &out) {
+   using si::gui::Feature;
+   using si::channel::Status;
+   stage("012_49 integrated application workflow");
+   QTemporaryDir fixture(QDir(out).absoluteFilePath("integration-XXXXXX"));
+   check(fixture.isValid(),"Cannot create integration fixture");
+   auto write=[&](const QString &name,const QByteArray &data) {
+     const QString path=QDir(fixture.path()).filePath(name);
+     QFile file(path);
+     check(file.open(QIODevice::WriteOnly|QIODevice::Truncate),"Cannot write integration fixture");
+     check(file.write(data)==data.size(),"Short integration fixture write");
+     file.close();return path;
+   };
+   QJsonArray sources;
+   // Two different single-ended, two-lane S4P revisions. Matrix order follows
+   // the existing channel GUI fixture. Only forward through loss differs.
+   const QJsonArray lanes{
+     QJsonObject{{"id","victim"},{"name","Victim"},{"group","Fixture"},{"nearP",0},{"farP",1}},
+     QJsonObject{{"id","aggressor"},{"name","Aggressor"},{"group","Fixture"},{"nearP",2},{"farP",3}}};
+   for(int rev=0;rev<2;++rev) {
+     QByteArray data="# GHz S RI R 50\n";
+     for(int freq=0;freq<=12;++freq) {
+       data+=QByteArray::number(freq);
+       for(int response=0;response<4;++response)
+         for(int stimulus=0;stimulus<4;++stimulus) {
+           double amplitude=0;
+           if(response==stimulus)amplitude=.05;
+           if(response/2==stimulus/2 && response!=stimulus)
+             amplitude=rev==0?.8:.5;
+           if(response==0 && stimulus==2)amplitude=.04;
+           if(response==1 && stimulus==2)amplitude=.08;
+           data+=" "+QByteArray::number(amplitude,'g',17)+" 0";
+         }
+       data+="\n";
+     }
+     const QString name=QString("Integration_%1").arg(rev);
+     const QString path=write(name+".s4p",data);
+     sources.append(QJsonObject{{"name",name},{"source",path},{"channels",lanes},
+       {"confirmed",true},{"signalType","Single-ended"},{"signalTypeReviewed",true}});
+   }
+   si::Settings cfg;
+   cfg.startHz=1e9;cfg.stopHz=10e9;cfg.tdrStopSeconds=3e-9;
+   const auto project=write("input.siproject",QJsonDocument(QJsonObject{
+     {"format","SIAnalyzerProject"},{"schema",1},{"name","Integration"},
+     {"settings",settingsJson(cfg)},{"revisions",sources},
+     {"ui",QJsonObject{{"revision",0},{"group","Fixture"},
+       {"selected",QJsonArray{"victim","aggressor"}},{"metric",0}}}}).toJson());
+   MainWindow w;
+   w.show();settle(w);
+   // Fail visibly instead of hanging on an unexpected native modal dialog.
+   QString unexpectedModal;
+   QTimer modalGuard;modalGuard.setInterval(20);
+   QObject::connect(&modalGuard,&QTimer::timeout,&w,[&]{
+     if(auto *dialog=qobject_cast<QDialog*>(QApplication::activeModalWidget())) {
+       unexpectedModal=dialog->windowTitle();
+       if(auto *box=qobject_cast<QMessageBox*>(dialog))unexpectedModal+=": "+box->text();
+       std::cerr<<"012_49 unexpected modal: "<<unexpectedModal.toStdString()<<std::endl;
+       dialog->reject();
+     }
+   });
+   modalGuard.start();
+   stage("012_49 load absolute fixture");
+   w.loadProject(project,false);settle(w);
+   check(unexpectedModal.isEmpty(),"Unexpected modal during integration project load");
+   check(w.revisions.size()==2 && w.revisions[0].confirmed && w.revisions[1].confirmed,
+         "Integration project did not restore two confirmed mappings");
+   auto &manager=*w.analysisWindows;
+   check(manager.context().sources.size()==2 && !manager.action(Feature::Com) &&
+         !manager.openWindow(Feature::Com),"MainWindow release menu/context contract");
+   auto open=[&](Feature feature) {
+     auto *action=manager.action(feature);
+     check(action && action->isEnabled(),"MainWindow analysis action unavailable");
+     action->trigger();
+     auto *window=manager.existingWindow(feature);
+     check(window && window->isWindow() && window->isVisible(),"Analysis window missing");
+     return window;
+   };
+   auto drain=[&] {
+     QElapsedTimer clock;clock.start();
+     while(manager.scheduler().inFlight()!=0) {
+       QApplication::processEvents(QEventLoop::AllEvents,10);
+       QThread::msleep(1);
+       check(clock.elapsed()<20000,"Integrated channel worker timed out");
+     }
+     QApplication::processEvents();
+   };
+   auto read=[&](const QString &path) {
+     QFile file(path);check(file.open(QIODevice::ReadOnly),"Integrated export missing");
+     return file.readAll();
+   };
+   auto *ild=open(Feature::Ild);
+   auto *icn=open(Feature::Icn);
+   auto *eye=open(Feature::Eye);
+   check(ild!=icn && ild!=eye && icn!=eye,"Analysis windows share identity");
+   auto *fit=ild->findChild<QComboBox*>("ildFitModel");
+   auto *ildStop=ild->findChild<QDoubleSpinBox*>("ildStopGhz");
+   auto *items=icn->findChild<QListWidget*>("icnAggressorList");
+   auto *profile=eye->findChild<QComboBox*>("eyeProfile");
+   auto *mode=eye->findChild<QComboBox*>("eyeMode");
+   auto *baud=eye->findChild<QDoubleSpinBox*>("eyeBitRateGbps");
+   auto *cap=eye->findChild<QDoubleSpinBox*>("eyeAnalysisCapGhz");
+   check(fit && ildStop && items && profile && mode && baud && cap,
+         "Integrated feature controls missing");
+   fit->setCurrentIndex(0);ildStop->setValue(10);
+   profile->setCurrentIndex(int(si::channel::EyeProfile::Custom));
+   mode->setCurrentIndex(1);baud->setValue(4.5);cap->setValue(10);
+   auto *reference=eye->findChild<QDoubleSpinBox*>("eyeReferenceGhz");
+   check(reference && std::abs(reference->value()-2.25)<1e-9,
+         "Integrated Eye Nyquist reference mismatch");
+   const char *fields[]={"eyeTxLowMv","eyeTxHighMv","eyeTxSourceOhm",
+     "eyeRxTerminationOhm","eyeRxThresholdMv","eyeRxMinimumMv","eyeRxMaximumMv"};
+   const char *electrical[]={"0","400","50","50","180","-500","1000"};
+   for(int i=0;i<7;++i) {
+     auto *field=eye->findChild<QLineEdit*>(fields[i]);
+     check(field!=nullptr,"Integrated Eye electrical control missing");
+     field->setText(QString::fromLatin1(electrical[i]));
+   }
+   const std::vector<si::Metric> metrics{si::Metric::RL,si::Metric::IL,
+     si::Metric::NEXT,si::Metric::FEXT,si::Metric::TDR};
+   w.run(metrics);settle(w);
+   for(auto metric:metrics)
+     check(std::any_of(w.results.begin(),w.results.end(),[&](const si::Result &r){
+       return r.metric==metric && !r.plotX.empty();}),"Legacy integrated metric missing");
+   const auto legacy=values(w);
+   auto exercise=[&](int rev) {
+     check(items->count()==2,"Integrated ICN aggressor list missing");
+     items->item(0)->setCheckState(Qt::Checked);
+     check(ild->runButton()->isEnabled() && icn->runButton()->isEnabled() &&
+           eye->runButton()->isEnabled(),"Integrated analysis Run disabled");
+     ild->runButton()->click();icn->runButton()->click();eye->runButton()->click();
+     drain();
+     auto usable=[](Status s){return s==Status::Valid || s==Status::Warning;};
+     check(usable(ild->status()) && usable(icn->status()) && usable(eye->status()),
+           "Integrated numerical worker failed");
+     const QString prefix=QDir(fixture.path()).filePath(QString("rev%1-").arg(rev));
+     check(ild->saveIldCsv(prefix+"ild.csv") && icn->saveIcnCsv(prefix+"icn.csv") &&
+           eye->saveEyeCsv(prefix+"eye.csv"),"Integrated CSV export failed");
+     const auto expectedSha=qs(w.revisions[size_t(rev)].cache->meta().sha256).toUtf8();
+     for(const auto &suffix:{"ild.csv","icn.csv","eye.csv"}) {
+       const auto csv=read(prefix+QString::fromLatin1(suffix));
+       check(csv.contains(expectedSha) && csv.contains(w.revisions[size_t(rev)].name.toUtf8()),
+             "Export provenance did not match active revision");
+     }
+     const auto ildCsv=read(prefix+"ild.csv");
+     const auto rows=ildCsv.split('\n');
+     bool found=false;
+     for(const auto &row:rows) {
+       if(row.isEmpty() || row.startsWith('#') || row.startsWith("Frequency"))continue;
+       const auto columns=row.split(',');
+       bool ok=false;
+       check(columns.size()==4,"Integrated ILD CSV schema");
+       const double loss=columns[1].toDouble(&ok);
+       check(ok && std::abs(loss+20*std::log10(rev==0?.8:.5))<1e-8,
+             "Integrated ILD analytical through-loss mismatch");
+       found=true;
+     }
+     check(found,"Integrated ILD CSV missing data");
+   };
+   stage("012_49 first revision analysis");
+   exercise(0);
+   check(values(w)==legacy,"New analysis altered legacy results");
+   w.revisionBox->setCurrentIndex(1);settle(w);
+   const auto forbidden=QDir(fixture.path()).filePath("stale.csv");
+   check(!ild->saveIldCsv(forbidden) && !icn->saveIcnCsv(forbidden) &&
+         !eye->saveEyeCsv(forbidden) && !QFileInfo::exists(forbidden),
+         "Revision change left stale feature export enabled");
+   stage("012_49 second revision analysis");
+   exercise(1);
+   check(values(w)==legacy,"Revision analysis altered legacy result set");
+   // A bad output target must fail without modifying the workspace or source.
+   check(!ild->saveIldCsv(fixture.path()) && values(w)==legacy,
+         "Export failure damaged main analysis");
+   const auto saved=QDir(fixture.path()).filePath("roundtrip.siproject");
+   w.projectPath=saved;w.saveProject();
+   check(QFileInfo(saved).isFile() && !w.dirty,"Integrated project save failed");
+   // Hold a real verified source snapshot inside the same scheduler used by
+   // Eye. This lifetime probe is separate from the actual Eye runs above.
+   // A bounded release guard prevents hangs even if an assertion throws.
+   stage("012_49 held source snapshot retirement");
+   struct Gate { std::atomic_bool acquired{false}, release{false}, readOk{false}; };
+   auto gate=std::make_shared<Gate>();
+   struct ReleaseGate {
+     std::shared_ptr<Gate> gate;
+     ~ReleaseGate(){gate->release.store(true);}
+   } releaseGate{gate};
+   {
+     const auto &rev=w.revisions[1];
+     const auto generation=manager.context().generation;
+     check(eye->startWork([cache=rev.cache,mapping=rev.channels,
+           name=ss(rev.name),generation,gate](const std::atomic_bool &,
+           std::atomic_int &)->si::gui::WorkOutcome {
+       auto snapshot=si::channel::SourceSnapshot::capture(cache,mapping,name,generation,generation);
+       gate->acquired.store(true);
+       QElapsedTimer hold;hold.start();
+       while(!gate->release.load() && hold.elapsed()<15000) QThread::msleep(1);
+       if(!gate->release.load())throw si::Error("Snapshot hold timed out");
+       const auto trace=si::channel::extract(snapshot,"victim",si::Metric::IL);
+       if(trace.frequencyHz.empty())throw si::Error("Retired source unreadable");
+       gate->readOk.store(true);
+       return {Status::Valid,QStringLiteral("Held snapshot lifetime probe")};
+     }),"Could not start held snapshot worker");
+   }
+   QElapsedTimer acquire;acquire.start();
+   while(!gate->acquired.load() && acquire.elapsed()<5000) {
+     QApplication::processEvents();QThread::msleep(1);
+   }
+   check(gate->acquired.load(),"Worker did not acquire source snapshot");
+   const auto retired=w.workspaceCache->path();
+   w.newWorkspace();settle(w);
+   check(unexpectedModal.isEmpty() && w.revisions.empty() &&
+         manager.scheduler().inFlight()>0 && QDir(retired).exists(),
+         "New removed cache before held source worker released");
+   gate->release.store(true);drain();
+   check(gate->readOk.load(),"Held worker could not read retired source");
+   QElapsedTimer cleanup;cleanup.start();
+   while(QDir(retired).exists() && cleanup.elapsed()<5000) {
+     QApplication::processEvents();QThread::msleep(10);
+   }
+   check(w.revisions.empty() && w.results.empty() && manager.context().sources.isEmpty() &&
+         !ild->saveIldCsv(forbidden) && !icn->saveIcnCsv(forbidden) &&
+         !eye->saveEyeCsv(forbidden) && !QFileInfo::exists(forbidden) &&
+         !QDir(retired).exists(),"New retained stale results or retired cache");
+   stage("012_49 project reload");
+   w.loadProject(saved,false);settle(w);
+   check(unexpectedModal.isEmpty(),"Unexpected modal during integration project reload");
+   check(w.revisions.size()==2 && w.revisionBox->currentIndex()==1 &&
+         manager.context().sources.size()==2 &&
+         manager.context().sources[1].mappingConfirmed,"Integrated project restore failed");
+   w.run(metrics);settle(w);
+   check(values(w)==legacy,"Legacy results changed after project roundtrip");
+   exercise(1);
+   check(unexpectedModal.isEmpty(),"Unexpected modal during integrated workflow");
+   modalGuard.stop();
+   w.dirty=false;
+   ild->close();icn->close();eye->close();QApplication::processEvents();
+   check(QFileInfo(saved).isFile(),"Workspace lifecycle removed saved project");
+   {auto p=sparamview::preferences::store();p.remove("workspace/v1/lastDirectory");p.sync();}
+   stage("012_49 integrated application workflow passed");
+ }
  static void preferencesQualification(const QString &out) {
   using namespace sparamview::preferences;
   const double expected[] = {-10, -3, -20, -20};
@@ -536,10 +776,11 @@ int main(int argc,char**argv){
   QSize size(argc>3?QString::fromLocal8Bit(argv[3]).toInt():1440,argc>4?QString::fromLocal8Bit(argv[4]).toInt():980);
   WorkspaceProbe::preferencesQualification(out);
   WorkspaceProbe::fileWorkflowQualification(QString::fromLocal8Bit(argv[1]),out);
+  WorkspaceProbe::integratedAnalysisQualification(out);
   QJsonObject result;
   WorkspaceProbe::stage("construct MainWindow");
   {MainWindow w;WorkspaceProbe::stage("MainWindow constructed");applyCompactAnalysisSettings(w);w.installHeaderProjectButtons();result=WorkspaceProbe::run(w,QString::fromLocal8Bit(argv[1]),out,size);}
   {MainWindow w;WorkspaceProbe::persistence(w);}
-  result["preferences_restored"]=true;result["012_47_preferences_qualified"]=true;result["012_48_file_workflow_qualified"]=true;QFile f(out+"/Workspace.json");check(f.open(QIODevice::WriteOnly),"Cannot save QA");f.write(QJsonDocument(result).toJson());std::cout<<QJsonDocument(result).toJson().constData();return 0;
+  result["preferences_restored"]=true;result["012_47_preferences_qualified"]=true;result["012_48_file_workflow_qualified"]=true;result["012_49_integration_qualified"]=true;QFile f(out+"/Workspace.json");check(f.open(QIODevice::WriteOnly),"Cannot save QA");f.write(QJsonDocument(result).toJson());std::cout<<QJsonDocument(result).toJson().constData();return 0;
  }catch(const std::exception&e){std::cerr<<e.what()<<'\n';return 1;}
 }
