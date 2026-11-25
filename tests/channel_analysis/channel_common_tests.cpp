@@ -182,10 +182,10 @@ void snapshotTests(const fs::path &root) {
       out<<k;
       for(int r=0;r<8;++r) for(int s=0;s<8;++s) {
         double re=0,im=0;
-        for(int v=0;v<2;++v) for(int a=0;a<2;++a)
+        for(int v=0;v<2;++v) for(int agIndex=0;agIndex<2;++agIndex)
           for(int rp=0;rp<2;++rp) for(int sp=0;sp<2;++sp)
-            if(r==vp[v][rp] && s==ap[a][sp]) {
-              re=gains[v][a]*(rp==sp?.5:-.5);
+            if(r==vp[v][rp] && s==ap[agIndex][sp]) {
+              re=gains[v][agIndex]*(rp==sp?.5:-.5);
               im=re*.5;
             }
         out<<" "<<re<<" "<<im;
