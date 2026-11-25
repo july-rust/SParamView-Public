@@ -349,9 +349,11 @@ struct WorkspaceProbe {
   check(usableDirectory(workingDirectory()),"Corrupt directory fallback");
   const QRect monitor(-1280, 20, 1280, 700);
   const auto centered=centeredNormalGeometry(QSize(900,500),monitor);
-  check(centered.size()==QSize(900,500) && centered.center()==monitor.center(),"Negative screen center");
+  check(centered==QRect(-1090,120,900,500),"Negative screen center");
   const auto clipped=centeredNormalGeometry(QSize(8000,4000),monitor);
-  check(monitor.contains(clipped) && clipped.center()==monitor.center(),"Monitor bounds");
+  check(clipped==QRect(-1264,52,1248,636) && monitor.contains(clipped),"Monitor bounds");
+  const auto odd=centeredNormalGeometry(QSize(901,501),monitor);
+  check(odd==QRect(-1091,119,901,501),"Odd-sized window center");
   {auto p=store();p.remove("workspace/v1/windowNormalSize");p.remove("workspace/v1/windowMaximized");p.sync();}
   check(readWindowState().maximized,"Missing window state must maximize");
   {

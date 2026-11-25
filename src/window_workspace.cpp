@@ -135,7 +135,9 @@ void MainWindow::toggleFullscreen() {
     }
   } else {
     fullscreenWasMaximized = isMaximized();
-    if (!fullscreenWasMaximized) fullscreenNormalGeometry = geometry();
+    // Refresh on every entry, including maximized -> fullscreen. Never reuse
+    // a normal rectangle from an earlier fullscreen session.
+    fullscreenNormalGeometry = fullscreenWasMaximized ? normalGeometry() : geometry();
     showFullScreen();
   }
   fullscreenAction->setChecked(isFullScreen());

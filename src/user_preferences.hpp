@@ -86,8 +86,11 @@ inline QRect centeredNormalGeometry(QSize desired, const QRect &area) {
   if (!area.isValid()) return {};
   if (!desired.isValid() || desired.isEmpty()) desired = QSize(1440, 980);
   const QSize cap(qMax(1, area.width() - 32), qMax(1, area.height() - 64));
-  QRect rect(QPoint(), desired.boundedTo(cap));
-  rect.moveCenter(area.center());
-  return rect;
+  const QSize size = desired.boundedTo(cap);
+  // QRect::center() truncates signed coordinates towards zero, so moving a
+  // positive-origin rect to a negative-origin screen can offset it by a pixel.
+  // Center using nonnegative extent differences instead.
+  return QRect(QPoint(area.x() + (area.width() - size.width()) / 2,
+                      area.y() + (area.height() - size.height()) / 2), size);
 }
 } // namespace sparamview::preferences
