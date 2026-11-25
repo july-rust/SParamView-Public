@@ -56,7 +56,7 @@ struct EyeDcInfo {
   double originalStartHz = 0, effectiveStartHz = 0, firstPositiveHz = 0;
   double value = 0, modelSpread = 0;
   std::string status = "ORIGINAL DC", method = "Original";
-  bool requiresConfirmation = false, limited = false;
+  bool requiresConfirmation = false, limited = false, modelSpreadAvailable = false;
 };
 // Throws on unsupported/invalid data; a sparse original real DC may be retained
 // as unqualified, never advertised as verified physical DC.

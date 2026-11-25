@@ -779,6 +779,82 @@ int main(int argc, char **argv) {
           "Unmeasured Eye analysis cap did not fail closed");
     cap->setValue(10);
 
+    // 012_52: real no-DC Touchstone -> verified mapped source -> preview/manual,
+    // explicit modal cancellation and acceptance, blocked results never export.
+    auto setLowSource=[&](double start) {
+      const QString key=QString::number(start,'f',0);
+      const auto path=si::pathFromUtf8(ildDir.filePath("dc-"+key+".s2p").toStdString());
+      {
+        std::ofstream out(path);out<<std::setprecision(17)<<"# Hz S RI R 50\n";
+        for(double f:{start,2*start,3*start})
+          out<<f<<" 0 0 0.5 0 0.5 0 0 0\n";
+        for(int i=1;i<=16;++i)
+          out<<i*1e9<<" 0 0 0.5 0 0.5 0 0 0\n";
+      }
+      auto low=si::Cache::open(path,
+        si::pathFromUtf8(ildDir.filePath("dc-cache-"+key).toStdString()),nullptr,true);
+      auto ctx=numericContext;
+      ctx.sources[0].sha256=QString::fromStdString(low->meta().sha256);
+      ctx.sources[0].revision="DC fixture "+key;
+      const auto revision=ctx.sources[0].revision.toStdString();
+      manager.setEyeSourceProvider([low,channel,revision](int index)->std::optional<IldSourceInput>{
+        if(index!=0)return std::nullopt;
+        return IldSourceInput{low,{channel},revision,low->meta().sha256,1,1};
+      });
+      manager.setContext(ctx);
+    };
+    setLowSource(1000);
+    preview->click();drain(manager.scheduler());
+    check(eye->status()==S::Warning && metrics->text().contains("EXTRAPOLATED DC"),
+          "1 kHz preview without DC must run automatically");
+    const auto lowCsv=ildDir.filePath("dc-1k.csv"),lowPng=ildDir.filePath("dc-1k.png");
+    check(eye->saveEyeCsv(lowCsv)&&eye->saveEyePng(lowPng),"conditioned exports");
+    QFile lowRead(lowCsv);check(lowRead.open(QIODevice::ReadOnly),"DC CSV read");
+    const auto lowBytes=lowRead.readAll();
+    check(lowBytes.contains("# effective_start_hz,1000") &&
+          lowBytes.contains("# dc_status,\"EXTRAPOLATED DC\"") &&
+          lowBytes.contains("# dc_acknowledged,false"),"DC CSV provenance");
+    const QImage lowImage(lowPng);
+    check(lowImage.text("DCStatus")=="EXTRAPOLATED DC" &&
+          lowImage.text("EffectiveStartHz")=="1000","DC PNG provenance");
+    profile->setCurrentIndex(8);mode->setCurrentIndex(1);cap->setValue(10);
+    for(int i=0;i<electricalNames.size();++i)
+      eye->findChild<QLineEdit *>(electricalNames[i])->setText(electricalValues[i]);
+    eye->runButton()->click();drain(manager.scheduler());
+    check(eye->status()==S::Warning && metrics->text().contains("EXTRAPOLATED DC"),
+          "manual Eye must use same DC policy");
+    setLowSource(10001);
+    for(bool accept:{false,true}) {
+      bool seen=false;
+      QTimer responder;
+      QObject::connect(&responder,&QTimer::timeout,&responder,[&]{
+        if(auto *box=qobject_cast<QMessageBox *>(QApplication::activeModalWidget())) {
+          if(box->windowTitle()!="Eye DC extrapolation")return;
+          seen=true;
+          if(auto *button=box->button(accept?QMessageBox::Ok:QMessageBox::Cancel))button->click();
+        }
+      });
+      responder.start(10);
+      preview->click();drain(manager.scheduler());
+      responder.stop();
+      check(seen,"10 kHz+ preview must request consent");
+      if(accept) {
+        check(eye->status()==S::Warning && eye->saveEyeCsv(ildDir.filePath("dc-ack.csv")),
+              "accepted DC warning must run");
+        QFile accepted(ildDir.filePath("dc-ack.csv"));
+        check(accepted.open(QIODevice::ReadOnly)&&accepted.readAll().contains("# dc_acknowledged,true"),
+              "DC consent export provenance");
+      } else check(eye->status()==S::Cancelled && !eye->saveEyeCsv(ildDir.filePath("dc-cancel.csv")),
+                   "cancelled DC warning cannot export");
+    }
+    setLowSource(100000);
+    preview->click();drain(manager.scheduler());
+    check(eye->status()==S::Error && !eye->saveEyeCsv(ildDir.filePath("dc-blocked.csv")) &&
+          !eye->saveEyePng(ildDir.filePath("dc-blocked.png")),"100 kHz must block preview and exports");
+    eye->runButton()->click();drain(manager.scheduler());
+    check(eye->status()==S::Error && !eye->saveEyeCsv(ildDir.filePath("dc-blocked-manual.csv")),
+          "100 kHz must block manual Eye");
+
     manager.setEyeSourceProvider({});
 
     manager.setIcnSourceProvider({});

@@ -9,3 +9,5 @@ Local even-real fit from first two positive samples, compare constant/linear/alt
 References: https://scikit-rf.readthedocs.io/en/latest/api/generated/skrf.network.Network.extrapolate_to_dc.html ; https://helpfiles.keysight.com/csg/N1930xB/Analyzing/Analyzing_Data_in_the_Time_Domain.html . This implementation is not a reproduction of either algorithm. Tests: analytic gain/identity, existing DFT, PRBS, delay and resource tests; AC-coupled matched discrete comparison, boundary and suspect DC cases. Full analytic model matrix, GUI prompt paths and native checks must be confirmed before completion.
 
 Local git clone unavailable (DNS); exact-head CI and review required. No verified test results recorded here.
+
+Follow-up coverage: analytic delay, RC low-pass, AC high-pass and lossy-delay direct inverse DFT and convolution; actual Touchstone/GUI preview/manual, modal cancel/accept and CSV/PNG provenance. An unavailable model spread is explicitly exported as NOT_EVALUATED. All tests are added, not yet observed passing.

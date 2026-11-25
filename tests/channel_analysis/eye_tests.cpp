@@ -5,6 +5,7 @@
 #include <vector>
 #include <cmath>
 #include <iostream>
+#include <functional>
 #include <limits>
 #include <stdexcept>
 using namespace si;
@@ -368,6 +369,62 @@ int main() {
     close(std::sqrt(mse/acRef.value->receivedV.size()),0,0.004,"AC coupling waveform RMSE");
     close(acEx.value->eyeHeightV,acRef.value->eyeHeightV,0.004,"AC coupling height comparison");
     close(acEx.value->eyeWidthUI,acRef.value->eyeWidthUI,0.01,"AC coupling width comparison");
+    // Analytic H(f) evaluated on the exact FFT grid, with independent direct
+    // inverse DFT and explicit pattern convolution, not production interpolation.
+    auto modelSettings=echo;modelSettings.analysisStopHz=10e9;
+    modelSettings.electrical.rxInputMinimumV=-2;modelSettings.electrical.rxInputMaximumV=2;
+    modelSettings.electrical.txLowV=0.1;modelSettings.electrical.txHighV=0.5;
+    const double mfs=modelSettings.bitRateHz*modelSettings.samplesPerUI;
+    const size_t mn=modelSettings.fftLength, ms=modelSettings.samplesPerUI;
+    const double delay=4/mfs;
+    const std::vector<std::function<Complex(double)>> models={
+      [=](double f){return std::polar(1.,-2*pi*f*delay);},
+      [](double f){return Complex{1,0}/Complex{1,f/1e9};},
+      [](double f){const Complex x{0,f/1e8};return x/(Complex{1,0}+x);},
+      [=](double f){return std::polar(0.8*std::exp(-0.15*std::sqrt(f/1e9)),-2*pi*f*delay);}
+    };
+    for(const auto &model:models) {
+      ComplexTrace input;input.parameter="Sdd21";input.stimulusOhm=input.responseOhm=100;
+      input.frequencyHz={1000,2000,3000};
+      for(size_t k=1;k<=mn/2;++k)input.frequencyHz.push_back(mfs*double(k)/double(mn));
+      for(double f:input.frequencyHz)input.transfer.push_back(model(f));
+      auto reference=input;reference.frequencyHz.insert(reference.frequencyHz.begin(),0);
+      reference.transfer.insert(reference.transfer.begin(),model(0));
+      const auto result=calculateEye(input,modelSettings), original=calculateEye(reference,modelSettings);
+      const auto &v=*result.value,&o=*original.value;
+      close(v.dc.value,model(0).real(),0.001,"analytic model DC");
+      std::vector<double> impulseOracle(mn,model(0).real()/double(mn));
+      for(size_t k=1;k<mn/2;++k) {
+        const double f=mfs*double(k)/double(mn);if(f>modelSettings.analysisStopHz)break;
+        for(size_t i=0;i<mn;++i)
+          impulseOracle[i]+=2*std::real(model(f)*std::polar(1.,2*pi*double(k*i)/double(mn)))/double(mn);
+      }
+      double err2=0, cumulative=0, cumulativeRef=0;
+      for(size_t i=0;i<mn;++i) {
+        double expected=0,pulse=0;
+        for(size_t j=0;j<mn;++j) {
+          const size_t at=(i+mn-j)%mn;
+          const bool bit=modelSettings.customBits[(at/ms)%modelSettings.customBits.size()]!=0;
+          expected+=impulseOracle[j]*(bit?0.5:0.1);
+          if(at<ms)pulse+=impulseOracle[j];
+        }
+        close(v.impulse.values[i],impulseOracle[i],0.001,"independent model impulse");
+        close(v.unitPulse.values[i],pulse,0.004,"independent model pulse");
+        cumulative+=v.impulse.values[i];cumulativeRef+=impulseOracle[i];
+        close(cumulative,cumulativeRef,0.001,"independent model cumulative step");
+        err2+=(expected-v.receivedV[i])*(expected-v.receivedV[i]);
+      }
+      close(std::sqrt(err2/mn),0,0.004,"independent model waveform RMSE");
+      close(v.eyeHeightV,o.eyeHeightV,0.004,"model eye height comparison");
+      close(v.eyeWidthUI,o.eyeWidthUI,0.01,"model width comparison");
+      close(v.estimatedDelaySeconds,o.estimatedDelaySeconds,1/mfs,"model timing alignment");
+    }
+    auto sparse=thru();sparse.frequencyHz.insert(sparse.frequencyHz.begin()+1,1000);
+    sparse.transfer.insert(sparse.transfer.begin()+1,Complex{1,0});
+    sparse.frequencyHz.erase(sparse.frequencyHz.begin());sparse.transfer.erase(sparse.transfer.begin());
+    check(inspectEyeDc(sparse).limited,"sparse low-band reconstruction must disclose limitation");
+    auto ambiguous=sparse;ambiguous.transfer[0]={0.5,0.4};
+    reject([&]{(void)calculateEye(ambiguous,s);},"sparse ambiguous AC pole must not be invented");
     std::cout<<"012_52 DC policy, gain oracle, AC coupling and damaged DC PASS\n";
     std::cout<<"012_46 Eye independent DFT, convolution, metrics, PRBS and resource PASS\n";
     std::cout<<"012_07 Eye deterministic golden, phase and fail-closed PASS\n";

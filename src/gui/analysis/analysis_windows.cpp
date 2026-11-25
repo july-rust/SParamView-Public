@@ -1833,7 +1833,7 @@ bool AnalysisWindow::saveEyeCsv(const QString &name) {
      <<"# first_positive_hz,"<<n(d.dc.firstPositiveHz)<<"\n"
      <<"# dc_method,"<<safe(d.dc.method)<<"\n"
      <<"# dc_real,"<<n(d.dc.value)<<"\n"
-     <<"# dc_model_spread,"<<n(d.dc.modelSpread)<<"\n"
+     <<"# dc_model_spread,"<<(d.dc.modelSpreadAvailable?n(d.dc.modelSpread):QStringLiteral("NOT_EVALUATED"))<<"\n"
      <<"# dc_quality,"<<(d.dc.limited?"LIMITED":"LOCAL_CHECKS_PASSED")<<"\n"
      <<"# dc_acknowledged,"<<(d.dc.requiresConfirmation && eyeSettings.acceptLimitedDc?"true":"false")<<"\n"
      <<"# transfer_parameter,"<<safe(d.transferParameter)<<"\n"
@@ -1961,6 +1961,11 @@ bool AnalysisWindow::saveEyePng(const QString &name) {
   output.setText(QStringLiteral("OriginalStartHz"),QString::number(eyeResult_->dc.originalStartHz,'g',17));
   output.setText(QStringLiteral("EffectiveStartHz"),QString::number(eyeResult_->dc.effectiveStartHz,'g',17));
   output.setText(QStringLiteral("DCQuality"),eyeResult_->dc.limited?QStringLiteral("LIMITED"):QStringLiteral("LOCAL_CHECKS_PASSED"));
+  output.setText(QStringLiteral("DCReal"),QString::number(eyeResult_->dc.value,'g',17));
+  output.setText(QStringLiteral("DCModelSpread"),eyeResult_->dc.modelSpreadAvailable?
+    QString::number(eyeResult_->dc.modelSpread,'g',17):QStringLiteral("NOT_EVALUATED"));
+  output.setText(QStringLiteral("DCAcknowledged"),eyeResult_->dc.requiresConfirmation &&
+    eyeResult_->settings.acceptLimitedDc?QStringLiteral("true"):QStringLiteral("false"));
   output.setText(QStringLiteral("SimulationStatus"),
                  QStringLiteral("SIMULATED_ONLY / NOT_PHY_COMPLIANCE"));
   QSaveFile file(name);

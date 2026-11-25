@@ -166,7 +166,8 @@ EyeDcInfo inspectEyeDc(const ComplexTrace &trace) {
   }
   const bool stable=std::isfinite(estimate) && spread<=0.001 &&
     (!sparse || std::abs(z.imag())<=0.01);
-  dc.modelSpread=std::isfinite(spread)?spread:0;
+  dc.modelSpreadAvailable=std::isfinite(spread);
+  dc.modelSpread=dc.modelSpreadAvailable?spread:0;
   if(original && closeReal(trace.transfer[0]) &&
      ((stable && std::abs(trace.transfer[0].real()-estimate)<=0.001) ||
       (!stable && std::abs(trace.transfer[0]-z)<=0.01))) {
