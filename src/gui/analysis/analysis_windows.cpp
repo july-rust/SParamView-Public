@@ -1590,6 +1590,56 @@ void AnalysisWindow::clearEye() {
     csv_->setEnabled(false); png_->setEnabled(false);
   }
 }
+// Manual analysis never inherits assumed preview values. Validate user-provided
+// electrical conditions before scheduling work, keeping widgets on the GUI thread.
+bool AnalysisWindow::readManualEyeSettings(si::channel::EyeSettings &settings) {
+  using namespace si::channel;
+  if(eyeMode_->currentIndex()==0 || eyeBitRate_->value()<=0 ||
+     eyeReference_->value()<=0 || toGhz_->value()<=0) {
+    setStatus(Status::NotEvaluated,QStringLiteral(
+      "Explicit signal mode, bit rate, reference frequency and analysis cap required"));
+    return false;
+  }
+  settings=eyeProfile(static_cast<EyeProfile>(eyeProfile_->currentIndex()));
+  settings.mode=static_cast<EyeMode>(eyeMode_->currentIndex());
+  settings.pattern=static_cast<EyePattern>(eyePattern_->currentData().toInt());
+  settings.bitRateHz=eyeBitRate_->value()*1e9;
+  settings.referenceFrequencyHz=eyeReference_->value()*1e9;
+  settings.analysisStopHz=toGhz_->value()*1e9;
+  settings.fftLength=size_t(eyeFft_->currentText().toULongLong());
+  settings.samplesPerUI=size_t(eyeSamples_->currentText().toULongLong());
+  if(settings.pattern==EyePattern::CustomBits) {
+    const QByteArray bits=eyeBits_->text().trimmed().toLatin1();
+    settings.customBits.reserve(size_t(bits.size()));
+    for(const char ch:bits) {
+      if(ch!='0' && ch!='1') {
+        setStatus(Status::NotEvaluated,QStringLiteral("Custom pattern must contain only 0 and 1"));
+        return false;
+      }
+      settings.customBits.push_back(uint8_t(ch-'0'));
+    }
+  }
+  std::array<double,7> electrical{};
+  for(size_t i=0;i<electrical.size();++i) {
+    const QString raw=eyeElectrical_[i]->text().trimmed();
+    if(raw.isEmpty()) {
+      setStatus(Status::NotEvaluated,QStringLiteral(
+        "All TX/RX incident voltages, source/termination and RX range are required"));
+      return false;
+    }
+    bool ok=false;
+    electrical[i]=raw.toDouble(&ok);
+    if(!ok || !std::isfinite(electrical[i])) {
+      setStatus(Status::Error,QStringLiteral("Invalid finite TX/RX electrical input"));
+      return false;
+    }
+  }
+  settings.electrical={electrical[0]*1e-3,electrical[1]*1e-3,
+    electrical[2],electrical[3],electrical[4]*1e-3,
+    electrical[5]*1e-3,electrical[6]*1e-3};
+  return true;
+}
+
 void AnalysisWindow::launchEye(bool autoPreview) {
   using namespace si::channel;
   if(feature_!=Feature::Eye || !eyeProvider_)return;
@@ -1610,52 +1660,10 @@ void AnalysisWindow::launchEye(bool autoPreview) {
     setStatus(Status::InvalidSource,QStringLiteral("Source SHA/revision changed; refresh analysis"));
     return;
   }
-  if(!autoPreview && (eyeMode_->currentIndex()==0 || eyeBitRate_->value()<=0 ||
-     eyeReference_->value()<=0 || toGhz_->value()<=0)) {
-    setStatus(Status::NotEvaluated,QStringLiteral(
-      "Explicit signal mode, bit rate, reference frequency and analysis cap required"));
-    return;
-  }
+  // Preview deliberately bypasses only the manual input form, never source
+  // validation or the shared numerical engine's DC/impedance/band checks.
   EyeSettings settings;
-  if(!autoPreview) {
-  settings=eyeProfile(static_cast<EyeProfile>(eyeProfile_->currentIndex()));
-  settings.mode=static_cast<EyeMode>(eyeMode_->currentIndex());
-  settings.pattern=static_cast<EyePattern>(eyePattern_->currentData().toInt());
-  settings.bitRateHz=eyeBitRate_->value()*1e9;
-  settings.referenceFrequencyHz=eyeReference_->value()*1e9;
-  settings.analysisStopHz=toGhz_->value()*1e9;
-  settings.fftLength=size_t(eyeFft_->currentText().toULongLong());
-  settings.samplesPerUI=size_t(eyeSamples_->currentText().toULongLong());
-  if(settings.pattern==EyePattern::CustomBits) {
-    const QByteArray bits=eyeBits_->text().trimmed().toLatin1();
-    settings.customBits.reserve(size_t(bits.size()));
-    for(const char ch:bits) {
-      if(ch!='0' && ch!='1') {
-        setStatus(Status::NotEvaluated,QStringLiteral("Custom pattern must contain only 0 and 1"));
-        return;
-      }
-      settings.customBits.push_back(uint8_t(ch-'0'));
-    }
-  }
-  std::array<double,7> electrical{};
-  for(size_t i=0;i<electrical.size();++i) {
-    const QString raw=eyeElectrical_[i]->text().trimmed();
-    if(raw.isEmpty()) {
-      setStatus(Status::NotEvaluated,QStringLiteral(
-        "All TX/RX incident voltages, source/termination and RX range are required"));
-      return;
-    }
-    bool ok=false;
-    electrical[i]=raw.toDouble(&ok);
-    if(!ok || !std::isfinite(electrical[i])) {
-      setStatus(Status::Error,QStringLiteral("Invalid finite TX/RX electrical input"));
-      return;
-    }
-  }
-  settings.electrical={electrical[0]*1e-3,electrical[1]*1e-3,
-    electrical[2],electrical[3],electrical[4]*1e-3,
-    electrical[5]*1e-3,electrical[6]*1e-3};
-  }
+  if(!autoPreview && !readManualEyeSettings(settings)) return;
   const QString sourceFile=QFileInfo(QString::fromUtf8(input->cache->meta().source.c_str())).fileName();
   const std::string victimId=source.channelIds[selected].toStdString();
   const bool reverse=direction_->currentIndex()==1;
@@ -1665,6 +1673,8 @@ void AnalysisWindow::launchEye(bool autoPreview) {
        (const std::atomic_bool &cancel,std::atomic_int &progress) mutable ->WorkOutcome {
     if(cancel.load()) throw si::Cancelled();
     progress.store(5);
+    // Revalidate the immutable source in the worker; user selections may have
+    // changed since the job was queued. The scheduler also checks generation.
     auto snapshot=SourceSnapshot::capture(input.cache,input.mapping,
         input.revision,input.workspaceGeneration,input.mappingGeneration);
     if(snapshot.identity().sha256!=input.expectedSha)
@@ -1690,6 +1700,7 @@ void AnalysisWindow::launchEye(bool autoPreview) {
     }
     if(cancel.load()) throw si::Cancelled();
     progress.store(60);
+    // Retain the actual source identity and the explicit preview/manual input mode.
     const auto &id=snapshot.identity();
     Provenance provenance{id.sha256,id.revision,id.mappingIdentity,
       "Phase-preserving deterministic NRZ Eye","012_46-v2",
@@ -1724,7 +1735,7 @@ void AnalysisWindow::showEye(const WorkOutcome &outcome) {
   plot->setData(eyeResult_,eyeResult_->settings.electrical.rxThresholdV);
   plot->setView(eyeView_->currentIndex());
   const auto &d=*eyeResult_;
-  const bool preview=eyeProvenance_.settingsIdentity.find("|AUTO_PREVIEW_ASSUMED")!=std::string::npos;
+  const bool preview=eyeProvenance_.settingsIdentity.ends_with("|AUTO_PREVIEW_ASSUMED_MATCHED_400mVpp");
   const QString assumption=preview?QStringLiteral("AUTO PREVIEW — assumed TX ±200 mV, matched Zref %1 / %2 ohm, threshold 0 mV, RX ±1000 mV, PRBS7. Not actual PHY settings.\n")
     .arg(d.settings.electrical.txSourceOhm).arg(d.settings.electrical.rxTerminationOhm):QStringLiteral("MANUAL SETTINGS\n");
   eyeMetrics_->setText(assumption+QStringLiteral(
@@ -1782,7 +1793,7 @@ bool AnalysisWindow::saveEyeCsv(const QString &name) {
   };
   const auto n=[](double v){return QString::number(v,'g',17);};
   out<<"# warning,\"Simulated Channel Eye — Not Measured / Not PHY Compliance\"\n"
-     <<"# input_mode,"<<(eyeProvenance_.settingsIdentity.find("|AUTO_PREVIEW_ASSUMED")!=std::string::npos?"AUTO_PREVIEW_ASSUMED":"MANUAL")<<"\n"
+     <<"# input_mode,"<<(eyeProvenance_.settingsIdentity.ends_with("|AUTO_PREVIEW_ASSUMED_MATCHED_400mVpp")?"AUTO_PREVIEW_ASSUMED":"MANUAL")<<"\n"
      <<"# source_filename,"<<safe(eyeSourceFilename_.toStdString())<<"\n"
      <<"# source_sha256,"<<safe(eyeProvenance_.sourceSha256)<<"\n"
      <<"# revision,"<<safe(eyeProvenance_.revision)<<"\n"
@@ -1873,7 +1884,7 @@ bool AnalysisWindow::saveEyePng(const QString &name) {
     "File: %1 | Revision: %2 | Channel: %3 | %4\n"
     "SHA-256: %5\n"
     "Profile: %6 | Bit rate: %7 Gbps | Reference: %8 GHz | Cap: %9 GHz");
-  const QString inputMode=eyeProvenance_.settingsIdentity.find("|AUTO_PREVIEW_ASSUMED")!=std::string::npos?
+  const QString inputMode=eyeProvenance_.settingsIdentity.ends_with("|AUTO_PREVIEW_ASSUMED_MATCHED_400mVpp")?
     QStringLiteral("\nAUTO PREVIEW: assumed 400 mVpp / matched Zref / PRBS7; not actual PHY settings."):QStringLiteral("\nMANUAL SETTINGS");
   const QString labeled=caption.arg(eyeSourceFilename_,
      QString::fromStdString(eyeProvenance_.revision),

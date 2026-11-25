@@ -121,6 +121,7 @@ private:
   void exportIcnPng();
   void clearIcn();
   void populateIcnAggressors();
+  bool readManualEyeSettings(si::channel::EyeSettings &settings);
   void launchEye(bool autoPreview = false);
   void showEye(const WorkOutcome &outcome);
   void clearEye();
