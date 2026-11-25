@@ -310,6 +310,65 @@ int main() {
     reject([&]{(void)calculateEye(thru(),huge);},"nonrepresentable mV");
     auto imaginary=thru(); imaginary.transfer.front()={1,0.5};
     reject([&]{(void)calculateEye(imaginary,s);},"nonreal DC");
+    // 012_52: exact independent gain oracle and every operating-policy edge.
+    auto lowTrace=[](double start, bool withDc=false) {
+      auto t=thru(16e9,0,0.5);
+      t.frequencyHz.erase(t.frequencyHz.begin());
+      t.transfer.erase(t.transfer.begin());
+      t.frequencyHz.insert(t.frequencyHz.begin(),{start,2*start,3*start});
+      t.transfer.insert(t.transfer.begin(),3,Complex{0.5,0});
+      if(withDc) {t.frequencyHz.insert(t.frequencyHz.begin(),0);t.transfer.insert(t.transfer.begin(),Complex{0.5,0});}
+      return t;
+    };
+    for(double f:{1.,1000.,5000.,9999.,10000.,10001.,50000.,99999.,100000.,100001.,1e6}) {
+      auto t=lowTrace(f);
+      auto approved=s; approved.acceptLimitedDc=true;
+      if(f>=100000.) {
+        reject([&]{(void)calculateEye(t,approved);},"blocked frequency cannot be overridden");
+        continue;
+      }
+      auto dc=inspectEyeDc(t);
+      check(dc.requiresConfirmation==(f>10000.) && dc.status=="EXTRAPOLATED DC","frequency boundary policy");
+      if(f>10000.)reject([&]{(void)calculateEye(t,s);},"explicit limited DC acknowledgement required");
+      const auto actual=calculateEye(t,approved);
+      close(actual.value->dc.value,0.5,0.001,"analytic gain DC");
+      close(actual.value->eyeHeightV,0.2,0.004,"analytic gain height");
+      close(actual.value->eyeWidthUI,1,0.01,"analytic gain width");
+      for(size_t i=0;i<actual.value->receivedV.size();++i)
+        close(actual.value->receivedV[i],0.5*actual.value->transmittedV[i],1e-10,"independent gain waveform");
+      check(t.frequencyHz.front()==f && t.transfer.front()==Complex{0.5,0},"source remains immutable");
+    }
+    auto good=lowTrace(1000,true);
+    check(inspectEyeDc(good).status=="ORIGINAL DC","original DC preserved");
+    auto damaged=good;damaged.transfer.front()={0.9,0.2};
+    auto repaired=calculateEye(damaged,s);
+    check(repaired.value->dc.status=="CORRECTED DC","corrupt DC corrected");
+    close(repaired.value->dc.value,0.5,0.001,"corrected analytical DC");
+    check(damaged.transfer.front()==Complex{0.9,0.2},"damaged source untouched");
+    auto blocked=lowTrace(100000,true);blocked.transfer.front()={0.5,0.2};
+    reject([&]{(void)calculateEye(blocked,s);},"invalid original DC cannot bypass cutoff");
+    auto unstable=lowTrace(1000);unstable.transfer[1]={0.2,0.4};
+    reject([&]{(void)calculateEye(unstable,s);},"unstable local fit blocked");
+    // DC-sensitive waveform (nonzero mean) and analytic RC high-pass.
+    auto acSettings=s;acSettings.analysisStopHz=10e9;
+    acSettings.electrical.txLowV=0.1;acSettings.electrical.txHighV=0.5;
+    acSettings.electrical.rxInputMinimumV=-2;acSettings.electrical.rxInputMaximumV=2;
+    auto ac=lowTrace(1000,true);
+    for(size_t i=0;i<ac.transfer.size();++i) {
+      const Complex x{0,ac.frequencyHz[i]/1e8};
+      ac.transfer[i]=x/(Complex{1,0}+x);
+    }
+    auto acMissing=ac;acMissing.frequencyHz.erase(acMissing.frequencyHz.begin());acMissing.transfer.erase(acMissing.transfer.begin());
+    auto acRef=calculateEye(ac,acSettings);auto acEx=calculateEye(acMissing,acSettings);
+    close(acEx.value->dc.value,0,0.001,"AC coupling analytic zero DC");
+    double mse=0;
+    for(size_t i=0;i<acRef.value->receivedV.size();++i) {
+      const double e=acRef.value->receivedV[i]-acEx.value->receivedV[i];mse+=e*e;
+    }
+    close(std::sqrt(mse/acRef.value->receivedV.size()),0,0.004,"AC coupling waveform RMSE");
+    close(acEx.value->eyeHeightV,acRef.value->eyeHeightV,0.004,"AC coupling height comparison");
+    close(acEx.value->eyeWidthUI,acRef.value->eyeWidthUI,0.01,"AC coupling width comparison");
+    std::cout<<"012_52 DC policy, gain oracle, AC coupling and damaged DC PASS\n";
     std::cout<<"012_46 Eye independent DFT, convolution, metrics, PRBS and resource PASS\n";
     std::cout<<"012_07 Eye deterministic golden, phase and fail-closed PASS\n";
     return 0;

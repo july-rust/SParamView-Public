@@ -38,6 +38,7 @@ struct WorkOutcome {
   std::shared_ptr<const si::channel::EyeData> eye;
   QString eyeSourceFilename;
   si::channel::Provenance provenance;
+  bool eyeDcConfirmation = false, eyeAutoPreview = false;
 };
 struct IldSourceInput {
   std::shared_ptr<const si::Cache> cache;
@@ -122,7 +123,7 @@ private:
   void clearIcn();
   void populateIcnAggressors();
   bool readManualEyeSettings(si::channel::EyeSettings &settings);
-  void launchEye(bool autoPreview = false);
+  void launchEye(bool autoPreview = false, bool acceptLimitedDc = false);
   void showEye(const WorkOutcome &outcome);
   void clearEye();
   void exportEyeCsv();

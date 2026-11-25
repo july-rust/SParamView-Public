@@ -41,6 +41,7 @@ struct EyeSettings {
   size_t fftLength = 8192;     // radix-2, sample-rate = baud * samplesPerUI
   size_t samplesPerUI = 32;    // radix-2, minimum 8, integer symbol edges
   std::vector<uint8_t> customBits;
+  bool acceptLimitedDc = false; // explicit acknowledgement for >10 kHz and <100 kHz
 };
 // Only MIPI example supplies bit rate (4.5 Gb/s), NRZ Nyquist reference
 // (2.25 GHz), and analysis cap (10 GHz). All profile electrical fields remain
@@ -50,7 +51,18 @@ EyeSettings eyeProfile(EyeProfile profile);
 EyeSettings eyeWithReferenceFrequency(EyeSettings settings, double referenceHz);
 const char *eyeProfileName(EyeProfile profile);
 
+// Eye-only DC conditioning; does not alter source, TDR or other analyzers.
+struct EyeDcInfo {
+  double originalStartHz = 0, effectiveStartHz = 0, firstPositiveHz = 0;
+  double value = 0, modelSpread = 0;
+  std::string status = "ORIGINAL DC", method = "Original";
+  bool requiresConfirmation = false, limited = false;
+};
+// Throws on unsupported/invalid data; a sparse original real DC may be retained
+// as unqualified, never advertised as verified physical DC.
+EyeDcInfo inspectEyeDc(const ComplexTrace &trace);
 struct EyeData {
+  EyeDcInfo dc;
   std::vector<double> timeSeconds, transmittedV, receivedV;
   TimeSeries impulse, unitPulse;
   // A bounded subset of two-UI received traces, for the 012_08 GUI renderer.
