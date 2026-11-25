@@ -23,7 +23,8 @@ continues to append revisions for comparison.
 Windows ZIP layout:
 - SParamView.exe is the only root-level EXE; required DLLs remain alongside it.
 - tools/si_cli.exe contains the optional command-line analyzer.
-- tests/ contains auxiliary validation EXEs.
+- The separate Windows QA ZIP contains tests/ and Run_Windows_Verification.cmd for optional full validation.
+- The user ZIP retains the application, optional CLI, runtime, examples, documentation and license.
 
 Official release: https://github.com/july-rust/SParamView-Public/releases/tag/v1.3.5
 

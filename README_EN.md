@@ -39,7 +39,7 @@ Quick TDR is a band-limited estimate affected by frequency span, spacing, extrap
 - **v1.3.0:** Import Touchstone **1.0/1.1** (implicit version) and **2.0/2.1** (explicit `[Version]`) **S-parameter** files, with RI/MA/DB, standard frequency units, and supported matrix layouts.
 - Recognize `! PortN_COMPONENT_PIN::NET` vendor comments as physical port labels; validate `!.DiffChannels` endpoint/NET/P-N mapping against physical ports instead of guessing polarity.
 - Re-import with new cache schema so previously missing physical labels are not reused.
-- Windows: keep only `SParamView.exe` in the package root, with required Qt/runtime DLLs alongside it. Move CLI to `tools/si_cli.exe` and test executables to `tests/`.
+- Windows: keep only `SParamView.exe` in the package root, with required Qt/runtime DLLs alongside it. Keep CLI at `tools/si_cli.exe`; v1.4.0 candidates separate test executables and the verification launcher into an optional full QA ZIP.
 - Y/Z/H/G Touchstone network matrices are **not** accepted as S-parameter input. Touchstone `1.9` is not a defined official version.
 
 ## Earlier release — v1.2.5

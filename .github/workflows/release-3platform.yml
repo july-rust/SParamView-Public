@@ -138,7 +138,7 @@ jobs:
             build-core/Testing/Temporary/*.log
             build-san/Testing/Temporary/*.log
           if-no-files-found: error
-          retention-days: ${{ github.ref == 'refs/heads/main' && 14 || 1 }}
+          retention-days: 14
 
   windows:
     name: Windows ${{ matrix.arch }}
@@ -236,6 +236,34 @@ jobs:
             -Architecture ARM64 `
             -SkipTests
 
+      - name: Record bundle build provenance
+        env:
+          SPARAMVIEW_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          @{version=$env:SPARAMVIEW_VERSION;commit=$env:GITHUB_SHA;platform='Windows ${{ matrix.arch }}';run_id=$env:GITHUB_RUN_ID} |
+            ConvertTo-Json | Set-Content -Encoding utf8 'dist/SParamView-Windows-${{ matrix.arch }}/build-provenance.json'
+
+      - name: Stage slim user ZIP and separate full QA ZIP
+        run: |
+          python scripts/publish_release.py --stage-windows 'dist/SParamView-Windows-${{ matrix.arch }}' 'candidate' '${{ needs.prepare.outputs.version }}' '${{ matrix.arch }}'
+          if ($LASTEXITCODE -ne 0) { throw 'Package staging failed' }
+          Copy-Item candidate/inventory.json '${{ matrix.validation_dir }}/package-inventory.json'
+
+      - name: Execute exact x64 user ZIP with native Windows GUI
+        if: matrix.arch == 'x64'
+        run: |
+          python scripts/publish_release.py --smoke-windows candidate '${{ needs.prepare.outputs.version }}' x64 '${{ matrix.validation_dir }}/user-package'
+          if ($LASTEXITCODE -ne 0) { throw 'User ZIP qualification failed' }
+
+      - name: Upload user and QA ZIP candidates
+        uses: actions/upload-artifact@v6
+        with:
+          name: SParamView-v${{ needs.prepare.outputs.version }}-Windows-${{ matrix.arch }}-candidate
+          path: candidate/
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+
       - name: Upload validation evidence
         if: always()
         uses: actions/upload-artifact@v6
@@ -243,15 +271,8 @@ jobs:
           name: SParamView-v${{ needs.prepare.outputs.version }}-${{ matrix.arch }}-validation
           path: ${{ matrix.validation_dir }}/
           if-no-files-found: ignore
-          retention-days: ${{ github.ref == 'refs/heads/main' && 7 || 1 }}
+          retention-days: 14
           compression-level: 9
-
-      - name: Record bundle build provenance
-        env:
-          SPARAMVIEW_VERSION: ${{ needs.prepare.outputs.version }}
-        run: |
-          @{version=$env:SPARAMVIEW_VERSION;commit=$env:GITHUB_SHA;platform='Windows ${{ matrix.arch }}';run_id=$env:GITHUB_RUN_ID} |
-            ConvertTo-Json | Set-Content -Encoding utf8 'dist/SParamView-Windows-${{ matrix.arch }}/build-provenance.json'
 
       - name: Upload runnable Windows bundle
         if: success()
@@ -260,7 +281,7 @@ jobs:
           name: SParamView-v${{ needs.prepare.outputs.version }}-Windows-${{ matrix.arch }}
           path: dist/SParamView-Windows-${{ matrix.arch }}/
           if-no-files-found: error
-          retention-days: ${{ github.ref == 'refs/heads/main' && 7 || 1 }}
+          retention-days: 14
           compression-level: 6
 
   windows-arm64-native:
@@ -304,7 +325,9 @@ jobs:
           $app = Join-Path $PWD 'bundle\SParamView.exe'
           if (-not (Test-Path $app)) { throw 'SParamView.exe missing from ARM64 bundle' }
           $v = (Get-Item $app).VersionInfo
-          $expected = '^(?:' + [regex]::Escape($env:SPARAMVIEW_VERSION) + '|1\.2\.4\.1)$'
+          $numeric = $env:SPARAMVIEW_VERSION -replace '[a-z]$',''
+          $revision = if ($env:SPARAMVIEW_VERSION -match 'a$') { '1' } else { '0' }
+          $expected = '^(?:' + [regex]::Escape($env:SPARAMVIEW_VERSION) + '|' + [regex]::Escape("$numeric.$revision") + ')$'
           if ($v.ProductVersion -notmatch $expected) { throw "ProductVersion mismatch: $($v.ProductVersion)" }
           if ($v.FileVersion -notmatch $expected) { throw "FileVersion mismatch: $($v.FileVersion)" }
           if ($v.LegalCopyright -ne 'Copyright © 2026 july') { throw "LegalCopyright mismatch: $($v.LegalCopyright)" }
@@ -338,6 +361,10 @@ jobs:
           foreach ($case in @('reuse','dirty','project_changed','single_review','mixed','transition','roundtrip','workspace_switch','cleanup')) {
             Invoke-Test -Name 'si_v124_gui_tests' -TestArgs @($case,(Join-Path $qa "v124-$case"))
           }
+          foreach ($name in @('si_ild_tests','si_icn_tests','si_eye_tests','si_channel_gui_tests','si_com_tests')) {
+            Invoke-Test -Name $name
+          }
+          Invoke-Test -Name 'si_channel_core_tests' -TestArgs @((Join-Path $qa 'channel-common'))
           Invoke-Test -Name 'si_v133_csv_tests' -TestArgs @((Join-Path $qa 'v133-csv'))
           Invoke-Test -Name 'si_direction_tests' -TestArgs @((Join-Path $qa 'direction'))
           Invoke-Test -Name 'si_golden_tests' -TestArgs @((Join-Path $qa 'golden'))
@@ -365,6 +392,15 @@ jobs:
           python tests/run_failure_qualification.py "$bundle/tests/si_failure_probe.exe" "$qa/failure-qualification" --platform windows
           if ($LASTEXITCODE -ne 0) { throw 'Native ARM64 failure qualification failed' }
 
+      - name: Execute exact ARM64 user ZIP with native Windows GUI
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download $env:GITHUB_RUN_ID --repo $env:GITHUB_REPOSITORY --name 'SParamView-v${{ needs.prepare.outputs.version }}-Windows-ARM64-candidate' --dir candidate
+          if ($LASTEXITCODE -ne 0) { throw 'ARM64 candidate download failed' }
+          python scripts/publish_release.py --smoke-windows candidate '${{ needs.prepare.outputs.version }}' ARM64 "$env:RUNNER_TEMP/native-arm64-v${{ needs.prepare.outputs.version }}/user-package"
+          if ($LASTEXITCODE -ne 0) { throw 'ARM64 user ZIP qualification failed' }
+
       - name: Upload native ARM64 validation evidence
         if: always()
         uses: actions/upload-artifact@v6
@@ -372,7 +408,7 @@ jobs:
           name: SParamView-v${{ needs.prepare.outputs.version }}-Native-Windows-ARM64-validation
           path: ${{ runner.temp }}/native-arm64-v${{ needs.prepare.outputs.version }}/
           if-no-files-found: warn
-          retention-days: ${{ github.ref == 'refs/heads/main' && 14 || 1 }}
+          retention-days: 14
           compression-level: 9
 
   macos-arm64:
@@ -501,6 +537,9 @@ jobs:
           test -s "$app/Contents/Resources/SParamView.icns"
           rm -rf "$iconset" "$iconpng"
 
+          numeric="${SPARAMVIEW_VERSION%[a-z]}"
+          revision=0
+          if [[ "$SPARAMVIEW_VERSION" == *a ]]; then revision=1; fi
           cat > "$app/Contents/Info.plist" <<PLIST
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -513,8 +552,8 @@ jobs:
             <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
             <key>CFBundleName</key><string>SParamView</string>
             <key>CFBundlePackageType</key><string>APPL</string>
-            <key>CFBundleShortVersionString</key><string>1.3.5</string>
-            <key>CFBundleVersion</key><string>1.3.5.0</string>
+            <key>CFBundleShortVersionString</key><string>${numeric}</string>
+            <key>CFBundleVersion</key><string>${numeric}.${revision}</string>
             <key>SParamViewDisplayVersion</key><string>${SPARAMVIEW_VERSION}</string>
             <key>LSMinimumSystemVersion</key><string>${MACOS_DEPLOYMENT_TARGET}</string>
             <key>NSHighResolutionCapable</key><true/>
@@ -557,8 +596,11 @@ jobs:
           import json, os, pathlib, plistlib
           app=pathlib.Path('package/SParamView.app/Contents')
           info=plistlib.loads((app/'Info.plist').read_bytes())
-          assert info['CFBundleShortVersionString']=='1.3.5'
-          assert info['CFBundleVersion']=='1.3.5.0'
+          import re
+          version=os.environ['SPARAMVIEW_VERSION']
+          numeric=re.sub(r'[a-z]$', '', version)
+          assert info['CFBundleShortVersionString']==numeric
+          assert info['CFBundleVersion']==numeric+('.1' if version.endswith('a') else '.0')
           assert info['SParamViewDisplayVersion']==os.environ['SPARAMVIEW_VERSION']
           (app/'Resources/build-provenance.json').write_text(json.dumps(dict(version=os.environ['SPARAMVIEW_VERSION'],commit=os.environ['GITHUB_SHA'],platform='macOS arm64',run_id=os.environ['GITHUB_RUN_ID'])))
           PYTHON
@@ -575,11 +617,10 @@ jobs:
         shell: bash
         env:
           QT_QPA_PLATFORM: cocoa
-          QT_QPA_PLATFORM_PLUGIN_PATH: ${{ env.QT_ROOT }}/plugins/platforms
         run: |
           set -euo pipefail
           mkdir -p package/selftest
-          package/SParamView.app/Contents/MacOS/SParamView --selftest examples package/selftest
+          env -u QT_PLUGIN_PATH -u QT_QPA_PLATFORM_PLUGIN_PATH -u DYLD_LIBRARY_PATH -u DYLD_FRAMEWORK_PATH -u DYLD_FALLBACK_LIBRARY_PATH -u DYLD_FALLBACK_FRAMEWORK_PATH PATH=/usr/bin:/bin:/usr/sbin:/sbin package/SParamView.app/Contents/MacOS/SParamView --selftest examples package/selftest
 
       - name: Include release documentation in macOS bundle
         run: |
@@ -588,20 +629,6 @@ jobs:
           cp docs/USER_GUIDE_*.md docs/Release_${{ needs.prepare.outputs.version }}.md package/SParamView.app/Contents/Resources/docs/
           codesign --force --deep --sign - package/SParamView.app
           codesign --verify --deep --strict package/SParamView.app
-
-      - name: Upload macOS test evidence
-        if: always()
-        uses: actions/upload-artifact@v6
-        with:
-          name: SParamView-v${{ needs.prepare.outputs.version }}-macOS-validation
-          path: |
-            build-macos/Testing/Temporary/*.log
-            build-macos/workspace-test-macos/*.json
-            build-macos/failure-qualification/
-            build-macos/calc/
-            build-macos/excel-environment.txt
-          if-no-files-found: error
-          retention-days: ${{ github.ref == 'refs/heads/main' && 14 || 1 }}
 
       - name: Package Apple Silicon ZIP and DMG
         env:
@@ -618,6 +645,58 @@ jobs:
           shasum -a 256 "$zipname" > "$zipname.sha256"
           shasum -a 256 "$dmgname" > "$dmgname.sha256"
 
+      - name: Verify extracted ZIP and mounted DMG without development Qt
+        shell: bash
+        env:
+          SPARAMVIEW_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          qa="$(mktemp -d)"
+          mount="$qa/mount"
+          mkdir -p "$mount" "$qa/extracted"
+          trap 'hdiutil detach "$mount" >/dev/null 2>&1 || true; rm -rf "$qa"' EXIT
+          zipname="SParamView_macOS_AppleSilicon_arm64_v${SPARAMVIEW_VERSION}.zip"
+          dmgname="SParamView_macOS_AppleSilicon_arm64_v${SPARAMVIEW_VERSION}.dmg"
+          shasum -a 256 -c "$zipname.sha256"
+          shasum -a 256 -c "$dmgname.sha256"
+          ditto -x -k "$zipname" "$qa/extracted"
+          hdiutil attach "$dmgname" -readonly -nobrowse -mountpoint "$mount"
+          evidence="$GITHUB_WORKSPACE/build-macos/package-qualification"
+          mkdir -p "$evidence"
+          cp "$zipname.sha256" "$dmgname.sha256" "$evidence/"
+          for location in "$qa/extracted" "$mount"; do
+            app="$location/SParamView.app"
+            codesign --verify --deep --strict "$app"
+            out="$(mktemp -d "$qa/selftest.XXXXXX")"
+            env -u QT_PLUGIN_PATH -u QT_QPA_PLATFORM_PLUGIN_PATH -u DYLD_LIBRARY_PATH -u DYLD_FRAMEWORK_PATH -u DYLD_FALLBACK_LIBRARY_PATH -u DYLD_FALLBACK_FRAMEWORK_PATH PATH=/usr/bin:/bin:/usr/sbin:/sbin QT_QPA_PLATFORM=cocoa "$app/Contents/MacOS/SParamView" --selftest "$GITHUB_WORKSPACE/examples" "$out" 2>&1 | tee "$evidence/$(basename "$location").log"
+            cp -R "$out" "$evidence/$(basename "$location")-selftest"
+          done
+          python3 - "$evidence" "$zipname" "$dmgname" <<'PYTHON'
+          import hashlib, json, os, pathlib, platform, sys
+          evidence=pathlib.Path(sys.argv[1])
+          packages={}
+          for name in sys.argv[2:]:
+              p=pathlib.Path(name)
+              packages[name]=dict(bytes=p.stat().st_size, sha256=hashlib.file_digest(p.open('rb'),'sha256').hexdigest())
+          (evidence/'mac-user-package-smoke.json').write_text(json.dumps(dict(commit=os.environ['GITHUB_SHA'],version=os.environ['SPARAMVIEW_VERSION'],machine=platform.machine(),packages=packages,zip_exit=0,dmg_exit=0),indent=2))
+          PYTHON
+
+
+      - name: Upload macOS test evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: SParamView-v${{ needs.prepare.outputs.version }}-macOS-validation
+          path: |
+            build-macos/Testing/Temporary/*.log
+            build-macos/workspace-test-macos/*.json
+            build-macos/failure-qualification/
+            build-macos/calc/
+            build-macos/excel-environment.txt
+            build-macos/package-qualification/
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Upload Apple Silicon package
         uses: actions/upload-artifact@v6
         with:
@@ -628,7 +707,7 @@ jobs:
             SParamView_macOS_AppleSilicon_arm64_v${{ needs.prepare.outputs.version }}.dmg
             SParamView_macOS_AppleSilicon_arm64_v${{ needs.prepare.outputs.version }}.dmg.sha256
           if-no-files-found: error
-          retention-days: ${{ github.ref == 'refs/heads/main' && 14 || 1 }}
+          retention-days: 14
           compression-level: 0
 
   release:
@@ -659,12 +738,12 @@ jobs:
           run_id="$GITHUB_RUN_ID"
           repo="$GITHUB_REPOSITORY"
           version="$SPARAMVIEW_VERSION"
-          gh run download "$run_id" --repo "$repo" --name "SParamView-v${version}-Windows-x64" --dir package/windows-x64
-          gh run download "$run_id" --repo "$repo" --name "SParamView-v${version}-Windows-ARM64" --dir package/windows-arm64
+          gh run download "$run_id" --repo "$repo" --name "SParamView-v${version}-Windows-x64-candidate" --dir package/windows-x64
+          gh run download "$run_id" --repo "$repo" --name "SParamView-v${version}-Windows-ARM64-candidate" --dir package/windows-arm64
           gh run download "$run_id" --repo "$repo" --name "SParamView-v${version}-macOS-AppleSilicon-arm64" --dir package/macos
           gh run download "$run_id" --repo "$repo" --pattern "SParamView-v${version}-*-validation" --dir package/evidence
-          test -f package/windows-x64/build-provenance.json
-          test -f package/windows-arm64/build-provenance.json
+          test -f package/windows-x64/inventory.json
+          test -f package/windows-arm64/inventory.json
           test -f "package/macos/SParamView_macOS_AppleSilicon_arm64_v${version}.zip"
           test -d package/evidence
 
