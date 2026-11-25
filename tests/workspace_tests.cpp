@@ -452,7 +452,7 @@ struct WorkspaceProbe {
    using si::gui::Feature;
    using si::channel::Status;
    stage("012_49 integrated application workflow");
-   QTemporaryDir fixture(QDir(out).filePath("integration-XXXXXX"));
+   QTemporaryDir fixture(QDir(out).absoluteFilePath("integration-XXXXXX"));
    check(fixture.isValid(),"Cannot create integration fixture");
    auto write=[&](const QString &name,const QByteArray &data) {
      const QString path=QDir(fixture.path()).filePath(name);
@@ -497,7 +497,21 @@ struct WorkspaceProbe {
        {"selected",QJsonArray{"victim","aggressor"}},{"metric",0}}}}).toJson());
    MainWindow w;
    w.show();settle(w);
+   // Fail visibly instead of hanging on an unexpected native modal dialog.
+   QString unexpectedModal;
+   QTimer modalGuard;modalGuard.setInterval(20);
+   QObject::connect(&modalGuard,&QTimer::timeout,&w,[&]{
+     if(auto *dialog=qobject_cast<QDialog*>(QApplication::activeModalWidget())) {
+       unexpectedModal=dialog->windowTitle();
+       if(auto *box=qobject_cast<QMessageBox*>(dialog))unexpectedModal+=": "+box->text();
+       std::cerr<<"012_49 unexpected modal: "<<unexpectedModal.toStdString()<<std::endl;
+       dialog->reject();
+     }
+   });
+   modalGuard.start();
+   stage("012_49 load absolute fixture");
    w.loadProject(project,false);settle(w);
+   check(unexpectedModal.isEmpty(),"Unexpected modal during integration project load");
    check(w.revisions.size()==2 && w.revisions[0].confirmed && w.revisions[1].confirmed,
          "Integration project did not restore two confirmed mappings");
    auto &manager=*w.analysisWindows;
@@ -592,6 +606,7 @@ struct WorkspaceProbe {
      }
      check(found,"Integrated ILD CSV missing data");
    };
+   stage("012_49 first revision analysis");
    exercise(0);
    check(values(w)==legacy,"New analysis altered legacy results");
    w.revisionBox->setCurrentIndex(1);settle(w);
@@ -599,6 +614,7 @@ struct WorkspaceProbe {
    check(!ild->saveIldCsv(forbidden) && !icn->saveIcnCsv(forbidden) &&
          !eye->saveEyeCsv(forbidden) && !QFileInfo::exists(forbidden),
          "Revision change left stale feature export enabled");
+   stage("012_49 second revision analysis");
    exercise(1);
    check(values(w)==legacy,"Revision analysis altered legacy result set");
    // A bad output target must fail without modifying the workspace or source.
@@ -607,10 +623,43 @@ struct WorkspaceProbe {
    const auto saved=QDir(fixture.path()).filePath("roundtrip.siproject");
    w.projectPath=saved;w.saveProject();
    check(QFileInfo(saved).isFile() && !w.dirty,"Integrated project save failed");
-   // Start an actual calculation and reset before processing its completion.
-   eye->runButton()->click();
+   // Hold a real verified source snapshot inside the same scheduler used by
+   // Eye. This lifetime probe is separate from the actual Eye runs above.
+   // A bounded release guard prevents hangs even if an assertion throws.
+   stage("012_49 held source snapshot retirement");
+   struct Gate { std::atomic_bool acquired{false}, release{false}; };
+   auto gate=std::make_shared<Gate>();
+   struct ReleaseGate {
+     std::shared_ptr<Gate> gate;
+     ~ReleaseGate(){gate->release.store(true);}
+   } releaseGate{gate};
+   {
+     const auto &rev=w.revisions[1];
+     const auto generation=manager.context().generation;
+     check(eye->startWork([cache=rev.cache,mapping=rev.channels,
+           name=ss(rev.name),generation,gate](const std::atomic_bool &,
+           std::atomic_int &)->si::gui::WorkOutcome {
+       auto snapshot=si::channel::SourceSnapshot::capture(cache,mapping,name,generation,generation);
+       gate->acquired.store(true);
+       QElapsedTimer hold;hold.start();
+       while(!gate->release.load() && hold.elapsed()<15000) QThread::msleep(1);
+       if(!gate->release.load())throw si::Error("Snapshot hold timed out");
+       const auto trace=si::channel::extract(snapshot,"victim",si::Metric::IL);
+       if(trace.frequencyHz.empty())throw si::Error("Retired source unreadable");
+       return {Status::Valid,QStringLiteral("Held snapshot lifetime probe")};
+     }),"Could not start held snapshot worker");
+   }
+   QElapsedTimer acquire;acquire.start();
+   while(!gate->acquired.load() && acquire.elapsed()<5000) {
+     QApplication::processEvents();QThread::msleep(1);
+   }
+   check(gate->acquired.load(),"Worker did not acquire source snapshot");
    const auto retired=w.workspaceCache->path();
-   w.newWorkspace();settle(w);drain();
+   w.newWorkspace();settle(w);
+   check(unexpectedModal.isEmpty() && w.revisions.empty() &&
+         manager.scheduler().inFlight()>0 && QDir(retired).exists(),
+         "New removed cache before held source worker released");
+   gate->release.store(true);drain();
    QElapsedTimer cleanup;cleanup.start();
    while(QDir(retired).exists() && cleanup.elapsed()<5000) {
      QApplication::processEvents();QThread::msleep(10);
@@ -619,13 +668,17 @@ struct WorkspaceProbe {
          !ild->saveIldCsv(forbidden) && !icn->saveIcnCsv(forbidden) &&
          !eye->saveEyeCsv(forbidden) && !QFileInfo::exists(forbidden) &&
          !QDir(retired).exists(),"New retained stale results or retired cache");
+   stage("012_49 project reload");
    w.loadProject(saved,false);settle(w);
+   check(unexpectedModal.isEmpty(),"Unexpected modal during integration project reload");
    check(w.revisions.size()==2 && w.revisionBox->currentIndex()==1 &&
          manager.context().sources.size()==2 &&
          manager.context().sources[1].mappingConfirmed,"Integrated project restore failed");
    w.run(metrics);settle(w);
    check(values(w)==legacy,"Legacy results changed after project roundtrip");
    exercise(1);
+   check(unexpectedModal.isEmpty(),"Unexpected modal during integrated workflow");
+   modalGuard.stop();
    w.dirty=false;
    ild->close();icn->close();eye->close();QApplication::processEvents();
    check(QFileInfo(saved).isFile(),"Workspace lifecycle removed saved project");
