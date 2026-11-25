@@ -6,6 +6,8 @@
 #include "si/channel_analysis/eye.hpp"
 #include <QtConcurrent>
 #include <QTemporaryDir>
+#include <QScreen>
+#include <QShowEvent>
 #include <vector>
 #include <QtWidgets>
 #include <array>
@@ -98,9 +100,13 @@ public:
 
 protected:
   void closeEvent(QCloseEvent *event) override;
+  void showEvent(QShowEvent *event) override;
 
 private:
   void fitToScreen();
+  void watchScreen(QScreen *screen);
+  void clampToScreen(QScreen *screen);
+  QMetaObject::Connection screenGeometryConnection_;
   void invalidateRequest();
   void setStatus(si::channel::Status status, const QString &details);
   QString selectionIdentity() const;

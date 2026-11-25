@@ -10,6 +10,8 @@
 #include <QTextStream>
 #include <QScreen>
 #include <QCursor>
+#include <QWindow>
+#include <QShowEvent>
 #include <exception>
 #include <stdexcept>
 #include <utility>
@@ -261,9 +263,9 @@ protected:
       p.setPen(QPen(palette().mid().color(),1));
       p.drawRect(area);
       p.setPen(palette().text().color());
-      const QString title=panel==0?QStringLiteral("Power sum (dB) — NEXT blue / FEXT orange")
+      const QString title=panel==0?QStringLiteral("Power sum (dB) — zero floor −300 dB")
         :panel==1?QStringLiteral("Weighted PSD (mV²/GHz) — lower is better")
-                 :QStringLiteral("Cumulative RMS (mV) — total foreground; lower is better");
+                 :QStringLiteral("Cumulative RMS (mV) — lower is better");
       p.drawText(QRectF(area.left(),area.top()-21,area.width(),18),Qt::AlignLeft,title);
       p.drawText(QRectF(2,area.top(),75,20),Qt::AlignRight,QString::number(high,'g',4));
       p.drawText(QRectF(2,area.bottom()-19,75,20),Qt::AlignRight,QString::number(low,'g',4));
@@ -301,6 +303,12 @@ protected:
         p.drawPath(path);
       }
       p.restore();
+      // Compact legend that remains in the exported plot.
+      const QString legend=panel==2?QStringLiteral("NEXT (blue)  |  FEXT (orange)  |  Total (foreground)"):
+        QStringLiteral("NEXT (blue)  |  FEXT (orange)");
+      p.setPen(palette().text().color());
+      if(area.width()>470)
+        p.drawText(QRectF(area.left(),area.bottom()+3,area.width(),18),Qt::AlignHCenter,legend);
     }
   }
 private:
@@ -774,6 +782,7 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     eyePreview_=new QPushButton(QStringLiteral("Auto Preview"));
     eyePreview_->setObjectName(QStringLiteral("eyeAutoPreview"));
     eyePreview_->setToolTip(QStringLiteral("Assumed matched, 400 mVpp NRZ preview; uses measured phase/DC and bandwidth, not actual PHY settings."));
+    eyePreview_->setAutoDefault(false);
     eyePreview_->setEnabled(false);
     controls->addWidget(eyePreview_);
     run_->setText(QStringLiteral("Run Manual"));
@@ -920,6 +929,36 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     else progressPoll_.stop();
   });
   fitToScreen();
+}
+void AnalysisWindow::showEvent(QShowEvent *event) {
+  QWidget::showEvent(event);
+  if(auto *handle=windowHandle()) {
+    connect(handle,&QWindow::screenChanged,this,&AnalysisWindow::watchScreen,Qt::UniqueConnection);
+    watchScreen(handle->screen());
+  }
+}
+void AnalysisWindow::watchScreen(QScreen *screen) {
+  QObject::disconnect(screenGeometryConnection_);
+  if(!screen) return;
+  screenGeometryConnection_=connect(screen,&QScreen::availableGeometryChanged,this,[this,screen](const QRect &){
+    clampToScreen(screen);
+  });
+  clampToScreen(screen);
+}
+void AnalysisWindow::clampToScreen(QScreen *screen) {
+  if(!screen || isMaximized() || isFullScreen()) return;
+  const QRect available=screen->availableGeometry();
+  const QSize limit(std::max(minimumWidth(),available.width()-40),
+                    std::max(minimumHeight(),available.height()-80));
+  const QSize fitted=size().boundedTo(limit);
+  if(fitted!=size()) resize(fitted);
+  // Only move when the frame is actually outside the available work area.
+  const QRect frame=frameGeometry();
+  if(!available.contains(frame)) {
+    const QPoint bounded(std::clamp(frame.left(),available.left(),std::max(available.left(),available.right()-frame.width()+1)),
+                         std::clamp(frame.top(),available.top(),std::max(available.top(),available.bottom()-frame.height()+1)));
+    move(pos()+bounded-frame.topLeft());
+  }
 }
 void AnalysisWindow::fitToScreen() {
   auto *screen=QGuiApplication::screenAt(QCursor::pos());
@@ -1396,7 +1435,7 @@ void AnalysisWindow::showIcn(const WorkOutcome &outcome) {
     const auto worst=std::max_element(d.aggressors.begin(),d.aggressors.end(),
       [](const auto &a,const auto &b){return a.powerPercent<b.powerPercent;});
     QString summary;
-    if(worst!=d.aggressors.end())
+    if(worst!=d.aggressors.end() && d.totalRmsV>0)
       summary=QStringLiteral("Largest contribution: %1 %2 (%3% of noise power).\n")
         .arg(worst->end==si::channel::IcnEnd::Next?QStringLiteral("NEXT"):QStringLiteral("FEXT"))
         .arg(QString::fromStdString(worst->id)).arg(worst->powerPercent,0,'g',5);

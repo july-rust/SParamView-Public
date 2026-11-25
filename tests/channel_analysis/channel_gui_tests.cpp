@@ -392,6 +392,10 @@ int main(int argc, char **argv) {
     toggle->setChecked(false);QCoreApplication::processEvents();
     check(icn->findChild<QScrollArea *>(QStringLiteral("analysisSettingsScroll"))->isHidden(),"Collapse settings failed");
     toggle->setChecked(true);
+    auto *icnView=icn->findChild<QComboBox *>(QStringLiteral("icnPlotView"));
+    check(icnView && icnView->currentIndex()==3,"Default compact cumulative plot missing");
+    icnView->setCurrentIndex(0);
+    icnView->setCurrentIndex(3);
     icn->runButton()->click();
     drain(manager.scheduler());
     check(icn->status()==S::Valid || icn->status()==S::Warning,
