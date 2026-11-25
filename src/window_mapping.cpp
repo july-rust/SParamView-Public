@@ -204,20 +204,20 @@ void MainWindow::openNextPath(QStringList paths, bool batch) {
           while (std::any_of(revisions.begin(), revisions.end(),
                              [&](const auto &a) { return a.name == r.name; }))
             r.name = base + " (" + QString::number(n++) + ")";
-          bool accepted = r.confirmed;
-          if (!accepted) {
+          bool mappingAccepted = r.confirmed;
+          if (!mappingAccepted) {
             // Keep a rejected dialog's tentative signal-type edits private.
             auto staged = r;
             try {
-              accepted = confirmMapping(staged);
-              if (accepted) r = std::move(staged);
+              mappingAccepted = confirmMapping(staged);
+              if (mappingAccepted || !batch) r = std::move(staged);
             } catch (const std::exception &e) {
               error(QFileInfo(path).fileName() + ": " + qs(e.what()));
             }
           }
           // Preserve the legacy single-file review-later option. A cancelled
           // individual review in a multi-file selection never registers it.
-          if (accepted || !batch) {
+          if (mappingAccepted || !batch) {
             revisions.push_back(std::move(r));
             auto &current = revisions.back();
             if (projectName == "Untitled") projectName = revisions.front().name;
@@ -229,7 +229,7 @@ void MainWindow::openNextPath(QStringList paths, bool batch) {
             refreshAnalysisContext();
             dirty = true;
             sparamview::preferences::rememberFile(current.source);
-            notice->setText(accepted
+            notice->setText(mappingAccepted
                 ? "Touchstone data loaded. Mapping validated from " + current.mappingSource + ". Select channels and run analysis."
                 : "Touchstone data loaded. Mapping review is required before analysis.");
           } else {
@@ -527,26 +527,28 @@ void MainWindow::editMapping() {
   } catch (const std::exception &e) { error(qs(e.what())); }
 }
 
-bool MainWindow::confirmMapping(Revision &rev) {
-  if (!reviewSignalType(rev)) return false;
+bool MainWindow::confirmMapping(Revision &mappingRevision) {
+  if (!reviewSignalType(mappingRevision)) return false;
+  // The caller owns the staged revision; no workspace mutation occurs here.
+  // Signal review and channel confirmation use the same file-local metadata.
   QDialog dialog(this);
-  dialog.setWindowTitle("Channel Mapping — " + rev.name);
+  dialog.setWindowTitle("Channel Mapping — " + mappingRevision.name);
   dialog.setObjectName("channelMappingDialog");
   dialog.resize(980, 540);
   auto layout = new QVBoxLayout(&dialog);
   auto info = new QLabel(
       QString("Signal Type: %1 (%2)\nEvidence: %3\nSource: %4\nPort numbering starts at 1. Leave Near−/Far− blank for single-ended channels.\nVerify Near/Far and P/N against the physical connections. A blank Far end supports reflection/TDR only.")
-          .arg(rev.signalType)
-          .arg(rev.signalConfidence)
-          .arg(rev.signalEvidence)
-          .arg(rev.mappingSource.isEmpty() ? "Unknown" : rev.mappingSource));
+          .arg(mappingRevision.signalType)
+          .arg(mappingRevision.signalConfidence)
+          .arg(mappingRevision.signalEvidence)
+          .arg(mappingRevision.mappingSource.isEmpty() ? "Unknown" : mappingRevision.mappingSource));
   info->setWordWrap(true);
-  info->setText(info->text()+"\nUnmapped physical ports: "+QString::number(unmappedPorts(rev)));
+  info->setText(info->text()+"\nUnmapped physical ports: "+QString::number(unmappedPorts(mappingRevision)));
   layout->addWidget(info);
-  if (!rev.mappingWarning.isEmpty()) {
+  if (!mappingRevision.mappingWarning.isEmpty()) {
     auto warning = new QLabel(
         "File data loaded, but automatic mapping could not be confirmed. Check port labels and enter the mapping manually or import a Mapping CSV.\n" +
-        rev.mappingWarning);
+        mappingRevision.mappingWarning);
     warning->setObjectName("mappingWarning");
     warning->setWordWrap(true);
     layout->addWidget(warning);
@@ -558,6 +560,7 @@ bool MainWindow::confirmMapping(Revision &rev) {
   grid->horizontalHeader()->setStretchLastSection(true);
   grid->setSelectionBehavior(QAbstractItemView::SelectRows);
   layout->addWidget(grid, 1);
+  // Rebuild the editable rows without changing the underlying staged mapping.
   auto fill = [&](const std::vector<si::Channel> &channels) {
     grid->setRowCount(int(channels.size()));
     for (size_t i = 0; i < channels.size(); ++i) {
@@ -574,10 +577,10 @@ bool MainWindow::confirmMapping(Revision &rev) {
         grid->setItem(int(i), j, new QTableWidgetItem(values[j]));
     }
   };
-  if (!rev.channels.empty())
-    fill(rev.channels);
+  if (!mappingRevision.channels.empty())
+    fill(mappingRevision.channels);
   else
-    fill(rev.candidates);
+    fill(mappingRevision.candidates);
   auto actions = new QHBoxLayout;
   button("Add Row", actions, [&] {
     int i = grid->rowCount();
@@ -598,7 +601,7 @@ bool MainWindow::confirmMapping(Revision &rev) {
   button("Suggest from Labels", actions, [&] {
     try {
       std::string diagnostic;
-      auto proposed = si::suggestMapping(rev.cache->meta(), &diagnostic, rev.inferNamedDifferential);
+      auto proposed = si::suggestMapping(mappingRevision.cache->meta(), &diagnostic, mappingRevision.inferNamedDifferential);
       if (!diagnostic.empty()) {
         error(qs(diagnostic)); // Preserve manually entered rows on uncertain fallback.
         return;
@@ -610,7 +613,7 @@ bool MainWindow::confirmMapping(Revision &rev) {
   });
   button("Suggest SE Half-Split", actions, [&] {
     std::vector<si::Channel> cs;
-    auto n = rev.cache->meta().ports;
+    auto n = mappingRevision.cache->meta().ports;
     if (n % 2) {
       error("An even number of ports is required.");
       return;
@@ -627,6 +630,7 @@ bool MainWindow::confirmMapping(Revision &rev) {
   });
   layout->addLayout(actions);
 
+  // Manual pairing uses physical port indices from this source only.
   auto manualGroup = new QGroupBox("Manual Differential Pairing");
   auto manual = new QGridLayout(manualGroup);
   auto channelName = new QLineEdit;
@@ -638,9 +642,9 @@ bool MainWindow::confirmMapping(Revision &rev) {
   for (int k = 0; k < 4; ++k) {
     manualPorts[k] = new QComboBox;
     manualPorts[k]->addItem("—", -1);
-    for (size_t port = 0; port < rev.cache->meta().ports; ++port) {
-      QString label = port < rev.cache->meta().labels.size()
-                          ? qs(rev.cache->meta().labels[port])
+    for (size_t port = 0; port < mappingRevision.cache->meta().ports; ++port) {
+      QString label = port < mappingRevision.cache->meta().labels.size()
+                          ? qs(mappingRevision.cache->meta().labels[port])
                           : QString{};
       manualPorts[k]->addItem(
           QString("P%1  %2").arg(port + 1).arg(label), int(port));
@@ -710,10 +714,11 @@ bool MainWindow::confirmMapping(Revision &rev) {
   layout->addWidget(manualGroup);
   auto portLabels = new QComboBox;
   portLabels->addItem("Physical Ports / Labels");
-  for (size_t i = 0; i < rev.cache->meta().labels.size(); ++i)
+  for (size_t i = 0; i < mappingRevision.cache->meta().labels.size(); ++i)
     portLabels->addItem("P" + QString::number(i + 1) + "  " +
-                        qs(rev.cache->meta().labels[i]));
+                        qs(mappingRevision.cache->meta().labels[i]));
   layout->addWidget(portLabels);
+  // Validate all edited rows before committing them to the staged revision.
   auto bottom =
       new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel);
   layout->addWidget(bottom);
@@ -753,21 +758,22 @@ bool MainWindow::confirmMapping(Revision &rev) {
       }
       if (cs.empty())
         throw si::Error("Define at least one channel.");
-      si::validateMapping(cs, rev.cache->meta());
+      // Reject invalid ports, duplicate mappings and inconsistent physical pairs.
+      si::validateMapping(cs, mappingRevision.cache->meta());
       const auto mappedType = signalTypeForChannels(cs);
-      if (rev.signalTypeReviewed && rev.signalType != mappedType &&
+      if (mappingRevision.signalTypeReviewed && mappingRevision.signalType != mappedType &&
           QMessageBox::question(&dialog, "Signal Type Changed",
-              "The physical mapping is " + mappedType + ", but the reviewed signal type was " + rev.signalType + ". Accept this change?",
+              "The physical mapping is " + mappedType + ", but the reviewed signal type was " + mappingRevision.signalType + ". Accept this change?",
               QMessageBox::Yes | QMessageBox::No, QMessageBox::No) != QMessageBox::Yes) return;
-      rev.channels = std::move(cs);
-      rev.candidates.clear();
-      rev.confirmed = true;
-      rev.signalType = signalTypeForChannels(rev.channels);
-      rev.signalConfidence = "User Confirmed";
-      rev.signalEvidence = "User-confirmed physical Channel Mapping.";
-      rev.signalTypeReviewed = true;
-      rev.mappingSource = "Manual Mapping";
-      rev.mappingWarning.clear();
+      mappingRevision.channels = std::move(cs);
+      mappingRevision.candidates.clear();
+      mappingRevision.confirmed = true;
+      mappingRevision.signalType = signalTypeForChannels(mappingRevision.channels);
+      mappingRevision.signalConfidence = "User Confirmed";
+      mappingRevision.signalEvidence = "User-confirmed physical Channel Mapping.";
+      mappingRevision.signalTypeReviewed = true;
+      mappingRevision.mappingSource = "Manual Mapping";
+      mappingRevision.mappingWarning.clear();
       dialog.accept();
     } catch (const std::exception &e) {
       error(qs(e.what()));
