@@ -259,6 +259,9 @@ MainWindow::MainWindow() {
   resize(1440, 980);
   setAcceptDrops(true);
   auto file = menuBar()->addMenu("File");
+  auto *newAction = file->addAction("New", QKeySequence::New, this, &MainWindow::newWorkspace);
+  newAction->setObjectName("newWorkspaceAction");
+  file->addSeparator();
   file->addAction(
       "Open Touchstone...", QKeySequence::Open, this,
       [this] {
