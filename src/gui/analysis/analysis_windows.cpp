@@ -1031,7 +1031,7 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     bindUiText(translated,edit,edit->placeholderText(),[](QLineEdit *w,const QString &s){w->setPlaceholderText(s);});
   for(auto *spin:findChildren<QDoubleSpinBox *>())
     bindUiText(translated,spin,spin->specialValueText(),[](QDoubleSpinBox *w,const QString &s){w->setSpecialValueText(s);});
-  for(auto *box:{direction_,fitModel_,eyeMode_,eyePattern_,eyeView_,findChild<QComboBox *>("icnPlotView")})
+  for(auto *box:{direction_,fitModel_,eyeMode_,eyePattern_,eyeView_,eyeProfile_,findChild<QComboBox *>("icnPlotView")})
     if(box) bindCombo(translated,box);
   for(auto *tab:findChildren<QTabWidget *>()) {
     QStringList sources;
@@ -1555,7 +1555,7 @@ void AnalysisWindow::setIcnSourceProvider(IcnSourceProvider provider) {
 void AnalysisWindow::clearIcn() {
   icnResult_.reset();
   if(icnGraph_) static_cast<IcnPlotWidget *>(icnGraph_)->setData({});
-  if(icnContributions_) icnContributions_->setText(QStringLiteral("No current ICN result."));
+  if(icnContributions_) renderIcnContributions();
   if(feature_==Feature::Icn) {
     csv_->setEnabled(false);
     png_->setEnabled(false);
@@ -1865,8 +1865,7 @@ void AnalysisWindow::clearEye() {
   eyeResult_.reset();
   eyeSourceFilename_.clear();
   if(eyeGraph_) static_cast<EyePlotWidget *>(eyeGraph_)->setData({},0);
-  if(eyeMetrics_) eyeMetrics_->setText(QStringLiteral(
-    "Simulated Channel Eye — Not Measured / Not PHY Compliance"));
+  if(eyeMetrics_) renderEyeMetrics();
   if(feature_==Feature::Eye && csv_ && png_) {
     csv_->setEnabled(false); png_->setEnabled(false);
   }
@@ -2030,11 +2029,11 @@ void AnalysisWindow::renderEyeMetrics() {
   const QString assumption=preview?sparamview::ui_language::textFor(this,QStringLiteral("AUTO PREVIEW — assumed TX ±200 mV, matched Zref %1 / %2 ohm, threshold 0 mV, RX ±1000 mV, PRBS7. Not actual PHY settings.\n"))
     .arg(d.settings.electrical.txSourceOhm).arg(d.settings.electrical.rxTerminationOhm):sparamview::ui_language::textFor(this,QStringLiteral("MANUAL SETTINGS\n"));
   const QString dcText=sparamview::ui_language::textFor(this,QStringLiteral("DC: %1 | Original %2 Hz | Effective %3 Hz | First positive %4 Hz | %5\n%6\n"))
-    .arg(QString::fromStdString(d.dc.status))
+    .arg(sparamview::ui_language::textFor(this,QString::fromStdString(d.dc.status)))
     .arg(d.dc.originalStartHz,0,'g',12).arg(d.dc.effectiveStartHz,0,'g',12)
     .arg(d.dc.firstPositiveHz,0,'g',12)
     .arg(d.dc.limited?sparamview::ui_language::textFor(this,QStringLiteral("LIMITED")):sparamview::ui_language::textFor(this,QStringLiteral("LOCAL CHECKS PASSED")))
-    .arg(QString::fromStdString(d.dc.method));
+    .arg(sparamview::ui_language::textFor(this,QString::fromStdString(d.dc.method)));
   const QString acText=d.dc.acModel?sparamview::ui_language::textFor(this,QStringLiteral(
     "AC-like pole %1 Hz | Fit residual %2 | RC time constant %3 us | Analytic frame droop %4% | Full baseline wander NOT QUALIFIED\n"))
     .arg(d.dc.acPoleHz,0,'g',7).arg(d.dc.acFitMaxResidual,0,'g',7)
@@ -2051,7 +2050,7 @@ void AnalysisWindow::renderEyeMetrics() {
         .arg(d.acLongModelConverged?sparamview::ui_language::textFor(this,QStringLiteral("GRID AGREEMENT")):sparamview::ui_language::textFor(this,QStringLiteral("GRID LIMITED")));
     else longText=sparamview::ui_language::textFor(this,QStringLiteral("Isolated modeled long step: NOT EVALUATED\n"));
   }
-  eyeMetrics_->setText(assumption+dcText+sparamview::ui_language::textFor(this,QStringLiteral("Coupling model: %1 (not physical topology proof)\n")).arg(QString::fromStdString(d.dc.couplingModel))+acText+longText+sparamview::ui_language::textFor(this,QStringLiteral(
+  eyeMetrics_->setText(assumption+dcText+sparamview::ui_language::textFor(this,QStringLiteral("Coupling model: %1 (not physical topology proof)\n")).arg(sparamview::ui_language::textFor(this,QString::fromStdString(d.dc.couplingModel)))+acText+longText+sparamview::ui_language::textFor(this,QStringLiteral(
     "Simulated Channel Eye — Not Measured / Not PHY Compliance\n"
     "Height %1 mV | Width %2 ps (%3 UI) | Max-height phase %4 UI | Delay %5 ps\n"
     "Low maximum %6 mV | High minimum %7 mV | Received [%8, %9] mV\n"
@@ -2214,24 +2213,24 @@ bool AnalysisWindow::saveEyePng(const QString &name) {
   QFont font=p.font();
   font.setPointSizeF(8);
   p.setFont(font);
-  const QString caption=QStringLiteral(
+  const QString caption=sparamview::ui_language::textFor(this,QStringLiteral(
     "Simulated Channel Eye — Not Measured / Not PHY Compliance\n"
     "File: %1 | Revision: %2 | Channel: %3 | %4\n"
     "SHA-256: %5\n"
-    "Profile: %6 | Bit rate: %7 Gbps | Reference: %8 GHz | Cap: %9 GHz");
+    "Profile: %6 | Bit rate: %7 Gbps | Reference: %8 GHz | Cap: %9 GHz"));
   const QString inputMode=eyeProvenance_.settingsIdentity.ends_with("|AUTO_PREVIEW_ASSUMED_MATCHED_400mVpp")?
     QStringLiteral("\nAUTO PREVIEW: assumed 400 mVpp / matched Zref / PRBS7; not actual PHY settings."):QStringLiteral("\nMANUAL SETTINGS");
   const QString labeled=caption.arg(eyeSourceFilename_,
      QString::fromStdString(eyeProvenance_.revision),
      QString::fromStdString(eyeResult_->victimId),
-     eyeResult_->reverse?QStringLiteral("Reverse"):QStringLiteral("Forward"),
+     sparamview::ui_language::textFor(this,eyeResult_->reverse?QStringLiteral("Reverse"):QStringLiteral("Forward")),
      QString::fromStdString(eyeProvenance_.sourceSha256),
-     QString::fromStdString(eyeResult_->profileName),
+     sparamview::ui_language::textFor(this,QString::fromStdString(eyeResult_->profileName)),
      QString::number(eyeResult_->bitRateHz/1e9,'g',7),
      QString::number(eyeResult_->referenceFrequencyHz/1e9,'g',7),
-     QString::number(eyeResult_->analysisStopHz/1e9,'g',7))+inputMode+
-    QStringLiteral("\nDC: %1 | Original %2 Hz | Effective %3 Hz | %4")
-      .arg(QString::fromStdString(eyeResult_->dc.status))
+     QString::number(eyeResult_->analysisStopHz/1e9,'g',7))+sparamview::ui_language::textFor(this,inputMode)+
+    sparamview::ui_language::textFor(this,QStringLiteral("\nDC: %1 | Original %2 Hz | Effective %3 Hz | %4"))
+      .arg(sparamview::ui_language::textFor(this,QString::fromStdString(eyeResult_->dc.status)))
       .arg(eyeResult_->dc.originalStartHz,0,'g',12).arg(eyeResult_->dc.effectiveStartHz,0,'g',12)
       .arg(eyeResult_->dc.limited?QStringLiteral("LIMITED"):QStringLiteral("LOCAL CHECKS PASSED"));
   p.drawText(QRect(10,graph.height()+4,output.width()-20,footerHeight-8),

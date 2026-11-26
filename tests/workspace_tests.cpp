@@ -629,6 +629,10 @@ struct WorkspaceProbe {
      auto *action=w.findChild<QAction *>(QString("uiLanguage_")+lang);
      check(action!=nullptr,"Missing parity language action");
      action->trigger();
+     const auto language=sparamview::ui_language::fromCode(QString::fromLatin1(lang));
+     const auto *eyeStatus=eye->findChild<QLabel *>("analysisStatus");
+     check(eyeStatus && eyeStatus->text().contains(sparamview::ui_language::menuText("Simulated only — Not measured, no BER or PHY compliance; ",language)),"Eye simulation disclaimer not localized");
+     check(profile->currentText()==sparamview::ui_language::menuText("Custom (user-qualified)",language),"Eye profile presentation not localized");
      check(values(w)==legacy && eye->status()==statusBefore && manager.context().generation==contextBefore &&
            manager.scheduler().inFlight()==0,"Language switch changed computed result/context");
      check(ild->saveIldCsv(parityPrefix+"ild.csv") && icn->saveIcnCsv(parityPrefix+"icn.csv") &&

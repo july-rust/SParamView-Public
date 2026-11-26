@@ -918,6 +918,26 @@ inline QString menuText(const QString &source, Language value) {
     {"Signal type confirmed as Mixed. Verify both differential and single-ended channel assignments.", "신호 유형이 혼합으로 확인되었습니다. 차동 및 단일 종단 채널 할당을 모두 확인하십시오.", "信号タイプが混在として確認されました。差動とシングルエンドの両チャネル割り当てを確認してください。"},
     {"User-confirmed physical Channel Mapping.", "사용자가 확인한 물리 채널 매핑.", "ユーザー確認済み物理チャネルマッピング。"},
     {"Imported and validated Mapping CSV.", "가져오고 검증한 매핑 CSV.", "インポートして検証済みのマッピングCSV。"},
+    {"Simulated only — Not measured, no BER or PHY compliance; ", "시뮬레이션 전용 — 실측, BER 또는 PHY 적합성 검증 아님; ", "シミュレーションのみ — 実測、BER、PHY適合性試験ではない; "},
+    {"AUTO PREVIEW: assumed 400 mVpp, matched reference Z, PRBS7; ", "자동 미리보기: 400 mVpp, 기준 임피던스 정합, PRBS7 가정; ", "自動プレビュー: 400 mVpp、基準インピーダンス整合、PRBS7を仮定; "},
+    {"MIPI D-PHY v2.1 HS (example, not compliance)", "MIPI D-PHY v2.1 HS (예제, 적합성 검증 아님)", "MIPI D-PHY v2.1 HS (例、適合性試験ではない)"},
+    {"DDR2 (user-qualified)", "DDR2 (사용자 검증)", "DDR2 (ユーザー検証)"},
+    {"DDR3 (user-qualified)", "DDR3 (사용자 검증)", "DDR3 (ユーザー検証)"},
+    {"DDR4 (user-qualified)", "DDR4 (사용자 검증)", "DDR4 (ユーザー検証)"},
+    {"DDR5 (user-qualified)", "DDR5 (사용자 검증)", "DDR5 (ユーザー検証)"},
+    {"LVDS (user-qualified)", "LVDS (사용자 검증)", "LVDS (ユーザー検証)"},
+    {"SLVS (user-qualified)", "SLVS (사용자 검증)", "SLVS (ユーザー検証)"},
+    {"SLVS-EC (user-qualified)", "SLVS-EC (사용자 검증)", "SLVS-EC (ユーザー検証)"},
+    {"Custom (user-qualified)", "사용자 정의 (사용자 검증)", "カスタム (ユーザー検証)"},
+    {"USER_SPECIFIED", "사용자 지정", "ユーザー指定"},
+    {"Observed one-pole RC high-pass (AC-like); alternating-sample fit and holdout", "관측된 단일 극점 RC 고역통과 (AC 유사); 교대 샘플 피팅 및 검증", "観測された単一極RCハイパス (AC状); 交互サンプルによるフィットと検証"},
+    {"Local even-real fit; constant/linear/alternate comparison", "국소 짝대칭 실수 피팅; 상수/선형/대체 모델 비교", "局所偶対称実数フィット; 定数/線形/代替モデルの比較"},
+    {"EXTRAPOLATED DC", "외삽 DC", "外挿DC"},
+    {"AC_LIKE_ONE_POLE", "AC 유사 단일 극점", "AC状単一極"},
+    {"DC_LIKE_LOCAL", "DC 유사 국소 모델", "DC状局所モデル"},
+    {"\nMANUAL SETTINGS", "\n수동 설정", "\n手動設定"},
+    {"\nAUTO PREVIEW: assumed 400 mVpp / matched Zref / PRBS7; not actual PHY settings.", "\n자동 미리보기: 400 mVpp / 기준 임피던스 정합 / PRBS7 가정; 실제 PHY 설정 아님.", "\n自動プレビュー: 400 mVpp / 基準インピーダンス整合 / PRBS7を仮定; 実際のPHY設定ではない。"},
+    {"Simulated Channel Eye — Not Measured / Not PHY Compliance\nFile: %1 | Revision: %2 | Channel: %3 | %4\nSHA-256: %5\nProfile: %6 | Bit rate: %7 Gbps | Reference: %8 GHz | Cap: %9 GHz", "시뮬레이션 채널 아이 — 실측 / PHY 적합성 검증 아님\n파일: %1 | 리비전: %2 | 채널: %3 | %4\nSHA-256: %5\n프로파일: %6 | 비트율: %7 Gbps | 기준: %8 GHz | 상한: %9 GHz", "シミュレーションチャネルアイ — 実測 / PHY適合性試験ではない\nファイル: %1 | リビジョン: %2 | チャネル: %3 | %4\nSHA-256: %5\nプロファイル: %6 | ビットレート: %7 Gbps | 基準: %8 GHz | 上限: %9 GHz"},
   };
   for (const auto &entry : entries)
     if (source == QString::fromUtf8(entry.en))
@@ -962,6 +982,18 @@ inline QString diagnosticText(const QString &source,Language value) {
   static const QRegularExpression dc(QStringLiteral("^Effective start (.+) Hz: DC extrapolation above 10 kHz is limited\\. Continue with simulated Eye\\?$"));
   const auto match=dc.match(source);
   if(match.hasMatch())return menuText("Effective start %1 Hz: DC extrapolation above 10 kHz is limited. Continue with simulated Eye?",value).arg(match.captured(1));
+  const QString simulated="Simulated only — Not measured, no BER or PHY compliance; ";
+  const QString preview="AUTO PREVIEW: assumed 400 mVpp, matched reference Z, PRBS7; ";
+  if(source.startsWith(simulated)) {
+    auto remainder=source.mid(simulated.size());
+    auto translated=menuText(simulated,value);
+    if(remainder.startsWith(preview)) {
+      translated+=menuText(preview,value);
+      remainder.remove(0,preview.size());
+    }
+    // Stable machine diagnostic codes remain verbatim for support and export.
+    return translated+remainder;
+  }
   // Explicit diagnostic prefixes only. Preserve source paths, port IDs and raw
   // values verbatim; never search/replace arbitrary text or serialized fields.
   const QStringList prefixes={"S descriptors declare single-ended data. Confirm the physical mapping and Near/Far direction. ","Unequal P/N references require renormalization (not in V1): ","source sampling is too sparse; interpolation sensitivity=","DC extrapolation and/or complex grid resampling used. ","Unsupported option (S-parameters only): ","Incomplete frequency record: expected ","Invalid integer Channel Mapping port: ","Truncated frequency record: expected ","Incomplete P/N or near/far mapping: ","Header keyword after network data: ","Ambiguous revision channel match: ","Invalid numeric project setting: ","Invalid boolean project setting: ","Invalid numeric range setting: ","Invalid project setting array: ","Mapping confirmation required: ","Port assigned more than once: ","Invalid positive integer: ","Invalid Mixed-Mode Order: ","Far end is not mapped: ","Unsupported keyword: [","Touchstone not found: ","Cannot read source: ","Duplicate keyword: ","Port out of range: ","Max directional Δ: ","Nonuniform step: ","Worst margin at ","Cannot read "};
