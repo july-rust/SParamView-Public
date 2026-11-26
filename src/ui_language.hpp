@@ -969,6 +969,23 @@ inline const auto &catalogEntries() {
     {" Incomplete limit coverage or invalid data: verdict N/A.", " 판정 기준의 적용 범위가 불완전하거나 데이터가 유효하지 않아 판정 N/A.", " 判定基準の適用範囲が不完全またはデータが無効なため判定N/A。"},
     {" Some limit samples are unavailable or invalid, but an evaluated violation exists; verdict remains NG.", " 일부 판정 샘플이 없거나 유효하지 않지만 평가된 위반이 있어 NG 판정을 유지합니다.", " 一部の判定サンプルが存在しないか無効ですが、評価済みの違反があるため判定はNGのままです。"},
     {" Manual marker values at non-source frequencies use complex interpolation for display only and do not change pass/fail.", " 원본에 없는 주파수의 수동 마커 값은 표시 전용 복소 보간을 사용하며 합격/불합격 판정을 변경하지 않습니다.", " 元データにない周波数の手動マーカー値は表示専用の複素補間を使用し、合否判定は変更しません。"},
+    {"Windows error message unavailable", "Windows 오류 메시지를 확인할 수 없습니다", "Windowsのエラーメッセージを取得できません"},
+    {"At least 8 frequency points are required", "주파수 포인트가 최소 8개 필요합니다", "周波数点が最低8点必要です"},
+    {"Low-frequency gap exceeds 10% of bandwidth", "저주파수 공백이 대역폭의 10%를 초과합니다", "低周波数側の欠落範囲が帯域幅の10%を超えています"},
+    {"Invalid source reference impedance", "원본 기준 임피던스가 유효하지 않습니다", "ソースの基準インピーダンスが無効です"},
+    {"Window beta must be finite and in [0,13]", "윈도 함수 beta는 유한하며 [0,13] 범위여야 합니다", "窓関数のbetaは有限で[0,13]の範囲である必要があります"},
+    {"Invalid TDR time range", "TDR 시간 범위가 유효하지 않습니다", "TDRの時間範囲が無効です"},
+    {"Frequency grid is not strictly increasing", "주파수 격자가 엄격한 증가 순서가 아닙니다", "周波数グリッドが狭義単調増加ではありません"},
+    {"TDR transform needs more than 262144 time samples", "TDR 변환에 262144개를 초과하는 시간 샘플이 필요합니다", "TDR変換に262144点を超える時間サンプルが必要です"},
+    {"No TDR data inside time range", "시간 범위 안에 TDR 데이터가 없습니다", "時間範囲内にTDRデータがありません"},
+    {"frequency stop %1 Hz requested, source ends at %2 Hz", "요청 종료 주파수 %1 Hz, 원본 종료 주파수 %2 Hz", "要求終了周波数%1 Hz、ソース終了周波数%2 Hz"},
+    {"frequency start %1 Hz requested, source starts at %2 Hz", "요청 시작 주파수 %1 Hz, 원본 시작 주파수 %2 Hz", "要求開始周波数%1 Hz、ソース開始周波数%2 Hz"},
+    {"TDR start %1 s requested, first evaluated sample is %2 s", "요청 TDR 시작 시간 %1 s, 첫 평가 샘플 %2 s", "要求TDR開始時間%1 s、最初の評価サンプル%2 s"},
+    {"TDR stop %1 s requested, computed window ends at %2 s", "요청 TDR 종료 시간 %1 s, 계산 구간 종료 시간 %2 s", "要求TDR終了時間%1 s、計算区間終了時間%2 s"},
+    {"Requested range incomplete: %1. Evaluated %2 to %3 %4.", "요청 범위가 불완전합니다: %1. 평가 범위 %2 ~ %3 %4.", "要求範囲が不完全です: %1。評価範囲%2 ～ %3 %4。"},
+    {" An evaluated limit violation was found, so verdict remains NG.", " 평가된 기준 위반이 확인되어 NG 판정을 유지합니다.", " 評価済みの基準違反があるため、判定はNGのままです。"},
+    {" The evaluated portion did not fail, but the overall verdict is N/A.", " 평가된 구간은 불합격이 아니지만 전체 판정은 N/A입니다.", " 評価済みの区間に不合格はありませんが、全体判定はN/Aです。"},
+    {"Frequency-dependent limit boundary/kink checks at %1 non-source point(s) use complex interpolation; redundant collinear limit points do not alter the evaluation grid.", "주파수별 기준의 경계/꺾임 검사에서 원본에 없는 %1개 포인트는 복소 보간을 사용합니다. 동일 직선 위의 중복 기준 포인트는 평가 격자를 변경하지 않습니다.", "周波数依存の判定基準の境界・屈曲点検査では、元データにない%1点に複素補間を使用します。同一直線上の冗長な基準点は評価グリッドを変更しません。"},
     {"Saved mapping invalidated: source changed or stored ports are no longer valid. ", "저장된 매핑이 무효화되었습니다: 원본이 변경되었거나 저장된 포트가 더 이상 유효하지 않습니다. ", "保存済みマッピングは無効になりました: ソースが変更されたか、保存されたポートが無効です。 "},
     {"Current source re-evaluated; previous mapping was discarded. ", "현재 원본을 재평가했으며 이전 매핑은 폐기되었습니다. ", "現在のソースを再評価し、以前のマッピングを破棄しました。 "},
     {" User confirmed the signal type before Channel Mapping.", " 사용자가 채널 매핑 전에 신호 유형을 확인했습니다.", " ユーザーはチャネルマッピングの前に信号タイプを確認しました。"},
@@ -1045,6 +1062,41 @@ inline QString diagnosticTextImpl(const QString &source,Language value,int depth
         return localizedHead+menuText(suffix,value);
     }
   }
+  // Parse only the exact range-note grammar emitted by analyze(). Numeric
+  // tokens and units are copied verbatim; an unknown clause rejects the match.
+  static const QRegularExpression rangeNote(QStringLiteral(R"(^(?:(.*) )?Requested range incomplete: (.+)\. Evaluated ([-+0-9.eE]+) to ([-+0-9.eE]+) (s|Hz)\.( An evaluated limit violation was found, so verdict remains NG\.| The evaluated portion did not fail, but the overall verdict is N/A\.)?$)"));
+  const auto rangeMatch=rangeNote.match(source);
+  if(rangeMatch.hasMatch()) {
+    static const QRegularExpression issue(QStringLiteral(R"(^(frequency stop|frequency start|TDR start|TDR stop) ([-+0-9.eE]+) (Hz|s) requested, (source ends at|source starts at|first evaluated sample is|computed window ends at) ([-+0-9.eE]+) (Hz|s)$)"));
+    QStringList translatedIssues;
+    bool valid=true;
+    for(const auto &part:rangeMatch.captured(2).split("; ")) {
+      const auto m=issue.match(part);
+      if(!m.hasMatch()) {valid=false;break;}
+      QString pattern;
+      if(m.captured(1)=="frequency stop" && m.captured(4)=="source ends at" && m.captured(3)=="Hz" && m.captured(6)=="Hz")
+        pattern="frequency stop %1 Hz requested, source ends at %2 Hz";
+      else if(m.captured(1)=="frequency start" && m.captured(4)=="source starts at" && m.captured(3)=="Hz" && m.captured(6)=="Hz")
+        pattern="frequency start %1 Hz requested, source starts at %2 Hz";
+      else if(m.captured(1)=="TDR start" && m.captured(4)=="first evaluated sample is" && m.captured(3)=="s" && m.captured(6)=="s")
+        pattern="TDR start %1 s requested, first evaluated sample is %2 s";
+      else if(m.captured(1)=="TDR stop" && m.captured(4)=="computed window ends at" && m.captured(3)=="s" && m.captured(6)=="s")
+        pattern="TDR stop %1 s requested, computed window ends at %2 s";
+      else {valid=false;break;}
+      translatedIssues<<menuText(pattern,value).arg(m.captured(2),m.captured(5));
+    }
+    const auto head=rangeMatch.captured(1);
+    const auto localizedHead=diagnosticTextImpl(head,value,depth+1);
+    if(valid && (head.isEmpty() || localizedHead!=head))
+      return (head.isEmpty()?QString():localizedHead+" ")+
+          menuText("Requested range incomplete: %1. Evaluated %2 to %3 %4.",value)
+              .arg(translatedIssues.join("; "),rangeMatch.captured(3),rangeMatch.captured(4),rangeMatch.captured(5))+
+          menuText(rangeMatch.captured(6),value);
+  }
+  static const QRegularExpression limitCheck(QStringLiteral(R"(^Frequency-dependent limit boundary/kink checks at ([0-9]+) non-source point\(s\) use complex interpolation; redundant collinear limit points do not alter the evaluation grid\.$)"));
+  const auto limitMatch=limitCheck.match(source);
+  if(limitMatch.hasMatch())
+    return menuText("Frequency-dependent limit boundary/kink checks at %1 non-source point(s) use complex interpolation; redundant collinear limit points do not alter the evaluation grid.",value).arg(limitMatch.captured(1));
   // The load clause is generated by analyze() from a closed set of terminations.
   // Match only a known termination and endpoint; never split arbitrary file text.
   static const QRegularExpression load(QStringLiteral(R"(^(.*) Load: (Reference matched \(all physical ports\)|P-N 100 ohm \(floating\)|Signal-GND 50 ohm|P-GND 50 ohm \+ N-GND 50 ohm|P and N open|Signal open|P-N short \(floating\)|Signal-GND short); opposite end (Near|Far); all other physical ports reference matched\.$)"));
