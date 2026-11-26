@@ -687,6 +687,52 @@ struct WorkspaceProbe {
    {auto p=sparamview::preferences::store();p.remove("workspace/v1/lastDirectory");p.sync();}
    stage("012_49 integrated application workflow passed");
  }
+ static void languageMenuQualification() {
+  using namespace sparamview::preferences;
+  {auto p=store();p.remove("ui/v1/language");p.sync();}
+  auto verify=[](MainWindow &w, const QString &file, const QString &selected) {
+   auto *menu=w.findChild<QMenu *>("uiLanguageMenu");
+   check(menu && menu->title()=="Language","Language menu must remain English");
+   const QStringList labels={"English","Korean","Japanese"};
+   check(menu->actions().size()==3,"Language action count");
+   int checked=0;
+   for(int i=0;i<3;++i) {
+    auto *a=menu->actions()[i];
+    check(a->text()==labels[i],"Language action must remain English");
+    if(a->isChecked()) {++checked;check(a->text()==selected,"Wrong language selected");}
+   }
+   check(checked==1,"Language choice must be exclusive");
+   check(w.menuBar()->actions().front()->text()==file,"File menu localization");
+  };
+  {
+   MainWindow w;
+   verify(w,"File","English");
+   auto *ko=w.findChild<QAction *>("uiLanguage_ko");
+   auto *ja=w.findChild<QAction *>("uiLanguage_ja");
+   auto *en=w.findChild<QAction *>("uiLanguage_en");
+   check(ko && ja && en,"Missing stable language action");
+   const auto before=QLocale().name();
+   const double limit=w.limitValues[0]->value();
+   auto *newAction=w.findChild<QAction *>("newWorkspaceAction");
+   check(newAction!=nullptr,"Missing New action");
+   const auto shortcut=newAction->shortcut();
+   for(int i=0;i<100;++i) {
+    ko->trigger();verify(w,QString::fromUtf8("파일"),"Korean");
+    check(newAction->text()==QString::fromUtf8("새로 만들기"),"Korean New action");
+    ja->trigger();verify(w,QString::fromUtf8("ファイル"),"Japanese");
+    check(newAction->text()==QString::fromUtf8("新規作成"),"Japanese New action");
+    en->trigger();verify(w,"File","English");
+    check(newAction->text()=="New","English New action");
+   }
+   check(QLocale().name()==before && w.limitValues[0]->value()==limit &&
+         newAction->shortcut()==shortcut && !w.dirty,"Menu language mutated application state");
+   ja->trigger();
+  }
+  {MainWindow w;verify(w,QString::fromUtf8("ファイル"),"Japanese");}
+  {auto p=store();p.setValue("ui/v1/language","unsupported");p.sync();}
+  {MainWindow w;verify(w,"File","English");}
+  {auto p=store();p.remove("ui/v1/language");p.sync();}
+ }
  static void preferencesQualification(const QString &out) {
   using namespace sparamview::preferences;
   const double expected[] = {-10, -3, -20, -20};
@@ -774,6 +820,7 @@ int main(int argc,char**argv){
 #endif
  try{
   QSize size(argc>3?QString::fromLocal8Bit(argv[3]).toInt():1440,argc>4?QString::fromLocal8Bit(argv[4]).toInt():980);
+  WorkspaceProbe::languageMenuQualification();
   WorkspaceProbe::preferencesQualification(out);
   WorkspaceProbe::fileWorkflowQualification(QString::fromLocal8Bit(argv[1]),out);
   WorkspaceProbe::integratedAnalysisQualification(out);

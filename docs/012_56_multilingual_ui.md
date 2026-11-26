@@ -1,0 +1,21 @@
+# 012_56 Multilingual UI — work in progress
+
+Baseline: integration/v1.4.0 at 86308341173e24a1dfad85366e9fb29316eb1208 (012_55 merged PR #119).
+Do not merge or release until all 012_56 requirements are satisfied.
+
+## Implemented in this candidate
+- English-only Language / English / Korean / Japanese controls.
+- Exclusive selection; stable action object names and persistent UI preference with English fallback.
+- Main-menu action translation from immutable original text, including Analysis menu and Eye Diagram action.
+- No changes to numerical engines, QLocale, caches, project formats, or analysis context.
+- Workspace regression test for menu selection, translation, 100 cycles, state/shortcut preservation, and preference fallback.
+
+## Remaining
+- Complete context-aware catalog, dynamic text handling and explicit retranslation of all main window widgets, dialogs, ILD/ICN/Eye windows, plots, user reports and error paths.
+- Audit comparisons of display strings (e.g. currentText) before localizing any controls used as keys.
+- Verify Qt/native system dialogs and font fallback, including Japanese glyphs.
+- Full translation inventory, technical terminology review and untranslated-string allowlist.
+- Cross-platform GUI, 1024x768, export and numerical parity qualification; CI results and physical evidence.
+- No test execution or platform PASS is asserted by this source commit.
+
+This is a partial implementation, not a completed 012_56 or a release candidate.

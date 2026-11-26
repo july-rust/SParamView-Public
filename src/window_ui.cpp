@@ -800,6 +800,7 @@ MainWindow::MainWindow() {
   restoreWorkspaceLayout();
   updateActiveTouchstoneTitle();
   refreshAnalysisContext();
+  sparamview::ui_language::installMenu(*this);
 }
 void MainWindow::markDirty() {
   if(!restoringProject && !revisions.empty()) dirty=true;

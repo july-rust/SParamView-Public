@@ -6,6 +6,7 @@
 #include "si/mapping_policy.hpp"
 #include "si/direction_policy.hpp"
 #include <QCryptographicHash>
+#include "ui_language.hpp"
 #include "window_ui.cpp"
 #include "window_workspace.cpp"
 #include "window_mapping.cpp"
