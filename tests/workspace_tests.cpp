@@ -24,7 +24,7 @@ static void localizationCatalogQualification() {
     check(placeholders(en)==placeholders(ko) && placeholders(en)==placeholders(ja),"Localization placeholder mismatch");
     check(menuText(en,Language::Korean)==ko && menuText(en,Language::Japanese)==ja,"Localization lookup mismatch");
   }
-  check(keys.size()>=928,"Localization catalog unexpectedly reduced");
+  check(keys.size()>=930,"Localization catalog unexpectedly reduced");
   const QString wrapper="Saved mapping invalidated: source changed or stored ports are no longer valid. ";
   const QString evidence="Current source re-evaluated; previous mapping was discarded. ";
   const QString suffix=" User confirmed the signal type before Channel Mapping.";
@@ -712,6 +712,8 @@ struct WorkspaceProbe {
      }
      const auto *eyeStatus=eye->findChild<QLabel *>("analysisStatus");
      check(eyeStatus && eyeStatus->text().contains(sparamview::ui_language::menuText("Simulated only — Not measured, no BER or PHY compliance; ",language)),"Eye simulation disclaimer not localized");
+     const auto *eyeMetrics=eye->findChild<QLabel *>("eyeMetrics");
+     check(eyeMetrics && eyeMetrics->text().contains("\n"+sparamview::ui_language::menuText("Original",language)+"\n"),"Original DC method presentation not localized");
      check(profile->currentText()==sparamview::ui_language::menuText("Custom (user-qualified)",language),"Eye profile presentation not localized");
      check(values(w)==legacy && eye->status()==statusBefore && manager.context().generation==contextBefore &&
            manager.scheduler().inFlight()==0,"Language switch changed computed result/context");
