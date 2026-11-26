@@ -245,6 +245,46 @@ protected:
   }
 };
 
+// Keep a control row's natural layout, but allow horizontal navigation on
+// narrow screens instead of forcing the entire main window wider than the
+// available desktop. Reserve one scrollbar extent so translated text and
+// native scrollbar styles cannot clip the controls vertically.
+class WorkspaceControlStrip final : public QScrollArea {
+public:
+  WorkspaceControlStrip(QHBoxLayout *row, const QString &name) {
+    setObjectName(name);
+    setFrameShape(QFrame::NoFrame);
+    setWidgetResizable(true);
+    setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    auto *content = new QWidget;
+    content->setObjectName(name + "Contents");
+    row->setContentsMargins(0, 0, 0, 0);
+    content->setLayout(row);
+    setWidget(content);
+    content->installEventFilter(this);
+  }
+  QSize sizeHint() const override {
+    const auto natural = widget()->sizeHint();
+    return QSize(natural.width(), rowHeight());
+  }
+  QSize minimumSizeHint() const override { return QSize(0, rowHeight()); }
+protected:
+  bool eventFilter(QObject *watched, QEvent *event) override {
+    if (watched == widget() && event->type() == QEvent::LayoutRequest)
+      updateGeometry();
+    return QScrollArea::eventFilter(watched, event);
+  }
+private:
+  int rowHeight() const {
+    if (!widget()) return 0;
+    return std::max(widget()->sizeHint().height(), widget()->minimumSizeHint().height())
+        + style()->pixelMetric(QStyle::PM_ScrollBarExtent, nullptr, this)
+        + 2 * frameWidth();
+  }
+};
+
 MainWindow::MainWindow() {
   workspaceCache = std::make_shared<QTemporaryDir>(
       QDir(cacheSession.path()).filePath("workspace-XXXXXX"));
@@ -383,11 +423,11 @@ MainWindow::MainWindow() {
   banner->addStretch();
   button("+ Open Touchstone", banner, [this] {
     openPaths(QFileDialog::getOpenFileNames(
-        this, "Touchstone", sparamview::preferences::workingDirectory(), "Touchstone (*.s*p *.ts);;All files (*)"));
+        this, sparamview::ui_language::textFor(this, "Select Touchstone Files"), sparamview::preferences::workingDirectory(), "Touchstone (*.s*p *.ts);;All files (*)"));
   });
   button("Open Sample", banner, [this] { loadDemo(); });
   button("Export XLSX", banner, [this] { exportXlsx(); });
-  root->addLayout(banner);
+  root->addWidget(new WorkspaceControlStrip(banner, "workspaceHeader"));
   auto split = horizontalSplit = new QSplitter;
   split->setObjectName("workspaceHorizontalSplit");
   split->setHandleWidth(8);
@@ -502,7 +542,7 @@ MainWindow::MainWindow() {
     if (action == fullscreenAction) { tool->setText("⛶"); tool->setToolTip("Full Screen (F11)"); }
     workspaceBar->addWidget(tool);
   }
-  right->addLayout(workspaceBar);
+  right->addWidget(new WorkspaceControlStrip(workspaceBar, "workspaceToolbar"));
   auto settingsScroll = new QScrollArea;
   settingsPanel = settingsScroll; settingsScroll->setObjectName("analysisSettingsPanel"); settingsScroll->setWidgetResizable(true); settingsScroll->setFrameShape(QFrame::NoFrame); settingsScroll->setMinimumHeight(44); settingsScroll->setMaximumHeight(74);
   auto settingsContent = new QWidget; settingsScroll->setWidget(settingsContent);
@@ -630,7 +670,7 @@ MainWindow::MainWindow() {
   button("Previous View", graphOptions, [this] { plot->previousView(); });
   button("Axis Limits", graphOptions, [this] { plot->editAxes(); });
   button("Fit All", graphOptions, [this] { plot->fitView(); });
-  pv->addLayout(graphOptions);
+  pv->addWidget(new WorkspaceControlStrip(graphOptions, "workspaceGraphControls"));
   plot = new PlotWidget;
   pv->addWidget(plot, 1);
   auto readout = new QLabel("Wheel: X zoom · Ctrl+wheel: Y zoom · Drag: pan · Shift+drag: box zoom");
@@ -680,7 +720,7 @@ MainWindow::MainWindow() {
   rankBox->addItems({"Worst Margin", "Worst Value", "Channel", "Result"});
   resultBar->addWidget(rankBox);
   button("Compare Revisions", resultBar, [this] { compareRevisions(); });
-  resultLayout->addLayout(resultBar);
+  resultLayout->addWidget(new WorkspaceControlStrip(resultBar, "workspaceResultControls"));
   table = new QTableWidget;
   table->setObjectName("analysisResults");
   table->setColumnCount(13);
