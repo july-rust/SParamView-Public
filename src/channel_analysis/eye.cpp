@@ -170,6 +170,44 @@ std::vector<Complex> spectrum(const ComplexTrace &trace, double cap,
   for(size_t k=1;k<n/2;++k) h[n-k]=std::conj(h[k]);
   return h;
 }
+// Split H into the observed slow high-pass pole and a band-limited residual.
+// Evaluate an isolated unit step by finite linear summation against the
+// continuous analytical pole step, not by repeating the short FFT stimulus.
+// The residual IFFT uses centered signed times; this does not establish
+// physical causality, an unobserved pole bound, or instrument correlation.
+std::optional<std::array<double,3>> longAcStep(
+    const ComplexTrace &trace, double cap, double sampleRate, size_t n,
+    const EyeDcInfo &dc, double tau, const std::atomic_bool *flag) {
+  bool active=false;
+  auto residual=spectrum(trace,cap,sampleRate,n,dc,flag,active);
+  residual[0]=Complex{dc.acGain,0};
+  const double df=sampleRate/double(n);
+  for(size_t k=1;k<=n/2;++k) {
+    if(!(k&1023u)) check(flag);
+    // H / (jf/(fc+jf)) = H * (1-j*fc/f).
+    residual[k]*=Complex{1.,-dc.acPoleHz/(df*double(k))};
+    if(!finite(residual[k])) return std::nullopt;
+    if(k<n/2) residual[n-k]=std::conj(residual[k]);
+  }
+  if(!closeReal(residual[n/2])) return std::nullopt;
+  residual[n/2]=Complex{residual[n/2].real(),0};
+  fft(residual,true);
+  check(flag);
+  constexpr std::array<double,3> multipliers{1.,3.,5.};
+  std::array<double,3> step{};
+  for(size_t k=0;k<n;++k) {
+    if(!(k&1023u)) check(flag);
+    if(!finite(residual[k])) return std::nullopt;
+    const double time=(k<n/2?double(k):double(k)-double(n))/sampleRate;
+    for(size_t j=0;j<step.size();++j) {
+      const double elapsed=multipliers[j]*tau-time;
+      if(elapsed>=0.) step[j]+=residual[k].real()*std::exp(-elapsed/tau);
+    }
+  }
+  for(double v:step) if(!std::isfinite(v)) return std::nullopt;
+  return step;
+}
+
 std::vector<double> apply(const std::vector<double> &signal,
                           const std::vector<Complex> &h,
                           const std::atomic_bool *flag) {
@@ -446,6 +484,21 @@ Result<EyeData> calculateEye(const ComplexTrace &trace, const EyeSettings &s,
     data.acFiveTauBits=std::ceil(5.*data.acTimeConstantSeconds/ui);
     require(positive(data.acFiveTauBits),"AC long-run duration exceeds finite range");
     data.acFiveTauRemainingFraction=std::exp(-data.acFiveTauBits*ui/data.acTimeConstantSeconds);
+    // An isolated long step of the measured-band residual plus the fitted RC
+    // pole is separate from Eye metrics. Re-evaluate on a second FFT grid.
+    const size_t otherN=n<=32768?2*n:n/2;
+    const auto longA=longAcStep(trace,s.analysisStopHz,sampleRate,n,dc,
+      data.acTimeConstantSeconds,cancelled);
+    const auto longB=longAcStep(trace,s.analysisStopHz,sampleRate,otherN,dc,
+      data.acTimeConstantSeconds,cancelled);
+    if(longA && longB) {
+      data.acLongModelAvailable=true;
+      data.acLongStepVPerV=otherN>n?*longB:*longA;
+      for(size_t j=0;j<longA->size();++j)
+        data.acLongGridMaxDelta=std::max(data.acLongGridMaxDelta,std::abs((*longA)[j]-(*longB)[j]));
+      // Engineering grid-agreement criterion, not a physical error bound.
+      data.acLongModelConverged=data.acLongGridMaxDelta<=0.001;
+    }
   }
   data.frameBitCount=bitCount;
   data.reverse=(trace.parameter=="S12" || trace.parameter=="Sdd12");
@@ -551,7 +604,13 @@ Result<EyeData> calculateEye(const ComplexTrace &trace, const EyeSettings &s,
     result.diagnostics.push_back({Severity::Info,"AC_LIKE_MODEL",
       "Observed low-band one-pole high-pass fit; not proof of capacitor topology"});
     result.diagnostics.push_back({Severity::Warning,"BASELINE_WANDER_NOT_QUALIFIED",
-      "Analytic single-pole droop only; finite periodic eye does not qualify long-pattern channel response"});
+      "Model-based long-step diagnostic only; finite periodic eye does not qualify physical long-pattern channel response"});
+    if(!data.acLongModelAvailable || !data.acLongModelConverged)
+      result.diagnostics.push_back({Severity::Warning,"AC_LONG_GRID_UNQUALIFIED",
+        "Band-limited isolated step residual did not establish grid agreement"});
+    else
+      result.diagnostics.push_back({Severity::Info,"AC_LONG_GRID_AGREEMENT",
+        "Band-limited isolated model step at 1/3/5 tau agrees on two FFT grids; not a physical error bound"});
     if(double(n)*dt < 5.*data.acTimeConstantSeconds)
       result.diagnostics.push_back({Severity::Warning,"AC_FRAME_SHORT",
         "FFT frame shorter than five estimated RC time constants; long response not resolved"});

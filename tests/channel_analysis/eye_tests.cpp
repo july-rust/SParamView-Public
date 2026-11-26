@@ -488,6 +488,11 @@ int main() {
       remaining=1.;
       for(size_t i=0;i<longBits;++i) remaining*=decay;
       close(eye.acFiveTauRemainingFraction,remaining,1e-11,"independent long-run state recurrence");
+      check(eye.acLongModelAvailable && eye.acLongModelConverged,"isolated long step grid agreement");
+      const std::array<double,3> tauMultipliers{1.,3.,5.};
+      for(size_t j=0;j<tauMultipliers.size();++j)
+        close(eye.acLongStepVPerV[j],gain*std::exp(-tauMultipliers[j]),0.001,
+              "isolated channel RC step vs independent continuous analytical response");
       check(std::any_of(result.diagnostics.begin(),result.diagnostics.end(),
         [](const auto &d){return d.code=="BASELINE_WANDER_NOT_QUALIFIED";}),
         "periodic preview must not qualify long response");

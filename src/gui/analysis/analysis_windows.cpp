@@ -1872,7 +1872,16 @@ void AnalysisWindow::showEye(const WorkOutcome &outcome) {
       QStringLiteral("Ideal RC only: longest periodic run %1 bits, droop %2%; at %3 bits (>=5 tau), remaining %4%.\n")
       .arg(d.acRunBits,0,'g',7).arg(d.acRunDroopFraction*100,0,'g',7)
       .arg(d.acFiveTauBits,0,'g',12).arg(d.acFiveTauRemainingFraction*100,0,'g',7):QString();
-  eyeMetrics_->setText(assumption+dcText+acText+QStringLiteral(
+  QString longText;
+  if(d.dc.acModel) {
+    if(d.acLongModelAvailable)
+      longText=QStringLiteral("Isolated modeled step [1/3/5 tau] = %1 / %2 / %3 V/V | grid delta %4 | %5 (not physical qualification)\n")
+        .arg(d.acLongStepVPerV[0],0,'g',7).arg(d.acLongStepVPerV[1],0,'g',7)
+        .arg(d.acLongStepVPerV[2],0,'g',7).arg(d.acLongGridMaxDelta,0,'g',7)
+        .arg(d.acLongModelConverged?QStringLiteral("GRID AGREEMENT"):QStringLiteral("GRID LIMITED"));
+    else longText=QStringLiteral("Isolated modeled long step: NOT EVALUATED\n");
+  }
+  eyeMetrics_->setText(assumption+dcText+acText+longText+QStringLiteral(
     "Simulated Channel Eye — Not Measured / Not PHY Compliance\n"
     "Height %1 mV | Width %2 ps (%3 UI) | Max-height phase %4 UI | Delay %5 ps\n"
     "Low maximum %6 mV | High minimum %7 mV | Received [%8, %9] mV\n"
@@ -1952,6 +1961,11 @@ bool AnalysisWindow::saveEyeCsv(const QString &name) {
      <<"# ac_ideal_run_droop_fraction,"<<(d.dc.acModel?n(d.acRunDroopFraction):QStringLiteral("NOT_EVALUATED"))<<"\n"
      <<"# ac_five_tau_run_bits,"<<(d.dc.acModel?n(d.acFiveTauBits):QStringLiteral("NOT_EVALUATED"))<<"\n"
      <<"# ac_five_tau_remaining_fraction,"<<(d.dc.acModel?n(d.acFiveTauRemainingFraction):QStringLiteral("NOT_EVALUATED"))<<"\n"
+     <<"# ac_long_step_model,"<<(d.acLongModelAvailable?(d.acLongModelConverged?"GRID_AGREEMENT":"GRID_LIMITED"):"NOT_EVALUATED")<<"\n"
+     <<"# ac_long_step_1tau_v_per_v,"<<(d.acLongModelAvailable?n(d.acLongStepVPerV[0]):QStringLiteral("NOT_EVALUATED"))<<"\n"
+     <<"# ac_long_step_3tau_v_per_v,"<<(d.acLongModelAvailable?n(d.acLongStepVPerV[1]):QStringLiteral("NOT_EVALUATED"))<<"\n"
+     <<"# ac_long_step_5tau_v_per_v,"<<(d.acLongModelAvailable?n(d.acLongStepVPerV[2]):QStringLiteral("NOT_EVALUATED"))<<"\n"
+     <<"# ac_long_step_grid_delta,"<<(d.acLongModelAvailable?n(d.acLongGridMaxDelta):QStringLiteral("NOT_EVALUATED"))<<"\n"
      <<"# baseline_wander_coverage,NOT_QUALIFIED\n"
      <<"# dc_acknowledged,"<<(d.dc.requiresConfirmation && eyeSettings.acceptLimitedDc?"true":"false")<<"\n"
      <<"# transfer_parameter,"<<safe(d.transferParameter)<<"\n"
@@ -2091,6 +2105,15 @@ bool AnalysisWindow::saveEyePng(const QString &name) {
     output.setText(QStringLiteral("ACIdealRunDroopFraction"),QString::number(eyeResult_->acRunDroopFraction,'g',17));
     output.setText(QStringLiteral("ACFiveTauRunBits"),QString::number(eyeResult_->acFiveTauBits,'g',17));
     output.setText(QStringLiteral("ACFiveTauRemainingFraction"),QString::number(eyeResult_->acFiveTauRemainingFraction,'g',17));
+    output.setText(QStringLiteral("ACLongStepModel"),eyeResult_->acLongModelAvailable?
+      (eyeResult_->acLongModelConverged?QStringLiteral("GRID_AGREEMENT"):QStringLiteral("GRID_LIMITED")):
+      QStringLiteral("NOT_EVALUATED"));
+    if(eyeResult_->acLongModelAvailable) {
+      output.setText(QStringLiteral("ACLongStep1TauVPerV"),QString::number(eyeResult_->acLongStepVPerV[0],'g',17));
+      output.setText(QStringLiteral("ACLongStep3TauVPerV"),QString::number(eyeResult_->acLongStepVPerV[1],'g',17));
+      output.setText(QStringLiteral("ACLongStep5TauVPerV"),QString::number(eyeResult_->acLongStepVPerV[2],'g',17));
+      output.setText(QStringLiteral("ACLongGridDelta"),QString::number(eyeResult_->acLongGridMaxDelta,'g',17));
+    }
   }
   output.setText(QStringLiteral("DCModelSpread"),eyeResult_->dc.modelSpreadAvailable?
     QString::number(eyeResult_->dc.modelSpread,'g',17):QStringLiteral("NOT_EVALUATED"));

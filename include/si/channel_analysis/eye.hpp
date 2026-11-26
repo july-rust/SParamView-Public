@@ -3,6 +3,7 @@
 // Numerical exploration ONLY: never a measured eye, BER, or PHY conformance.
 #include "si/channel_analysis/common.hpp"
 #include <atomic>
+#include <array>
 #include <cstdint>
 #include <limits>
 #include <optional>
@@ -84,6 +85,11 @@ struct EyeData {
   // Ideal low-band model only. NRZ runs start from a settled opposite level.
   double acRunBits = 0, acRunDroopFraction = 0, acFiveTauBits = 0;
   double acFiveTauRemainingFraction = 0;
+  // Band-limited, model-dependent isolated unit step at 1/3/5 tau. The
+  // slow pole is separated analytically; two FFT grids check residual sensitivity.
+  bool acLongModelAvailable = false, acLongModelConverged = false;
+  std::array<double,3> acLongStepVPerV{};
+  double acLongGridMaxDelta = 0;
   double samplingPhaseUI = 0, estimatedDelaySeconds = 0;
   double eyeHeightV = 0, eyeWidthSeconds = 0, eyeWidthUI = 0;
   double minimumHighV = 0, maximumLowV = 0;
