@@ -330,6 +330,7 @@ int main() {
       }
       auto dc=inspectEyeDc(t);
       check(dc.requiresConfirmation==(f>10000.) && dc.status=="EXTRAPOLATED DC","frequency boundary policy");
+      check(dc.couplingModel=="DC_LIKE_LOCAL","nonzero stable local DC-like model");
       if(f>10000.)reject([&]{(void)calculateEye(t,s);},"explicit limited DC acknowledgement required");
       const auto actual=calculateEye(t,approved);
       close(actual.value->dc.value,0.5,0.001,"analytic gain DC");
@@ -433,7 +434,8 @@ int main() {
     auto sparse=thru();sparse.frequencyHz.insert(sparse.frequencyHz.begin()+1,1000);
     sparse.transfer.insert(sparse.transfer.begin()+1,Complex{1,0});
     sparse.frequencyHz.erase(sparse.frequencyHz.begin());sparse.transfer.erase(sparse.transfer.begin());
-    check(inspectEyeDc(sparse).limited,"sparse low-band reconstruction must disclose limitation");
+    check(inspectEyeDc(sparse).limited && inspectEyeDc(sparse).couplingModel=="UNDETERMINED",
+          "sparse low-band reconstruction must disclose limitation");
     auto ambiguous=sparse;ambiguous.transfer[0]={0.5,0.4};
     reject([&]{(void)calculateEye(ambiguous,s);},"sparse ambiguous AC pole must not be invented");
     // 012_54: observed 15.863 kHz pole with low-band points on both sides.
@@ -454,7 +456,7 @@ int main() {
         measured.transfer.emplace_back(gain*x*x/(1+x*x),gain*x/(1+x*x));
       }
       const auto estimate=inspectEyeDc(measured);
-      check(estimate.acModel && estimate.limited && !estimate.requiresConfirmation,
+      check(estimate.acModel && estimate.couplingModel=="AC_LIKE_ONE_POLE" && estimate.limited && !estimate.requiresConfirmation,
             "observed AC pole must be accepted with limited provenance");
       close(estimate.value,0,1e-12,"AC zero DC");
       close(estimate.acPoleHz,fc,1e-6,"analytic pole");

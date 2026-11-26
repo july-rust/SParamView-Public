@@ -1249,7 +1249,7 @@ void AnalysisWindow::launchIld(bool automatic) {
       data->autoAcPoleHz=acPole;
       data->configurationReason=acPole>0?
         "DERIVED measured band; DEFAULT_ASSUMPTION root-linear fit above 10 times observed AC-like pole; excluded band not evaluated":
-        "DERIVED measured band; DEFAULT_ASSUMPTION root-linear fit; coupling undetermined";
+        "DERIVED measured band; DEFAULT_ASSUMPTION root-linear fit; no qualified observed AC pole";
     }
     progress.store(100);
     WorkOutcome outcome;
@@ -1881,7 +1881,7 @@ void AnalysisWindow::showEye(const WorkOutcome &outcome) {
         .arg(d.acLongModelConverged?QStringLiteral("GRID AGREEMENT"):QStringLiteral("GRID LIMITED"));
     else longText=QStringLiteral("Isolated modeled long step: NOT EVALUATED\n");
   }
-  eyeMetrics_->setText(assumption+dcText+acText+longText+QStringLiteral(
+  eyeMetrics_->setText(assumption+dcText+QStringLiteral("Coupling model: %1 (not physical topology proof)\n").arg(QString::fromStdString(d.dc.couplingModel))+acText+longText+QStringLiteral(
     "Simulated Channel Eye — Not Measured / Not PHY Compliance\n"
     "Height %1 mV | Width %2 ps (%3 UI) | Max-height phase %4 UI | Delay %5 ps\n"
     "Low maximum %6 mV | High minimum %7 mV | Received [%8, %9] mV\n"
@@ -1952,7 +1952,7 @@ bool AnalysisWindow::saveEyeCsv(const QString &name) {
      <<"# dc_real,"<<n(d.dc.value)<<"\n"
      <<"# dc_model_spread,"<<(d.dc.modelSpreadAvailable?n(d.dc.modelSpread):QStringLiteral("NOT_EVALUATED"))<<"\n"
      <<"# dc_quality,"<<(d.dc.limited?"LIMITED":"LOCAL_CHECKS_PASSED")<<"\n"
-     <<"# coupling_model,"<<(d.dc.acModel?"AC_LIKE_ONE_POLE":"UNDETERMINED")<<"\n"
+     <<"# coupling_model,"<<d.dc.couplingModel.c_str()<<"\n"
      <<"# ac_pole_hz,"<<(d.dc.acModel?n(d.dc.acPoleHz):QStringLiteral("NOT_EVALUATED"))<<"\n"
      <<"# ac_fit_max_residual,"<<(d.dc.acModel?n(d.dc.acFitMaxResidual):QStringLiteral("NOT_EVALUATED"))<<"\n"
      <<"# ac_time_constant_s,"<<(d.dc.acModel?n(d.acTimeConstantSeconds):QStringLiteral("NOT_EVALUATED"))<<"\n"
@@ -2094,7 +2094,7 @@ bool AnalysisWindow::saveEyePng(const QString &name) {
   output.setText(QStringLiteral("EffectiveStartHz"),QString::number(eyeResult_->dc.effectiveStartHz,'g',17));
   output.setText(QStringLiteral("DCQuality"),eyeResult_->dc.limited?QStringLiteral("LIMITED"):QStringLiteral("LOCAL_CHECKS_PASSED"));
   output.setText(QStringLiteral("DCReal"),QString::number(eyeResult_->dc.value,'g',17));
-  output.setText(QStringLiteral("CouplingModel"),eyeResult_->dc.acModel?QStringLiteral("AC_LIKE_ONE_POLE"):QStringLiteral("UNDETERMINED"));
+  output.setText(QStringLiteral("CouplingModel"),QString::fromStdString(eyeResult_->dc.couplingModel));
   output.setText(QStringLiteral("BaselineWanderCoverage"),QStringLiteral("NOT_QUALIFIED"));
   if(eyeResult_->dc.acModel) {
     output.setText(QStringLiteral("ACPoleHz"),QString::number(eyeResult_->dc.acPoleHz,'g',17));

@@ -58,6 +58,8 @@ struct EyeDcInfo {
   double originalStartHz = 0, effectiveStartHz = 0, firstPositiveHz = 0;
   double value = 0, modelSpread = 0;
   std::string status = "ORIGINAL DC", method = "Original";
+  // Classification of observed/locally reconstructed transfer, not topology.
+  std::string couplingModel = "UNDETERMINED";
   bool requiresConfirmation = false, limited = false, modelSpreadAvailable = false;
   // Observed one-pole AC-like transfer, not proof of physical capacitor topology.
   bool acModel = false;

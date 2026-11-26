@@ -84,6 +84,7 @@ bool observedHighPass(const ComplexTrace &trace, size_t first, EyeDcInfo &dc) {
   if(original && closeReal(trace.transfer.front()) &&
      std::abs(trace.transfer.front().real())>1e-9) return false;
   dc.acModel=true;
+  dc.couplingModel="AC_LIKE_ONE_POLE";
   dc.acPoleHz=pole;
   dc.acGain=gain;
   dc.acFitMaxResidual=maxResidual;
@@ -321,6 +322,8 @@ EyeDcInfo inspectEyeDc(const ComplexTrace &trace) {
       (!stable && std::abs(trace.transfer[0]-z)<=0.01))) {
     dc.value=trace.transfer[0].real();
     dc.limited=sparse || !stable;
+    if(!dc.limited && std::abs(dc.value)>std::max(0.01,10.*spread))
+      dc.couplingModel="DC_LIKE_LOCAL";
     return dc;
   }
   require(stable,"DC missing or suspect; low-frequency models disagree or data insufficient");
@@ -336,6 +339,10 @@ EyeDcInfo inspectEyeDc(const ComplexTrace &trace) {
   dc.method="Local even-real fit; constant/linear/alternate comparison";
   dc.requiresConfirmation=f>10000.;
   dc.limited=sparse || dc.requiresConfirmation || original;
+  // A locally stable, materially nonzero transfer is DC-like, but cannot
+  // exclude an unobserved lower pole. Preserve uncertainty for sparse data.
+  if(!sparse && std::abs(dc.value)>std::max(0.01,10.*spread))
+    dc.couplingModel="DC_LIKE_LOCAL";
   return dc;
 }
 
