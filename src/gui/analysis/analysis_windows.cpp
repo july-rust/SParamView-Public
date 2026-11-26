@@ -660,7 +660,7 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     fitModel_->addItems({QStringLiteral("Linear"), QStringLiteral("Root + linear"),
                          QStringLiteral("Root + linear + quadratic")});
     fitModel_->setCurrentIndex(1);
-   }
+  }
   if(feature_ == Feature::Icn) {
     icnAggressors_=new QListWidget;
     icnAggressors_->setObjectName(QStringLiteral("icnAggressorList"));
@@ -859,7 +859,7 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
   auto *detailsTabs=new QTabWidget;
   detailsTabs->setObjectName(QStringLiteral("analysisDetailsTabs"));
   detailsTabs->setMinimumHeight(90);
-  detailsTabs->setMaximumHeight(148);
+  detailsTabs->setMaximumHeight(124);
   auto *pageScroll=new QScrollArea;
   pageScroll->setObjectName(QStringLiteral("analysisPageScroll"));
   pageScroll->setWidgetResizable(true);
