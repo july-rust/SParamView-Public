@@ -266,6 +266,7 @@ public:
     content->installEventFilter(this);
   }
   QSize sizeHint() const override {
+    if (!widget()) return QSize(0, 0);
     const auto natural = widget()->sizeHint();
     return QSize(natural.width(), rowHeight());
   }
@@ -284,6 +285,42 @@ private:
         + 2 * frameWidth();
   }
 };
+
+void MainWindow::installHeaderProjectButtons() {
+  if (!centralWidget() || !centralWidget()->layout())
+    return;
+  if (findChild<QPushButton *>("headerOpenProjectButton"))
+    return;
+  auto *contents = findChild<QWidget *>("workspaceHeaderContents");
+  auto *banner = contents ? qobject_cast<QBoxLayout *>(contents->layout()) : nullptr;
+  if (!banner)
+    return;
+  int insertAt = banner->count();
+  for (int i = 0; i < banner->count(); ++i) {
+    auto *item = banner->itemAt(i);
+    auto *existing = item ? qobject_cast<QPushButton *>(item->widget()) : nullptr;
+    if (existing && existing->text().contains("Open Touchstone")) {
+      insertAt = i + 1;
+      break;
+    }
+  }
+  auto *openProject = new QPushButton("Open Project");
+  openProject->setObjectName("headerOpenProjectButton");
+  openProject->setToolTip("Open an SParamView project (.siproject)");
+  connect(openProject, &QPushButton::clicked, this, [this] {
+    const auto path = QFileDialog::getOpenFileName(
+        this, sparamview::ui_language::textFor(this, "Project"), sparamview::preferences::workingDirectory(), sparamview::ui_language::textFor(this, "SI Project (*.siproject)"));
+    if (!path.isEmpty())
+      loadProject(path);
+  });
+  auto *saveProjectButton = new QPushButton("Save Project");
+  saveProjectButton->setObjectName("headerSaveProjectButton");
+  saveProjectButton->setToolTip("Save the current SParamView project");
+  connect(saveProjectButton, &QPushButton::clicked, this,
+          [this] { saveProject(); });
+  banner->insertWidget(insertAt, openProject);
+  banner->insertWidget(insertAt + 1, saveProjectButton);
+}
 
 MainWindow::MainWindow() {
   workspaceCache = std::make_shared<QTemporaryDir>(
@@ -307,11 +344,11 @@ MainWindow::MainWindow() {
       [this] {
         openPaths(QFileDialog::getOpenFileNames(
             this, sparamview::ui_language::textFor(this, "Select Touchstone Files"), sparamview::preferences::workingDirectory(),
-            "Touchstone (*.s*p *.ts);;All files (*)"));
+            sparamview::ui_language::textFor(this, "Touchstone (*.s*p *.ts)") + ";;" + sparamview::ui_language::textFor(this, "All files (*)")));
       });
   file->addAction("Open Project...", this, [this] {
     auto p = QFileDialog::getOpenFileName(this, sparamview::ui_language::textFor(this, "Project"), sparamview::preferences::workingDirectory(),
-                                          "SI Project (*.siproject)");
+                                          sparamview::ui_language::textFor(this, "SI Project (*.siproject)"));
     if (!p.isEmpty())
       loadProject(p);
   });
@@ -402,11 +439,18 @@ MainWindow::MainWindow() {
         [this] { sparamview::ui_language::message(notice,"Source SHA-256 verified"); });
   });
   menuBar()->addAction("About", this, [this] {
+#if defined(Q_OS_WIN)
+    const QString buildPlatform = "Windows";
+#elif defined(Q_OS_MACOS)
+    const QString buildPlatform = "macOS";
+#else
+    const QString buildPlatform = QSysInfo::productType();
+#endif
     QMessageBox::information(
         this, sparamview::ui_language::textFor(this, "About SParamView"),
-        sparamview::ui_language::textFor(this,"SParamView\nVersion %1\nBuild: Windows %2\n\nCopyright © 2026 july\nsparamview@gmail.com\nLicensed under the MIT License\n\nC++20 / Qt 6\nProcessing is local. Original Touchstone files are not modified.")
+        sparamview::ui_language::textFor(this,"SParamView\nVersion %1\nBuild: %2\n\nCopyright © 2026 july\nsparamview@gmail.com\nLicensed under the MIT License\n\nC++20 / Qt 6\nProcessing is local. Original Touchstone files are not modified.")
             .arg(si::version)
-            .arg(QString::fromLatin1(architectureName())));
+            .arg(buildPlatform + " " + QString::fromLatin1(architectureName())));
   });
   body = new QWidget;
   setCentralWidget(body);
@@ -423,7 +467,7 @@ MainWindow::MainWindow() {
   banner->addStretch();
   button("+ Open Touchstone", banner, [this] {
     openPaths(QFileDialog::getOpenFileNames(
-        this, sparamview::ui_language::textFor(this, "Select Touchstone Files"), sparamview::preferences::workingDirectory(), "Touchstone (*.s*p *.ts);;All files (*)"));
+        this, sparamview::ui_language::textFor(this, "Select Touchstone Files"), sparamview::preferences::workingDirectory(), sparamview::ui_language::textFor(this, "Touchstone (*.s*p *.ts)") + ";;" + sparamview::ui_language::textFor(this, "All files (*)")));
   });
   button("Open Sample", banner, [this] { loadDemo(); });
   button("Export XLSX", banner, [this] { exportXlsx(); });
