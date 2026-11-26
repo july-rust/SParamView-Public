@@ -1061,8 +1061,7 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     if(feature_==Feature::Icn) runTip=icnProvider_?"Run generic band-limited NRZ ICN":"ICN source provider unavailable";
     if(feature_==Feature::Eye) runTip=eyeProvider_?"Run phase-preserving simulated NRZ Eye with explicit electrical conditions":"Verified Eye source provider unavailable";
     if(!runTip.isEmpty()) run_->setToolTip(menuText(runTip,value));
-    if(icnContributions_ && !icnResult_) icnContributions_->setText(menuText("No current ICN result.",value));
-    if(eyeMetrics_ && !eyeResult_) eyeMetrics_->setText(menuText("Simulated Channel Eye — Not Measured / Not PHY Compliance",value));
+    renderResultPresentation();
   };
   refreshLanguage(code(current(this)));
   fitToScreen();
@@ -1116,10 +1115,45 @@ void AnalysisWindow::fitToScreen() {
 void AnalysisWindow::setStatus(si::channel::Status status, const QString &details) {
   status_ = status;
   statusDetailsSource_ = details;
+  summaryStatus_=false;
   statusLabel_->setText(sparamview::ui_language::textFor(this,statusName(status)) + QStringLiteral(" — ") + sparamview::ui_language::textFor(this,details));
   statusLabel_->setToolTip(statusLabel_->text());
   if(auto *tabs=findChild<QTabWidget *>(QStringLiteral("analysisDetailsTabs")))
     tabs->setCurrentIndex(0);
+}
+QString AnalysisWindow::resultSummary() const {
+  if(ildResult_) {
+    const auto &d=*ildResult_;
+    return sparamview::ui_language::textFor(this,QStringLiteral("Band RMS %1 dB | peak abs %2 dB @ %3 GHz | %4 samples | %5–%6 GHz. Bandwidth-weighted fit; no standard PASS"))
+    .arg(d.rmsDb,0,'g',6).arg(d.peakAbsoluteDb,0,'g',6)
+    .arg(d.peakFrequencyHz/1e9,0,'g',7).arg(qulonglong(d.frequencyHz.size()))
+    .arg(d.rangeStartHz/1e9,0,'g',7).arg(d.rangeStopHz/1e9,0,'g',7)+
+      QStringLiteral(" | ")+QString::fromStdString(d.analysisMode)+QStringLiteral(": ")+
+      QString::fromStdString(d.configurationReason);
+  }
+  if(icnResult_) {
+    const auto &d=*icnResult_;
+    return sparamview::ui_language::textFor(this,QStringLiteral(
+    "NEXT %1 mV RMS | FEXT %2 mV RMS | Total %3 mV RMS | %4 paths%5 | %6–%7 GHz — Generic independent-path NRZ RSS, no standard PASS"))
+    .arg(d.nextRmsV*1000,0,'g',7).arg(d.fextRmsV*1000,0,'g',7)
+    .arg(d.totalRmsV*1000,0,'g',7).arg(qulonglong(d.aggressors.size()))
+    .arg(d.bandLimited?sparamview::ui_language::textFor(this,QStringLiteral(" | BAND LIMITED")):QString())
+    .arg(d.actualStartHz/1e9,0,'g',7).arg(d.actualStopHz/1e9,0,'g',7)+
+      QStringLiteral(" | ")+QString::fromStdString(d.analysisMode)+QStringLiteral(": ")+
+      QString::fromStdString(d.configurationReason)+
+      QStringLiteral(" | %1 GBd, %2 mVpp, %3 ps, RX %4 GHz")
+        .arg(d.settings.symbolRateHz/1e9,0,'g',7).arg(d.settings.txPeakToPeakV*1000,0,'g',7)
+        .arg(d.settings.riseTimeSeconds*1e12,0,'g',7).arg(d.settings.rxBandwidthHz/1e9,0,'g',7);
+  }
+  return sparamview::ui_language::textFor(this,statusDetailsSource_);
+}
+void AnalysisWindow::renderResultPresentation() {
+  if(summaryStatus_ && (ildResult_ || icnResult_)) {
+    statusLabel_->setText(sparamview::ui_language::textFor(this,statusName(status_))+QStringLiteral(" — ")+resultSummary());
+    statusLabel_->setToolTip(statusLabel_->text());
+  }
+  renderIcnContributions();
+  renderEyeMetrics();
 }
 QString AnalysisWindow::selectionIdentity() const {
   const int index = source_->currentIndex();
@@ -1404,13 +1438,9 @@ void AnalysisWindow::showIld(const WorkOutcome &outcome) {
   static_cast<IldPlotWidget *>(ildGraph_)->setData(ildResult_);
   csv_->setEnabled(true);
   png_->setEnabled(true);
-  const auto &d=*ildResult_;
-  setStatus(outcome.status,QStringLiteral("Band RMS %1 dB | peak abs %2 dB @ %3 GHz | %4 samples | %5–%6 GHz. Bandwidth-weighted fit; no standard PASS")
-    .arg(d.rmsDb,0,'g',6).arg(d.peakAbsoluteDb,0,'g',6)
-    .arg(d.peakFrequencyHz/1e9,0,'g',7).arg(qulonglong(d.frequencyHz.size()))
-    .arg(d.rangeStartHz/1e9,0,'g',7).arg(d.rangeStopHz/1e9,0,'g',7)+
-      QStringLiteral(" | ")+QString::fromStdString(d.analysisMode)+QStringLiteral(": ")+
-      QString::fromStdString(d.configurationReason));
+  setStatus(outcome.status,outcome.diagnostic);
+  summaryStatus_=true;
+  renderResultPresentation();
 }
 void AnalysisWindow::exportIldCsv() {
   if(!ildResult_) return;
@@ -1662,11 +1692,18 @@ void AnalysisWindow::showIcn(const WorkOutcome &outcome) {
   static_cast<IcnPlotWidget *>(icnGraph_)->setData(icnResult_);
   csv_->setEnabled(true);
   png_->setEnabled(true);
+  setStatus(outcome.status,outcome.diagnostic);
+  summaryStatus_=true;
+  renderResultPresentation();
+}
+void AnalysisWindow::renderIcnContributions() {
+  if(!icnContributions_)return;
+  if(!icnResult_) {icnContributions_->setText(sparamview::ui_language::textFor(this,"No current ICN result."));return;}
   const auto &d=*icnResult_;
   QStringList contributions;
   for(size_t i=0;i<d.aggressors.size();++i) {
     const auto &a=d.aggressors[i];
-    contributions<<QStringLiteral("Path %1 %2 %3: %4 mV RMS (%5% power)")
+    contributions<<sparamview::ui_language::textFor(this,QStringLiteral("Path %1 %2 %3: %4 mV RMS (%5% power)"))
       .arg(qulonglong(i)).arg(a.end==si::channel::IcnEnd::Next?
           QStringLiteral("NEXT"):QStringLiteral("FEXT"))
       .arg(QString::fromStdString(a.id)).arg(a.rmsV*1000,0,'g',6)
@@ -1677,22 +1714,11 @@ void AnalysisWindow::showIcn(const WorkOutcome &outcome) {
       [](const auto &a,const auto &b){return a.powerPercent<b.powerPercent;});
     QString summary;
     if(worst!=d.aggressors.end() && d.totalRmsV>0)
-      summary=QStringLiteral("Largest contribution: %1 %2 (%3% of noise power).\n")
+      summary=sparamview::ui_language::textFor(this,QStringLiteral("Largest contribution: %1 %2 (%3% of noise power).\n"))
         .arg(worst->end==si::channel::IcnEnd::Next?QStringLiteral("NEXT"):QStringLiteral("FEXT"))
         .arg(QString::fromStdString(worst->id)).arg(worst->powerPercent,0,'g',5);
     icnContributions_->setText(summary+contributions.join(QStringLiteral(" | ")));
   }
-  setStatus(outcome.status,QStringLiteral(
-    "NEXT %1 mV RMS | FEXT %2 mV RMS | Total %3 mV RMS | %4 paths%5 | %6–%7 GHz — Generic independent-path NRZ RSS, no standard PASS")
-    .arg(d.nextRmsV*1000,0,'g',7).arg(d.fextRmsV*1000,0,'g',7)
-    .arg(d.totalRmsV*1000,0,'g',7).arg(qulonglong(d.aggressors.size()))
-    .arg(d.bandLimited?QStringLiteral(" | BAND LIMITED"):QString())
-    .arg(d.actualStartHz/1e9,0,'g',7).arg(d.actualStopHz/1e9,0,'g',7)+
-      QStringLiteral(" | ")+QString::fromStdString(d.analysisMode)+QStringLiteral(": ")+
-      QString::fromStdString(d.configurationReason)+
-      QStringLiteral(" | %1 GBd, %2 mVpp, %3 ps, RX %4 GHz")
-        .arg(d.settings.symbolRateHz/1e9,0,'g',7).arg(d.settings.txPeakToPeakV*1000,0,'g',7)
-        .arg(d.settings.riseTimeSeconds*1e12,0,'g',7).arg(d.settings.rxBandwidthHz/1e9,0,'g',7));
 }
 void AnalysisWindow::exportIcnCsv() {
   if(!icnResult_) return;
@@ -1991,37 +2017,44 @@ void AnalysisWindow::showEye(const WorkOutcome &outcome) {
   auto *plot=static_cast<EyePlotWidget *>(eyeGraph_);
   plot->setData(eyeResult_,eyeResult_->settings.electrical.rxThresholdV);
   plot->setView(eyeView_->currentIndex());
+  renderEyeMetrics();
+  csv_->setEnabled(true);png_->setEnabled(true);
+  setStatus(outcome.status,outcome.diagnostic);
+}
+void AnalysisWindow::renderEyeMetrics() {
+  if(!eyeMetrics_)return;
+  if(!eyeResult_) {eyeMetrics_->setText(sparamview::ui_language::textFor(this,"Simulated Channel Eye — Not Measured / Not PHY Compliance"));return;}
   const auto &d=*eyeResult_;
   const bool preview=eyeProvenance_.settingsIdentity.ends_with("|AUTO_PREVIEW_ASSUMED_MATCHED_400mVpp");
-  const QString assumption=preview?QStringLiteral("AUTO PREVIEW — assumed TX ±200 mV, matched Zref %1 / %2 ohm, threshold 0 mV, RX ±1000 mV, PRBS7. Not actual PHY settings.\n")
-    .arg(d.settings.electrical.txSourceOhm).arg(d.settings.electrical.rxTerminationOhm):QStringLiteral("MANUAL SETTINGS\n");
-  const QString dcText=QStringLiteral("DC: %1 | Original %2 Hz | Effective %3 Hz | First positive %4 Hz | %5\n%6\n")
+  const QString assumption=preview?sparamview::ui_language::textFor(this,QStringLiteral("AUTO PREVIEW — assumed TX ±200 mV, matched Zref %1 / %2 ohm, threshold 0 mV, RX ±1000 mV, PRBS7. Not actual PHY settings.\n"))
+    .arg(d.settings.electrical.txSourceOhm).arg(d.settings.electrical.rxTerminationOhm):sparamview::ui_language::textFor(this,QStringLiteral("MANUAL SETTINGS\n"));
+  const QString dcText=sparamview::ui_language::textFor(this,QStringLiteral("DC: %1 | Original %2 Hz | Effective %3 Hz | First positive %4 Hz | %5\n%6\n"))
     .arg(QString::fromStdString(d.dc.status))
     .arg(d.dc.originalStartHz,0,'g',12).arg(d.dc.effectiveStartHz,0,'g',12)
     .arg(d.dc.firstPositiveHz,0,'g',12)
-    .arg(d.dc.limited?QStringLiteral("LIMITED"):QStringLiteral("LOCAL CHECKS PASSED"))
+    .arg(d.dc.limited?sparamview::ui_language::textFor(this,QStringLiteral("LIMITED")):sparamview::ui_language::textFor(this,QStringLiteral("LOCAL CHECKS PASSED")))
     .arg(QString::fromStdString(d.dc.method));
-  const QString acText=d.dc.acModel?QStringLiteral(
-    "AC-like pole %1 Hz | Fit residual %2 | RC time constant %3 us | Analytic frame droop %4% | Full baseline wander NOT QUALIFIED\n")
+  const QString acText=d.dc.acModel?sparamview::ui_language::textFor(this,QStringLiteral(
+    "AC-like pole %1 Hz | Fit residual %2 | RC time constant %3 us | Analytic frame droop %4% | Full baseline wander NOT QUALIFIED\n"))
     .arg(d.dc.acPoleHz,0,'g',7).arg(d.dc.acFitMaxResidual,0,'g',7)
     .arg(d.acTimeConstantSeconds*1e6,0,'g',7).arg(d.acFrameDroopFraction*100,0,'g',7)+
-      QStringLiteral("Ideal RC only: longest periodic run %1 bits, droop %2%; at %3 bits (>=5 tau), remaining %4%.\n")
+      sparamview::ui_language::textFor(this,QStringLiteral("Ideal RC only: longest periodic run %1 bits, droop %2%; at %3 bits (>=5 tau), remaining %4%.\n"))
       .arg(d.acRunBits,0,'g',7).arg(d.acRunDroopFraction*100,0,'g',7)
       .arg(d.acFiveTauBits,0,'g',12).arg(d.acFiveTauRemainingFraction*100,0,'g',7):QString();
   QString longText;
   if(d.dc.acModel) {
     if(d.acLongModelAvailable)
-      longText=QStringLiteral("Isolated modeled step [1/3/5 tau] = %1 / %2 / %3 V/V | grid delta %4 | %5 (not physical qualification)\n")
+      longText=sparamview::ui_language::textFor(this,QStringLiteral("Isolated modeled step [1/3/5 tau] = %1 / %2 / %3 V/V | grid delta %4 | %5 (not physical qualification)\n"))
         .arg(d.acLongStepVPerV[0],0,'g',7).arg(d.acLongStepVPerV[1],0,'g',7)
         .arg(d.acLongStepVPerV[2],0,'g',7).arg(d.acLongGridMaxDelta,0,'g',7)
-        .arg(d.acLongModelConverged?QStringLiteral("GRID AGREEMENT"):QStringLiteral("GRID LIMITED"));
-    else longText=QStringLiteral("Isolated modeled long step: NOT EVALUATED\n");
+        .arg(d.acLongModelConverged?sparamview::ui_language::textFor(this,QStringLiteral("GRID AGREEMENT")):sparamview::ui_language::textFor(this,QStringLiteral("GRID LIMITED")));
+    else longText=sparamview::ui_language::textFor(this,QStringLiteral("Isolated modeled long step: NOT EVALUATED\n"));
   }
-  eyeMetrics_->setText(assumption+dcText+QStringLiteral("Coupling model: %1 (not physical topology proof)\n").arg(QString::fromStdString(d.dc.couplingModel))+acText+longText+QStringLiteral(
+  eyeMetrics_->setText(assumption+dcText+sparamview::ui_language::textFor(this,QStringLiteral("Coupling model: %1 (not physical topology proof)\n")).arg(QString::fromStdString(d.dc.couplingModel))+acText+longText+sparamview::ui_language::textFor(this,QStringLiteral(
     "Simulated Channel Eye — Not Measured / Not PHY Compliance\n"
     "Height %1 mV | Width %2 ps (%3 UI) | Max-height phase %4 UI | Delay %5 ps\n"
     "Low maximum %6 mV | High minimum %7 mV | Received [%8, %9] mV\n"
-    "Bit rate %10 Gbps | Reference %11 GHz | Analysis cap %12 GHz")
+    "Bit rate %10 Gbps | Reference %11 GHz | Analysis cap %12 GHz"))
     .arg(d.eyeHeightV*1000,0,'g',7).arg(d.eyeWidthSeconds*1e12,0,'g',7)
     .arg(d.eyeWidthUI,0,'g',7).arg(d.samplingPhaseUI,0,'g',7)
     .arg(d.estimatedDelaySeconds*1e12,0,'g',7)
@@ -2029,16 +2062,14 @@ void AnalysisWindow::showEye(const WorkOutcome &outcome) {
     .arg(d.minimumReceivedV*1000,0,'g',7).arg(d.maximumReceivedV*1000,0,'g',7)
     .arg(d.bitRateHz/1e9,0,'g',7).arg(d.referenceFrequencyHz/1e9,0,'g',7)
     .arg(d.analysisStopHz/1e9,0,'g',7)+
-    QStringLiteral("\n%1 | %2 | Frame %3 bits | Overlay %4 traces | Width grid 1/%5 UI | Phase threshold: %6")
+    sparamview::ui_language::textFor(this,QStringLiteral("\n%1 | %2 | Frame %3 bits | Overlay %4 traces | Width grid 1/%5 UI | Phase threshold: %6"))
       .arg(QString::fromStdString(d.transferParameter))
-      .arg(d.reverse?QStringLiteral("Reverse"):QStringLiteral("Forward"))
+      .arg(d.reverse?sparamview::ui_language::textFor(this,QStringLiteral("Reverse")):sparamview::ui_language::textFor(this,QStringLiteral("Forward")))
       .arg(qulonglong(d.frameBitCount)).arg(qulonglong(d.overlayV.size()))
       .arg(qulonglong(d.settings.samplesPerUI))
-      .arg(d.samplingPhaseThresholdOpen?QStringLiteral("OPEN"):QStringLiteral("NOT OPEN"))+
-    (d.samplingPhaseThresholdOpen?QStringLiteral("\nDecision margin exists at selected phase under this model (not a mask PASS)."):
-      QStringLiteral("\nAttention: threshold not open at selected phase under this model.")));
-  csv_->setEnabled(true);png_->setEnabled(true);
-  setStatus(outcome.status,outcome.diagnostic);
+      .arg(d.samplingPhaseThresholdOpen?sparamview::ui_language::textFor(this,QStringLiteral("OPEN")):sparamview::ui_language::textFor(this,QStringLiteral("NOT OPEN")))+
+    (d.samplingPhaseThresholdOpen?sparamview::ui_language::textFor(this,QStringLiteral("\nDecision margin exists at selected phase under this model (not a mask PASS).")):
+      sparamview::ui_language::textFor(this,QStringLiteral("\nAttention: threshold not open at selected phase under this model."))));
 }
 void AnalysisWindow::exportEyeCsv() {
   if(!eyeResult_)return;

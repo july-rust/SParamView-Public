@@ -112,6 +112,7 @@ private:
 };
 struct ReportOptions {
   bool summary = true, details = true, graphs = true, raw = false;
+  QString displayLanguage = QStringLiteral("en");
 };
 void writeReport(const QString &path, const std::vector<si::Result> &,
                  const std::vector<Revision> &, const si::Settings &,

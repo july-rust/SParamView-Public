@@ -1,3 +1,4 @@
+#include "ui_language.hpp"
 #include "app.hpp"
 #include <QtEndian>
 #include <map>
@@ -227,6 +228,13 @@ void writeReport(const QString &path, const std::vector<si::Result> &results,
     if (QFileInfo(path).absoluteFilePath() ==
         QFileInfo(r.source).absoluteFilePath())
       throw si::Error("Original Touchstone is read-only");
+  const auto language=sparamview::ui_language::fromCode(options.displayLanguage);
+  auto displayHeaders=[language](const QVariantList &source) {
+    QVariantList translated;
+    for(const auto &item:source)
+      translated<<sparamview::ui_language::menuText(item.toString(),language);
+    return translated;
+  };
   Zip zip(path);
   QStringList sheetNames;
   int graphSheet = 0, imageCount = 0;
@@ -239,7 +247,7 @@ void writeReport(const QString &path, const std::vector<si::Result> &results,
   if (options.summary) {
     Sheet sheet(stagingDirectory);
     sheet.append(
-        {"Channel", "Revision", "RL", "IL", "NEXT", "FEXT", "TDR", "Overall"},
+        displayHeaders({"Channel", "Revision", "RL", "IL", "NEXT", "FEXT", "TDR", "Overall"}),
         true);
     std::map<std::pair<std::string, std::string>,
              std::map<si::Metric, std::vector<std::string>>>
@@ -271,13 +279,13 @@ void writeReport(const QString &path, const std::vector<si::Result> &results,
       if (rows.empty())
         continue;
       Sheet sheet(stagingDirectory);
-      sheet.append({"Channel", "Revision", "Metric", "Aggressor", "Worst value",
+      sheet.append(displayHeaders({"Channel", "Revision", "Metric", "Aggressor", "Worst value",
                     "Worst Frequency Hz / Time s", "Limit at worst margin",
                     "Worst margin", "Margin Frequency Hz / Time s", "Result",
                     "Direction", "Minimum", "Maximum", "Target ohm",
                     "Reference ohm", "TDR quality", "Note", "Min error %",
                     "Max error %", "Max directional delta dB",
-                    "Directional delta frequency Hz", "Termination", "Value unit"},
+                    "Directional delta frequency Hz", "Termination", "Value unit"}),
                    true);
       for (auto r : rows) {
         if (control)
@@ -422,8 +430,8 @@ void writeReport(const QString &path, const std::vector<si::Result> &results,
   if (options.graphs) {
     Sheet graph(stagingDirectory);
     graph.append(
-        {"Graphs",
-         "Current view followed by result graphs (up to 8 traces per image)"},
+        displayHeaders({"Graphs",
+         "Current view followed by result graphs (up to 8 traces per image)"}),
         true);
     auto emitGraph = [&](const PlotSnapshot &snapshot) {
       if (control)

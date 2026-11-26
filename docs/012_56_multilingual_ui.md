@@ -33,3 +33,7 @@ This is a partial implementation, not a completed 012_56 or a release candidate.
 ## Follow-up: direct analysis window notification
 - 38f3759: CodeQL passed; Windows x64 and macOS failed Korean open Eye window (run 45777624953). Windows ARM64 passed; native packaged gate skipped.
 - Use explicit manager-to-window language notification, explicit Run and direction bindings, and refresh newly opened windows. Split the failing assertion without removing coverage. Added translations for common analysis diagnostics and export dialog captions. Retest required; exact original failure subcondition not yet proven.
+
+## Follow-up: dynamic result presentation and human-readable report headers
+- Render ILD and ICN summary text, ICN contributions and Eye metrics from existing immutable results without re-running the solver on language changes. Static engine diagnostic identifiers and numeric values are preserved.
+- ReportOptions carries a GUI-thread language snapshot; summary/detail/graph presentation headers are localized while sheet names, raw-data headers, configuration keys and serialized values stay canonical. English remains the default for existing automation. Full report prose and all dynamic engine messages remain unqualified.

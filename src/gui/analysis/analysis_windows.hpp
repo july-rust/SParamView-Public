@@ -157,6 +157,11 @@ private:
   si::channel::Provenance eyeProvenance_;
   QString eyeSourceFilename_;
   QString statusDetailsSource_;
+  bool summaryStatus_ = false;
+  QString resultSummary() const;
+  void renderResultPresentation();
+  void renderEyeMetrics();
+  void renderIcnContributions();
   std::function<void(const QString &)> languageRefresh_;
   QLabel *statusLabel_ = nullptr, *graphPlaceholder_ = nullptr;
   QLabel *icnContributions_ = nullptr;

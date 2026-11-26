@@ -33,6 +33,7 @@ void MainWindow::exportXlsx() {
     return;
   ReportOptions options{a->isChecked(), b->isChecked(), c->isChecked(),
                         raw->isChecked()};
+  options.displayLanguage=sparamview::ui_language::code(sparamview::ui_language::current(this));
   auto rs = results;
   auto revs = lastRevisions;
   auto set = lastSettings;
