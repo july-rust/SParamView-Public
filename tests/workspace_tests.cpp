@@ -720,10 +720,12 @@ struct WorkspaceProbe {
    for(int i=0;i<100;++i) {
     ko->trigger();verify(w,QString::fromUtf8("파일"),"Korean");
     check(newAction->text()==QString::fromUtf8("새로 만들기"),"Korean New action");
-    check(w.tabs->tabText(0)==QString::fromUtf8("그래프") && w.quickButton->text()==QString::fromUtf8("빠른 분석"),"Korean static UI");
+    check(w.tabs->tabText(0)==QString::fromUtf8("그래프"),"Korean plot tab");
+    check(w.quickButton->text()==QString::fromUtf8("빠른 분석"),"Korean quick analysis button");
     ja->trigger();verify(w,QString::fromUtf8("ファイル"),"Japanese");
     check(newAction->text()==QString::fromUtf8("新規作成"),"Japanese New action");
-    check(w.tabs->tabText(0)==QString::fromUtf8("グラフ") && w.quickButton->text()==QString::fromUtf8("クイック解析"),"Japanese static UI");
+    check(w.tabs->tabText(0)==QString::fromUtf8("グラフ"),"Japanese plot tab");
+    check(w.quickButton->text()==QString::fromUtf8("クイック解析"),"Japanese quick analysis button");
     en->trigger();verify(w,"File","English");
     check(newAction->text()=="New","English New action");
    }

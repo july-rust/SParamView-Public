@@ -6,6 +6,8 @@
 #include <QMenu>
 #include <QMenuBar>
 #include <QPointer>
+#include <QDynamicPropertyChangeEvent>
+#include <QEvent>
 #include <QAbstractButton>
 #include <QComboBox>
 #include <QDoubleSpinBox>
@@ -158,6 +160,98 @@ inline QString menuText(const QString &source, Language value) {
     {"Quality", "품질", "品質"},
     {"Termination / Unit", "종단 / 단위", "終端 / 単位"},
     {"Cancel", "취소", "キャンセル"},
+    {"Source / Revision", "원본 / 리비전", "ソース / リビジョン"},
+    {"Victim Channel", "피간섭 채널", "ビクティムチャネル"},
+    {"Direction", "방향", "方向"},
+    {"Forward", "정방향", "順方向"},
+    {"Reverse", "역방향", "逆方向"},
+    {"Fit model", "피팅 모델", "フィットモデル"},
+    {"Linear", "선형", "線形"},
+    {"Root + linear", "제곱근 + 선형", "平方根 + 線形"},
+    {"Root + linear + quadratic", "제곱근 + 선형 + 이차", "平方根 + 線形 + 二次"},
+    {"Start frequency", "시작 주파수", "開始周波数"},
+    {"Stop frequency", "종료 주파수", "終了周波数"},
+    {"Required: choose mode", "필수: 모드 선택", "必須: モードを選択"},
+    {"Single-ended", "단일 종단", "シングルエンド"},
+    {"Differential", "차동", "差動"},
+    {"Required", "필수", "必須"},
+    {"Alternating", "교번 패턴", "交互パターン"},
+    {"Custom bits", "사용자 비트", "カスタムビット"},
+    {"Binary sequence e.g. 00101110", "이진 시퀀스 예: 00101110", "ビット列の例: 00101110"},
+    {"Eye overlay (2 UI)", "아이 중첩 (2 UI)", "アイ重ね合わせ (2 UI)"},
+    {"TX / RX waveform", "TX / RX 파형", "TX / RX 波形"},
+    {"Impulse / Unit pulse", "임펄스 / 단위 펄스", "インパルス / 単位パルス"},
+    {"TX incident low (mV)", "TX 입사 저레벨 (mV)", "TX入射低レベル (mV)"},
+    {"TX incident high (mV)", "TX 입사 고레벨 (mV)", "TX入射高レベル (mV)"},
+    {"TX source (ohm)", "TX 소스 (Ω)", "TXソース (Ω)"},
+    {"RX termination (ohm)", "RX 종단 (Ω)", "RX終端 (Ω)"},
+    {"RX threshold (mV)", "RX 임계값 (mV)", "RXしきい値 (mV)"},
+    {"RX input minimum (mV)", "RX 입력 최소 (mV)", "RX入力最小 (mV)"},
+    {"RX input maximum (mV)", "RX 입력 최대 (mV)", "RX入力最大 (mV)"},
+    {"Signal", "신호", "信号"},
+    {"Pattern / FFT", "패턴 / FFT", "パターン / FFT"},
+    {"PHY profile (example)", "PHY 프로파일 (예제)", "PHYプロファイル (例)"},
+    {"Transfer mode", "전송 모드", "伝送モード"},
+    {"NRZ bit rate", "NRZ 비트 전송률", "NRZビットレート"},
+    {"Nyquist (coupled)", "나이퀴스트 (연동)", "ナイキスト (連動)"},
+    {"Analysis cap", "분석 상한", "解析上限"},
+    {"Pattern", "패턴", "パターン"},
+    {"Custom pattern", "사용자 패턴", "カスタムパターン"},
+    {"FFT samples", "FFT 샘플", "FFTサンプル"},
+    {"Samples per UI", "UI당 샘플", "UIあたりのサンプル"},
+    {"Required — physical reference-plane value", "필수 — 물리적 기준면 값", "必須 — 物理基準面の値"},
+    {"NEXT / FEXT paths (check multiple)", "NEXT / FEXT 경로 (복수 선택)", "NEXT / FEXT経路 (複数選択)"},
+    {"Independent-path RSS (assumed)", "독립 경로 RSS (가정)", "独立経路RSS (仮定)"},
+    {"NRZ symbol rate", "NRZ 심볼 전송률", "NRZシンボルレート"},
+    {"TX amplitude (pp)", "TX 진폭 (피크-피크)", "TX振幅 (ピーク間)"},
+    {"Rise time", "상승 시간", "立ち上がり時間"},
+    {"RX bandwidth", "RX 대역폭", "RX帯域幅"},
+    {"Run", "실행", "実行"},
+    {"Run Manual", "수동 실행", "手動実行"},
+    {"Auto Preview", "자동 미리보기", "自動プレビュー"},
+    {"Auto Analysis", "자동 분석", "自動解析"},
+    {"Results / warnings", "결과 / 경고", "結果 / 警告"},
+    {"How to read", "결과 읽는 법", "結果の読み方"},
+    {"No numerical data. Analysis engine is not installed.", "수치 데이터 없음. 분석 엔진이 설치되지 않았습니다.", "数値データなし。解析エンジンがインストールされていません。"},
+    {"All three graphs", "그래프 3개 모두", "3つのグラフすべて"},
+    {"NEXT/FEXT power sum", "NEXT/FEXT 전력 합", "NEXT/FEXT電力和"},
+    {"Weighted noise PSD", "가중 잡음 PSD", "重み付きノイズPSD"},
+    {"Cumulative RMS (including total)", "누적 RMS (합계 포함)", "累積RMS (合計を含む)"},
+    {"Export CSV", "CSV 내보내기", "CSVエクスポート"},
+    {"Export PNG", "PNG 내보내기", "PNGエクスポート"},
+    {"Channel Analysis", "채널 분석", "チャネル解析"},
+    {"Reading ILD: deviation near 0 dB means smoother loss relative to its fitted trend. Large absolute peaks deserve investigation; low ILD alone does not mean low insertion loss. No standard PASS limit.", "ILD 읽는 법: 0 dB에 가까운 편차는 피팅 추세 대비 손실이 매끄러움을 의미합니다. 절댓값 피크가 크면 조사해야 합니다. 낮은 ILD가 낮은 삽입 손실을 의미하지는 않습니다. 표준 합격 기준은 없습니다.", "ILDの読み方: 0 dBに近い偏差はフィットした傾向に対して損失が滑らかであることを示します。絶対値ピークが大きい場合は要調査です。低ILDは低挿入損失を意味しません。標準合格基準はありません。"},
+    {"Reading ICN: lower RMS and weighted PSD are preferable under identical TX/RX and band settings. Steep cumulative growth identifies noisy bands; compare path contributions. RSS assumes independent paths, not measured correlation. No standard PASS limit.", "ICN 읽는 법: 동일한 TX/RX 및 대역 설정에서 RMS와 가중 PSD가 낮을수록 좋습니다. 누적값이 급증하는 대역의 경로별 기여도를 비교하십시오. RSS는 독립 경로를 가정하며 측정된 상관관계가 아닙니다. 표준 합격 기준은 없습니다.", "ICNの読み方: 同一のTX/RXと帯域設定ではRMSと重み付きPSDが低い方が望ましいです。累積値が急増する帯域の経路寄与を比較してください。RSSは独立経路を仮定し、測定された相関ではありません。標準合格基準はありません。"},
+    {"Reading Eye: larger eye height and width imply more simulated decision margin; closed or overlapping levels indicate risk. Threshold and sampling lines are model conditions, not a PHY mask or BER measurement.", "아이 읽는 법: 아이 높이와 폭이 클수록 시뮬레이션상 판정 마진이 큽니다. 닫히거나 겹친 레벨은 위험을 나타냅니다. 임계값 및 샘플링 선은 모델 조건이며 PHY 마스크 또는 BER 측정이 아닙니다.", "アイの読み方: アイ高さと幅が大きいほどシミュレーション上の判定マージンが大きくなります。閉じたアイや重なったレベルはリスクを示します。しきい値とサンプリング線はモデル条件であり、PHYマスクやBER測定ではありません。"},
+    {"Simulated Channel Eye — Not Measured / Not PHY Compliance", "시뮬레이션 채널 아이 — 실측 아님 / PHY 적합성 검증 아님", "シミュレーションチャネルアイ — 実測ではない / PHY適合性試験ではない"},
+    {"VALID", "유효", "有効"},
+    {"WARNING", "경고", "警告"},
+    {"STALE", "이전 결과", "旧結果"},
+    {"NOT EVALUATED", "미평가", "未評価"},
+    {"UNSUPPORTED", "미지원", "未対応"},
+    {"INVALID SOURCE", "잘못된 원본", "無効なソース"},
+    {"CANCELLED", "취소됨", "キャンセル済み"},
+    {"ERROR", "오류", "エラー"},
+    {"Calculation running", "계산 중", "計算中"},
+    {"Engine not yet implemented; no simulated or conformant results", "엔진 미구현: 시뮬레이션 또는 적합성 결과 없음", "エンジン未実装: シミュレーション結果または適合結果なし"},
+    {"Select NEXT/FEXT paths to display individual contributions.", "개별 기여도를 표시할 NEXT/FEXT 경로를 선택하십시오.", "個別の寄与を表示するNEXT/FEXT経路を選択してください。"},
+    {"No current ICN result.", "현재 ICN 결과 없음.", "現在のICN結果なし。"},
+    {"Run ILD to display measured/fitted IL and deviation.", "ILD를 실행하여 측정/피팅 IL 및 편차를 표시합니다.", "ILDを実行して測定/フィットILと偏差を表示します。"},
+    {"Insertion loss (dB) — raw blue / fitted orange", "삽입 손실 (dB) — 원본 파랑 / 피팅 주황", "挿入損失 (dB) — 元データ青 / フィット橙"},
+    {"ILD (dB) — near zero is better; dotted line: peak", "ILD (dB) — 0에 가까울수록 좋음; 점선: 피크", "ILD (dB) — 0に近いほど良好、点線: ピーク"},
+    {"Power sum (dB) — zero floor −300 dB", "전력 합 (dB) — 0의 표시 하한 −300 dB", "電力和 (dB) — ゼロの表示下限 −300 dB"},
+    {"Weighted PSD (mV²/GHz) — lower is better", "가중 PSD (mV²/GHz) — 낮을수록 좋음", "重み付きPSD (mV²/GHz) — 低いほど良好"},
+    {"Cumulative RMS (mV) — lower is better", "누적 RMS (mV) — 낮을수록 좋음", "累積RMS (mV) — 低いほど良好"},
+    {"NEXT (blue)  |  FEXT (orange)  |  Total (foreground)", "NEXT (파랑)  |  FEXT (주황)  |  합계 (전경색)", "NEXT (青)  |  FEXT (橙)  |  合計 (前景色)"},
+    {"NEXT (blue)  |  FEXT (orange)", "NEXT (파랑)  |  FEXT (주황)", "NEXT (青)  |  FEXT (橙)"},
+    {"Auto Preview or enter verified settings and Run Manual", "자동 미리보기 또는 검증된 설정을 입력하고 수동 실행", "自動プレビューまたは検証済み設定を入力して手動実行"},
+    {"relative", "상대값", "相対値"},
+    {"UI (2 symbols)", "UI (2 심볼)", "UI (2シンボル)"},
+    {"Time (ps)", "시간 (ps)", "時間 (ps)"},
+    {"Default exploratory model; uncheck to disallow multi-path RSS. Physical correlation is not established, including NEXT/FEXT from the same aggressor.", "기본 탐색 모델입니다. 다중 경로 RSS를 허용하지 않으려면 체크를 해제하십시오. 동일 간섭원 NEXT/FEXT를 포함한 물리적 상관관계는 확립되지 않았습니다.", "既定の探索モデルです。複数経路RSSを許可しない場合はチェックを外してください。同一アグレッサーのNEXT/FEXTを含め物理相関は確立されていません。"},
+    {"Example PHY profile, not compliance", "PHY 예제 프로파일, 적합성 검증 아님", "PHY例示プロファイル、適合性試験ではない"},
+    {"Assumed matched, 400 mVpp NRZ preview; uses source phase, qualified DC conditioning and bandwidth, not actual PHY settings.", "정합 및 400 mVpp NRZ를 가정한 미리보기입니다. 원본 위상, 검증된 DC 보정 및 대역폭을 사용하며 실제 PHY 설정은 아닙니다.", "整合および400 mVpp NRZを仮定したプレビューです。ソース位相、検証済みDC処理と帯域幅を使用し、実際のPHY設定ではありません。"},
+    {"Derive measured band and use explicit exploratory assumptions; not a PHY or standard compliance test.", "측정 대역을 도출하고 명시적인 탐색 가정을 사용합니다. PHY 또는 표준 적합성 시험이 아닙니다.", "測定帯域を導出し、明示的な探索上の仮定を使用します。PHYまたは標準適合性試験ではありません。"},
   };
   for (const auto &entry : entries)
     if (source == QString::fromUtf8(entry.en))
@@ -230,6 +324,27 @@ inline void bindMainFixedWidgets(Bindings &out, QWidget *body) {
   for (auto *spin : body->findChildren<QDoubleSpinBox *>())
     bind(out, spin, spin->specialValueText(), [](QDoubleSpinBox *w, const QString &s) { w->setSpecialValueText(s); });
 }
+// Observe the main window language property without changing data or ownership.
+class LanguageObserver final : public QObject {
+  QPointer<QObject> owner_;
+  Bindings bindings_;
+public:
+  LanguageObserver(QWidget *window, QObject *owner, Bindings bindings)
+      : QObject(window), owner_(owner), bindings_(std::move(bindings)) {
+    if (owner_) owner_->installEventFilter(this);
+    apply(current(window));
+  }
+  void apply(Language value) {
+    for (const auto &refresh : bindings_) refresh(value);
+  }
+protected:
+  bool eventFilter(QObject *watched, QEvent *event) override {
+    if (watched == owner_.data() && event->type() == QEvent::DynamicPropertyChange &&
+        static_cast<QDynamicPropertyChangeEvent *>(event)->propertyName() == "sparamview.uiLanguage")
+      apply(current(watched));
+    return false;
+  }
+};
 struct MenuBinding {
   QPointer<QAction> action;
   QString text;

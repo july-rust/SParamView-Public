@@ -20,3 +20,7 @@ Do not merge or release until all 012_56 requirements are satisfied.
 - No test execution or platform PASS is asserted by this source commit.
 
 This is a partial implementation, not a completed 012_56 or a release candidate.
+
+## Follow-up
+- Previous head fba6ae5: CodeQL passed; Windows x64 and macOS failed the Korean static UI assertion, Windows ARM64 CI passed. Run 45772454110. The combined assertion is split and explicit main tab/button source binding added; root cause awaits retest.
+- Added fixed analysis window controls, guide text, status prefix and selected plot labels with a language property observer. Dynamic result detail strings and dialogs remain incomplete. No qualification claimed.

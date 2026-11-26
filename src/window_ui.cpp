@@ -815,12 +815,13 @@ MainWindow::MainWindow() {
        [](QComboBox *w, const QString &s) { w->setToolTip(s); });
   bind(languageBindings, tdrView, tdrView->toolTip(),
        [](QComboBox *w, const QString &s) { w->setToolTip(s); });
-  const QStringList originalTabs = {tabs->tabText(0), tabs->tabText(1)};
+  const QStringList originalTabs = {"Plot", "Compare Revisions"};
   QStringList originalHeaders;
   for (int i = 0; i < table->columnCount(); ++i)
     originalHeaders << table->horizontalHeaderItem(i)->text();
   languageBindings.push_back([this, advancedToggle, readout, originalTabs, originalHeaders](Language value) {
     const QSignalBlocker blockTable(table);
+    quickButton->setText(menuText(QStringLiteral("QUICK ANALYSIS"), value));
     for (int i = 0; i < originalTabs.size(); ++i)
       tabs->setTabText(i, menuText(originalTabs[i], value));
     for (int i = 0; i < originalHeaders.size(); ++i)

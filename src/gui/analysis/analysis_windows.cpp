@@ -1,3 +1,4 @@
+#include "../../ui_language.hpp"
 #include "../../user_preferences.hpp"
 #include "gui/analysis/analysis_windows.hpp"
 #include <algorithm>
@@ -122,7 +123,7 @@ protected:
     p.setRenderHint(QPainter::Antialiasing);
     if (!data_ || data_->frequencyHz.size() < 2) {
       p.setPen(palette().text().color());
-      p.drawText(rect(), Qt::AlignCenter, QStringLiteral("Run ILD to display measured/fitted IL and deviation."));
+      p.drawText(rect(), Qt::AlignCenter, sparamview::ui_language::textFor(this,QStringLiteral("Run ILD to display measured/fitted IL and deviation.")));
       return;
     }
     const auto &d = *data_;
@@ -150,8 +151,8 @@ protected:
       p.drawText(QRectF(4,area.bottom()-20,padX-10,20),Qt::AlignRight,
         QString::number(low,'g',4));
       p.drawText(QRectF(area.left(),area.top()-20,area.width(),18),Qt::AlignLeft,
-        panel==0?QStringLiteral("Insertion loss (dB) — raw blue / fitted orange")
-                :QStringLiteral("ILD (dB) — near zero is better; dotted line: peak"));
+        panel==0?sparamview::ui_language::textFor(this,QStringLiteral("Insertion loss (dB) — raw blue / fitted orange"))
+                :sparamview::ui_language::textFor(this,QStringLiteral("ILD (dB) — near zero is better; dotted line: peak")));
       p.drawText(QRectF(area.left(),area.bottom()+2,area.width(),18),Qt::AlignLeft,
         QString::number(f0/1e9,'g',5)+QStringLiteral(" GHz"));
       p.drawText(QRectF(area.left(),area.bottom()+2,area.width(),18),Qt::AlignRight,
@@ -263,9 +264,9 @@ protected:
       p.setPen(QPen(palette().mid().color(),1));
       p.drawRect(area);
       p.setPen(palette().text().color());
-      const QString title=panel==0?QStringLiteral("Power sum (dB) — zero floor −300 dB")
-        :panel==1?QStringLiteral("Weighted PSD (mV²/GHz) — lower is better")
-                 :QStringLiteral("Cumulative RMS (mV) — lower is better");
+      const QString title=panel==0?sparamview::ui_language::textFor(this,QStringLiteral("Power sum (dB) — zero floor −300 dB"))
+        :panel==1?sparamview::ui_language::textFor(this,QStringLiteral("Weighted PSD (mV²/GHz) — lower is better"))
+                 :sparamview::ui_language::textFor(this,QStringLiteral("Cumulative RMS (mV) — lower is better"));
       p.drawText(QRectF(area.left(),area.top()-21,area.width(),18),Qt::AlignLeft,title);
       p.drawText(QRectF(2,area.top(),75,20),Qt::AlignRight,QString::number(high,'g',4));
       p.drawText(QRectF(2,area.bottom()-19,75,20),Qt::AlignRight,QString::number(low,'g',4));
@@ -304,8 +305,8 @@ protected:
       }
       p.restore();
       // Compact legend that remains in the exported plot.
-      const QString legend=panel==2?QStringLiteral("NEXT (blue)  |  FEXT (orange)  |  Total (foreground)"):
-        QStringLiteral("NEXT (blue)  |  FEXT (orange)");
+      const QString legend=panel==2?sparamview::ui_language::textFor(this,QStringLiteral("NEXT (blue)  |  FEXT (orange)  |  Total (foreground)")):
+        sparamview::ui_language::textFor(this,QStringLiteral("NEXT (blue)  |  FEXT (orange)"));
       p.setPen(palette().text().color());
       if(area.width()>470)
         p.drawText(QRectF(area.left(),area.bottom()+3,area.width(),18),Qt::AlignHCenter,legend);
@@ -370,10 +371,10 @@ protected:
     p.fillRect(rect(),palette().base());
     p.setRenderHint(QPainter::Antialiasing);
     p.setPen(palette().text().color());
-    const QString title=QStringLiteral("Simulated Channel Eye — Not Measured / Not PHY Compliance");
+    const QString title=sparamview::ui_language::textFor(this,QStringLiteral("Simulated Channel Eye — Not Measured / Not PHY Compliance"));
     p.drawText(QRectF(8,3,width()-16,24),Qt::AlignCenter,title);
     if(!data_) {
-      p.drawText(rect(),Qt::AlignCenter,QStringLiteral("Auto Preview or enter verified settings and Run Manual"));
+      p.drawText(rect(),Qt::AlignCenter,sparamview::ui_language::textFor(this,QStringLiteral("Auto Preview or enter verified settings and Run Manual")));
       return;
     }
     const auto &d=*data_;
@@ -399,7 +400,7 @@ protected:
     p.drawText(QRectF(2,area.top(),69,20),Qt::AlignRight,QString::number(high,'g',6));
     p.drawText(QRectF(2,area.bottom()-20,69,20),Qt::AlignRight,QString::number(low,'g',6));
     p.drawText(QRectF(4,22,70,16),Qt::AlignRight,
-      view_==2?QStringLiteral("relative"):QStringLiteral("mV"));
+      view_==2?sparamview::ui_language::textFor(this,QStringLiteral("relative")):QStringLiteral("mV"));
     const double fullX=view_==0?2.0 : (d.timeSeconds.empty()?0:d.timeSeconds.back()*1e12);
     const double x0=fullX*shift_, x1=fullX*(shift_+1/zoom_);
     if(x1<=x0) return;
@@ -410,7 +411,7 @@ protected:
     p.drawText(QRectF(area.left(),area.bottom()+5,area.width(),20),Qt::AlignRight,
       QString::number(x1,'g',7)+(view_==0?QStringLiteral(" UI"):QStringLiteral(" ps")));
     p.drawText(QRectF(area.left(),height()-23,area.width(),20),Qt::AlignCenter,
-      view_==0?QStringLiteral("UI (2 symbols)"):QStringLiteral("Time (ps)"));
+      view_==0?sparamview::ui_language::textFor(this,QStringLiteral("UI (2 symbols)")):sparamview::ui_language::textFor(this,QStringLiteral("Time (ps)")));
     p.save(); p.setClipRect(area);
     auto series=[&](const std::vector<double> &v,double xStep,double scale,QColor color) {
       if(v.size()<2)return;
@@ -1015,6 +1016,39 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
       progress_->setValue(scheduler_->progress(feature_));
     else progressPoll_.stop();
   });
+  using namespace sparamview::ui_language;
+  Bindings translated;
+  // Fixed constructor labels; dynamic results and source/channel data are excluded.
+  for(auto *label:findChildren<QLabel *>()) {
+    if(label==statusLabel_ || label==icnContributions_ || label==eyeMetrics_ || label==header) continue;
+    bind(translated,label,label->text(),[](QLabel *w,const QString &s){w->setText(s);});
+  }
+  for(auto *button:findChildren<QAbstractButton *>()) {
+    bind(translated,button,button->text(),[](QAbstractButton *w,const QString &s){w->setText(s);});
+    if(button!=run_) bind(translated,button,button->toolTip(),[](QAbstractButton *w,const QString &s){w->setToolTip(s);});
+  }
+  for(auto *edit:findChildren<QLineEdit *>())
+    bind(translated,edit,edit->placeholderText(),[](QLineEdit *w,const QString &s){w->setPlaceholderText(s);});
+  for(auto *spin:findChildren<QDoubleSpinBox *>())
+    bind(translated,spin,spin->specialValueText(),[](QDoubleSpinBox *w,const QString &s){w->setSpecialValueText(s);});
+  for(auto *box:{direction_,fitModel_,eyeMode_,eyePattern_,eyeView_,findChild<QComboBox *>("icnPlotView")})
+    if(box) bindCombo(translated,box);
+  for(auto *tab:findChildren<QTabWidget *>()) {
+    QStringList sources;
+    for(int i=0;i<tab->count();++i) sources<<tab->tabText(i);
+    translated.push_back([tab,sources](Language value){
+      for(int i=0;i<sources.size();++i) tab->setTabText(i,menuText(sources[i],value));
+    });
+  }
+  translated.push_back([this,header](Language value){
+    const auto title=menuText(labelFor(feature_),value);
+    setWindowTitle(QStringLiteral("SParamView · ")+title);
+    header->setText(QStringLiteral("<b>")+title+QStringLiteral("</b> — ")+menuText("Channel Analysis",value));
+    statusLabel_->setText(menuText(statusName(status_),value)+QStringLiteral(" — ")+menuText(statusDetailsSource_,value));
+    statusLabel_->setToolTip(statusLabel_->text());
+    for(auto *graph:{ildGraph_,icnGraph_,eyeGraph_}) if(graph) graph->update();
+  });
+  new LanguageObserver(this,owner,std::move(translated));
   fitToScreen();
 }
 void AnalysisWindow::showEvent(QShowEvent *event) {
@@ -1061,7 +1095,8 @@ void AnalysisWindow::fitToScreen() {
 }
 void AnalysisWindow::setStatus(si::channel::Status status, const QString &details) {
   status_ = status;
-  statusLabel_->setText(statusName(status) + QStringLiteral(" — ") + details);
+  statusDetailsSource_ = details;
+  statusLabel_->setText(sparamview::ui_language::textFor(this,statusName(status)) + QStringLiteral(" — ") + sparamview::ui_language::textFor(this,details));
   statusLabel_->setToolTip(statusLabel_->text());
   if(auto *tabs=findChild<QTabWidget *>(QStringLiteral("analysisDetailsTabs")))
     tabs->setCurrentIndex(0);

@@ -155,6 +155,7 @@ private:
   std::shared_ptr<const si::channel::EyeData> eyeResult_;
   si::channel::Provenance eyeProvenance_;
   QString eyeSourceFilename_;
+  QString statusDetailsSource_;
   QLabel *statusLabel_ = nullptr, *graphPlaceholder_ = nullptr;
   QLabel *icnContributions_ = nullptr;
   QWidget *ildGraph_ = nullptr, *icnGraph_ = nullptr;
