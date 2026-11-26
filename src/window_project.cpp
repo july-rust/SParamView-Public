@@ -69,7 +69,7 @@ void MainWindow::saveProject(bool as) {
       path =
           withExtension(QFileDialog::getSaveFileName(
                             this, sparamview::ui_language::textFor(this, "Save Project"), sparamview::preferences::saveSuggestion(projectName + ".siproject"),
-                            "SI Project (*.siproject)"),
+                            sparamview::ui_language::textFor(this, "SI Project (*.siproject)")),
                         ".siproject");
     if (path.isEmpty())
       return;
@@ -155,7 +155,7 @@ void MainWindow::loadProject(QString path, bool rememberDirectory) {
       if (!QFileInfo::exists(source)) {
         source = QFileDialog::getOpenFileName(
             this, sparamview::ui_language::textFor(this, "Locate Source File") + ": " + r["name"].toString(), sparamview::preferences::workingDirectory(),
-            "Touchstone (*.s*p *.ts)");
+            sparamview::ui_language::textFor(this, "Touchstone (*.s*p *.ts)"));
         if (source.isEmpty())
           return;
       }
