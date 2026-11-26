@@ -154,7 +154,7 @@ int main() {
   ComplexTrace acTrace;
   acTrace.parameter="S21";acTrace.stimulusOhm=acTrace.responseOhm=50;
   constexpr double fc=1e6;
-  for(double f:{1e5,2e5,4e5,5e5,7e5,9e5,1.1e6,1.5e6,2e6,3e6,4e6,8e6,1e7,2e7,5e7,1e8,2e8,5e8,1e9}) {
+  for(double f:{1e5,2e5,4e5,5e5,7e5,9e5,1.1e6,1.5e6,2e6,3e6,4e6,8e6,9e6,11e6,2e7,5e7,1e8,2e8,5e8,1e9}) {
     acTrace.frequencyHz.push_back(f);
     const double z=f/fc;
     acTrace.transfer.emplace_back(z*z/(1+z*z),z/(1+z*z));
