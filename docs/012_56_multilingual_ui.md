@@ -37,3 +37,8 @@ This is a partial implementation, not a completed 012_56 or a release candidate.
 ## Follow-up: dynamic result presentation and human-readable report headers
 - Render ILD and ICN summary text, ICN contributions and Eye metrics from existing immutable results without re-running the solver on language changes. Static engine diagnostic identifiers and numeric values are preserved.
 - ReportOptions carries a GUI-thread language snapshot; summary/detail/graph presentation headers are localized while sheet names, raw-data headers, configuration keys and serialized values stay canonical. English remains the default for existing automation. Full report prose and all dynamic engine messages remain unqualified.
+
+## Follow-up: main graph and workspace display
+- Main graph presentation language stored in PlotSnapshot, not solver settings; redraw invalidates only the rendered graph, without changing axes, results or source context. Export graphs use captured ReportOptions language.
+- Localized mapping explanatory templates and workspace notice/summary templates. Template substitution is single-pass, so user filenames containing percent placeholders remain literal.
+- Remaining source-origin diagnostic codes and unlisted strings still require an end-to-end audit.

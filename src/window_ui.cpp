@@ -837,8 +837,18 @@ MainWindow::MainWindow() {
       }
   });
   message(notice,notice->text());
+  message(summary,summary->text());
+  message(selectionInfo,selectionInfo->text());
   languageBindings.push_back([this](Language value){
     refreshMessage(notice,value);
+    refreshMessage(summary,value);
+    refreshMessage(selectionInfo,value);
+    { const QSignalBlocker blockGroup(groupBox),blockAggressor(aggressorBox);
+      if(groupBox->count()) groupBox->setItemText(0,menuText("All groups",value));
+      if(aggressorBox->count()) aggressorBox->setItemText(0,menuText("AUTO (same group)",value)); }
+    plot->snapshot.displayLanguage=code(value);
+    plot->invalidateGraph();
+    plot->update();
     refreshStatus(statusBar(),value);
     analysisWindows->refreshLanguage(code(value));
   });

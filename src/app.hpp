@@ -41,6 +41,7 @@ struct PlotSnapshot {
   std::vector<si::Result> curves;
   si::Settings settings;
   QString project = "Untitled";
+  QString displayLanguage = QStringLiteral("en");
   si::Metric metric = si::Metric::RL;
   bool heatmap = false, margin = false, bothDirections = false, fitAll = false;
   std::set<std::string> highlightChannelIds;

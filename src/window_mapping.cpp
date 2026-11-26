@@ -229,11 +229,10 @@ void MainWindow::openNextPath(QStringList paths, bool batch) {
             refreshAnalysisContext();
             dirty = true;
             sparamview::preferences::rememberFile(current.source);
-            sparamview::ui_language::message(notice,mappingAccepted
-                ? "Touchstone data loaded. Mapping validated from " + current.mappingSource + ". Select channels and run analysis."
-                : "Touchstone data loaded. Mapping review is required before analysis.");
+            if(mappingAccepted) sparamview::ui_language::message(notice,"Touchstone data loaded. Mapping validated from %1. Select channels and run analysis.",{current.mappingSource});
+            else sparamview::ui_language::message(notice,"Touchstone data loaded. Mapping review is required before analysis.");
           } else {
-            sparamview::ui_language::message(notice,"Skipped " + QFileInfo(path).fileName() + ": mapping not confirmed.");
+            sparamview::ui_language::message(notice,"Skipped %1: mapping not confirmed.",{QFileInfo(path).fileName()});
           }
         }
         openNextPath(paths, batch);
@@ -244,12 +243,14 @@ void MainWindow::rebuildChannels() {
   QSignalBlocker block(groupBox);
   channels->clear();
   groupBox->clear();
-  groupBox->addItem("All groups");
+  groupBox->addItem(sparamview::ui_language::textFor(this,"All groups"));
   aggressorBox->clear();
-  aggressorBox->addItem("AUTO (same group)");
+  aggressorBox->addItem(sparamview::ui_language::textFor(this,"AUTO (same group)"));
   int index = revisionBox->currentIndex();
-  if (index < 0 || size_t(index) >= revisions.size())
+  if (index < 0 || size_t(index) >= revisions.size()) {
+    sparamview::ui_language::message(selectionInfo,"Open a Touchstone file");
     return;
+  }
   auto &r = revisions[size_t(index)];
   std::set<std::string> groups;
   for (auto &c : r.channels) {
@@ -265,16 +266,8 @@ void MainWindow::rebuildChannels() {
   for (auto &g : groups)
     groupBox->addItem(qs(g));
   auto &m = r.cache->meta();
-  selectionInfo->setText(
-      QString("%1 ports · %2 points\n%3 · %4\nSignal: %5 (%6)\nSource: %7\nMapping: %8")
-          .arg(m.ports)
-          .arg(m.points)
-          .arg(qs(m.version))
-          .arg(r.cache->reused() ? "Cache reused" : "Imported")
-          .arg(r.signalType)
-          .arg(r.signalConfidence)
-          .arg(r.mappingSource.isEmpty() ? "Unknown" : r.mappingSource)
-          .arg(r.confirmed ? "Confirmed" : "Review required"));
+  sparamview::ui_language::message(selectionInfo,"%1 ports · %2 points\n%3 · %4\nSignal: %5 (%6)\nSource: %7\nMapping: %8",
+    {QString::number(m.ports),QString::number(m.points),qs(m.version),r.cache->reused()?"Cache reused":"Imported",r.signalType,r.signalConfidence,r.mappingSource.isEmpty()?"Unknown":r.mappingSource,r.confirmed?"Confirmed":"Review required"});
 }
 std::vector<si::Channel> MainWindow::selectedChannels() const {
   std::vector<si::Channel> out;
@@ -452,16 +445,16 @@ bool MainWindow::reviewSignalType(Revision &rev) {
   dialog.resize(560, 300);
   auto *layout = new QVBoxLayout(&dialog);
   auto *signalSummary = new QLabel(
-      QString("<b>Detected:</b> %1 &nbsp;&nbsp; <b>Confidence:</b> %2")
+      sparamview::ui_language::textFor(this,"<b>Detected:</b> %1 &nbsp;&nbsp; <b>Confidence:</b> %2")
           .arg(rev.signalType, rev.signalConfidence));
   layout->addWidget(signalSummary);
   auto *evidence = new QLabel(
-      "<b>Evidence:</b> " + rev.signalEvidence +
-      "<br><br>SParamView recognizes a name-based P/N pair only when two net names have the same length and differ at exactly one character, where that character is P versus N. The P/N position may be anywhere in the name. Irregular or ambiguous names are not guessed.");
+      sparamview::ui_language::textFor(this,"<b>Evidence:</b> ") + rev.signalEvidence +
+      sparamview::ui_language::textFor(this,"<br><br>SParamView recognizes a name-based P/N pair only when two net names have the same length and differ at exactly one character, where that character is P versus N. The P/N position may be anywhere in the name. Irregular or ambiguous names are not guessed."));
   evidence->setWordWrap(true);
   layout->addWidget(evidence);
   layout->addWidget(new QLabel(
-      "Confirm the electrical signal type before Channel Mapping. You can still edit every physical P/N and Near/Far assignment in the next step."));
+      sparamview::ui_language::textFor(this,"Confirm the electrical signal type before Channel Mapping. You can still edit every physical P/N and Near/Far assignment in the next step.")));
   auto *selector = new QComboBox;
   selector->setObjectName("signalTypeSelector");
   selector->addItem(sparamview::ui_language::textFor(this, "Select signal type…"), "");
@@ -540,17 +533,17 @@ bool MainWindow::confirmMapping(Revision &mappingRevision) {
   dialog.resize(980, 540);
   auto layout = new QVBoxLayout(&dialog);
   auto info = new QLabel(
-      QString("Signal Type: %1 (%2)\nEvidence: %3\nSource: %4\nPort numbering starts at 1. Leave Near−/Far− blank for single-ended channels.\nVerify Near/Far and P/N against the physical connections. A blank Far end supports reflection/TDR only.")
+      sparamview::ui_language::textFor(this,"Signal Type: %1 (%2)\nEvidence: %3\nSource: %4\nPort numbering starts at 1. Leave Near−/Far− blank for single-ended channels.\nVerify Near/Far and P/N against the physical connections. A blank Far end supports reflection/TDR only.")
           .arg(mappingRevision.signalType)
           .arg(mappingRevision.signalConfidence)
           .arg(mappingRevision.signalEvidence)
           .arg(mappingRevision.mappingSource.isEmpty() ? "Unknown" : mappingRevision.mappingSource));
   info->setWordWrap(true);
-  info->setText(info->text()+"\nUnmapped physical ports: "+QString::number(unmappedPorts(mappingRevision)));
+  info->setText(info->text()+sparamview::ui_language::textFor(this,"\nUnmapped physical ports: ")+QString::number(unmappedPorts(mappingRevision)));
   layout->addWidget(info);
   if (!mappingRevision.mappingWarning.isEmpty()) {
     auto warning = new QLabel(
-        "File data loaded, but automatic mapping could not be confirmed. Check port labels and enter the mapping manually or import a Mapping CSV.\n" +
+        sparamview::ui_language::textFor(this,"File data loaded, but automatic mapping could not be confirmed. Check port labels and enter the mapping manually or import a Mapping CSV.\n") +
         mappingRevision.mappingWarning);
     warning->setObjectName("mappingWarning");
     warning->setWordWrap(true);

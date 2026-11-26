@@ -14,7 +14,7 @@ void MainWindow::refreshResults() {
     if((r.metric==si::Metric::RL||r.metric==si::Metric::IL)&&!std::isnan(r.directionDelta)) tip += "\nMax directional Δ: "+num(r.directionDelta,4)+" dB @ "+num(r.directionDeltaX*1e-9,6)+" GHz";
     for(int j=0;j<row.size();++j){auto item=new QTableWidgetItem(row[j]);item->setToolTip(tip);if(r.status=="NG")item->setBackground(QColor("#fff0f1"));if(j==9)item->setForeground(r.status=="NG"?QColor("#c6374a"):r.status=="OK"?QColor("#00856c"):QColor("#6d7f94"));table->setItem(int(rowIndex),j,item);}
   }
-  table->resizeColumnsToContents(); table->setColumnWidth(3,160); summary->setText("Overall "+qs(si::overall(statuses))+QString("   ·   OK %1   NG %2   N/A %3").arg(ok).arg(ng).arg(na));
+  table->resizeColumnsToContents(); table->setColumnWidth(3,160); sparamview::ui_language::message(summary,"Overall %1   ·   OK %2   NG %3   N/A %4",{qs(si::overall(statuses)),QString::number(ok),QString::number(ng),QString::number(na)});
 }
 void MainWindow::showMetric(si::Metric m) {
   displayed = m;

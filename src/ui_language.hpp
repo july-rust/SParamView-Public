@@ -13,6 +13,7 @@
 #include <QDoubleSpinBox>
 #include <QGroupBox>
 #include <QLabel>
+#include <QRegularExpression>
 #include <QStatusBar>
 #include <QDialogButtonBox>
 #include <QPushButton>
@@ -439,6 +440,41 @@ inline QString menuText(const QString &source, Language value) {
     {"Termination", "종단", "終端"},
     {"Value unit", "값 단위", "値の単位"},
     {"Current view followed by result graphs (up to 8 traces per image)", "현재 보기 이후 결과 그래프 (이미지당 최대 8개 트레이스)", "現在の表示に続いて結果グラフ (画像ごとに最大8トレース)"},
+    {"All groups", "전체 그룹", "全グループ"},
+    {"AUTO (same group)", "자동 (같은 그룹)", "自動 (同じグループ)"},
+    {"%1 ports · %2 points\n%3 · %4\nSignal: %5 (%6)\nSource: %7\nMapping: %8", "포트 %1개 · 지점 %2개\n%3 · %4\n신호: %5 (%6)\n원본: %7\n매핑: %8", "ポート%1個 · 点数%2\n%3 · %4\n信号: %5 (%6)\nソース: %7\nマッピング: %8"},
+    {"Touchstone data loaded. Mapping validated from %1. Select channels and run analysis.", "Touchstone 데이터 로드 완료. %1에서 매핑 검증 완료. 채널을 선택하고 분석을 실행하십시오.", "Touchstoneデータ読み込み済み。%1のマッピングを検証済み。チャネルを選択して解析してください。"},
+    {"Touchstone data loaded. Mapping review is required before analysis.", "Touchstone 데이터 로드 완료. 분석 전에 매핑 확인이 필요합니다.", "Touchstoneデータ読み込み済み。解析前にマッピング確認が必要です。"},
+    {"Skipped %1: mapping not confirmed.", "%1 건너뜀: 매핑 미확인.", "%1をスキップ: マッピング未確認。"},
+    {"Overall %1   ·   OK %2   NG %3   N/A %4", "종합 %1   ·   OK %2   NG %3   N/A %4", "総合 %1   ·   OK %2   NG %3   N/A %4"},
+    {"<b>Detected:</b> %1 &nbsp;&nbsp; <b>Confidence:</b> %2", "<b>감지:</b> %1 &nbsp;&nbsp; <b>신뢰도:</b> %2", "<b>検出:</b> %1 &nbsp;&nbsp; <b>信頼度:</b> %2"},
+    {"<b>Evidence:</b> ", "<b>근거:</b> ", "<b>根拠:</b> "},
+    {"<br><br>SParamView recognizes a name-based P/N pair only when two net names have the same length and differ at exactly one character, where that character is P versus N. The P/N position may be anywhere in the name. Irregular or ambiguous names are not guessed.", "<br><br>SParamView는 두 네트 이름 길이가 같고 한 문자만 다르며 해당 문자가 P와 N일 때만 이름 기반 P/N 쌍을 인식합니다. P/N 위치는 이름의 어느 곳이든 가능합니다. 불규칙하거나 모호한 이름은 추정하지 않습니다.", "<br><br>SParamViewは2つのネット名の長さが同じで1文字のみがPとNで異なる場合に限り、名前に基づくP/Nペアを認識します。P/Nの位置は名前の任意の場所です。不規則または曖昧な名前は推測しません。"},
+    {"Signal Type: %1 (%2)\nEvidence: %3\nSource: %4\nPort numbering starts at 1. Leave Near−/Far− blank for single-ended channels.\nVerify Near/Far and P/N against the physical connections. A blank Far end supports reflection/TDR only.", "신호 유형: %1 (%2)\n근거: %3\n원본: %4\n포트 번호는 1부터 시작합니다. 단일 종단 채널은 Near−/Far−를 비워 두십시오.\n물리 연결과 근단/원단 및 P/N을 대조하십시오. 원단이 비어 있으면 반사/TDR만 지원됩니다.", "信号タイプ: %1 (%2)\n根拠: %3\nソース: %4\nポート番号は1から始まります。シングルエンドチャネルはNear−/Far−を空欄にしてください。\n物理接続と近端/遠端、P/Nを照合してください。遠端が空欄の場合は反射/TDRのみ対応します。"},
+    {"\nUnmapped physical ports: ", "\n미매핑 물리 포트: ", "\n未マッピング物理ポート: "},
+    {"File data loaded, but automatic mapping could not be confirmed. Check port labels and enter the mapping manually or import a Mapping CSV.\n", "파일 데이터 로드 완료. 자동 매핑을 확인하지 못했습니다. 포트 라벨을 확인하고 직접 매핑하거나 매핑 CSV를 가져오십시오.\n", "ファイルデータを読み込みましたが、自動マッピングを確認できませんでした。ポートラベルを確認し、手動入力またはマッピングCSVをインポートしてください。\n"},
+    {"Reflection coefficient ρ [1]", "반사 계수 ρ [1]", "反射係数ρ [1]"},
+    {"Impedance [Ω]", "임피던스 [Ω]", "インピーダンス [Ω]"},
+    {"Sdd[response, stimulus] [dB]", "Sdd[응답, 자극] [dB]", "Sdd[応答, 刺激] [dB]"},
+    {"S[response, stimulus] [dB]", "S[응답, 자극] [dB]", "S[応答, 刺激] [dB]"},
+    {"S / Sdd[response, stimulus] [dB]", "S / Sdd[응답, 자극] [dB]", "S / Sdd[応答, 刺激] [dB]"},
+    {"TDR quality: GOOD %1  /  LIMITED %2  /  UNSUITABLE %3", "TDR 품질: 양호 %1  /  제한 %2  /  부적합 %3", "TDR品質: 良好 %1  /  制限 %2  /  不適切 %3"},
+    {"Both directions", "양방향", "双方向"},
+    {"%1 traces", "트레이스 %1개", "%1トレース"},
+    {"Open Touchstone → Select channels → QUICK ANALYSIS", "Touchstone 열기 → 채널 선택 → 빠른 분석", "Touchstoneを開く → チャネル選択 → クイック解析"},
+    {"Quick TDR unavailable · UNSUITABLE\n\nThe current input data and transform settings cannot produce a Quick TDR waveform.\nDo not use this result for impedance evaluation.\n\n", "빠른 TDR 사용 불가 · 부적합\n\n현재 입력 데이터 및 변환 설정으로 빠른 TDR 파형을 생성할 수 없습니다.\n이 결과를 임피던스 평가에 사용하지 마십시오.\n\n", "クイックTDR利用不可 · 不適切\n\n現在の入力データと変換設定ではクイックTDR波形を生成できません。\nこの結果をインピーダンス評価に使用しないでください。\n\n"},
+    {"Time [ns]", "시간 [ns]", "時間 [ns]"},
+    {"Frequency [GHz]", "주파수 [GHz]", "周波数 [GHz]"},
+    {"Analysis: %1 – %2 %3  |  Limit: %4", "분석: %1 – %2 %3  |  기준: %4", "解析: %1 – %2 %3  |  判定基準: %4"},
+    {"Target ± ", "목표 ± ", "目標 ± "},
+    {"Off / N/A", "끄기 / N/A", "オフ / N/A"},
+    {"value ≥ ", "값 ≥ ", "値 ≥ "},
+    {"value ≤ ", "값 ≤ ", "値 ≤ "},
+    {"Frequency mask", "주파수 마스크", "周波数マスク"},
+    {"Worst margin per cell • Red = NG • Gray = N/A", "셀별 최악 마진 • 빨강 = NG • 회색 = N/A", "セルごとの最悪マージン • 赤 = NG • 灰色 = N/A"},
+    {"Worst value per cell • Teal = better • Red = worse", "셀별 최악값 • 청록 = 양호 • 빨강 = 불량", "セルごとの最悪値 • 青緑 = 良好 • 赤 = 悪化"},
+    {"+ %1 traces; select result rows", "+ 트레이스 %1개; 결과 행 선택", "+ %1トレース、結果行を選択"},
+    {" • wheel: X zoom | Ctrl: Y | drag: pan | Shift+drag: box", " • 휠: X 확대/축소 | Ctrl: Y | 드래그: 이동 | Shift+드래그: 영역 확대", " • ホイール: X拡大/縮小 | Ctrl: Y | ドラッグ: 移動 | Shift+ドラッグ: 範囲拡大"},
   };
   for (const auto &entry : entries)
     if (source == QString::fromUtf8(entry.en))
@@ -461,9 +497,21 @@ inline QString textFor(const QObject *object, const QString &source) {
 inline void refreshMessage(QLabel *label, Language value) {
   const auto source=label->property("sparamview.messageSource");
   if(!source.isValid()) return;
-  auto text=menuText(source.toString(),value);
-  for(const auto &arg:label->property("sparamview.messageArgs").toStringList()) text=text.arg(arg);
-  label->setText(text);
+  const auto pattern=menuText(source.toString(),value);
+  const auto args=label->property("sparamview.messageArgs").toStringList();
+  QString rendered;
+  qsizetype offset=0;
+  static const QRegularExpression placeholder(QStringLiteral("%([1-9][0-9]?)"));
+  auto matches=placeholder.globalMatch(pattern);
+  while(matches.hasNext()) {
+    const auto match=matches.next();
+    rendered+=pattern.mid(offset,match.capturedStart()-offset);
+    const int index=match.captured(1).toInt()-1;
+    rendered+=(index>=0 && index<args.size())?args[index]:match.captured(0);
+    offset=match.capturedEnd();
+  }
+  rendered+=pattern.mid(offset);
+  label->setText(rendered);
 }
 inline void message(QLabel *label,const QString &source,const QStringList &args={}) {
   label->setProperty("sparamview.messageSource",source);

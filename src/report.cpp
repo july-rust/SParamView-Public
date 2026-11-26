@@ -436,7 +436,9 @@ void writeReport(const QString &path, const std::vector<si::Result> &results,
     auto emitGraph = [&](const PlotSnapshot &snapshot) {
       if (control)
         control->check();
-      auto image = graphImage(snapshot);
+      auto displaySnapshot=snapshot;
+      displaySnapshot.displayLanguage=options.displayLanguage;
+      auto image = graphImage(displaySnapshot);
       QByteArray png;
       QBuffer buffer(&png);
       buffer.open(QIODevice::WriteOnly);
