@@ -14,7 +14,31 @@ void MainWindow::refreshResults() {
     if((r.metric==si::Metric::RL||r.metric==si::Metric::IL)&&!std::isnan(r.directionDelta)) tip += "\n"+sparamview::ui_language::textFor(this,"Max directional Δ: ")+num(r.directionDelta,4)+" dB @ "+num(r.directionDeltaX*1e-9,6)+" GHz";
     for(int j=0;j<row.size();++j){auto item=new QTableWidgetItem(row[j]);item->setToolTip(tip);if(r.status=="NG")item->setBackground(QColor("#fff0f1"));if(j==9)item->setForeground(r.status=="NG"?QColor("#c6374a"):r.status=="OK"?QColor("#00856c"):QColor("#6d7f94"));table->setItem(int(rowIndex),j,item);}
   }
+  refreshResultLanguage();
   table->resizeColumnsToContents(); table->setColumnWidth(3,160); sparamview::ui_language::message(summary,"Overall %1   ·   OK %2   NG %3   N/A %4",{qs(si::overall(statuses)),QString::number(ok),QString::number(ng),QString::number(na)});
+}
+// Re-render presentation in place: no sorting, row reconstruction, selection
+// changes, analysis generation changes or changes to the canonical Result.
+void MainWindow::refreshResultLanguage() {
+  const QSignalBlocker block(table);
+  const auto language=sparamview::ui_language::current(this);
+  for(int rowIndex=0;rowIndex<table->rowCount() && size_t(rowIndex)<resultRows.size();++rowIndex) {
+    const auto &r=results.at(resultRows[size_t(rowIndex)]);
+    auto tip=sparamview::ui_language::diagnosticText(qs(r.note),language)+"\n"+
+        sparamview::ui_language::menuText("Worst margin at ",language)+
+        num(r.marginX*(r.metric==si::Metric::TDR?1e9:1e-9),6)+
+        (r.metric==si::Metric::TDR?" ns":" GHz")+"\n"+
+        sparamview::ui_language::menuText(qs(r.direction),language);
+    if((r.metric==si::Metric::RL||r.metric==si::Metric::IL)&&!std::isnan(r.directionDelta))
+      tip+="\n"+sparamview::ui_language::menuText("Max directional Δ: ",language)+num(r.directionDelta,4)+" dB @ "+num(r.directionDeltaX*1e-9,6)+" GHz";
+    if(auto *item=table->item(rowIndex,2))
+      item->setText(sparamview::ui_language::menuText(qs(si::name(r.metric)),language));
+    if(r.metric==si::Metric::TDR)
+      if(auto *item=table->item(rowIndex,12))
+        item->setText(sparamview::ui_language::menuText(qs(si::name(r.termination,r.parameter.starts_with("Sdd"))),language)+(r.reflection?" / rho":" / ohm"));
+    for(int col=0;col<table->columnCount();++col)
+      if(auto *item=table->item(rowIndex,col)) item->setToolTip(tip);
+  }
 }
 void MainWindow::showMetric(si::Metric m) {
   displayed = m;
