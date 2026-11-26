@@ -2232,7 +2232,7 @@ bool AnalysisWindow::saveEyePng(const QString &name) {
     sparamview::ui_language::textFor(this,QStringLiteral("\nDC: %1 | Original %2 Hz | Effective %3 Hz | %4"))
       .arg(sparamview::ui_language::textFor(this,QString::fromStdString(eyeResult_->dc.status)))
       .arg(eyeResult_->dc.originalStartHz,0,'g',12).arg(eyeResult_->dc.effectiveStartHz,0,'g',12)
-      .arg(eyeResult_->dc.limited?QStringLiteral("LIMITED"):QStringLiteral("LOCAL CHECKS PASSED"));
+      .arg(sparamview::ui_language::textFor(this,eyeResult_->dc.limited?QStringLiteral("LIMITED"):QStringLiteral("LOCAL CHECKS PASSED")));
   p.drawText(QRect(10,graph.height()+4,output.width()-20,footerHeight-8),
              Qt::AlignLeft|Qt::TextWordWrap,labeled);
   p.end();
