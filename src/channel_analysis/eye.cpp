@@ -404,6 +404,23 @@ Result<EyeData> calculateEye(const ComplexTrace &trace, const EyeSettings &s,
   if(dc.acModel) {
     data.acTimeConstantSeconds=1./(2.*std::numbers::pi*dc.acPoleHz);
     data.acFrameDroopFraction=-std::expm1(-double(n)*dt/data.acTimeConstantSeconds);
+    // Compute a finite long-run diagnostic in the observed low-band model,
+    // independent of the periodic FFT. No allocation proportional to tau/UI.
+    size_t run=1, maxRun=1;
+    for(size_t i=1;i<bits.size();++i) {
+      run=bits[i]==bits[i-1]?run+1:1;
+      maxRun=std::max(maxRun,run);
+    }
+    // The preview repeats its finite frame, so include the boundary run.
+    size_t head=1, tail=1;
+    while(head<bits.size() && bits[head]==bits.front()) ++head;
+    while(tail<bits.size() && bits[bits.size()-1-tail]==bits.back()) ++tail;
+    if(bits.front()==bits.back()) maxRun=std::max(maxRun,head+tail);
+    data.acRunBits=double(maxRun);
+    data.acRunDroopFraction=-std::expm1(-data.acRunBits*ui/data.acTimeConstantSeconds);
+    data.acFiveTauBits=std::ceil(5.*data.acTimeConstantSeconds/ui);
+    require(positive(data.acFiveTauBits),"AC long-run duration exceeds finite range");
+    data.acFiveTauRemainingFraction=std::exp(-data.acFiveTauBits*ui/data.acTimeConstantSeconds);
   }
   data.frameBitCount=bitCount;
   data.reverse=(trace.parameter=="S12" || trace.parameter=="Sdd12");

@@ -75,6 +75,9 @@ struct EyeData {
   double bitRateHz = 0, referenceFrequencyHz = 0, analysisStopHz = 0;
   double unitIntervalSeconds = 0, timeStepSeconds = 0;
   double acTimeConstantSeconds = 0, acFrameDroopFraction = 0;
+  // Ideal low-band model only. NRZ runs start from a settled opposite level.
+  double acRunBits = 0, acRunDroopFraction = 0, acFiveTauBits = 0;
+  double acFiveTauRemainingFraction = 0;
   double samplingPhaseUI = 0, estimatedDelaySeconds = 0;
   double eyeHeightV = 0, eyeWidthSeconds = 0, eyeWidthUI = 0;
   double minimumHighV = 0, maximumLowV = 0;

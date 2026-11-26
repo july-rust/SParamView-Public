@@ -1412,6 +1412,9 @@ void AnalysisWindow::clearIcn() {
     png_->setEnabled(false);
   }
 }
+// Collect explicit manual paths or snapshot the candidates for automatic selection.
+// Keep source identity, direction and user RSS consent immutable in the worker.
+// Automatic selection never skips incompatible data silently or truncates paths.
 void AnalysisWindow::launchIcn(bool automatic) {
   if(feature_!=Feature::Icn || !icnProvider_) return;
   const int idx=source_->currentIndex();
@@ -1898,7 +1901,10 @@ void AnalysisWindow::showEye(const WorkOutcome &outcome) {
   const QString acText=d.dc.acModel?QStringLiteral(
     "AC-like pole %1 Hz | Fit residual %2 | RC time constant %3 us | Analytic frame droop %4% | Full baseline wander NOT QUALIFIED\n")
     .arg(d.dc.acPoleHz,0,'g',7).arg(d.dc.acFitMaxResidual,0,'g',7)
-    .arg(d.acTimeConstantSeconds*1e6,0,'g',7).arg(d.acFrameDroopFraction*100,0,'g',7):QString();
+    .arg(d.acTimeConstantSeconds*1e6,0,'g',7).arg(d.acFrameDroopFraction*100,0,'g',7)+
+      QStringLiteral("Ideal RC only: longest periodic run %1 bits, droop %2%; at %3 bits (>=5 tau), remaining %4%.\n")
+      .arg(d.acRunBits,0,'g',7).arg(d.acRunDroopFraction*100,0,'g',7)
+      .arg(d.acFiveTauBits,0,'g',12).arg(d.acFiveTauRemainingFraction*100,0,'g',7):QString();
   eyeMetrics_->setText(assumption+dcText+acText+QStringLiteral(
     "Simulated Channel Eye — Not Measured / Not PHY Compliance\n"
     "Height %1 mV | Width %2 ps (%3 UI) | Max-height phase %4 UI | Delay %5 ps\n"
@@ -1975,6 +1981,10 @@ bool AnalysisWindow::saveEyeCsv(const QString &name) {
      <<"# ac_fit_max_residual,"<<(d.dc.acModel?n(d.dc.acFitMaxResidual):QStringLiteral("NOT_EVALUATED"))<<"\n"
      <<"# ac_time_constant_s,"<<(d.dc.acModel?n(d.acTimeConstantSeconds):QStringLiteral("NOT_EVALUATED"))<<"\n"
      <<"# ac_analytic_frame_droop_fraction,"<<(d.dc.acModel?n(d.acFrameDroopFraction):QStringLiteral("NOT_EVALUATED"))<<"\n"
+     <<"# ac_longest_periodic_run_bits,"<<(d.dc.acModel?n(d.acRunBits):QStringLiteral("NOT_EVALUATED"))<<"\n"
+     <<"# ac_ideal_run_droop_fraction,"<<(d.dc.acModel?n(d.acRunDroopFraction):QStringLiteral("NOT_EVALUATED"))<<"\n"
+     <<"# ac_five_tau_run_bits,"<<(d.dc.acModel?n(d.acFiveTauBits):QStringLiteral("NOT_EVALUATED"))<<"\n"
+     <<"# ac_five_tau_remaining_fraction,"<<(d.dc.acModel?n(d.acFiveTauRemainingFraction):QStringLiteral("NOT_EVALUATED"))<<"\n"
      <<"# baseline_wander_coverage,NOT_QUALIFIED\n"
      <<"# dc_acknowledged,"<<(d.dc.requiresConfirmation && eyeSettings.acceptLimitedDc?"true":"false")<<"\n"
      <<"# transfer_parameter,"<<safe(d.transferParameter)<<"\n"
@@ -2110,6 +2120,10 @@ bool AnalysisWindow::saveEyePng(const QString &name) {
     output.setText(QStringLiteral("ACFitMaxResidual"),QString::number(eyeResult_->dc.acFitMaxResidual,'g',17));
     output.setText(QStringLiteral("ACTimeConstantSeconds"),QString::number(eyeResult_->acTimeConstantSeconds,'g',17));
     output.setText(QStringLiteral("ACAnalyticFrameDroopFraction"),QString::number(eyeResult_->acFrameDroopFraction,'g',17));
+    output.setText(QStringLiteral("ACLongestPeriodicRunBits"),QString::number(eyeResult_->acRunBits,'g',17));
+    output.setText(QStringLiteral("ACIdealRunDroopFraction"),QString::number(eyeResult_->acRunDroopFraction,'g',17));
+    output.setText(QStringLiteral("ACFiveTauRunBits"),QString::number(eyeResult_->acFiveTauBits,'g',17));
+    output.setText(QStringLiteral("ACFiveTauRemainingFraction"),QString::number(eyeResult_->acFiveTauRemainingFraction,'g',17));
   }
   output.setText(QStringLiteral("DCModelSpread"),eyeResult_->dc.modelSpreadAvailable?
     QString::number(eyeResult_->dc.modelSpread,'g',17):QStringLiteral("NOT_EVALUATED"));

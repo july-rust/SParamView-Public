@@ -464,13 +464,35 @@ int main() {
       const auto &eye=*result.value;
       const double tau=1./(2*pi*fc);
       close(eye.acTimeConstantSeconds,tau,1e-15,"analytic RC time constant");
-      close(eye.acFrameDroopFraction,1.-std::exp(-eye.timeSeconds.size()*eye.timeStepSeconds/tau),
+      close(eye.acFrameDroopFraction,1.-std::exp(-double(eye.timeSeconds.size())*eye.timeStepSeconds/tau),
             1e-12,"analytic RC droop, not full channel step");
+      // Independent brute-force run length from the input waveform, including
+      // the wrap boundary; compare a time-domain state recurrence to exp().
+      size_t longest=0, same=0;
+      const size_t samples=eye.settings.samplesPerUI;
+      const size_t count=eye.transmittedV.size()/samples;
+      double previous=eye.transmittedV[(count-1)*samples];
+      for(size_t i=0;i<2*count;++i) {
+        const double now=eye.transmittedV[(i%count)*samples];
+        same=std::abs(now-previous)<1e-12?same+1:1;
+        longest=std::max(longest,same); previous=now;
+      }
+      close(eye.acRunBits,double(longest),0,"longest periodic NRZ run");
+      const double ui=eye.unitIntervalSeconds;
+      const double decay=std::exp(-ui/tau);
+      double remaining=1.;
+      for(size_t i=0;i<longest;++i) remaining*=decay;
+      close(eye.acRunDroopFraction,1.-remaining,1e-12,"independent run droop");
+      const auto longBits=size_t(std::ceil(5.*tau/ui));
+      close(eye.acFiveTauBits,double(longBits),0,"five tau duration");
+      remaining=1.;
+      for(size_t i=0;i<longBits;++i) remaining*=decay;
+      close(eye.acFiveTauRemainingFraction,remaining,1e-11,"independent long-run state recurrence");
       check(std::any_of(result.diagnostics.begin(),result.diagnostics.end(),
         [](const auto &d){return d.code=="BASELINE_WANDER_NOT_QUALIFIED";}),
         "periodic preview must not qualify long response");
-      auto bad=measured; bad.transfer[5]+=Complex{0.01,0.01};
-      reject([&]{(void)inspectEyeDc(bad);},"held-out AC fit mismatch rejected");
+      auto badHoldout=measured; badHoldout.transfer[5]+=Complex{0.01,0.01};
+      reject([&]{(void)inspectEyeDc(badHoldout);},"held-out AC fit mismatch rejected");
       auto contradictory=measured;
       contradictory.frequencyHz.insert(contradictory.frequencyHz.begin(),0.);
       contradictory.transfer.insert(contradictory.transfer.begin(),Complex{0.5,0});
