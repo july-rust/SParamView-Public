@@ -938,6 +938,10 @@ inline const auto &catalogEntries() {
     {"\nMANUAL SETTINGS", "\n수동 설정", "\n手動設定"},
     {"\nAUTO PREVIEW: assumed 400 mVpp / matched Zref / PRBS7; not actual PHY settings.", "\n자동 미리보기: 400 mVpp / 기준 임피던스 정합 / PRBS7 가정; 실제 PHY 설정 아님.", "\n自動プレビュー: 400 mVpp / 基準インピーダンス整合 / PRBS7を仮定; 実際のPHY設定ではない。"},
     {"Simulated Channel Eye — Not Measured / Not PHY Compliance\nFile: %1 | Revision: %2 | Channel: %3 | %4\nSHA-256: %5\nProfile: %6 | Bit rate: %7 Gbps | Reference: %8 GHz | Cap: %9 GHz", "시뮬레이션 채널 아이 — 실측 / PHY 적합성 검증 아님\n파일: %1 | 리비전: %2 | 채널: %3 | %4\nSHA-256: %5\n프로파일: %6 | 비트율: %7 Gbps | 기준: %8 GHz | 상한: %9 GHz", "シミュレーションチャネルアイ — 実測 / PHY適合性試験ではない\nファイル: %1 | リビジョン: %2 | チャネル: %3 | %4\nSHA-256: %5\nプロファイル: %6 | ビットレート: %7 Gbps | 基準: %8 GHz | 上限: %9 GHz"},
+    {"Nonuniform low-pass step; original frequency intervals; even-real DC extrapolation; Kaiser beta=%1; quadrature error=%2; interpolation sensitivity=%3. Preview; PowerSI/VNA correlation pending.", "비균일 저역통과 계단 응답; 원래 주파수 간격; 짝대칭 실수 DC 외삽; Kaiser beta=%1; 수치 적분 오차=%2; 보간 민감도=%3. 미리보기; PowerSI/VNA 상관 검증 대기 중.", "非等間隔ローパスステップ応答; 元の周波数間隔; 偶対称実数DC外挿; Kaiser beta=%1; 数値積分誤差=%2; 補間感度=%3。プレビュー; PowerSI/VNA相関検証待ち。"},
+    {"Preview Kaiser beta=%1; reference-tool release validation pending.", "미리보기 Kaiser beta=%1; 기준 도구를 통한 릴리즈 검증 대기 중.", "プレビュー Kaiser beta=%1; 基準ツールによるリリース検証待ち。"},
+    {" Impedance display singular/out of range; rho retained; invalid ohm samples omitted.", " 임피던스 표시가 특이점 또는 범위 초과 상태입니다. 반사계수 rho는 유지하고 유효하지 않은 임피던스 샘플은 제외했습니다.", " インピーダンス表示が特異点または範囲外です。反射係数rhoを保持し、無効なインピーダンスサンプルを除外しました。"},
+    {" No finite impedance samples.", " 유한 임피던스 샘플 없음.", " 有限インピーダンスサンプルがありません。"},
     {"Saved mapping invalidated: source changed or stored ports are no longer valid. ", "저장된 매핑이 무효화되었습니다: 원본이 변경되었거나 저장된 포트가 더 이상 유효하지 않습니다. ", "保存済みマッピングは無効になりました: ソースが変更されたか、保存されたポートが無効です。 "},
     {"Current source re-evaluated; previous mapping was discarded. ", "현재 원본을 재평가했으며 이전 매핑은 폐기되었습니다. ", "現在のソースを再評価し、以前のマッピングを破棄しました。 "},
     {" User confirmed the signal type before Channel Mapping.", " 사용자가 채널 매핑 전에 신호 유형을 확인했습니다.", " ユーザーはチャネルマッピングの前に信号タイプを確認しました。"},
@@ -998,9 +1002,27 @@ inline QString diagnosticTextImpl(const QString &source,Language value,int depth
     if(source.startsWith(prefix))
       return menuText(prefix,value)+diagnosticTextImpl(source.mid(prefix.size()),value,depth+1);
   }
-  const QString confirmed=" User confirmed the signal type before Channel Mapping.";
-  if(source.endsWith(confirmed))
-    return diagnosticTextImpl(source.left(source.size()-confirmed.size()),value,depth+1)+menuText(confirmed,value);
+  const QStringList proseSuffixes={
+    " User confirmed the signal type before Channel Mapping.",
+    " Impedance display singular/out of range; rho retained; invalid ohm samples omitted.",
+    " No finite impedance samples."};
+  for(const auto &suffix:proseSuffixes) {
+    if(source.endsWith(suffix)) {
+      const auto head=source.left(source.size()-suffix.size());
+      const auto localizedHead=diagnosticTextImpl(head,value,depth+1);
+      // Unknown data is opaque, including paths ending with known prose.
+      if(localizedHead!=head && !head.startsWith("Touchstone not found: ") && !head.startsWith("Cannot read "))
+        return localizedHead+menuText(suffix,value);
+    }
+  }
+  static const QRegularExpression nonuniform(QStringLiteral(R"(^Nonuniform low-pass step; original frequency intervals; even-real DC extrapolation; Kaiser beta=([-+0-9.eE]+); quadrature error=([-+0-9.eE]+); interpolation sensitivity=([-+0-9.eE]+)\. Preview; PowerSI/VNA correlation pending\.$)"));
+  const auto nonuniformMatch=nonuniform.match(source);
+  if(nonuniformMatch.hasMatch())
+    return menuText("Nonuniform low-pass step; original frequency intervals; even-real DC extrapolation; Kaiser beta=%1; quadrature error=%2; interpolation sensitivity=%3. Preview; PowerSI/VNA correlation pending.",value).arg(nonuniformMatch.captured(1),nonuniformMatch.captured(2),nonuniformMatch.captured(3));
+  static const QRegularExpression previewTdr(QStringLiteral(R"(^Preview Kaiser beta=([-+0-9.eE]+); reference-tool release validation pending\.$)"));
+  const auto previewMatch=previewTdr.match(source);
+  if(previewMatch.hasMatch())
+    return menuText("Preview Kaiser beta=%1; reference-tool release validation pending.",value).arg(previewMatch.captured(1));
   const QString descriptorPrefix="Touchstone [Mixed-Mode Order] S/D/C descriptors declare ";
   const QString descriptorSuffix=". P/N membership and Near/Far direction are separate.";
   if(source.startsWith(descriptorPrefix) && source.endsWith(descriptorSuffix)) {
