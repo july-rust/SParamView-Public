@@ -69,7 +69,7 @@ void MainWindow::setResultsTextSize(int pixels) {
 void MainWindow::setDirectionMode(int mode) {
   if(directionMode != (mode % 3 + 3) % 3) markDirty();
   directionMode = (mode % 3 + 3) % 3;
-  if (directionButton) { directionButton->setText(QStringList{"Near → Far", "Far → Near", "Both"}[directionMode]); directionButton->setToolTip("Direction: Near → Far → Far → Near → Both"); }
+  if (directionButton) { directionButton->setText(sparamview::ui_language::textFor(this, QStringList{"Near → Far", "Far → Near", "Both"}[directionMode])); directionButton->setToolTip(sparamview::ui_language::textFor(this, "Direction: Near → Far → Far → Near → Both")); }
   settings.reverse = directionMode == 1;
   if (!results.empty() && !busy) { refreshResults(); refreshPlot(); }
 }
@@ -208,7 +208,7 @@ MainWindow::~MainWindow() {
     qWarning() << "SParamView: private cache will be retried on next launch";
 }
 void MainWindow::error(const QString &text) {
-  QMessageBox::warning(this, "SParamView", text);
+  QMessageBox::warning(this, "SParamView", sparamview::ui_language::diagnosticText(text,sparamview::ui_language::current(this)));
 }
 void MainWindow::task(std::function<void(si::Control *)> work,
                       std::function<void()> done) {
@@ -231,7 +231,7 @@ void MainWindow::task(std::function<void(si::Control *)> work,
         this,
         [this, f, text] {
           progress->setValue(int(f * 1000));
-          statusBar()->showMessage(qs(text));
+          sparamview::ui_language::status(statusBar(),qs(text));
         },
         Qt::QueuedConnection);
   };
@@ -245,8 +245,7 @@ void MainWindow::task(std::function<void(si::Control *)> work,
             progress->hide();
             cancelButton->hide();
             watcher->deleteLater();
-            statusBar()->showMessage(state->cancelled ? "Cancelled · Ready"
-                                                      : "Ready");
+            sparamview::ui_language::status(statusBar(),state->cancelled ? "Cancelled · Ready" : "Ready");
             if (!failure->isEmpty())
               error(*failure);
             else if (!state->cancelled && done)

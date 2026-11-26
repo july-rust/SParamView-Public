@@ -52,7 +52,7 @@ void MainWindow::run(std::vector<si::Metric> metrics) {
     if(sameAnalysisContext(settings,lastSettings) &&
        std::all_of(metrics.begin(),metrics.end(),[&](auto metric){return hasCurrentResult(metric);})) {
       showMetric(metrics.front());
-      notice->setText("Using completed results for the identical analysis request.");
+      sparamview::ui_language::message(notice,"Using completed results for the identical analysis request.");
       return;
     }
     auto jobs = std::make_shared<std::vector<si::Job>>(requestedJobs(metrics));
@@ -103,7 +103,7 @@ void MainWindow::run(std::vector<si::Metric> metrics) {
           dirty = true;
           refreshResults();
           showMetric(displayed);
-          notice->setText("Analysis complete. Frequency/time and margin values use full-resolution data. TDR starts from the lowest source frequency; check the preview quality notes.");
+          sparamview::ui_language::message(notice,"Analysis complete. Frequency/time and margin values use full-resolution data. TDR starts from the lowest source frequency; check the preview quality notes.");
         });
   } catch (const std::exception &e) {
     error(qs(e.what()));

@@ -44,8 +44,9 @@ void MainWindow::refreshPlot(bool selectedOnly) {
       plot->resetView();
     {
       QSignalBlocker block(tdrView);
-      tdrView->setItemText(0, label("Single-ended", singleTarget));
-      tdrView->setItemText(1, label("Differential", differentialTarget));
+      tdrView->setItemData(0,label("",singleTarget),Qt::UserRole+1);
+      tdrView->setItemData(1,label("",differentialTarget),Qt::UserRole+1);
+      sparamview::ui_language::refreshTdrViewLanguage(tdrView,sparamview::ui_language::current(this));
       tdrView->setCurrentIndex(tdrMode);
     }
     tdrView->setVisible(hasSingle || hasDifferential);

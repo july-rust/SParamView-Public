@@ -41,6 +41,7 @@ struct PlotSnapshot {
   std::vector<si::Result> curves;
   si::Settings settings;
   QString project = "Untitled";
+  QString displayLanguage = QStringLiteral("en");
   si::Metric metric = si::Metric::RL;
   bool heatmap = false, margin = false, bothDirections = false, fitAll = false;
   std::set<std::string> highlightChannelIds;
@@ -112,6 +113,7 @@ private:
 };
 struct ReportOptions {
   bool summary = true, details = true, graphs = true, raw = false;
+  QString displayLanguage = QStringLiteral("en");
 };
 void writeReport(const QString &path, const std::vector<si::Result> &,
                  const std::vector<Revision> &, const si::Settings &,

@@ -517,6 +517,7 @@ jobs:
           mkdir -p "$app/Contents/MacOS/fonts" "$app/Contents/Resources"
           cp build-macos/SParamView "$app/Contents/MacOS/SParamView"
           cp -R assets/fonts/. "$app/Contents/MacOS/fonts/"
+          cp build-macos/fonts/NotoSansJP-Variable.ttf "$app/Contents/MacOS/fonts/"
 
           iconset="${RUNNER_TEMP}/SParamView.iconset"
           iconpng="${RUNNER_TEMP}/SParamView-icon.png"

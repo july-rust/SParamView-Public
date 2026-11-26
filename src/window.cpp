@@ -6,6 +6,7 @@
 #include "si/mapping_policy.hpp"
 #include "si/direction_policy.hpp"
 #include <QCryptographicHash>
+#include "ui_language.hpp"
 #include "window_ui.cpp"
 #include "window_workspace.cpp"
 #include "window_mapping.cpp"
@@ -59,10 +60,10 @@ void applyCompactAnalysisSettings(MainWindow &window) {
   if (!tdrSegment)
     return;
   for (auto *tool : tdrSegment->findChildren<QToolButton *>()) {
-    if (!tool->toolTip().startsWith("TDR options:"))
+    if (tool->objectName()!="tdrOptionButton" && !tool->toolTip().startsWith("TDR options:"))
       continue;
     tool->setObjectName("tdrOptionButton");
-    tool->setText("Option");
+    tool->setText(sparamview::ui_language::textFor(&window,"Option"));
     tool->setMaximumWidth(68);
     break;
   }

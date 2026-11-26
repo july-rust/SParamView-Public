@@ -266,11 +266,11 @@ MainWindow::MainWindow() {
       "Open Touchstone...", QKeySequence::Open, this,
       [this] {
         openPaths(QFileDialog::getOpenFileNames(
-            this, "Select Touchstone Files", sparamview::preferences::workingDirectory(),
+            this, sparamview::ui_language::textFor(this, "Select Touchstone Files"), sparamview::preferences::workingDirectory(),
             "Touchstone (*.s*p *.ts);;All files (*)"));
       });
   file->addAction("Open Project...", this, [this] {
-    auto p = QFileDialog::getOpenFileName(this, "Project", sparamview::preferences::workingDirectory(),
+    auto p = QFileDialog::getOpenFileName(this, sparamview::ui_language::textFor(this, "Project"), sparamview::preferences::workingDirectory(),
                                           "SI Project (*.siproject)");
     if (!p.isEmpty())
       loadProject(p);
@@ -359,12 +359,12 @@ MainWindow::MainWindow() {
           if (si::sha256File(fp(rev.source), c) != rev.cache->meta().sha256)
             throw si::Error("Source hash changed. Reopen the Touchstone file.");
         },
-        [this] { notice->setText("Source SHA-256 verified"); });
+        [this] { sparamview::ui_language::message(notice,"Source SHA-256 verified"); });
   });
   menuBar()->addAction("About", this, [this] {
     QMessageBox::information(
-        this, "About SParamView",
-        QString("SParamView\nVersion %1\nBuild: Windows %2\n\nCopyright © 2026 july\nsparamview@gmail.com\nLicensed under the MIT License\n\nC++20 / Qt 6\nProcessing is local. Original Touchstone files are not modified.")
+        this, sparamview::ui_language::textFor(this, "About SParamView"),
+        sparamview::ui_language::textFor(this,"SParamView\nVersion %1\nBuild: Windows %2\n\nCopyright © 2026 july\nsparamview@gmail.com\nLicensed under the MIT License\n\nC++20 / Qt 6\nProcessing is local. Original Touchstone files are not modified.")
             .arg(si::version)
             .arg(QString::fromLatin1(architectureName())));
   });
@@ -541,7 +541,7 @@ MainWindow::MainWindow() {
 });
   tolerance = spin(0,1000,1); tolerance->setValue(settings.tolerancePercent); tdrLimit->setChecked(settings.tdrLimitEnabled); tolerance->setSuffix(" %"); tolerance->setMaximumWidth(72);
   target = spin(0,10000,1); target->setSpecialValueText("Auto Z₀"); target->setSuffix(" Ω"); target->setMaximumWidth(92);
-  auto tdrOptions = new QToolButton; tdrOptions->setText("⚙"); tdrOptions->setToolTip("TDR options: reference impedance, terminations and reflection coefficient"); connect(tdrOptions, &QToolButton::clicked, this, [this] { chooseTerminations(); });
+  auto tdrOptions = new QToolButton; tdrOptions->setObjectName("tdrOptionButton"); tdrOptions->setText("⚙"); tdrOptions->setToolTip("TDR options: reference impedance, terminations and reflection coefficient"); connect(tdrOptions, &QToolButton::clicked, this, [this] { chooseTerminations(); });
   terminationSummary = new QLabel; terminationSummary->setMaximumWidth(72); tdrReflection = new QCheckBox; tdrReflection->hide();
   tdrRow->addWidget(tdrLimit); tdrRow->addWidget(metricButtons[4]); tdrRow->addWidget(new QLabel("±")); tdrRow->addWidget(tolerance); tdrRow->addWidget(target); tdrRow->addWidget(terminationSummary); tdrRow->addWidget(tdrOptions); controls->addWidget(tdrSegment,2); config->addLayout(controls);
   auto advanced = new QWidget;
@@ -582,7 +582,7 @@ MainWindow::MainWindow() {
   connect(advancedToggle, &QToolButton::toggled, this,
           [this, advanced, advancedToggle, settingsScroll](bool checked) {
     advanced->setVisible(checked);
-    advancedToggle->setText(checked ? "Advanced ▾" : "Advanced ▸");
+    advancedToggle->setText(sparamview::ui_language::textFor(this, checked ? "Advanced ▾" : "Advanced ▸"));
     settingsScroll->setMaximumHeight(checked ? 190 : 74);
     if (checked) {
       settingsAction->setChecked(true);
@@ -639,7 +639,7 @@ MainWindow::MainWindow() {
   readout->setWordWrap(true);
   pv->addWidget(readout);
   plot->cursorChanged = [readout](const QString &text) {
-    readout->setText(text.isEmpty() ? "Wheel: X zoom · Ctrl+wheel: Y zoom · Drag: pan · Shift+drag: box zoom" : text);
+    readout->setText(text.isEmpty() ? sparamview::ui_language::textFor(readout, "Wheel: X zoom · Ctrl+wheel: Y zoom · Drag: pan · Shift+drag: box zoom") : text);
   };
   connect(areaZoom, &QToolButton::toggled, plot, &PlotWidget::setBoxZoom);
   tabs->addTab(plotPage, "Plot");
@@ -715,12 +715,12 @@ MainWindow::MainWindow() {
   cancelButton->hide();
   statusBar()->addPermanentWidget(progress);
   statusBar()->addPermanentWidget(cancelButton);
-  statusBar()->showMessage("Ready · Local processing · Source read-only");
+  sparamview::ui_language::status(statusBar(),"Ready · Local processing · Source read-only");
   connect(cancelButton, &QPushButton::clicked, this, [this] {
     if (control)
       control->cancelled = true;
     cancelButton->setEnabled(false);
-    statusBar()->showMessage("Cancelling...");
+    sparamview::ui_language::status(statusBar(),"Cancelling...");
   });
   connect(revisionBox, &QComboBox::currentIndexChanged, this, [this] {
     updateActiveTouchstoneTitle();
@@ -788,7 +788,7 @@ MainWindow::MainWindow() {
     connect(w, &QDoubleSpinBox::valueChanged, this, [this] {
       markDirty();
       if (!results.empty() && !restoringProject)
-        notice->setText("Settings changed. Run analysis to apply them. Export uses the last completed analysis settings.");
+        sparamview::ui_language::message(notice,"Settings changed. Run analysis to apply them. Export uses the last completed analysis settings.");
     });
   for (auto *box : body->findChildren<QCheckBox *>())
     connect(box,&QCheckBox::toggled,this,[this]{markDirty();});
@@ -800,6 +800,64 @@ MainWindow::MainWindow() {
   restoreWorkspaceLayout();
   updateActiveTouchstoneTitle();
   refreshAnalysisContext();
+  // Install the header buttons before capturing fixed English UI strings.
+  // Startup and test callers can still call the idempotent helper.
+  installHeaderProjectButtons();
+  using namespace sparamview::ui_language;
+  Bindings languageBindings;
+  bindMainFixedWidgets(languageBindings, body);
+  bindUiText(languageBindings, cancelButton, cancelButton->text(),
+       [](QPushButton *w, const QString &s) { w->setText(s); });
+  // These combos use indices, not translated text, as their model keys.
+  for (auto *box : {markerBox, performanceBox, metricView, rankBox})
+    bindCombo(languageBindings, box);
+  bindUiText(languageBindings, metricView, metricView->toolTip(),
+       [](QComboBox *w, const QString &s) { w->setToolTip(s); });
+  bindUiText(languageBindings, tdrView, tdrView->toolTip(),
+       [](QComboBox *w, const QString &s) { w->setToolTip(s); });
+  const QStringList originalTabs = {"Plot", "Compare Revisions"};
+  QStringList originalHeaders;
+  for (int i = 0; i < table->columnCount(); ++i)
+    originalHeaders << table->horizontalHeaderItem(i)->text();
+  languageBindings.push_back([this, advancedToggle, readout, originalTabs, originalHeaders](Language value) {
+    const QSignalBlocker blockTable(table);
+    quickButton->setText(menuText(QStringLiteral("QUICK ANALYSIS"), value));
+    for (int i = 0; i < originalTabs.size(); ++i)
+      tabs->setTabText(i, menuText(originalTabs[i], value));
+    for (int i = 0; i < originalHeaders.size(); ++i)
+      table->horizontalHeaderItem(i)->setText(menuText(originalHeaders[i], value));
+    advancedToggle->setText(menuText(advancedToggle->isChecked() ? "Advanced ▾" : "Advanced ▸", value));
+    directionButton->setText(menuText(QStringList{"Near → Far", "Far → Near", "Both"}[directionMode], value));
+    directionButton->setToolTip(menuText("Direction: Near → Far → Far → Near → Both", value));
+    const QString hint = "Wheel: X zoom · Ctrl+wheel: Y zoom · Drag: pan · Shift+drag: box zoom";
+    for (auto previous : {Language::English, Language::Korean, Language::Japanese})
+      if (readout->text() == menuText(hint, previous)) {
+        readout->setText(menuText(hint, value));
+        break;
+      }
+  });
+  message(notice,notice->text());
+  message(summary,summary->text());
+  message(selectionInfo,selectionInfo->text());
+  languageBindings.push_back([this,tdrOptions](Language value){
+    tdrOptions->setText(menuText("Option",value));
+    tdrOptions->setToolTip(menuText("TDR options: reference impedance, terminations and reflection coefficient",value));
+    terminationSummary->setToolTip(menuText("Apply the termination at the opposite end of the selected channel. All other physical ports are matched to their source reference impedances.",value));
+    refreshMessage(notice,value);
+    refreshMessage(summary,value);
+    refreshMessage(selectionInfo,value);
+    refreshCompareLanguage(compareTable,value);
+    refreshTdrViewLanguage(tdrView,value);
+    { const QSignalBlocker blockGroup(groupBox),blockAggressor(aggressorBox);
+      if(groupBox->count()) groupBox->setItemText(0,menuText("All groups",value));
+      if(aggressorBox->count()) aggressorBox->setItemText(0,menuText("AUTO (same group)",value)); }
+    plot->snapshot.displayLanguage=code(value);
+    plot->invalidateGraph();
+    plot->update();
+    refreshStatus(statusBar(),value);
+    analysisWindows->refreshLanguage(code(value));
+  });
+  installMenu(*this, std::move(languageBindings));
 }
 void MainWindow::markDirty() {
   if(!restoringProject && !revisions.empty()) dirty=true;

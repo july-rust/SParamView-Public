@@ -1,4 +1,7 @@
 #include "app.hpp"
+#include "../src/ui_language.hpp"
+#include <QTextLayout>
+#include <QGlyphRun>
 #include <iostream>
 void applyCompactAnalysisSettings(MainWindow &window);
 static void check(bool ok, const char *message) { if (!ok) throw si::Error(message); }
@@ -617,12 +620,56 @@ struct WorkspaceProbe {
    stage("012_49 second revision analysis");
    exercise(1);
    check(values(w)==legacy,"Revision analysis altered legacy result set");
+   // Existing immutable results and canonical CSV must survive language switches.
+   const QString parityPrefix=QDir(fixture.path()).filePath("rev1-");
+   const auto ildBefore=read(parityPrefix+"ild.csv"),icnBefore=read(parityPrefix+"icn.csv"),eyeBefore=read(parityPrefix+"eye.csv");
+   const auto statusBefore=eye->status();
+   const auto contextBefore=manager.context().generation;
+   for(const auto *lang:{"ko","ja","en"}) {
+     auto *action=w.findChild<QAction *>(QString("uiLanguage_")+lang);
+     check(action!=nullptr,"Missing parity language action");
+     action->trigger();
+     const auto language=sparamview::ui_language::fromCode(QString::fromLatin1(lang));
+     const auto *eyeStatus=eye->findChild<QLabel *>("analysisStatus");
+     check(eyeStatus && eyeStatus->text().contains(sparamview::ui_language::menuText("Simulated only — Not measured, no BER or PHY compliance; ",language)),"Eye simulation disclaimer not localized");
+     check(profile->currentText()==sparamview::ui_language::menuText("Custom (user-qualified)",language),"Eye profile presentation not localized");
+     check(values(w)==legacy && eye->status()==statusBefore && manager.context().generation==contextBefore &&
+           manager.scheduler().inFlight()==0,"Language switch changed computed result/context");
+     check(ild->saveIldCsv(parityPrefix+"ild.csv") && icn->saveIcnCsv(parityPrefix+"icn.csv") &&
+           eye->saveEyeCsv(parityPrefix+"eye.csv"),"Localized CSV export failed");
+     check(read(parityPrefix+"ild.csv")==ildBefore && read(parityPrefix+"icn.csv")==icnBefore &&
+           read(parityPrefix+"eye.csv")==eyeBefore,"Language switch changed canonical CSV bytes");
+     int featureIndex=0;
+     for(auto *window:{ild,icn,eye}) {
+       window->resize(984,688);
+       QApplication::processEvents();
+       check(window->width()<=984 && window->height()<=688,"Localized analysis window exceeds 1024x768 work area");
+       for(const auto *name:{"analysisRun","analysisCancel","analysisCsv","analysisPng"}) {
+         auto *button=window->findChild<QPushButton *>(name);
+         check(button && button->isVisible() && window->rect().contains(QRect(button->mapTo(window,QPoint(0,0)),button->size())),
+               "Localized analysis action clipped");
+       }
+       for(const auto *name:{window==eye?"eyeSettingsScroll":"analysisSettingsScroll","analysisPlotScroll"}) {
+         auto *scroll=window->findChild<QScrollArea *>(name);
+         check(scroll && scroll->isVisible() && scroll->viewport()->width()>0 && scroll->viewport()->height()>0,
+               "Localized analysis scroll viewport inaccessible");
+       }
+       const auto png=QDir(out).filePath(QString("language_%1_%2.png").arg(QString::fromLatin1(lang)).arg(featureIndex++));
+       check(window->grab().save(png),"Localized screen evidence save failed");
+     }
+   }
    // A bad output target must fail without modifying the workspace or source.
    check(!ild->saveIldCsv(fixture.path()) && values(w)==legacy,
          "Export failure damaged main analysis");
    const auto saved=QDir(fixture.path()).filePath("roundtrip.siproject");
+   w.groupBox->setCurrentIndex(0);w.aggressorBox->setCurrentIndex(0);
+   w.findChild<QAction *>("uiLanguage_ko")->trigger();
    w.projectPath=saved;w.saveProject();
    check(QFileInfo(saved).isFile() && !w.dirty,"Integrated project save failed");
+   const auto savedUi=QJsonDocument::fromJson(read(saved)).object()["ui"].toObject();
+   check(savedUi["group"].toString()=="All groups" && savedUi["aggressor"].toString()=="AUTO (same group)",
+         "Localized project persisted translated sentinel");
+   w.findChild<QAction *>("uiLanguage_en")->trigger();
    // Hold a real verified source snapshot inside the same scheduler used by
    // Eye. This lifetime probe is separate from the actual Eye runs above.
    // A bounded release guard prevents hangs even if an assertion throws.
@@ -686,6 +733,107 @@ struct WorkspaceProbe {
    check(QFileInfo(saved).isFile(),"Workspace lifecycle removed saved project");
    {auto p=sparamview::preferences::store();p.remove("workspace/v1/lastDirectory");p.sync();}
    stage("012_49 integrated application workflow passed");
+ }
+ static void languageMenuQualification() {
+  using namespace sparamview::preferences;
+  {auto p=store();p.remove("ui/v1/language");p.sync();}
+  auto verify=[](MainWindow &w, const QString &file, const QString &selected) {
+   auto *menu=w.findChild<QMenu *>("uiLanguageMenu");
+   check(menu && menu->title()=="Language","Language menu must remain English");
+   const QStringList labels={"English","Korean","Japanese"};
+   check(menu->actions().size()==3,"Language action count");
+   int checked=0;
+   for(int i=0;i<3;++i) {
+    auto *a=menu->actions()[i];
+    check(a->text()==labels[i],"Language action must remain English");
+    if(a->isChecked()) {++checked;check(a->text()==selected,"Wrong language selected");}
+   }
+   check(checked==1,"Language choice must be exclusive");
+   check(w.menuBar()->actions().front()->text()==file,"File menu localization");
+  };
+  {
+   MainWindow w;
+   verify(w,"File","English");
+   auto *ko=w.findChild<QAction *>("uiLanguage_ko");
+   auto *ja=w.findChild<QAction *>("uiLanguage_ja");
+   auto *en=w.findChild<QAction *>("uiLanguage_en");
+   check(ko && ja && en,"Missing stable language action");
+   const auto before=QLocale().name();
+   const double limit=w.limitValues[0]->value();
+   auto *newAction=w.findChild<QAction *>("newWorkspaceAction");
+   check(newAction!=nullptr,"Missing New action");
+   const auto shortcut=newAction->shortcut();
+   const int marker=w.markerBox->currentIndex(), performance=w.performanceBox->currentIndex();
+   using si::gui::Feature;
+   auto *ild=w.analysisWindows->openWindow(Feature::Ild);
+   auto *icn=w.analysisWindows->openWindow(Feature::Icn);
+   auto *eye=w.analysisWindows->openWindow(Feature::Eye);
+   check(ild && icn && eye,"Analysis windows missing");
+   const auto generation=w.analysisWindows->context().generation;
+   auto *direction=eye->findChild<QComboBox *>("analysisDirection");
+   auto *manual=eye->findChild<QPushButton *>("analysisRun");
+   check(direction && manual,"Eye language controls missing");
+   direction->setCurrentIndex(1);
+   const auto originalStatus=eye->status();
+   auto fixedLabels=[&](const QString &source,const QString &victim,const QString &cancel,const QString &csv,const QString &settings){
+     for(auto *window:{ild,icn,eye}) {
+       bool sourceFound=false,victimFound=false;
+       for(auto *label:window->findChildren<QLabel *>()) {
+         sourceFound|=label->text()==source;
+         victimFound|=label->text()==victim;
+       }
+       check(sourceFound && victimFound,"Localized form label binding failed");
+       check(window->findChild<QPushButton *>("analysisCancel")->text()==cancel &&
+             window->findChild<QPushButton *>("analysisCsv")->text()==csv &&
+             window->findChild<QToolButton *>("analysisSettingsToggle")->text()==settings,
+             "Localized fixed button binding failed");
+     }
+   };
+   auto glyphs=[&]{
+     check(!qApp->property("sparamview.japaneseFontFamily").toString().isEmpty(),"Bundled Japanese font not loaded");
+     QTextLayout layout(QString::fromUtf8("日本語 ソース 設定 カタカナ ひらがな"),eye->font());
+     layout.beginLayout();auto line=layout.createLine();line.setLineWidth(10000);layout.endLayout();
+     int count=0;
+     for(const auto &run:layout.glyphRuns())for(auto index:run.glyphIndexes()){
+       check(index!=0,"Japanese glyph fallback produced missing glyph");++count;
+     }
+     check(count>0,"Japanese glyph layout was empty");
+   };
+   glyphs();
+   for(int i=0;i<100;++i) {
+    ko->trigger();verify(w,QString::fromUtf8("파일"),"Korean");
+    check(newAction->text()==QString::fromUtf8("새로 만들기"),"Korean New action");
+    check(w.tabs->tabText(0)==QString::fromUtf8("그래프"),"Korean plot tab");
+    check(w.quickButton->text()==QString::fromUtf8("빠른 분석"),"Korean quick analysis button");
+    check(manual->text()==QString::fromUtf8("수동 실행"),"Korean open Eye Run Manual");
+    check(direction->itemText(1)==QString::fromUtf8("역방향"),"Korean open Eye direction");
+    fixedLabels(QString::fromUtf8("원본 / 리비전"),QString::fromUtf8("피간섭 채널"),QString::fromUtf8("취소"),QString::fromUtf8("CSV 내보내기"),QString::fromUtf8("설정"));
+    check(QCoreApplication::translate("QPlatformTheme","Cancel")==QString::fromUtf8("취소"),"Korean framework dialog translation");
+    ja->trigger();verify(w,QString::fromUtf8("ファイル"),"Japanese");
+    check(newAction->text()==QString::fromUtf8("新規作成"),"Japanese New action");
+    check(w.tabs->tabText(0)==QString::fromUtf8("グラフ"),"Japanese plot tab");
+    check(w.quickButton->text()==QString::fromUtf8("クイック解析"),"Japanese quick analysis button");
+    check(manual->text()==QString::fromUtf8("手動実行"),"Japanese open Eye Run Manual");
+    check(direction->itemText(1)==QString::fromUtf8("逆方向"),"Japanese open Eye direction");
+    fixedLabels(QString::fromUtf8("ソース / リビジョン"),QString::fromUtf8("ビクティムチャネル"),QString::fromUtf8("キャンセル"),QString::fromUtf8("CSVエクスポート"),QString::fromUtf8("設定"));
+    check(QCoreApplication::translate("QPlatformTheme","Cancel")==QString::fromUtf8("キャンセル"),"Japanese framework dialog translation");
+    en->trigger();verify(w,"File","English");
+    check(newAction->text()=="New","English New action");
+    fixedLabels("Source / Revision","Victim Channel","Cancel","Export CSV","Settings");
+    check(QCoreApplication::translate("QPlatformTheme","Cancel")=="Cancel","English framework dialog translation");
+    check(manual->text()=="Run Manual" && direction->currentIndex()==1 && eye->status()==originalStatus && w.analysisWindows->context().generation==generation,"Language changed analysis state");
+   }
+   check(QLocale().name()==before && w.limitValues[0]->value()==limit &&
+         newAction->shortcut()==shortcut && !w.dirty &&
+         w.markerBox->currentIndex()==marker && w.performanceBox->currentIndex()==performance,
+         "Menu language mutated application state");
+   ja->trigger();
+   ild->close();icn->close();eye->close();QApplication::processEvents();
+  }
+  {MainWindow w;verify(w,QString::fromUtf8("ファイル"),"Japanese");}
+  {auto p=store();p.setValue("ui/v1/language","unsupported");p.sync();}
+  {MainWindow w;verify(w,"File","English");}
+  {auto p=store();p.remove("ui/v1/language");p.sync();}
  }
  static void preferencesQualification(const QString &out) {
   using namespace sparamview::preferences;
@@ -774,6 +922,7 @@ int main(int argc,char**argv){
 #endif
  try{
   QSize size(argc>3?QString::fromLocal8Bit(argv[3]).toInt():1440,argc>4?QString::fromLocal8Bit(argv[4]).toInt():980);
+  WorkspaceProbe::languageMenuQualification();
   WorkspaceProbe::preferencesQualification(out);
   WorkspaceProbe::fileWorkflowQualification(QString::fromLocal8Bit(argv[1]),out);
   WorkspaceProbe::integratedAnalysisQualification(out);
