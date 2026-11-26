@@ -57,8 +57,13 @@ inline void remember(Language value) {
   if (prefs.status() != QSettings::NoError)
     qWarning() << "SParamView: cannot persist UI language";
 }
-// Initial catalog: main menu and its explicit action icon labels/tooltips.
-// Untranslated strings are not evidence of full application localization.
+// Presentation-only source catalog. English keys are immutable lookup identities.
+// Korean and Japanese translations must preserve placeholders, technical meaning,
+// and intentional newlines. Serialized data, filenames, channel identifiers,
+// and stable diagnostic codes are outside this presentation mapping.
+// See tests/check_localization_catalog.py for the explicit-literal guard.
+// This data table is intentionally centralized to make completeness and duplicate
+// checks deterministic; its line count reflects translations rather than logic.
 struct CatalogEntry { const char *en; const char *ko; const char *ja; };
 inline const auto &catalogEntries() {
   static constexpr CatalogEntry entries[] = {
@@ -880,6 +885,7 @@ inline const auto &catalogEntries() {
     {"Nonfinite eye height", "유한하지 않은 아이 높이", "有限でないアイ高さ"},
     {"Eye result exceeds finite mV range", "아이 결과가 유한 mV 범위를 초과합니다.", "アイ結果が有限mV範囲を超えています。"},
     {"Deterministic periodic NRZ modeled waveform, not a measured eye, BER or PHY compliance", "결정론적 주기 NRZ 모델 파형이며 실측 아이, BER 또는 PHY 적합성 검증이 아닙니다.", "決定論的周期NRZモデル波形であり、実測アイ、BERまたはPHY適合性試験ではありません。"},
+    {"Original", "원본 DC 사용", "元のDCを使用"},
     {"ORIGINAL DC", "원본 DC", "元のDC"},
     {"CORRECTED DC", "보정 DC", "補正DC"},
     {"Band-limited isolated step residual did not establish grid agreement", "대역 제한 독립 계단 응답 잔차로 격자 일치를 확립하지 못했습니다.", "帯域制限独立ステップ応答残差でグリッド一致を確立できませんでした。"},
