@@ -1000,6 +1000,7 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
       aggressor_->addItem(QStringLiteral("Select aggressor..."));
       aggressor_->addItems(selected.channels);
     }
+    victim_->setToolTip(victim_->currentText());
     populateIcnAggressors();
     invalidateRequest();
   });
@@ -1150,6 +1151,8 @@ void AnalysisWindow::setContext(const AnalysisContext &context) {
     aggressor_->addItem(QStringLiteral("Select aggressor..."));
     aggressor_->addItems(item.channels);
   } else source_->setCurrentIndex(-1);
+  source_->setToolTip(source_->currentText());
+  victim_->setToolTip(victim_->currentText());
   populateIcnAggressors();
   setStatus(hadWork || hadResult ? si::channel::Status::Stale
            : si::channel::Status::NotEvaluated,
