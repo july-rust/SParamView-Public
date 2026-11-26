@@ -942,6 +942,8 @@ inline const auto &catalogEntries() {
     {"Preview Kaiser beta=%1; reference-tool release validation pending.", "미리보기 Kaiser beta=%1; 기준 도구를 통한 릴리즈 검증 대기 중.", "プレビュー Kaiser beta=%1; 基準ツールによるリリース検証待ち。"},
     {" Impedance display singular/out of range; rho retained; invalid ohm samples omitted.", " 임피던스 표시가 특이점 또는 범위 초과 상태입니다. 반사계수 rho는 유지하고 유효하지 않은 임피던스 샘플은 제외했습니다.", " インピーダンス表示が特異点または範囲外です。反射係数rhoを保持し、無効なインピーダンスサンプルを除外しました。"},
     {" No finite impedance samples.", " 유한 임피던스 샘플 없음.", " 有限インピーダンスサンプルがありません。"},
+    {"%1 GHz | IL %2 dB | fit %3 dB | ILD %4 dB", "%1 GHz | IL %2 dB | 피팅 %3 dB | ILD %4 dB", "%1 GHz | IL %2 dB | フィット %3 dB | ILD %4 dB"},
+    {"Previous cache could not be removed; cleanup will be retried on exit.", "이전 캐시를 제거하지 못했습니다. 종료할 때 정리를 다시 시도합니다.", "以前のキャッシュを削除できませんでした。終了時にクリーンアップを再試行します。"},
     {"Saved mapping invalidated: source changed or stored ports are no longer valid. ", "저장된 매핑이 무효화되었습니다: 원본이 변경되었거나 저장된 포트가 더 이상 유효하지 않습니다. ", "保存済みマッピングは無効になりました: ソースが変更されたか、保存されたポートが無効です。 "},
     {"Current source re-evaluated; previous mapping was discarded. ", "현재 원본을 재평가했으며 이전 매핑은 폐기되었습니다. ", "現在のソースを再評価し、以前のマッピングを破棄しました。 "},
     {" User confirmed the signal type before Channel Mapping.", " 사용자가 채널 매핑 전에 신호 유형을 확인했습니다.", " ユーザーはチャネルマッピングの前に信号タイプを確認しました。"},
