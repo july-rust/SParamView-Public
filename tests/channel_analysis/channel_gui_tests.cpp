@@ -152,6 +152,10 @@ int main(int argc, char **argv) {
     auto longContext=context();
     longContext.sources[0].revision=QString(180,QLatin1Char('X'));
     longContext.sources[0].channels[0]=QString(120,QLatin1Char('V'));
+    auto alternate=longContext.sources[0];
+    alternate.revision=QString(180,QLatin1Char('Y'));
+    alternate.channels[0]=QString(120,QLatin1Char('W'));
+    longContext.sources.append(alternate);
     manager.setContext(longContext);
     AnalysisWindow *windows[featureCount]{};
     for (int i = 0; i < releaseFeatureCount; ++i) {
@@ -163,6 +167,26 @@ int main(int argc, char **argv) {
             "An unfinished numerical engine must not run");
       check(manager.openWindow(feature) == windows[i], "Duplicate analysis window created");
       checkCompactLayout(windows[i]);
+      auto *sourceCombo=windows[i]->findChild<QComboBox *>(QStringLiteral("analysisSource"));
+      auto *victimCombo=windows[i]->findChild<QComboBox *>(QStringLiteral("analysisVictim"));
+      check(sourceCombo && victimCombo,"Source/victim selector missing");
+      check(sourceCombo->toolTip()==longContext.sources[0].revision &&
+            victimCombo->toolTip()==longContext.sources[0].channels[0],
+            "Initial full-name tooltip missing");
+      sourceCombo->setCurrentIndex(1);
+      check(sourceCombo->toolTip()==alternate.revision &&
+            victimCombo->toolTip()==alternate.channels[0],
+            "Source change did not refresh full-name tooltip");
+      victimCombo->setCurrentIndex(1);
+      check(victimCombo->toolTip()==alternate.channels[1],
+            "Victim change did not refresh full-name tooltip");
+      windows[i]->setContext(AnalysisContext{});
+      check(sourceCombo->toolTip().isEmpty() && victimCombo->toolTip().isEmpty(),
+            "Cleared context retained stale tooltip");
+      windows[i]->setContext(longContext);
+      check(sourceCombo->toolTip()==longContext.sources[0].revision &&
+            victimCombo->toolTip()==longContext.sources[0].channels[0],
+            "Restored context did not refresh full-name tooltip");
       for (int j = 0; j < i; ++j)
         check(windows[i] != windows[j], "Distinct analysis features share a window");
     }
