@@ -157,10 +157,10 @@ int main() {
     close(autoResult.value->totalRmsV,manualResult.value->totalRmsV,1e-12,"auto/manual ICN RMS");
     double autoPower=0,previousPsd=0;
     for(size_t i=0;i<autoTrace.frequencyHz.size();++i) {
-      const double f=autoTrace.frequencyHz[i];
-      const double edge=2*std::acos(-1.)*f*30e-12/2.5631031310892007;
-      const double p=0.05*independentPsd(f,explicitSettings)*std::exp(-edge*edge);
-      if(i) autoPower+=0.5*(p+previousPsd)*(f-autoTrace.frequencyHz[i-1]);
+      const double autoFrequency=autoTrace.frequencyHz[i];
+      const double edge=2*std::acos(-1.)*autoFrequency*30e-12/2.5631031310892007;
+      const double p=0.05*independentPsd(autoFrequency,explicitSettings)*std::exp(-edge*edge);
+      if(i) autoPower+=0.5*(p+previousPsd)*(autoFrequency-autoTrace.frequencyHz[i-1]);
       previousPsd=p;
     }
     close(autoResult.value->totalRmsV,std::sqrt(autoPower),1e-12,"auto independent PSD integral");

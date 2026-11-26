@@ -472,10 +472,10 @@ int main() {
       // the wrap boundary; compare a time-domain state recurrence to exp().
       size_t longest=0, same=0;
       const size_t samples=eye.settings.samplesPerUI;
-      const size_t count=eye.transmittedV.size()/samples;
-      double previous=eye.transmittedV[(count-1)*samples];
-      for(size_t i=0;i<2*count;++i) {
-        const double now=eye.transmittedV[(i%count)*samples];
+      const size_t frameSymbols=eye.transmittedV.size()/samples;
+      double previous=eye.transmittedV[(frameSymbols-1)*samples];
+      for(size_t i=0;i<2*frameSymbols;++i) {
+        const double now=eye.transmittedV[(i%frameSymbols)*samples];
         same=std::abs(now-previous)<1e-12?same+1:1;
         longest=std::max(longest,same); previous=now;
       }
