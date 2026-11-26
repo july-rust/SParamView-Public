@@ -847,6 +847,7 @@ MainWindow::MainWindow() {
     refreshMessage(summary,value);
     refreshMessage(selectionInfo,value);
     refreshCompareLanguage(compareTable,value);
+    refreshResultLanguage();
     refreshTdrViewLanguage(tdrView,value);
     { const QSignalBlocker blockGroup(groupBox),blockAggressor(aggressorBox);
       if(groupBox->count()) groupBox->setItemText(0,menuText("All groups",value));
