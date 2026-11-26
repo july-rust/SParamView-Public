@@ -57,6 +57,10 @@ struct EyeDcInfo {
   double value = 0, modelSpread = 0;
   std::string status = "ORIGINAL DC", method = "Original";
   bool requiresConfirmation = false, limited = false, modelSpreadAvailable = false;
+  // Observed one-pole AC-like transfer, not proof of physical capacitor topology.
+  bool acModel = false;
+  double acPoleHz = 0, acGain = 0, acFitMaxResidual = 0;
+  // Analytic one-pole droop is not full measured-channel long-pattern qualification.
 };
 // Throws on unsupported/invalid data; a sparse original real DC may be retained
 // as unqualified, never advertised as verified physical DC.
@@ -70,6 +74,7 @@ struct EyeData {
   std::vector<double> overlayPhaseUI;
   double bitRateHz = 0, referenceFrequencyHz = 0, analysisStopHz = 0;
   double unitIntervalSeconds = 0, timeStepSeconds = 0;
+  double acTimeConstantSeconds = 0, acFrameDroopFraction = 0;
   double samplingPhaseUI = 0, estimatedDelaySeconds = 0;
   double eyeHeightV = 0, eyeWidthSeconds = 0, eyeWidthUI = 0;
   double minimumHighV = 0, maximumLowV = 0;

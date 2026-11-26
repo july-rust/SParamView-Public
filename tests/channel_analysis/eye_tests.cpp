@@ -436,6 +436,47 @@ int main() {
     check(inspectEyeDc(sparse).limited,"sparse low-band reconstruction must disclose limitation");
     auto ambiguous=sparse;ambiguous.transfer[0]={0.5,0.4};
     reject([&]{(void)calculateEye(ambiguous,s);},"sparse ambiguous AC pole must not be invented");
+    // 012_54: observed 15.863 kHz pole with low-band points on both sides.
+    // Independent analytic circuit formula uses separate real/imag components.
+    {
+      constexpr double fc=15863., gain=0.93;
+      auto measured=lowTrace(1000);
+      measured.frequencyHz.clear(); measured.transfer.clear();
+      for(double f:{1000.,2000.,4000.,8000.,10000.,12000.,16000.,20000.,24000.,32000.,48000.,60000.,80000.}) {
+        measured.frequencyHz.push_back(f);
+        const double x=f/fc;
+        measured.transfer.emplace_back(gain*x*x/(1+x*x),gain*x/(1+x*x));
+      }
+      for(size_t k=1;k<=512;++k) {
+        const double f=16e9*double(k)/512.;
+        const double x=f/fc;
+        measured.frequencyHz.push_back(f);
+        measured.transfer.emplace_back(gain*x*x/(1+x*x),gain*x/(1+x*x));
+      }
+      const auto estimate=inspectEyeDc(measured);
+      check(estimate.acModel && estimate.limited && !estimate.requiresConfirmation,
+            "observed AC pole must be accepted with limited provenance");
+      close(estimate.value,0,1e-12,"AC zero DC");
+      close(estimate.acPoleHz,fc,1e-6,"analytic pole");
+      close(estimate.acGain,gain,1e-12,"analytic gain");
+      close(estimate.acFitMaxResidual,0,1e-12,"held-out complex response");
+      auto result=calculateEye(measured,acSettings);
+      const auto &eye=*result.value;
+      const double tau=1./(2*pi*fc);
+      close(eye.acTimeConstantSeconds,tau,1e-15,"analytic RC time constant");
+      close(eye.acFrameDroopFraction,1.-std::exp(-eye.timeSeconds.size()*eye.timeStepSeconds/tau),
+            1e-12,"analytic RC droop, not full channel step");
+      check(std::any_of(result.diagnostics.begin(),result.diagnostics.end(),
+        [](const auto &d){return d.code=="BASELINE_WANDER_NOT_QUALIFIED";}),
+        "periodic preview must not qualify long response");
+      auto bad=measured; bad.transfer[5]+=Complex{0.01,0.01};
+      reject([&]{(void)inspectEyeDc(bad);},"held-out AC fit mismatch rejected");
+      auto contradictory=measured;
+      contradictory.frequencyHz.insert(contradictory.frequencyHz.begin(),0.);
+      contradictory.transfer.insert(contradictory.transfer.begin(),Complex{0.5,0});
+      reject([&]{(void)inspectEyeDc(contradictory);},"observed conflicting real DC rejected");
+    }
+    std::cout<<"012_54 observed AC pole and analytical droop candidate PASS\n";
     std::cout<<"012_52 DC policy, gain oracle, AC coupling and damaged DC PASS\n";
     std::cout<<"012_46 Eye independent DFT, convolution, metrics, PRBS and resource PASS\n";
     std::cout<<"012_07 Eye deterministic golden, phase and fail-closed PASS\n";

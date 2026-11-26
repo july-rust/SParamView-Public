@@ -23,6 +23,83 @@ bool finite(Complex x) {
 bool closeReal(Complex x) {
   return std::abs(x.imag()) <= 1e-9 * std::max(1., std::abs(x.real()));
 }
+// H(f)=G*j*f/(fc+j*f). A real signed gain is appropriate only over a
+// sufficiently observed low-frequency band. Use independent alternating
+// samples for fit/validation. Fail closed for unobserved poles, phase delay,
+// non-one-pole behavior, noisy ratios or incompatible real measured DC.
+bool observedHighPass(const ComplexTrace &trace, size_t first, EyeDcInfo &dc) {
+  const double f0=trace.frequencyHz[first];
+  const auto z0=trace.transfer[first];
+  if(std::abs(z0.real())<1e-12) return false;
+  const double seed=f0*z0.imag()/z0.real();
+  if(!positive(seed) || seed<2*f0 || seed>trace.frequencyHz.back()/2)
+    return false;
+  std::vector<double> poles;
+  size_t end=first, below=0, above=0, central=0;
+  while(end<trace.transfer.size() && trace.frequencyHz[end]/seed<=4.) {
+    const double f=trace.frequencyHz[end];
+    const auto z=trace.transfer[end];
+    if(f<seed*0.75) ++below;
+    if(f>seed*1.25) ++above;
+    if(f/seed>=0.5 && f/seed<=2.) {
+      ++central;
+      if((end-first)%2==0 && std::abs(z.real())>1e-12) {
+        const double p=f*z.imag()/z.real();
+        if(!positive(p)) return false;
+        poles.push_back(p);
+      }
+    }
+    ++end;
+  }
+  if(end-first<8 || below<2 || above<2 || central<4 || poles.size()<2)
+    return false;
+  std::sort(poles.begin(),poles.end());
+  const double pole=poles[poles.size()/2];
+  if(std::abs(seed/pole-1.)>0.05 || pole<2*f0) return false;
+  for(double p:poles) if(std::abs(p/pole-1.)>0.05) return false;
+  double dot=0, norm=0;
+  for(size_t i=first;i<end;i+=2) {
+    const Complex x{0,trace.frequencyHz[i]/pole};
+    const Complex b=x/(Complex{1,0}+x);
+    dot+=std::real(std::conj(b)*trace.transfer[i]);
+    norm+=std::norm(b);
+  }
+  if(!positive(norm)) return false;
+  const double gain=dot/norm;
+  if(!std::isfinite(gain) || std::abs(gain)<0.01 || std::abs(gain)>1.0001)
+    return false;
+  double maxResidual=0;
+  for(size_t i=first;i<end;++i) {
+    const Complex x{0,trace.frequencyHz[i]/pole};
+    const Complex expected=gain*x/(Complex{1,0}+x);
+    const double err=std::abs(expected-trace.transfer[i]);
+    // Provisional engineering gates, not a standard or measurement uncertainty.
+    // Absolute 0.001 ceiling retained; relative gate protects the low-band fit.
+    if(!std::isfinite(err) || err>0.001 || err>0.02*std::abs(expected))
+      return false;
+    maxResidual=std::max(maxResidual,err);
+  }
+  // A nonzero real observed DC may be genuine. Do not overwrite it.
+  const bool original=first!=0;
+  if(original && closeReal(trace.transfer.front()) &&
+     std::abs(trace.transfer.front().real())>1e-9) return false;
+  dc.acModel=true;
+  dc.acPoleHz=pole;
+  dc.acGain=gain;
+  dc.acFitMaxResidual=maxResidual;
+  dc.modelSpreadAvailable=false; // residual is distinct from legacy model spread
+  dc.value=original && closeReal(trace.transfer.front()) ?
+    trace.transfer.front().real():0.;
+  dc.status=original?(closeReal(trace.transfer.front())?"ORIGINAL DC":"CORRECTED DC"):
+    "EXTRAPOLATED DC";
+  dc.method="Observed one-pole RC high-pass (AC-like); alternating-sample fit and holdout";
+  if(!original || !closeReal(trace.transfer.front())) {
+    dc.effectiveStartHz=f0;
+    dc.requiresConfirmation=f0>10000.;
+  }
+  dc.limited=true; // finite observed band and unqualified long-time channel response
+  return true;
+}
 std::vector<uint8_t> sequence(const EyeSettings &s, size_t bits) {
   std::vector<uint8_t> out(bits);
   if (s.pattern == EyePattern::Alternating) {
@@ -64,7 +141,16 @@ std::vector<Complex> spectrum(const ComplexTrace &trace, double cap,
     } else if(f<=dc.firstPositiveHz) {
       const size_t first=trace.frequencyHz.front()==0?1:0;
       const double a=f/dc.firstPositiveHz;
-      h[k]=(1-a)*Complex{dc.value,0}+a*trace.transfer[first];
+      if(dc.acModel) {
+        // Anchor the model to the measured first sample, tapering only the
+        // small residual to zero at DC. No modification to measured samples.
+        const Complex x{0,f/dc.acPoleHz}, x0{0,dc.firstPositiveHz/dc.acPoleHz};
+        const Complex b=dc.acGain*x/(Complex{1,0}+x);
+        const Complex b0=dc.acGain*x0/(Complex{1,0}+x0);
+        h[k]=b+a*(trace.transfer[first]-b0)+(1-a)*Complex{dc.value,0};
+      } else {
+        h[k]=(1-a)*Complex{dc.value,0}+a*trace.transfer[first];
+      }
     } else {
       if(j==0 && trace.frequencyHz.front()==0) j=1;
       while (j+2 < trace.frequencyHz.size() && trace.frequencyHz[j+1] < f) ++j;
@@ -136,6 +222,7 @@ EyeDcInfo inspectEyeDc(const ComplexTrace &trace) {
     return dc;
   }
   require(f<100000., "Eye effective start >=100 kHz; DC extrapolation blocked");
+  if(observedHighPass(trace,first,dc)) return dc;
   // Three positive samples: real part is even for a real impulse response.
   // Compare constant, linear, even-quadratic and alternate-point estimates.
   // These are local engineering checks, NOT a bound on unobserved poles.
@@ -314,6 +401,10 @@ Result<EyeData> calculateEye(const ComplexTrace &trace, const EyeSettings &s,
   EyeData data;
   data.settings=s;
   data.dc=dc;
+  if(dc.acModel) {
+    data.acTimeConstantSeconds=1./(2.*std::numbers::pi*dc.acPoleHz);
+    data.acFrameDroopFraction=-std::expm1(-double(n)*dt/data.acTimeConstantSeconds);
+  }
   data.frameBitCount=bitCount;
   data.reverse=(trace.parameter=="S12" || trace.parameter=="Sdd12");
   data.profileName=eyeProfileName(s.profile);
@@ -414,6 +505,15 @@ Result<EyeData> calculateEye(const ComplexTrace &trace, const EyeSettings &s,
     dc.status=="ORIGINAL DC"?"ORIGINAL_DC":
     dc.status=="CORRECTED DC"?"CORRECTED_DC":"EXTRAPOLATED_DC",
     dc.method});
+  if(dc.acModel) {
+    result.diagnostics.push_back({Severity::Info,"AC_LIKE_MODEL",
+      "Observed low-band one-pole high-pass fit; not proof of capacitor topology"});
+    result.diagnostics.push_back({Severity::Warning,"BASELINE_WANDER_NOT_QUALIFIED",
+      "Analytic single-pole droop only; finite periodic eye does not qualify long-pattern channel response"});
+    if(double(n)*dt < 5.*data.acTimeConstantSeconds)
+      result.diagnostics.push_back({Severity::Warning,"AC_FRAME_SHORT",
+        "FFT frame shorter than five estimated RC time constants; long response not resolved"});
+  }
   if(dc.limited)
     result.diagnostics.push_back({Severity::Warning,"DC_QUALITY_LIMITED",
       "DC continuity, correction or extrapolation is limited by available low-frequency data; unobserved poles cannot be excluded"});

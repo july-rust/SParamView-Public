@@ -1757,7 +1757,7 @@ void AnalysisWindow::launchEye(bool autoPreview, bool acceptLimitedDc) {
     // Retain the actual source identity and the explicit preview/manual input mode.
     const auto &id=snapshot.identity();
     Provenance provenance{id.sha256,id.revision,id.mappingIdentity,
-      "Phase-preserving deterministic NRZ Eye","012_52-v1",
+      "Phase-preserving deterministic NRZ Eye","012_54-ac-candidate",
       settingsIdentity,id.workspaceGeneration,id.mappingGeneration};
     auto result=calculateEye(trace,settings,provenance,&cancel);
     if(cancel.load()) throw si::Cancelled();
@@ -1869,6 +1869,12 @@ bool AnalysisWindow::saveEyeCsv(const QString &name) {
      <<"# dc_real,"<<n(d.dc.value)<<"\n"
      <<"# dc_model_spread,"<<(d.dc.modelSpreadAvailable?n(d.dc.modelSpread):QStringLiteral("NOT_EVALUATED"))<<"\n"
      <<"# dc_quality,"<<(d.dc.limited?"LIMITED":"LOCAL_CHECKS_PASSED")<<"\n"
+     <<"# coupling_model,"<<(d.dc.acModel?"AC_LIKE_ONE_POLE":"UNDETERMINED")<<"\n"
+     <<"# ac_pole_hz,"<<(d.dc.acModel?n(d.dc.acPoleHz):QStringLiteral("NOT_EVALUATED"))<<"\n"
+     <<"# ac_fit_max_residual,"<<(d.dc.acModel?n(d.dc.acFitMaxResidual):QStringLiteral("NOT_EVALUATED"))<<"\n"
+     <<"# ac_time_constant_s,"<<(d.dc.acModel?n(d.acTimeConstantSeconds):QStringLiteral("NOT_EVALUATED"))<<"\n"
+     <<"# ac_analytic_frame_droop_fraction,"<<(d.dc.acModel?n(d.acFrameDroopFraction):QStringLiteral("NOT_EVALUATED"))<<"\n"
+     <<"# baseline_wander_coverage,NOT_QUALIFIED\n"
      <<"# dc_acknowledged,"<<(d.dc.requiresConfirmation && eyeSettings.acceptLimitedDc?"true":"false")<<"\n"
      <<"# transfer_parameter,"<<safe(d.transferParameter)<<"\n"
      <<"# victim_id,"<<safe(d.victimId)<<"\n"
@@ -1996,6 +2002,14 @@ bool AnalysisWindow::saveEyePng(const QString &name) {
   output.setText(QStringLiteral("EffectiveStartHz"),QString::number(eyeResult_->dc.effectiveStartHz,'g',17));
   output.setText(QStringLiteral("DCQuality"),eyeResult_->dc.limited?QStringLiteral("LIMITED"):QStringLiteral("LOCAL_CHECKS_PASSED"));
   output.setText(QStringLiteral("DCReal"),QString::number(eyeResult_->dc.value,'g',17));
+  output.setText(QStringLiteral("CouplingModel"),eyeResult_->dc.acModel?QStringLiteral("AC_LIKE_ONE_POLE"):QStringLiteral("UNDETERMINED"));
+  output.setText(QStringLiteral("BaselineWanderCoverage"),QStringLiteral("NOT_QUALIFIED"));
+  if(eyeResult_->dc.acModel) {
+    output.setText(QStringLiteral("ACPoleHz"),QString::number(eyeResult_->dc.acPoleHz,'g',17));
+    output.setText(QStringLiteral("ACFitMaxResidual"),QString::number(eyeResult_->dc.acFitMaxResidual,'g',17));
+    output.setText(QStringLiteral("ACTimeConstantSeconds"),QString::number(eyeResult_->acTimeConstantSeconds,'g',17));
+    output.setText(QStringLiteral("ACAnalyticFrameDroopFraction"),QString::number(eyeResult_->acFrameDroopFraction,'g',17));
+  }
   output.setText(QStringLiteral("DCModelSpread"),eyeResult_->dc.modelSpreadAvailable?
     QString::number(eyeResult_->dc.modelSpread,'g',17):QStringLiteral("NOT_EVALUATED"));
   output.setText(QStringLiteral("DCAcknowledged"),eyeResult_->dc.requiresConfirmation &&
