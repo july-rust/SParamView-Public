@@ -257,6 +257,7 @@ private:
   void invalidateRevisionResults(const QString &);
   void refreshAnalysisContext();
   void refreshResults();
+  void refreshResultLanguage();
   void showMetric(si::Metric);
   void refreshPlot(bool selectedOnly = false);
   void saveProject(bool as = false);

@@ -196,7 +196,8 @@ void MainWindow::openNextPath(QStringList paths, bool batch) {
       },
       [this, loaded, failure, path, paths, batch] {
         if (!failure->isEmpty()) {
-          error(QFileInfo(path).fileName() + ": " + *failure);
+          QMessageBox::warning(this, "SParamView", QFileInfo(path).fileName() + ": " +
+              sparamview::ui_language::diagnosticText(*failure,sparamview::ui_language::current(this)));
         } else {
           auto &r = *loaded;
           const QString base = r.name;
@@ -212,7 +213,8 @@ void MainWindow::openNextPath(QStringList paths, bool batch) {
               mappingAccepted = confirmMapping(staged);
               if (mappingAccepted || !batch) r = std::move(staged);
             } catch (const std::exception &e) {
-              error(QFileInfo(path).fileName() + ": " + qs(e.what()));
+              QMessageBox::warning(this, "SParamView", QFileInfo(path).fileName() + ": " +
+                  sparamview::ui_language::diagnosticText(qs(e.what()),sparamview::ui_language::current(this)));
             }
           }
           // Preserve the legacy single-file review-later option. A cancelled

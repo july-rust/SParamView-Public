@@ -100,7 +100,7 @@ protected:
       const auto &xs=data_->frequencyHz;
       auto it=std::lower_bound(xs.begin(),xs.end(),frequency);
       const size_t i=it==xs.end()?xs.size()-1:size_t(it-xs.begin());
-      setToolTip(QStringLiteral("%1 GHz | IL %2 dB | fit %3 dB | ILD %4 dB")
+      setToolTip(sparamview::ui_language::textFor(this,"%1 GHz | IL %2 dB | fit %3 dB | ILD %4 dB")
         .arg(xs[i]/1e9,0,'g',8).arg(data_->insertionLossDb[i],0,'g',7)
         .arg(data_->fittedLossDb[i],0,'g',7)
         .arg(data_->deviationDb[i],0,'g',7));
@@ -1145,7 +1145,7 @@ QString AnalysisWindow::resultSummary() const {
         .arg(d.settings.symbolRateHz/1e9,0,'g',7).arg(d.settings.txPeakToPeakV*1000,0,'g',7)
         .arg(d.settings.riseTimeSeconds*1e12,0,'g',7).arg(d.settings.rxBandwidthHz/1e9,0,'g',7);
   }
-  return sparamview::ui_language::textFor(this,statusDetailsSource_);
+  return sparamview::ui_language::diagnosticText(statusDetailsSource_,sparamview::ui_language::current(this));
 }
 void AnalysisWindow::renderResultPresentation() {
   if(summaryStatus_ && (ildResult_ || icnResult_)) {
@@ -2232,7 +2232,7 @@ bool AnalysisWindow::saveEyePng(const QString &name) {
     sparamview::ui_language::textFor(this,QStringLiteral("\nDC: %1 | Original %2 Hz | Effective %3 Hz | %4"))
       .arg(sparamview::ui_language::textFor(this,QString::fromStdString(eyeResult_->dc.status)))
       .arg(eyeResult_->dc.originalStartHz,0,'g',12).arg(eyeResult_->dc.effectiveStartHz,0,'g',12)
-      .arg(eyeResult_->dc.limited?QStringLiteral("LIMITED"):QStringLiteral("LOCAL CHECKS PASSED"));
+      .arg(sparamview::ui_language::textFor(this,eyeResult_->dc.limited?QStringLiteral("LIMITED"):QStringLiteral("LOCAL CHECKS PASSED")));
   p.drawText(QRect(10,graph.height()+4,output.width()-20,footerHeight-8),
              Qt::AlignLeft|Qt::TextWordWrap,labeled);
   p.end();
@@ -2311,7 +2311,7 @@ AnalysisWindowManager::AnalysisWindowManager(QMainWindow *owner)
     for (auto &workspace : retiredWorkspaces_)
       if (workspace && !workspace->remove()) {
         qWarning() << "SParamView: retired analysis workspace cleanup deferred";
-        owner_->statusBar()->showMessage("Previous cache could not be removed; cleanup will be retried on exit.");
+        sparamview::ui_language::status(owner_->statusBar(),"Previous cache could not be removed; cleanup will be retried on exit.");
       }
     retiredWorkspaces_.clear();
   });
@@ -2357,7 +2357,7 @@ void AnalysisWindowManager::retireWorkspace(std::shared_ptr<QTemporaryDir> works
   if (scheduler_.inFlight() == 0) {
     if (!workspace->remove()) {
       qWarning() << "SParamView: retired workspace cleanup deferred";
-      owner_->statusBar()->showMessage("Previous cache could not be removed; cleanup will be retried on exit.");
+      sparamview::ui_language::status(owner_->statusBar(),"Previous cache could not be removed; cleanup will be retried on exit.");
     }
     return;
   }

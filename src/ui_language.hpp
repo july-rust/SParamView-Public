@@ -17,6 +17,7 @@
 #include <QApplication>
 #include <QFileDialog>
 #include <QRegularExpression>
+#include <QSet>
 #include <QStatusBar>
 #include <QDialogButtonBox>
 #include <QPushButton>
@@ -56,12 +57,16 @@ inline void remember(Language value) {
   if (prefs.status() != QSettings::NoError)
     qWarning() << "SParamView: cannot persist UI language";
 }
-// Initial catalog: main menu and its explicit action icon labels/tooltips.
-// Untranslated strings are not evidence of full application localization.
-inline QString menuText(const QString &source, Language value) {
-  if (value == Language::English) return source;
-  struct Entry { const char *en; const char *ko; const char *ja; };
-  static constexpr Entry entries[] = {
+// Presentation-only source catalog. English keys are immutable lookup identities.
+// Korean and Japanese translations must preserve placeholders, technical meaning,
+// and intentional newlines. Serialized data, filenames, channel identifiers,
+// and stable diagnostic codes are outside this presentation mapping.
+// See tests/check_localization_catalog.py for the explicit-literal guard.
+// This data table is intentionally centralized to make completeness and duplicate
+// checks deterministic; its line count reflects translations rather than logic.
+struct CatalogEntry { const char *en; const char *ko; const char *ja; };
+inline const auto &catalogEntries() {
+  static constexpr CatalogEntry entries[] = {
     {"File", "파일", "ファイル"},
     {"New", "새로 만들기", "新規作成"},
     {"Open Touchstone...", "Touchstone 열기...", "Touchstoneを開く..."},
@@ -880,6 +885,7 @@ inline QString menuText(const QString &source, Language value) {
     {"Nonfinite eye height", "유한하지 않은 아이 높이", "有限でないアイ高さ"},
     {"Eye result exceeds finite mV range", "아이 결과가 유한 mV 범위를 초과합니다.", "アイ結果が有限mV範囲を超えています。"},
     {"Deterministic periodic NRZ modeled waveform, not a measured eye, BER or PHY compliance", "결정론적 주기 NRZ 모델 파형이며 실측 아이, BER 또는 PHY 적합성 검증이 아닙니다.", "決定論的周期NRZモデル波形であり、実測アイ、BERまたはPHY適合性試験ではありません。"},
+    {"Original", "원본 DC 사용", "元のDCを使用"},
     {"ORIGINAL DC", "원본 DC", "元のDC"},
     {"CORRECTED DC", "보정 DC", "補正DC"},
     {"Band-limited isolated step residual did not establish grid agreement", "대역 제한 독립 계단 응답 잔차로 격자 일치를 확립하지 못했습니다.", "帯域制限独立ステップ応答残差でグリッド一致を確立できませんでした。"},
@@ -937,9 +943,66 @@ inline QString menuText(const QString &source, Language value) {
     {"DC_LIKE_LOCAL", "DC 유사 국소 모델", "DC状局所モデル"},
     {"\nMANUAL SETTINGS", "\n수동 설정", "\n手動設定"},
     {"\nAUTO PREVIEW: assumed 400 mVpp / matched Zref / PRBS7; not actual PHY settings.", "\n자동 미리보기: 400 mVpp / 기준 임피던스 정합 / PRBS7 가정; 실제 PHY 설정 아님.", "\n自動プレビュー: 400 mVpp / 基準インピーダンス整合 / PRBS7を仮定; 実際のPHY設定ではない。"},
-    {"Simulated Channel Eye — Not Measured / Not PHY Compliance\nFile: %1 | Revision: %2 | Channel: %3 | %4\nSHA-256: %5\nProfile: %6 | Bit rate: %7 Gbps | Reference: %8 GHz | Cap: %9 GHz", "시뮬레이션 채널 아이 — 실측 / PHY 적합성 검증 아님\n파일: %1 | 리비전: %2 | 채널: %3 | %4\nSHA-256: %5\n프로파일: %6 | 비트율: %7 Gbps | 기준: %8 GHz | 상한: %9 GHz", "シミュレーションチャネルアイ — 実測 / PHY適合性試験ではない\nファイル: %1 | リビジョン: %2 | チャネル: %3 | %4\nSHA-256: %5\nプロファイル: %6 | ビットレート: %7 Gbps | 基準: %8 GHz | 上限: %9 GHz"},
+    {"Simulated Channel Eye — Not Measured / Not PHY Compliance\nFile: %1 | Revision: %2 | Channel: %3 | %4\nSHA-256: %5\nProfile: %6 | Bit rate: %7 Gbps | Reference: %8 GHz | Cap: %9 GHz", "시뮬레이션 채널 아이 — 실측 아님 / PHY 적합성 검증 아님\n파일: %1 | 리비전: %2 | 채널: %3 | %4\nSHA-256: %5\n프로파일: %6 | 비트율: %7 Gbps | 기준: %8 GHz | 상한: %9 GHz", "シミュレーションチャネルアイ — 実測 / PHY適合性試験ではない\nファイル: %1 | リビジョン: %2 | チャネル: %3 | %4\nSHA-256: %5\nプロファイル: %6 | ビットレート: %7 Gbps | 基準: %8 GHz | 上限: %9 GHz"},
+    {"Nonuniform low-pass step; original frequency intervals; even-real DC extrapolation; Kaiser beta=%1; quadrature error=%2; interpolation sensitivity=%3. Preview; PowerSI/VNA correlation pending.", "비균일 저역통과 계단 응답; 원래 주파수 간격; 짝대칭 실수 DC 외삽; Kaiser beta=%1; 수치 적분 오차=%2; 보간 민감도=%3. 미리보기; PowerSI/VNA 상관 검증 대기 중.", "非等間隔ローパスステップ応答; 元の周波数間隔; 偶対称実数DC外挿; Kaiser beta=%1; 数値積分誤差=%2; 補間感度=%3。プレビュー; PowerSI/VNA相関検証待ち。"},
+    {"Preview Kaiser beta=%1; reference-tool release validation pending.", "미리보기 Kaiser beta=%1; 기준 도구를 통한 릴리즈 검증 대기 중.", "プレビュー Kaiser beta=%1; 基準ツールによるリリース検証待ち。"},
+    {" Impedance display singular/out of range; rho retained; invalid ohm samples omitted.", " 임피던스 표시가 특이점 또는 범위 초과 상태입니다. 반사계수 rho는 유지하고 유효하지 않은 임피던스 샘플은 제외했습니다.", " インピーダンス表示が特異点または範囲外です。反射係数rhoを保持し、無効なインピーダンスサンプルを除外しました。"},
+    {" No finite impedance samples.", " 유한 임피던스 샘플 없음.", " 有限インピーダンスサンプルがありません。"},
+    {"%1 GHz | IL %2 dB | fit %3 dB | ILD %4 dB", "%1 GHz | IL %2 dB | 피팅 %3 dB | ILD %4 dB", "%1 GHz | IL %2 dB | フィット %3 dB | ILD %4 dB"},
+    {"Previous cache could not be removed; cleanup will be retried on exit.", "이전 캐시를 제거하지 못했습니다. 종료할 때 정리를 다시 시도합니다.", "以前のキャッシュを削除できませんでした。終了時にクリーンアップを再試行します。"},
+    {"Near -> Near", "근단 → 근단", "近端 → 近端"},
+    {"Near -> Far", "근단 → 원단", "近端 → 遠端"},
+    {"Far -> Near", "원단 → 근단", "遠端 → 近端"},
+    {"Far -> Far", "원단 → 원단", "遠端 → 遠端"},
+    {"Aggressor Near -> Victim Near", "간섭원 근단 → 피간섭 근단", "アグレッサー近端 → ビクティム近端"},
+    {"Aggressor Near -> Victim Far", "간섭원 근단 → 피간섭 원단", "アグレッサー近端 → ビクティム遠端"},
+    {"Aggressor Far -> Victim Near", "간섭원 원단 → 피간섭 근단", "アグレッサー遠端 → ビクティム近端"},
+    {"Aggressor Far -> Victim Far", "간섭원 원단 → 피간섭 원단", "アグレッサー遠端 → ビクティム遠端"},
+    {"Reference matched (all physical ports)", "기준 임피던스 정합 (모든 물리 포트)", "基準インピーダンス整合（全物理ポート）"},
+    {"P-N 100 ohm (floating)", "P-N 100 Ω (부동)", "P-N 100 Ω（フローティング）"},
+    {"Signal-GND 50 ohm", "신호-GND 50 Ω", "信号-GND 50 Ω"},
+    {"P-GND 50 ohm + N-GND 50 ohm", "P-GND 50 Ω + N-GND 50 Ω", "P-GND 50 Ω + N-GND 50 Ω"},
+    {"P and N open", "P 및 N 개방", "PおよびN開放"},
+    {"Signal open", "신호 개방", "信号開放"},
+    {"P-N short (floating)", "P-N 단락 (부동)", "P-N短絡（フローティング）"},
+    {"Signal-GND short", "신호-GND 단락", "信号-GND短絡"},
+    {" Load: %1; opposite end %2; all other physical ports reference matched.", " 부하: %1; 반대쪽 %2; 나머지 모든 물리 포트는 기준 임피던스로 정합.", " 負荷: %1; 反対側%2; その他の全物理ポートは基準インピーダンス整合。"},
+    {"Near", "근단", "近端"},
+    {"Far", "원단", "遠端"},
+    {"Incomplete limit coverage or invalid data: verdict N/A.", "판정 기준의 적용 범위가 불완전하거나 데이터가 유효하지 않아 판정 N/A.", "判定基準の適用範囲が不完全またはデータが無効なため判定N/A。"},
+    {"Some limit samples are unavailable or invalid, but an evaluated violation exists; verdict remains NG.", "일부 판정 샘플이 없거나 유효하지 않지만 평가된 위반이 있어 NG 판정을 유지합니다.", "一部の判定サンプルが存在しないか無効ですが、評価済みの違反があるため判定はNGのままです。"},
+    {"Manual marker values at non-source frequencies use complex interpolation for display only and do not change pass/fail.", "원본에 없는 주파수의 수동 마커 값은 표시 전용 복소 보간을 사용하며 합격/불합격 판정을 변경하지 않습니다.", "元データにない周波数の手動マーカー値は表示専用の複素補間を使用し、合否判定は変更しません。"},
+    {" Incomplete limit coverage or invalid data: verdict N/A.", " 판정 기준의 적용 범위가 불완전하거나 데이터가 유효하지 않아 판정 N/A.", " 判定基準の適用範囲が不完全またはデータが無効なため判定N/A。"},
+    {" Some limit samples are unavailable or invalid, but an evaluated violation exists; verdict remains NG.", " 일부 판정 샘플이 없거나 유효하지 않지만 평가된 위반이 있어 NG 판정을 유지합니다.", " 一部の判定サンプルが存在しないか無効ですが、評価済みの違反があるため判定はNGのままです。"},
+    {" Manual marker values at non-source frequencies use complex interpolation for display only and do not change pass/fail.", " 원본에 없는 주파수의 수동 마커 값은 표시 전용 복소 보간을 사용하며 합격/불합격 판정을 변경하지 않습니다.", " 元データにない周波数の手動マーカー値は表示専用の複素補間を使用し、合否判定は変更しません。"},
+    {"Windows error message unavailable", "Windows 오류 메시지를 확인할 수 없습니다", "Windowsのエラーメッセージを取得できません"},
+    {"At least 8 frequency points are required", "주파수 포인트가 최소 8개 필요합니다", "周波数点が最低8点必要です"},
+    {"Low-frequency gap exceeds 10% of bandwidth", "저주파수 공백이 대역폭의 10%를 초과합니다", "低周波数側の欠落範囲が帯域幅の10%を超えています"},
+    {"Invalid source reference impedance", "원본 기준 임피던스가 유효하지 않습니다", "ソースの基準インピーダンスが無効です"},
+    {"Window beta must be finite and in [0,13]", "윈도 함수 beta는 유한하며 [0,13] 범위여야 합니다", "窓関数のbetaは有限で[0,13]の範囲である必要があります"},
+    {"Invalid TDR time range", "TDR 시간 범위가 유효하지 않습니다", "TDRの時間範囲が無効です"},
+    {"Frequency grid is not strictly increasing", "주파수 격자가 엄격한 증가 순서가 아닙니다", "周波数グリッドが狭義単調増加ではありません"},
+    {"TDR transform needs more than 262144 time samples", "TDR 변환에 262144개를 초과하는 시간 샘플이 필요합니다", "TDR変換に262144点を超える時間サンプルが必要です"},
+    {"No TDR data inside time range", "시간 범위 안에 TDR 데이터가 없습니다", "時間範囲内にTDRデータがありません"},
+    {"frequency stop %1 Hz requested, source ends at %2 Hz", "요청 종료 주파수 %1 Hz, 원본 종료 주파수 %2 Hz", "要求終了周波数%1 Hz、ソース終了周波数%2 Hz"},
+    {"frequency start %1 Hz requested, source starts at %2 Hz", "요청 시작 주파수 %1 Hz, 원본 시작 주파수 %2 Hz", "要求開始周波数%1 Hz、ソース開始周波数%2 Hz"},
+    {"TDR start %1 s requested, first evaluated sample is %2 s", "요청 TDR 시작 시간 %1 s, 첫 평가 샘플 %2 s", "要求TDR開始時間%1 s、最初の評価サンプル%2 s"},
+    {"TDR stop %1 s requested, computed window ends at %2 s", "요청 TDR 종료 시간 %1 s, 계산 구간 종료 시간 %2 s", "要求TDR終了時間%1 s、計算区間終了時間%2 s"},
+    {"Requested range incomplete: %1. Evaluated %2 to %3 %4.", "요청 범위가 불완전합니다: %1. 평가 범위 %2 ~ %3 %4.", "要求範囲が不完全です: %1。評価範囲%2 ～ %3 %4。"},
+    {" An evaluated limit violation was found, so verdict remains NG.", " 평가된 기준 위반이 확인되어 NG 판정을 유지합니다.", " 評価済みの基準違反があるため、判定はNGのままです。"},
+    {" The evaluated portion did not fail, but the overall verdict is N/A.", " 평가된 구간은 불합격이 아니지만 전체 판정은 N/A입니다.", " 評価済みの区間に不合格はありませんが、全体判定はN/Aです。"},
+    {"Frequency-dependent limit boundary/kink checks at %1 non-source point(s) use complex interpolation; redundant collinear limit points do not alter the evaluation grid.", "주파수별 기준의 경계/꺾임 검사에서 원본에 없는 %1개 포인트는 복소 보간을 사용합니다. 동일 직선 위의 중복 기준 포인트는 평가 격자를 변경하지 않습니다.", "周波数依存の判定基準の境界・屈曲点検査では、元データにない%1点に複素補間を使用します。同一直線上の冗長な基準点は評価グリッドを変更しません。"},
+    {"\nDC: %1 | Original %2 Hz | Effective %3 Hz | %4", "\nDC: %1 | 원본 %2 Hz | 유효 %3 Hz | %4", "\nDC: %1 | 元 %2 Hz | 有効 %3 Hz | %4"},
+    {"Saved mapping invalidated: source changed or stored ports are no longer valid. ", "저장된 매핑이 무효화되었습니다: 원본이 변경되었거나 저장된 포트가 더 이상 유효하지 않습니다. ", "保存済みマッピングは無効になりました: ソースが変更されたか、保存されたポートが無効です。 "},
+    {"Current source re-evaluated; previous mapping was discarded. ", "현재 원본을 재평가했으며 이전 매핑은 폐기되었습니다. ", "現在のソースを再評価し、以前のマッピングを破棄しました。 "},
+    {" User confirmed the signal type before Channel Mapping.", " 사용자가 채널 매핑 전에 신호 유형을 확인했습니다.", " ユーザーはチャネルマッピングの前に信号タイプを確認しました。"},
+    {"Touchstone [Mixed-Mode Order] S/D/C descriptors declare %1. P/N membership and Near/Far direction are separate.", "Touchstone [Mixed-Mode Order] S/D/C 기술자가 %1 신호 유형을 선언합니다. P/N 구성과 근단/원단 방향은 별개입니다.", "Touchstone [Mixed-Mode Order] のS/D/C記述子は%1を宣言しています。P/Nの組み合わせと近端/遠端の方向は別です。"},
   };
-  for (const auto &entry : entries)
+  return entries;
+}
+inline QString menuText(const QString &source, Language value) {
+  if (value == Language::English) return source;
+  for (const auto &entry : catalogEntries())
     if (source == QString::fromUtf8(entry.en))
       return QString::fromUtf8(value == Language::Korean ? entry.ko : entry.ja);
   return source;
@@ -976,9 +1039,95 @@ inline void setFrameworkLanguage(Language value) {
     QCoreApplication::installTranslator(translator.data());
   } else translator->value=value;
 }
-inline QString diagnosticText(const QString &source,Language value) {
+inline QString diagnosticTextImpl(const QString &source,Language value,int depth) {
   const auto exact=menuText(source,value);
-  if(exact!=source || value==Language::English)return exact;
+  if(exact!=source || value==Language::English || depth>=8)return exact;
+  // Only producer-defined composite wrappers are decomposed. Arbitrary paths,
+  // identifiers and external system messages are never split on punctuation.
+  const QStringList prosePrefixes={
+    "Saved mapping invalidated: source changed or stored ports are no longer valid. ",
+    "Current source re-evaluated; previous mapping was discarded. ",
+    "S descriptors declare single-ended data. Confirm the physical mapping and Near/Far direction. ",
+    "DC extrapolation and/or complex grid resampling used. "};
+  for(const auto &prefix:prosePrefixes) {
+    if(source.startsWith(prefix))
+      return menuText(prefix,value)+diagnosticTextImpl(source.mid(prefix.size()),value,depth+1);
+  }
+  const QStringList proseSuffixes={
+    " User confirmed the signal type before Channel Mapping.",
+    " Impedance display singular/out of range; rho retained; invalid ohm samples omitted.",
+    " No finite impedance samples.",
+    " Incomplete limit coverage or invalid data: verdict N/A.",
+    " Some limit samples are unavailable or invalid, but an evaluated violation exists; verdict remains NG.",
+    " Manual marker values at non-source frequencies use complex interpolation for display only and do not change pass/fail."};
+  for(const auto &suffix:proseSuffixes) {
+    if(source.endsWith(suffix)) {
+      const auto head=source.left(source.size()-suffix.size());
+      const auto localizedHead=diagnosticTextImpl(head,value,depth+1);
+      // Unknown data is opaque, including paths ending with known prose.
+      if(localizedHead!=head && !head.startsWith("Touchstone not found: ") && !head.startsWith("Cannot read "))
+        return localizedHead+menuText(suffix,value);
+    }
+  }
+  // Parse only the exact range-note grammar emitted by analyze(). Numeric
+  // tokens and units are copied verbatim; an unknown clause rejects the match.
+  static const QRegularExpression rangeNote(QStringLiteral(R"(^(?:(.*) )?Requested range incomplete: (.+)\. Evaluated ([-+0-9.eE]+) to ([-+0-9.eE]+) (s|Hz)\.( An evaluated limit violation was found, so verdict remains NG\.| The evaluated portion did not fail, but the overall verdict is N/A\.)?$)"));
+  const auto rangeMatch=rangeNote.match(source);
+  if(rangeMatch.hasMatch()) {
+    static const QRegularExpression issue(QStringLiteral(R"(^(frequency stop|frequency start|TDR start|TDR stop) ([-+0-9.eE]+) (Hz|s) requested, (source ends at|source starts at|first evaluated sample is|computed window ends at) ([-+0-9.eE]+) (Hz|s)$)"));
+    QStringList translatedIssues;
+    bool valid=true;
+    for(const auto &part:rangeMatch.captured(2).split("; ")) {
+      const auto m=issue.match(part);
+      if(!m.hasMatch()) {valid=false;break;}
+      QString pattern;
+      if(m.captured(1)=="frequency stop" && m.captured(4)=="source ends at" && m.captured(3)=="Hz" && m.captured(6)=="Hz")
+        pattern="frequency stop %1 Hz requested, source ends at %2 Hz";
+      else if(m.captured(1)=="frequency start" && m.captured(4)=="source starts at" && m.captured(3)=="Hz" && m.captured(6)=="Hz")
+        pattern="frequency start %1 Hz requested, source starts at %2 Hz";
+      else if(m.captured(1)=="TDR start" && m.captured(4)=="first evaluated sample is" && m.captured(3)=="s" && m.captured(6)=="s")
+        pattern="TDR start %1 s requested, first evaluated sample is %2 s";
+      else if(m.captured(1)=="TDR stop" && m.captured(4)=="computed window ends at" && m.captured(3)=="s" && m.captured(6)=="s")
+        pattern="TDR stop %1 s requested, computed window ends at %2 s";
+      else {valid=false;break;}
+      translatedIssues<<menuText(pattern,value).arg(m.captured(2),m.captured(5));
+    }
+    const auto head=rangeMatch.captured(1);
+    const auto localizedHead=diagnosticTextImpl(head,value,depth+1);
+    if(valid && (head.isEmpty() || localizedHead!=head))
+      return (head.isEmpty()?QString():localizedHead+" ")+
+          menuText("Requested range incomplete: %1. Evaluated %2 to %3 %4.",value)
+              .arg(translatedIssues.join("; "),rangeMatch.captured(3),rangeMatch.captured(4),rangeMatch.captured(5))+
+          menuText(rangeMatch.captured(6),value);
+  }
+  static const QRegularExpression limitCheck(QStringLiteral(R"(^Frequency-dependent limit boundary/kink checks at ([0-9]+) non-source point\(s\) use complex interpolation; redundant collinear limit points do not alter the evaluation grid\.$)"));
+  const auto limitMatch=limitCheck.match(source);
+  if(limitMatch.hasMatch())
+    return menuText("Frequency-dependent limit boundary/kink checks at %1 non-source point(s) use complex interpolation; redundant collinear limit points do not alter the evaluation grid.",value).arg(limitMatch.captured(1));
+  // The load clause is generated by analyze() from a closed set of terminations.
+  // Match only a known termination and endpoint; never split arbitrary file text.
+  static const QRegularExpression load(QStringLiteral(R"(^(.*) Load: (Reference matched \(all physical ports\)|P-N 100 ohm \(floating\)|Signal-GND 50 ohm|P-GND 50 ohm \+ N-GND 50 ohm|P and N open|Signal open|P-N short \(floating\)|Signal-GND short); opposite end (Near|Far); all other physical ports reference matched\.$)"));
+  const auto loadMatch=load.match(source);
+  if(loadMatch.hasMatch()) {
+    const auto head=loadMatch.captured(1);
+    const auto localizedHead=diagnosticTextImpl(head,value,depth+1);
+    if(head.isEmpty() || localizedHead!=head)
+      return localizedHead+menuText(" Load: %1; opposite end %2; all other physical ports reference matched.",value).arg(menuText(loadMatch.captured(2),value),menuText(loadMatch.captured(3),value));
+  }
+  static const QRegularExpression nonuniform(QStringLiteral(R"(^Nonuniform low-pass step; original frequency intervals; even-real DC extrapolation; Kaiser beta=([-+0-9.eE]+); quadrature error=([-+0-9.eE]+); interpolation sensitivity=([-+0-9.eE]+)\. Preview; PowerSI/VNA correlation pending\.$)"));
+  const auto nonuniformMatch=nonuniform.match(source);
+  if(nonuniformMatch.hasMatch())
+    return menuText("Nonuniform low-pass step; original frequency intervals; even-real DC extrapolation; Kaiser beta=%1; quadrature error=%2; interpolation sensitivity=%3. Preview; PowerSI/VNA correlation pending.",value).arg(nonuniformMatch.captured(1),nonuniformMatch.captured(2),nonuniformMatch.captured(3));
+  static const QRegularExpression previewTdr(QStringLiteral(R"(^Preview Kaiser beta=([-+0-9.eE]+); reference-tool release validation pending\.$)"));
+  const auto previewMatch=previewTdr.match(source);
+  if(previewMatch.hasMatch())
+    return menuText("Preview Kaiser beta=%1; reference-tool release validation pending.",value).arg(previewMatch.captured(1));
+  const QString descriptorPrefix="Touchstone [Mixed-Mode Order] S/D/C descriptors declare ";
+  const QString descriptorSuffix=". P/N membership and Near/Far direction are separate.";
+  if(source.startsWith(descriptorPrefix) && source.endsWith(descriptorSuffix)) {
+    const auto type=source.mid(descriptorPrefix.size(),source.size()-descriptorPrefix.size()-descriptorSuffix.size());
+    return menuText("Touchstone [Mixed-Mode Order] S/D/C descriptors declare %1. P/N membership and Near/Far direction are separate.",value).arg(menuText(type,value));
+  }
   static const QRegularExpression dc(QStringLiteral("^Effective start (.+) Hz: DC extrapolation above 10 kHz is limited\\. Continue with simulated Eye\\?$"));
   const auto match=dc.match(source);
   if(match.hasMatch())return menuText("Effective start %1 Hz: DC extrapolation above 10 kHz is limited. Continue with simulated Eye?",value).arg(match.captured(1));
@@ -1000,6 +1149,9 @@ inline QString diagnosticText(const QString &source,Language value) {
   for(const auto &prefix:prefixes)if(source.startsWith(prefix))
     return menuText(prefix,value)+source.mid(prefix.size());
   return source;
+}
+inline QString diagnosticText(const QString &source,Language value) {
+  return diagnosticTextImpl(source,value,0);
 }
 inline void refreshCompareLanguage(QTableWidget *table,Language value) {
   if(!table || table->columnCount()!=10)return;

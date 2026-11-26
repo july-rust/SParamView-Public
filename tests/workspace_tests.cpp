@@ -5,6 +5,76 @@
 #include <iostream>
 void applyCompactAnalysisSettings(MainWindow &window);
 static void check(bool ok, const char *message) { if (!ok) throw si::Error(message); }
+static void localizationCatalogQualification() {
+  using namespace sparamview::ui_language;
+  QSet<QString> keys;
+  static const QRegularExpression placeholder(QStringLiteral("%[1-9][0-9]?"));
+  auto placeholders=[](const QString &source) {
+    QStringList values;
+    auto matches=placeholder.globalMatch(source);
+    while(matches.hasNext()) values.append(matches.next().captured());
+    values.sort();
+    return values;
+  };
+  for(const auto &entry:catalogEntries()) {
+    const QString en=QString::fromUtf8(entry.en),ko=QString::fromUtf8(entry.ko),ja=QString::fromUtf8(entry.ja);
+    check(!en.trimmed().isEmpty() && !ko.trimmed().isEmpty() && !ja.trimmed().isEmpty(),"Empty localization catalog entry");
+    check(!keys.contains(en),"Duplicate localization catalog source");
+    keys.insert(en);
+    check(placeholders(en)==placeholders(ko) && placeholders(en)==placeholders(ja),"Localization placeholder mismatch");
+    check(menuText(en,Language::Korean)==ko && menuText(en,Language::Japanese)==ja,"Localization lookup mismatch");
+  }
+  check(keys.size()>=930,"Localization catalog unexpectedly reduced");
+  const QString wrapper="Saved mapping invalidated: source changed or stored ports are no longer valid. ";
+  const QString evidence="Current source re-evaluated; previous mapping was discarded. ";
+  const QString suffix=" User confirmed the signal type before Channel Mapping.";
+  const QString type="Differential";
+  const QString descriptor="Touchstone [Mixed-Mode Order] S/D/C descriptors declare %1. P/N membership and Near/Far direction are separate.";
+  const QString raw=wrapper+evidence+descriptor.arg(type)+suffix;
+  const QString opaque="C:/measurements/%1_日本語_한글.s36p";
+  const QString portPrefix="Touchstone not found: ";
+  for(const auto lang:{Language::English,Language::Korean,Language::Japanese}) {
+    const QString expected=menuText(wrapper,lang)+menuText(evidence,lang)+menuText(descriptor,lang).arg(menuText(type,lang))+menuText(suffix,lang);
+    check(diagnosticText(raw,lang)==expected,"Composite mapping diagnostic localization failed");
+    check(diagnosticText(wrapper+portPrefix+opaque,lang)==menuText(wrapper,lang)+menuText(portPrefix,lang)+opaque,"Composite diagnostic changed opaque filename");
+    check(diagnosticText(opaque,lang)==opaque,"Unknown diagnostic unexpectedly changed");
+    const QString tdr="Nonuniform low-pass step; original frequency intervals; even-real DC extrapolation; Kaiser beta=%1; quadrature error=%2; interpolation sensitivity=%3. Preview; PowerSI/VNA correlation pending.";
+    const QString singular=" Impedance display singular/out of range; rho retained; invalid ohm samples omitted.";
+    check(diagnosticText(tdr.arg("6.000000","0.000001","0.000002")+singular,lang)==menuText(tdr,lang).arg("6.000000","0.000001","0.000002")+menuText(singular,lang),"Nonuniform TDR diagnostic mismatch");
+    const QString preview="Preview Kaiser beta=%1; reference-tool release validation pending.";
+    const QString dc="DC extrapolation and/or complex grid resampling used. ";
+    check(diagnosticText(dc+preview.arg("6.000000"),lang)==menuText(dc,lang)+menuText(preview,lang).arg("6.000000"),"Preview TDR diagnostic mismatch");
+    const QString load=" Load: %1; opposite end %2; all other physical ports reference matched.";
+    const QString termination="P-N 100 ohm (floating)";
+    check(diagnosticText(dc+preview.arg("6.000000")+load.arg(termination,"Far"),lang)==
+          menuText(dc,lang)+menuText(preview,lang).arg("6.000000")+menuText(load,lang).arg(menuText(termination,lang),menuText("Far",lang)),"Composite TDR load note mismatch");
+    check(diagnosticText(portPrefix+opaque+suffix,lang)==menuText(portPrefix,lang)+opaque+suffix,"Opaque path suffix unexpectedly translated");
+    const QString fStart="frequency start %1 Hz requested, source starts at %2 Hz";
+    const QString fStop="frequency stop %1 Hz requested, source ends at %2 Hz";
+    const QString tStart="TDR start %1 s requested, first evaluated sample is %2 s";
+    const QString tStop="TDR stop %1 s requested, computed window ends at %2 s";
+    const QString range="Requested range incomplete: %1. Evaluated %2 to %3 %4.";
+    const QString ng=" An evaluated limit violation was found, so verdict remains NG.";
+    const QString na=" The evaluated portion did not fail, but the overall verdict is N/A.";
+    const QStringList rawIssues={fStart.arg("1.000000e+03","1.000000e+06"),fStop.arg("2.000000e+10","1.000000e+10")};
+    const QStringList expectedIssues={menuText(fStart,lang).arg("1.000000e+03","1.000000e+06"),menuText(fStop,lang).arg("2.000000e+10","1.000000e+10")};
+    const auto rawRange=range.arg(rawIssues.join("; "),"1.000000e+06","1.000000e+10","Hz");
+    const auto translatedRange=menuText(range,lang).arg(expectedIssues.join("; "),"1.000000e+06","1.000000e+10","Hz");
+    check(diagnosticText(rawRange+ng,lang)==translatedRange+menuText(ng,lang),"Frequency coverage NG diagnostic mismatch");
+    check(diagnosticText(rawRange+na,lang)==translatedRange+menuText(na,lang),"Frequency coverage N/A diagnostic mismatch");
+    const QStringList tRaw={rawIssues.at(1),tStart.arg("1.000000e-12","2.000000e-12"),tStop.arg("3.000000e-09","2.000000e-09")};
+    const QStringList tLocalized={expectedIssues.at(1),menuText(tStart,lang).arg("1.000000e-12","2.000000e-12"),menuText(tStop,lang).arg("3.000000e-09","2.000000e-09")};
+    const auto tdrHead=dc+preview.arg("6.000000")+load.arg(termination,"Far");
+    const auto translatedHead=menuText(dc,lang)+menuText(preview,lang).arg("6.000000")+menuText(load,lang).arg(menuText(termination,lang),menuText("Far",lang));
+    check(diagnosticText(tdrHead+" "+range.arg(tRaw.join("; "),"2.000000e-12","2.000000e-09","s")+na,lang)==
+          translatedHead+" "+menuText(range,lang).arg(tLocalized.join("; "),"2.000000e-12","2.000000e-09","s")+menuText(na,lang),"TDR composite coverage diagnostic mismatch");
+    const QString limit="Frequency-dependent limit boundary/kink checks at %1 non-source point(s) use complex interpolation; redundant collinear limit points do not alter the evaluation grid.";
+    const QString marker=" Manual marker values at non-source frequencies use complex interpolation for display only and do not change pass/fail.";
+    check(diagnosticText(limit.arg("12")+" "+rawRange+ng+marker,lang)==menuText(limit,lang).arg("12")+" "+translatedRange+menuText(ng,lang)+menuText(marker,lang),"Combined limit, coverage and marker diagnostic mismatch");
+    const auto unknown=range.arg("unknown clause","1","2","Hz");
+    check(diagnosticText(unknown,lang)==unknown,"Unknown coverage clause should remain opaque");
+  }
+}
 struct WorkspaceProbe {
  static void stage(const char *name) { std::cerr << "WORKSPACE STAGE: " << name << std::endl; }
  static void widthDiagnostics(MainWindow &w,const char *phase) {
@@ -625,13 +695,25 @@ struct WorkspaceProbe {
    const auto ildBefore=read(parityPrefix+"ild.csv"),icnBefore=read(parityPrefix+"icn.csv"),eyeBefore=read(parityPrefix+"eye.csv");
    const auto statusBefore=eye->status();
    const auto contextBefore=manager.context().generation;
+   const auto rowOrderBefore=w.resultRows;
+   check(w.table->rowCount()>0 && w.table->item(0,0),"Result tooltip fixture missing");
+   w.table->selectRow(0);
+   const auto selectionBefore=w.table->selectionModel()->selectedRows();
    for(const auto *lang:{"ko","ja","en"}) {
      auto *action=w.findChild<QAction *>(QString("uiLanguage_")+lang);
      check(action!=nullptr,"Missing parity language action");
      action->trigger();
      const auto language=sparamview::ui_language::fromCode(QString::fromLatin1(lang));
+     check(w.resultRows==rowOrderBefore && w.table->selectionModel()->selectedRows()==selectionBefore,"Language switch changed result row order or selection");
+     for(int row=0;row<w.table->rowCount();++row) {
+       const auto &result=w.results.at(w.resultRows.at(size_t(row)));
+       check(w.table->item(row,0)->toolTip().contains(sparamview::ui_language::menuText("Worst margin at ",language)),"Existing result tooltip not localized");
+       check(w.table->item(row,2)->text()==sparamview::ui_language::menuText(qs(si::name(result.metric)),language),"Existing result metric not localized");
+     }
      const auto *eyeStatus=eye->findChild<QLabel *>("analysisStatus");
      check(eyeStatus && eyeStatus->text().contains(sparamview::ui_language::menuText("Simulated only — Not measured, no BER or PHY compliance; ",language)),"Eye simulation disclaimer not localized");
+     const auto *eyeMetrics=eye->findChild<QLabel *>("eyeMetrics");
+     check(eyeMetrics && eyeMetrics->text().contains("\n"+sparamview::ui_language::menuText("Original",language)+"\n"),"Original DC method presentation not localized");
      check(profile->currentText()==sparamview::ui_language::menuText("Custom (user-qualified)",language),"Eye profile presentation not localized");
      check(values(w)==legacy && eye->status()==statusBefore && manager.context().generation==contextBefore &&
            manager.scheduler().inFlight()==0,"Language switch changed computed result/context");
@@ -922,6 +1004,7 @@ int main(int argc,char**argv){
 #endif
  try{
   QSize size(argc>3?QString::fromLocal8Bit(argv[3]).toInt():1440,argc>4?QString::fromLocal8Bit(argv[4]).toInt():980);
+  localizationCatalogQualification();
   WorkspaceProbe::languageMenuQualification();
   WorkspaceProbe::preferencesQualification(out);
   WorkspaceProbe::fileWorkflowQualification(QString::fromLocal8Bit(argv[1]),out);
