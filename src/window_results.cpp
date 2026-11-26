@@ -21,7 +21,9 @@ void MainWindow::refreshResultLanguage() {
   const QSignalBlocker block(table);
   const auto language=sparamview::ui_language::current(this);
   for(int rowIndex=0;rowIndex<table->rowCount() && size_t(rowIndex)<resultRows.size();++rowIndex) {
-    const auto &r=results.at(resultRows[size_t(rowIndex)]);
+    const auto index=resultRows[size_t(rowIndex)];
+    if(index>=results.size()) continue;
+    const auto &r=results[index];
     auto tip=sparamview::ui_language::diagnosticText(qs(r.note),language)+"\n"+
         sparamview::ui_language::menuText("Worst margin at ",language)+
         num(r.marginX*(r.metric==si::Metric::TDR?1e9:1e-9),6)+
