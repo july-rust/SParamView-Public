@@ -1145,7 +1145,7 @@ QString AnalysisWindow::resultSummary() const {
         .arg(d.settings.symbolRateHz/1e9,0,'g',7).arg(d.settings.txPeakToPeakV*1000,0,'g',7)
         .arg(d.settings.riseTimeSeconds*1e12,0,'g',7).arg(d.settings.rxBandwidthHz/1e9,0,'g',7);
   }
-  return sparamview::ui_language::textFor(this,statusDetailsSource_);
+  return sparamview::ui_language::diagnosticText(statusDetailsSource_,sparamview::ui_language::current(this));
 }
 void AnalysisWindow::renderResultPresentation() {
   if(summaryStatus_ && (ildResult_ || icnResult_)) {
