@@ -24,7 +24,7 @@ static void localizationCatalogQualification() {
     check(placeholders(en)==placeholders(ko) && placeholders(en)==placeholders(ja),"Localization placeholder mismatch");
     check(menuText(en,Language::Korean)==ko && menuText(en,Language::Japanese)==ja,"Localization lookup mismatch");
   }
-  check(keys.size()>=886,"Localization catalog unexpectedly reduced");
+  check(keys.size()>=911,"Localization catalog unexpectedly reduced");
   const QString wrapper="Saved mapping invalidated: source changed or stored ports are no longer valid. ";
   const QString evidence="Current source re-evaluated; previous mapping was discarded. ";
   const QString suffix=" User confirmed the signal type before Channel Mapping.";
@@ -44,6 +44,10 @@ static void localizationCatalogQualification() {
     const QString preview="Preview Kaiser beta=%1; reference-tool release validation pending.";
     const QString dc="DC extrapolation and/or complex grid resampling used. ";
     check(diagnosticText(dc+preview.arg("6.000000"),lang)==menuText(dc,lang)+menuText(preview,lang).arg("6.000000"),"Preview TDR diagnostic mismatch");
+    const QString load=" Load: %1; opposite end %2; all other physical ports reference matched.";
+    const QString termination="P-N 100 ohm (floating)";
+    check(diagnosticText(dc+preview.arg("6.000000")+load.arg(termination,"Far"),lang)==
+          menuText(dc,lang)+menuText(preview,lang).arg("6.000000")+menuText(load,lang).arg(menuText(termination,lang),menuText("Far",lang)),"Composite TDR load note mismatch");
     check(diagnosticText(portPrefix+opaque+suffix,lang)==menuText(portPrefix,lang)+opaque+suffix,"Opaque path suffix unexpectedly translated");
   }
 }
@@ -667,11 +671,21 @@ struct WorkspaceProbe {
    const auto ildBefore=read(parityPrefix+"ild.csv"),icnBefore=read(parityPrefix+"icn.csv"),eyeBefore=read(parityPrefix+"eye.csv");
    const auto statusBefore=eye->status();
    const auto contextBefore=manager.context().generation;
+   const auto rowOrderBefore=w.resultRows;
+   check(w.table->rowCount()>0 && w.table->item(0,0),"Result tooltip fixture missing");
+   w.table->selectRow(0);
+   const auto selectionBefore=w.table->selectionModel()->selectedRows();
    for(const auto *lang:{"ko","ja","en"}) {
      auto *action=w.findChild<QAction *>(QString("uiLanguage_")+lang);
      check(action!=nullptr,"Missing parity language action");
      action->trigger();
      const auto language=sparamview::ui_language::fromCode(QString::fromLatin1(lang));
+     check(w.resultRows==rowOrderBefore && w.table->selectionModel()->selectedRows()==selectionBefore,"Language switch changed result row order or selection");
+     for(int row=0;row<w.table->rowCount();++row) {
+       const auto &result=w.results.at(w.resultRows.at(size_t(row)));
+       check(w.table->item(row,0)->toolTip().contains(sparamview::ui_language::menuText("Worst margin at ",language)),"Existing result tooltip not localized");
+       check(w.table->item(row,2)->text()==sparamview::ui_language::menuText(qs(si::name(result.metric)),language),"Existing result metric not localized");
+     }
      const auto *eyeStatus=eye->findChild<QLabel *>("analysisStatus");
      check(eyeStatus && eyeStatus->text().contains(sparamview::ui_language::menuText("Simulated only — Not measured, no BER or PHY compliance; ",language)),"Eye simulation disclaimer not localized");
      check(profile->currentText()==sparamview::ui_language::menuText("Custom (user-qualified)",language),"Eye profile presentation not localized");
