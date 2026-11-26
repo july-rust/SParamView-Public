@@ -5,6 +5,41 @@
 #include <iostream>
 void applyCompactAnalysisSettings(MainWindow &window);
 static void check(bool ok, const char *message) { if (!ok) throw si::Error(message); }
+static void localizationCatalogQualification() {
+  using namespace sparamview::ui_language;
+  QSet<QString> keys;
+  static const QRegularExpression placeholder(QStringLiteral("%[1-9][0-9]?"));
+  auto placeholders=[](const QString &source) {
+    QStringList values;
+    auto matches=placeholder.globalMatch(source);
+    while(matches.hasNext()) values.append(matches.next().captured());
+    values.sort();
+    return values;
+  };
+  for(const auto &entry:catalogEntries()) {
+    const QString en=QString::fromUtf8(entry.en),ko=QString::fromUtf8(entry.ko),ja=QString::fromUtf8(entry.ja);
+    check(!en.trimmed().isEmpty() && !ko.trimmed().isEmpty() && !ja.trimmed().isEmpty(),"Empty localization catalog entry");
+    check(!keys.contains(en),"Duplicate localization catalog source");
+    keys.insert(en);
+    check(placeholders(en)==placeholders(ko) && placeholders(en)==placeholders(ja),"Localization placeholder mismatch");
+    check(menuText(en,Language::Korean)==ko && menuText(en,Language::Japanese)==ja,"Localization lookup mismatch");
+  }
+  check(keys.size()>=880,"Localization catalog unexpectedly reduced");
+  const QString wrapper="Saved mapping invalidated: source changed or stored ports are no longer valid. ";
+  const QString evidence="Current source re-evaluated; previous mapping was discarded. ";
+  const QString suffix=" User confirmed the signal type before Channel Mapping.";
+  const QString type="Differential";
+  const QString descriptor="Touchstone [Mixed-Mode Order] S/D/C descriptors declare %1. P/N membership and Near/Far direction are separate.";
+  const QString raw=wrapper+evidence+descriptor.arg(type)+suffix;
+  const QString opaque="C:/measurements/%1_日本語_한글.s36p";
+  const QString portPrefix="Touchstone not found: ";
+  for(const auto lang:{Language::English,Language::Korean,Language::Japanese}) {
+    const QString expected=menuText(wrapper,lang)+menuText(evidence,lang)+menuText(descriptor,lang).arg(menuText(type,lang))+menuText(suffix,lang);
+    check(diagnosticText(raw,lang)==expected,"Composite mapping diagnostic localization failed");
+    check(diagnosticText(wrapper+portPrefix+opaque,lang)==menuText(wrapper,lang)+menuText(portPrefix,lang)+opaque,"Composite diagnostic changed opaque filename");
+    check(diagnosticText(opaque,lang)==opaque,"Unknown diagnostic unexpectedly changed");
+  }
+}
 struct WorkspaceProbe {
  static void stage(const char *name) { std::cerr << "WORKSPACE STAGE: " << name << std::endl; }
  static void widthDiagnostics(MainWindow &w,const char *phase) {
@@ -922,6 +957,7 @@ int main(int argc,char**argv){
 #endif
  try{
   QSize size(argc>3?QString::fromLocal8Bit(argv[3]).toInt():1440,argc>4?QString::fromLocal8Bit(argv[4]).toInt():980);
+  localizationCatalogQualification();
   WorkspaceProbe::languageMenuQualification();
   WorkspaceProbe::preferencesQualification(out);
   WorkspaceProbe::fileWorkflowQualification(QString::fromLocal8Bit(argv[1]),out);
