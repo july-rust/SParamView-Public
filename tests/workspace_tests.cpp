@@ -716,16 +716,21 @@ struct WorkspaceProbe {
    auto *newAction=w.findChild<QAction *>("newWorkspaceAction");
    check(newAction!=nullptr,"Missing New action");
    const auto shortcut=newAction->shortcut();
+   const int marker=w.markerBox->currentIndex(), performance=w.performanceBox->currentIndex();
    for(int i=0;i<100;++i) {
     ko->trigger();verify(w,QString::fromUtf8("파일"),"Korean");
     check(newAction->text()==QString::fromUtf8("새로 만들기"),"Korean New action");
+    check(w.tabs->tabText(0)==QString::fromUtf8("그래프") && w.quickButton->text()==QString::fromUtf8("빠른 분석"),"Korean static UI");
     ja->trigger();verify(w,QString::fromUtf8("ファイル"),"Japanese");
     check(newAction->text()==QString::fromUtf8("新規作成"),"Japanese New action");
+    check(w.tabs->tabText(0)==QString::fromUtf8("グラフ") && w.quickButton->text()==QString::fromUtf8("クイック解析"),"Japanese static UI");
     en->trigger();verify(w,"File","English");
     check(newAction->text()=="New","English New action");
    }
    check(QLocale().name()==before && w.limitValues[0]->value()==limit &&
-         newAction->shortcut()==shortcut && !w.dirty,"Menu language mutated application state");
+         newAction->shortcut()==shortcut && !w.dirty &&
+         w.markerBox->currentIndex()==marker && w.performanceBox->currentIndex()==performance,
+         "Menu language mutated application state");
    ja->trigger();
   }
   {MainWindow w;verify(w,QString::fromUtf8("ファイル"),"Japanese");}

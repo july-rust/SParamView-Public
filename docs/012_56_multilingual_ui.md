@@ -7,11 +7,12 @@ Do not merge or release until all 012_56 requirements are satisfied.
 - English-only Language / English / Korean / Japanese controls.
 - Exclusive selection; stable action object names and persistent UI preference with English fallback.
 - Main-menu action translation from immutable original text, including Analysis menu and Eye Diagram action.
+- Main-window fixed labels/buttons/tooltips, selected index-based combos, tab titles, result table headers, direction and advanced toggle captions, and header project buttons. Mutable user data and analysis statuses are not included in these bindings.
 - No changes to numerical engines, QLocale, caches, project formats, or analysis context.
 - Workspace regression test for menu selection, translation, 100 cycles, state/shortcut preservation, and preference fallback.
 
 ## Remaining
-- Complete context-aware catalog, dynamic text handling and explicit retranslation of all main window widgets, dialogs, ILD/ICN/Eye windows, plots, user reports and error paths.
+- Complete context-aware catalog, remaining dynamic main window text, dialogs, ILD/ICN/Eye windows, plots, user reports and error paths.
 - Audit comparisons of display strings (e.g. currentText) before localizing any controls used as keys.
 - Verify Qt/native system dialogs and font fallback, including Japanese glyphs.
 - Full translation inventory, technical terminology review and untranslated-string allowlist.

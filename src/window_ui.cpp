@@ -582,7 +582,7 @@ MainWindow::MainWindow() {
   connect(advancedToggle, &QToolButton::toggled, this,
           [this, advanced, advancedToggle, settingsScroll](bool checked) {
     advanced->setVisible(checked);
-    advancedToggle->setText(checked ? "Advanced ▾" : "Advanced ▸");
+    advancedToggle->setText(sparamview::ui_language::textFor(this, checked ? "Advanced ▾" : "Advanced ▸"));
     settingsScroll->setMaximumHeight(checked ? 190 : 74);
     if (checked) {
       settingsAction->setChecked(true);
@@ -639,7 +639,7 @@ MainWindow::MainWindow() {
   readout->setWordWrap(true);
   pv->addWidget(readout);
   plot->cursorChanged = [readout](const QString &text) {
-    readout->setText(text.isEmpty() ? "Wheel: X zoom · Ctrl+wheel: Y zoom · Drag: pan · Shift+drag: box zoom" : text);
+    readout->setText(text.isEmpty() ? sparamview::ui_language::textFor(readout, "Wheel: X zoom · Ctrl+wheel: Y zoom · Drag: pan · Shift+drag: box zoom") : text);
   };
   connect(areaZoom, &QToolButton::toggled, plot, &PlotWidget::setBoxZoom);
   tabs->addTab(plotPage, "Plot");
@@ -800,7 +800,42 @@ MainWindow::MainWindow() {
   restoreWorkspaceLayout();
   updateActiveTouchstoneTitle();
   refreshAnalysisContext();
-  sparamview::ui_language::installMenu(*this);
+  // Install the header buttons before capturing fixed English UI strings.
+  // Startup and test callers can still call the idempotent helper.
+  installHeaderProjectButtons();
+  using namespace sparamview::ui_language;
+  Bindings languageBindings;
+  bindMainFixedWidgets(languageBindings, body);
+  bind(languageBindings, cancelButton, cancelButton->text(),
+       [](QPushButton *w, const QString &s) { w->setText(s); });
+  // These combos use indices, not translated text, as their model keys.
+  for (auto *box : {markerBox, performanceBox, metricView, rankBox})
+    bindCombo(languageBindings, box);
+  bind(languageBindings, metricView, metricView->toolTip(),
+       [](QComboBox *w, const QString &s) { w->setToolTip(s); });
+  bind(languageBindings, tdrView, tdrView->toolTip(),
+       [](QComboBox *w, const QString &s) { w->setToolTip(s); });
+  const QStringList originalTabs = {tabs->tabText(0), tabs->tabText(1)};
+  QStringList originalHeaders;
+  for (int i = 0; i < table->columnCount(); ++i)
+    originalHeaders << table->horizontalHeaderItem(i)->text();
+  languageBindings.push_back([this, advancedToggle, readout, originalTabs, originalHeaders](Language value) {
+    const QSignalBlocker blockTable(table);
+    for (int i = 0; i < originalTabs.size(); ++i)
+      tabs->setTabText(i, menuText(originalTabs[i], value));
+    for (int i = 0; i < originalHeaders.size(); ++i)
+      table->horizontalHeaderItem(i)->setText(menuText(originalHeaders[i], value));
+    advancedToggle->setText(menuText(advancedToggle->isChecked() ? "Advanced ▾" : "Advanced ▸", value));
+    directionButton->setText(menuText(QStringList{"Near → Far", "Far → Near", "Both"}[directionMode], value));
+    directionButton->setToolTip(menuText("Direction: Near → Far → Far → Near → Both", value));
+    const QString hint = "Wheel: X zoom · Ctrl+wheel: Y zoom · Drag: pan · Shift+drag: box zoom";
+    for (auto previous : {Language::English, Language::Korean, Language::Japanese})
+      if (readout->text() == menuText(hint, previous)) {
+        readout->setText(menuText(hint, value));
+        break;
+      }
+  });
+  installMenu(*this, std::move(languageBindings));
 }
 void MainWindow::markDirty() {
   if(!restoringProject && !revisions.empty()) dirty=true;
