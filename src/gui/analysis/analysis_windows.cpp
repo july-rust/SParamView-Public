@@ -781,7 +781,7 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
   if(feature_==Feature::Eye) {
     eyePreview_=new QPushButton(QStringLiteral("Auto Preview"));
     eyePreview_->setObjectName(QStringLiteral("eyeAutoPreview"));
-    eyePreview_->setToolTip(QStringLiteral("Assumed matched, 400 mVpp NRZ preview; uses measured phase/DC and bandwidth, not actual PHY settings."));
+    eyePreview_->setToolTip(QStringLiteral("Assumed matched, 400 mVpp NRZ preview; uses source phase, qualified DC conditioning and bandwidth, not actual PHY settings."));
     eyePreview_->setAutoDefault(false);
     eyePreview_->setEnabled(false);
     controls->addWidget(eyePreview_);
@@ -1010,12 +1010,20 @@ QString AnalysisWindow::selectionIdentity() const {
   }
   return identity;
 }
+void AnalysisWindow::dismissEyeDcPrompt() {
+  if(eyeDcPrompt_) {
+    auto *dialog=eyeDcPrompt_.data();
+    eyeDcPrompt_.clear();
+    dialog->reject();
+  }
+}
 void AnalysisWindow::invalidateRequest() {
   clearIld();
   clearIcn();
   clearEye();
   const bool hadWork = scheduler_ && scheduler_->running(feature_);
   ++requestGeneration_;
+  dismissEyeDcPrompt();
   if (scheduler_) scheduler_->cancel(feature_);
   cancel_->setEnabled(false);
   progress_->setValue(0);
@@ -1034,6 +1042,7 @@ void AnalysisWindow::setContext(const AnalysisContext &context) {
   if (scheduler_) scheduler_->cancel(feature_);
   context_ = context;
   ++requestGeneration_;
+  dismissEyeDcPrompt();
   progress_->setValue(0);
   cancel_->setEnabled(false);
   QSignalBlocker sourceBlock(source_);
@@ -1090,6 +1099,42 @@ bool AnalysisWindow::startWork(AsyncWork work) {
               QStringLiteral("Older result discarded after context/settings change"));
           return;
         }
+        if(outcome.eyeDcConfirmation) {
+          guard->setStatus(si::channel::Status::NotEvaluated,outcome.diagnostic);
+          guard->progress_->setValue(0);
+          // A plain Qt dialog is consistent across native platforms, and open()
+          // avoids a nested event loop inside the worker-completion callback.
+          auto *dialog=new QDialog(guard.data());
+          dialog->setObjectName(QStringLiteral("eyeDcConsentDialog"));
+          dialog->setWindowTitle(QStringLiteral("Eye DC extrapolation"));
+          dialog->setAttribute(Qt::WA_DeleteOnClose);
+          dialog->setWindowModality(Qt::WindowModal);
+          auto *layout=new QVBoxLayout(dialog);
+          auto *message=new QLabel(outcome.diagnostic,dialog);
+          message->setWordWrap(true);
+          layout->addWidget(message);
+          auto *buttons=new QDialogButtonBox(QDialogButtonBox::Ok|QDialogButtonBox::Cancel,dialog);
+          buttons->button(QDialogButtonBox::Ok)->setText(QStringLiteral("Continue"));
+          buttons->button(QDialogButtonBox::Ok)->setAutoDefault(false);
+          buttons->button(QDialogButtonBox::Cancel)->setDefault(true);
+          layout->addWidget(buttons);
+          QObject::connect(buttons,&QDialogButtonBox::accepted,dialog,&QDialog::accept);
+          QObject::connect(buttons,&QDialogButtonBox::rejected,dialog,&QDialog::reject);
+          guard->eyeDcPrompt_=dialog;
+          const bool autoPreview=outcome.eyeAutoPreview;
+          QObject::connect(dialog,&QDialog::finished,guard.data(),
+            [guard,selected,requestGeneration,contextGeneration,autoPreview,dialog](int answer) {
+              if(!guard || guard->eyeDcPrompt_.data()!=dialog) return;
+              guard->eyeDcPrompt_.clear();
+              if(requestGeneration!=guard->requestGeneration_ ||
+                 contextGeneration!=guard->context_.generation ||
+                 selected!=guard->selectionIdentity()) return;
+              if(answer==QDialog::Accepted) guard->launchEye(autoPreview,true);
+              else guard->setStatus(si::channel::Status::Cancelled,QStringLiteral("DC extrapolation cancelled"));
+            });
+          dialog->open();
+          return;
+        }
         guard->progress_->setValue((outcome.status == si::channel::Status::Valid ||
            outcome.status == si::channel::Status::Warning) ? 100 : 0);
         guard->setStatus(outcome.status, outcome.diagnostic);
@@ -1116,6 +1161,7 @@ bool AnalysisWindow::startWork(AsyncWork work) {
   return true;
 }
 void AnalysisWindow::cancelWork() {
+  dismissEyeDcPrompt();
   if (scheduler_) scheduler_->cancel(feature_);
   cancel_->setEnabled(false);
   setStatus(si::channel::Status::Cancelled,
@@ -1640,9 +1686,9 @@ bool AnalysisWindow::readManualEyeSettings(si::channel::EyeSettings &settings) {
   return true;
 }
 
-void AnalysisWindow::launchEye(bool autoPreview) {
+void AnalysisWindow::launchEye(bool autoPreview, bool acceptLimitedDc) {
   using namespace si::channel;
-  if(feature_!=Feature::Eye || !eyeProvider_)return;
+  if(feature_!=Feature::Eye || !eyeProvider_ || eyeDcPrompt_)return;
   clearEye();
   const int idx=source_->currentIndex(), selected=victim_->currentIndex();
   if(idx<0 || idx>=context_.sources.size() || selected<0) {
@@ -1664,6 +1710,7 @@ void AnalysisWindow::launchEye(bool autoPreview) {
   // validation or the shared numerical engine's DC/impedance/band checks.
   EyeSettings settings;
   if(!autoPreview && !readManualEyeSettings(settings)) return;
+  settings.acceptLimitedDc=acceptLimitedDc;
   const QString sourceFile=QFileInfo(QString::fromUtf8(input->cache->meta().source.c_str())).fileName();
   const std::string victimId=source.channelIds[selected].toStdString();
   const bool reverse=direction_->currentIndex()==1;
@@ -1685,10 +1732,17 @@ void AnalysisWindow::launchEye(bool autoPreview) {
     if(cancel.load()) throw si::Cancelled();
     progress.store(35);
     const auto trace=extract(snapshot,victimId,si::Metric::IL,reverse);
+    const auto dc=inspectEyeDc(trace);
+    if(dc.requiresConfirmation && !settings.acceptLimitedDc) {
+      WorkOutcome pending;
+      pending.status=Status::NotEvaluated;
+      pending.eyeDcConfirmation=true; pending.eyeAutoPreview=autoPreview;
+      pending.diagnostic=QStringLiteral("Effective start %1 Hz: DC extrapolation above 10 kHz is limited. Continue with simulated Eye?")
+        .arg(dc.effectiveStartHz,0,'g',12);
+      return pending;
+    }
     if(autoPreview) {
       // A transparent engineering example, never an inferred PHY.
-      if(trace.frequencyHz.front()!=0)
-        throw si::Error("Auto Preview needs measured DC (0 Hz); no silent extrapolation.");
       const double cap=std::min(10e9,trace.frequencyHz.back());
       settings.profile=EyeProfile::Custom;
       settings.mode=differential?EyeMode::Differential:EyeMode::SingleEnded;
@@ -1703,7 +1757,7 @@ void AnalysisWindow::launchEye(bool autoPreview) {
     // Retain the actual source identity and the explicit preview/manual input mode.
     const auto &id=snapshot.identity();
     Provenance provenance{id.sha256,id.revision,id.mappingIdentity,
-      "Phase-preserving deterministic NRZ Eye","012_46-v2",
+      "Phase-preserving deterministic NRZ Eye","012_52-v1",
       settingsIdentity,id.workspaceGeneration,id.mappingGeneration};
     auto result=calculateEye(trace,settings,provenance,&cancel);
     if(cancel.load()) throw si::Cancelled();
@@ -1738,7 +1792,13 @@ void AnalysisWindow::showEye(const WorkOutcome &outcome) {
   const bool preview=eyeProvenance_.settingsIdentity.ends_with("|AUTO_PREVIEW_ASSUMED_MATCHED_400mVpp");
   const QString assumption=preview?QStringLiteral("AUTO PREVIEW — assumed TX ±200 mV, matched Zref %1 / %2 ohm, threshold 0 mV, RX ±1000 mV, PRBS7. Not actual PHY settings.\n")
     .arg(d.settings.electrical.txSourceOhm).arg(d.settings.electrical.rxTerminationOhm):QStringLiteral("MANUAL SETTINGS\n");
-  eyeMetrics_->setText(assumption+QStringLiteral(
+  const QString dcText=QStringLiteral("DC: %1 | Original %2 Hz | Effective %3 Hz | First positive %4 Hz | %5\n%6\n")
+    .arg(QString::fromStdString(d.dc.status))
+    .arg(d.dc.originalStartHz,0,'g',12).arg(d.dc.effectiveStartHz,0,'g',12)
+    .arg(d.dc.firstPositiveHz,0,'g',12)
+    .arg(d.dc.limited?QStringLiteral("LIMITED"):QStringLiteral("LOCAL CHECKS PASSED"))
+    .arg(QString::fromStdString(d.dc.method));
+  eyeMetrics_->setText(assumption+dcText+QStringLiteral(
     "Simulated Channel Eye — Not Measured / Not PHY Compliance\n"
     "Height %1 mV | Width %2 ps (%3 UI) | Max-height phase %4 UI | Delay %5 ps\n"
     "Low maximum %6 mV | High minimum %7 mV | Received [%8, %9] mV\n"
@@ -1801,6 +1861,15 @@ bool AnalysisWindow::saveEyeCsv(const QString &name) {
      <<"# algorithm,"<<safe(eyeProvenance_.algorithm)<<"\n"
      <<"# version,"<<safe(eyeProvenance_.version)<<"\n"
      <<"# settings_identity,"<<safe(eyeProvenance_.settingsIdentity)<<"\n"
+     <<"# dc_status,"<<safe(d.dc.status)<<"\n"
+     <<"# original_start_hz,"<<n(d.dc.originalStartHz)<<"\n"
+     <<"# effective_start_hz,"<<n(d.dc.effectiveStartHz)<<"\n"
+     <<"# first_positive_hz,"<<n(d.dc.firstPositiveHz)<<"\n"
+     <<"# dc_method,"<<safe(d.dc.method)<<"\n"
+     <<"# dc_real,"<<n(d.dc.value)<<"\n"
+     <<"# dc_model_spread,"<<(d.dc.modelSpreadAvailable?n(d.dc.modelSpread):QStringLiteral("NOT_EVALUATED"))<<"\n"
+     <<"# dc_quality,"<<(d.dc.limited?"LIMITED":"LOCAL_CHECKS_PASSED")<<"\n"
+     <<"# dc_acknowledged,"<<(d.dc.requiresConfirmation && eyeSettings.acceptLimitedDc?"true":"false")<<"\n"
      <<"# transfer_parameter,"<<safe(d.transferParameter)<<"\n"
      <<"# victim_id,"<<safe(d.victimId)<<"\n"
      <<"# direction,"<<(d.reverse?"Reverse":"Forward")<<"\n"
@@ -1869,7 +1938,7 @@ bool AnalysisWindow::saveEyePng(const QString &name) {
     return false;
   }
   // Visible footer plus PNG tEXt metadata make standalone exports auditable.
-  constexpr int footerHeight=152;
+  constexpr int footerHeight=208;
   QImage output(graph.width(),graph.height()+footerHeight,
                 QImage::Format_ARGB32_Premultiplied);
   output.fill(palette().base().color());
@@ -1894,7 +1963,11 @@ bool AnalysisWindow::saveEyePng(const QString &name) {
      QString::fromStdString(eyeResult_->profileName),
      QString::number(eyeResult_->bitRateHz/1e9,'g',7),
      QString::number(eyeResult_->referenceFrequencyHz/1e9,'g',7),
-     QString::number(eyeResult_->analysisStopHz/1e9,'g',7))+inputMode;
+     QString::number(eyeResult_->analysisStopHz/1e9,'g',7))+inputMode+
+    QStringLiteral("\nDC: %1 | Original %2 Hz | Effective %3 Hz | %4")
+      .arg(QString::fromStdString(eyeResult_->dc.status))
+      .arg(eyeResult_->dc.originalStartHz,0,'g',12).arg(eyeResult_->dc.effectiveStartHz,0,'g',12)
+      .arg(eyeResult_->dc.limited?QStringLiteral("LIMITED"):QStringLiteral("LOCAL CHECKS PASSED"));
   p.drawText(QRect(10,graph.height()+4,output.width()-20,footerHeight-8),
              Qt::AlignLeft|Qt::TextWordWrap,labeled);
   p.end();
@@ -1917,6 +1990,16 @@ bool AnalysisWindow::saveEyePng(const QString &name) {
   output.setText(QStringLiteral("FrameBits"),QString::number(qulonglong(eyeResult_->frameBitCount)));
   output.setText(QStringLiteral("PhaseThresholdOpen"),eyeResult_->samplingPhaseThresholdOpen?QStringLiteral("true"):QStringLiteral("false"));
   output.setText(QStringLiteral("InputMode"),inputMode.trimmed());
+  output.setText(QStringLiteral("DCStatus"),QString::fromStdString(eyeResult_->dc.status));
+  output.setText(QStringLiteral("DCMethod"),QString::fromStdString(eyeResult_->dc.method));
+  output.setText(QStringLiteral("OriginalStartHz"),QString::number(eyeResult_->dc.originalStartHz,'g',17));
+  output.setText(QStringLiteral("EffectiveStartHz"),QString::number(eyeResult_->dc.effectiveStartHz,'g',17));
+  output.setText(QStringLiteral("DCQuality"),eyeResult_->dc.limited?QStringLiteral("LIMITED"):QStringLiteral("LOCAL_CHECKS_PASSED"));
+  output.setText(QStringLiteral("DCReal"),QString::number(eyeResult_->dc.value,'g',17));
+  output.setText(QStringLiteral("DCModelSpread"),eyeResult_->dc.modelSpreadAvailable?
+    QString::number(eyeResult_->dc.modelSpread,'g',17):QStringLiteral("NOT_EVALUATED"));
+  output.setText(QStringLiteral("DCAcknowledged"),eyeResult_->dc.requiresConfirmation &&
+    eyeResult_->settings.acceptLimitedDc?QStringLiteral("true"):QStringLiteral("false"));
   output.setText(QStringLiteral("SimulationStatus"),
                  QStringLiteral("SIMULATED_ONLY / NOT_PHY_COMPLIANCE"));
   QSaveFile file(name);
@@ -1927,6 +2010,7 @@ bool AnalysisWindow::saveEyePng(const QString &name) {
 }
 
 void AnalysisWindow::closeEvent(QCloseEvent *event) {
+  dismissEyeDcPrompt();
   if (scheduler_ && scheduler_->running(feature_)) cancelWork();
   progressPoll_.stop();
   QWidget::closeEvent(event);

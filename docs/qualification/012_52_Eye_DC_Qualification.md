@@ -1,0 +1,23 @@
+# 012_52 — Eye Diagram DC Validation, Extrapolation & Numerical Qualification
+
+Status: implementation candidate; CI, independent review and native physical requalification pending. Base integration/v1.4.0 at 331bc4dd16cff804a1f33aadc8e0b4f4fb8b066e. No main/release change; COM deferred.
+
+Policy: effective start <= 10 kHz automatic, >10 kHz and <100 kHz explicit consent, >=100 kHz blocked. Original finite real DC with sparse positive samples retains legacy behavior only with LIMITED continuity; nonreal or strongly inconsistent sparse DC is rejected. Thresholds are engineering policy, not a standard. A large unobserved band can conceal low-frequency poles. No physical accuracy guarantee. Source unchanged.
+
+Local even-real fit from first two positive samples, compare constant/linear/alternate third-point fit and imaginary linear intercept. Absolute spread 0.001, first imaginary 0.01 for sparse case, near-coincident fit ratio limit 1e-6; sparse original ambiguity guard 0.1 discontinuity vs locally flat 0.02. These are conservative provisional heuristics, not instrument uncertainty. No forced DC=1 or 0. For original real DC with stable low-band candidate, preserve within 0.001; unstable but close to first sample (0.01) retained as LIMITED. Sparse extrapolation is limited even below 10 kHz, without frequency popup. Nonfinite inputs rejected by shared validator. Same bounded FFT and periodic frame as existing engine. Width is sampled (1/samplesPerUI), not continuous.
+
+References: https://scikit-rf.readthedocs.io/en/latest/api/generated/skrf.network.Network.extrapolate_to_dc.html ; https://helpfiles.keysight.com/csg/N1930xB/Analyzing/Analyzing_Data_in_the_Time_Domain.html . This implementation is not a reproduction of either algorithm. Tests: analytic gain/identity, existing DFT, PRBS, delay and resource tests; AC-coupled matched discrete comparison, boundary and suspect DC cases. Full analytic model matrix, GUI prompt paths and native checks must be confirmed before completion.
+
+Local git clone unavailable (DNS); exact-head CI and review required. No verified test results recorded here.
+
+Follow-up coverage: analytic delay, RC low-pass, AC high-pass and lossy-delay direct inverse DFT and convolution; actual Touchstone/GUI preview/manual, modal cancel/accept and CSV/PNG provenance. An unavailable model spread is explicitly exported as NOT_EVALUATED. All tests are added, not yet observed passing.
+
+Safety review: a materially inconsistent but real original DC is ambiguous (e.g. a physical pole below the observed band); do not silently overwrite it. Block in that case. A nonreal original DC violates Hermitian symmetry and may be replaced only with stable local estimates and LIMITED provenance. Added hidden AC pole and real-spike tests. Local independent NumPy analytic-grid precheck (not the built C++ application): delay/RC LP/RC HP model DC error below 1e-15; lossy-delay DC error 0.00010343, voltage RMSE 0.00003103 V; sampled height/width/delay changes negligible for these particular cases. Exact-head compiled tests still required.
+
+## Initial compiled CI, df5c315
+
+Three-platform workflow 45717970816: core quality, release consistency and Windows ARM64 passed; Windows x64 and macOS failed the new GUI manual Eye test. Inspection shows selecting Custom intentionally clears the bit rate and reference frequency; the new test omitted restoring these required values. Restore both explicitly without changing product manual validation. CodeQL PR annotations 716–718: remove exact floating comparisons in the new spectrum branch and test, and use an explicit single-return optional source fixture. The revised head still requires CI and review; previous results do not qualify the new head. Codex found no major issues on df5c315 only.
+
+## Second compiled CI, 5d09c9e
+
+Core, Windows x64/ARM64, native ARM64 packaged gate, all CodeQL checks, version consistency and Codex review passed. macOS 83/84 passed; channel_analysis_window_lifecycle timed out at 90 s, with channel_eye_numerics passing. Likely nested native warning dialog/test auto-response incompatibility (exact hang location not logged). Replace synchronous QMessageBox with nonblocking Qt QDialog, explicit named consent buttons, and bounded event-loop tests for accept/cancel and stale source dismissal. Preserve frequency cutoff and default Cancel; no timeout increase or test bypass. Revised head requires all checks and review again.

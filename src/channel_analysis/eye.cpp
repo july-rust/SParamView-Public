@@ -50,7 +50,7 @@ std::vector<uint8_t> sequence(const EyeSettings &s, size_t bits) {
   return out;
 }
 std::vector<Complex> spectrum(const ComplexTrace &trace, double cap,
-                              double sampleRate, size_t n,
+                              double sampleRate, size_t n, const EyeDcInfo &dc,
                               const std::atomic_bool *flag, bool &active) {
   std::vector<Complex> h(n, Complex{0,0});
   const double df=sampleRate / double(n);
@@ -59,11 +59,21 @@ std::vector<Complex> spectrum(const ComplexTrace &trace, double cap,
     if (!(k&1023u)) check(flag);
     const double f=df*double(k);
     if (f > cap) break; // stated ideal zero-above-cap *simulation*; no S extrapolation
-    while (j+1 < trace.frequencyHz.size() && trace.frequencyHz[j+1] < f) ++j;
-    require(j+1<trace.frequencyHz.size(), "Eye source spectrum does not cover cap");
-    const double f0=trace.frequencyHz[j], f1=trace.frequencyHz[j+1];
-    const double a=(f-f0)/(f1-f0);
-    h[k]=(1-a)*trace.transfer[j]+a*trace.transfer[j+1];
+    if(k==0) {
+      h[k]={dc.value,0};
+    } else if(f<=dc.firstPositiveHz) {
+      const size_t first=trace.frequencyHz.front()==0?1:0;
+      const double a=f/dc.firstPositiveHz;
+      h[k]=(1-a)*Complex{dc.value,0}+a*trace.transfer[first];
+    } else {
+      if(j==0 && trace.frequencyHz.front()==0) j=1;
+      while (j+2 < trace.frequencyHz.size() && trace.frequencyHz[j+1] < f) ++j;
+      require(j+1<trace.frequencyHz.size() && f<=trace.frequencyHz[j+1],
+              "Eye source spectrum does not cover cap");
+      const double f0=trace.frequencyHz[j], f1=trace.frequencyHz[j+1];
+      const double a=(f-f0)/(f1-f0);
+      h[k]=(1-a)*trace.transfer[j]+a*trace.transfer[j+1];
+    }
     require(finite(h[k]), "Invalid interpolated transfer value");
     if (std::abs(h[k]) > 1.0001) active=true;
   }
@@ -101,6 +111,83 @@ std::vector<double> apply(const std::vector<double> &signal,
   return result;
 }
 } // namespace
+
+EyeDcInfo inspectEyeDc(const ComplexTrace &trace) {
+  validateTrace(trace);
+  EyeDcInfo dc;
+  const bool original=trace.frequencyHz.front()==0;
+  const size_t first=original?1:0;
+  dc.originalStartHz=trace.frequencyHz.front();
+  dc.firstPositiveHz=trace.frequencyHz[first];
+  dc.effectiveStartHz=dc.originalStartHz;
+  const double f=dc.firstPositiveHz;
+  // When the original DC is real but there is no nearby positive sample,
+  // preserve the supplied DC (legacy results) without claiming continuity.
+  // A nonreal or clearly inconsistent sparse DC cannot be safely repaired.
+  if(original && f>=100000.) {
+    require(closeReal(trace.transfer[0]), "Invalid DC; first positive frequency >=100 kHz; cannot correct");
+    dc.value=trace.transfer[0].real();
+    dc.limited=true;
+    if(trace.transfer.size()>=3 &&
+       std::abs(trace.transfer[1]-trace.transfer[2])<0.02 &&
+       std::abs(trace.transfer[1].imag())<0.02)
+      require(std::abs(trace.transfer[0]-trace.transfer[1])<=0.1,
+              "Sparse DC discontinuity; cannot distinguish physical low-frequency response from corrupt DC");
+    return dc;
+  }
+  require(f<100000., "Eye effective start >=100 kHz; DC extrapolation blocked");
+  // Three positive samples: real part is even for a real impulse response.
+  // Compare constant, linear, even-quadratic and alternate-point estimates.
+  // These are local engineering checks, NOT a bound on unobserved poles.
+  if(trace.transfer.size()-first<3) {
+    require(original && closeReal(trace.transfer[0]),
+            "Insufficient positive samples for DC extrapolation");
+    dc.value=trace.transfer[0].real(); dc.limited=true; return dc;
+  }
+  const auto z=trace.transfer[first];
+  const double f2=trace.frequencyHz[first+1], f3=trace.frequencyHz[first+2];
+  const double r2=f/f2, r3=f/f3;
+  const auto z2=trace.transfer[first+1], z3=trace.transfer[first+2];
+  const bool separated=1-r2>1e-6 && 1-r3>1e-6;
+  const bool sparse=f2>std::max(100000.,10*f) || f3>std::max(100000.,20*f);
+  double estimate=z.real(), spread=std::numeric_limits<double>::infinity();
+  if(separated) {
+    const double linear=(z.real()-r2*z2.real())/(1-r2);
+    const double even=(z.real()-r2*r2*z2.real())/(1-r2*r2);
+    const double alternate=(z.real()-r3*r3*z3.real())/(1-r3*r3);
+    estimate=even;
+    spread=std::max({std::abs(even-z.real()),std::abs(even-linear),
+                    std::abs(even-alternate)});
+    // Imaginary DC inferred from linear continuation should be zero.
+    const double imagIntercept=(z.imag()-r2*z2.imag())/(1-r2);
+    spread=std::max(spread,std::abs(imagIntercept));
+  }
+  const bool stable=std::isfinite(estimate) && spread<=0.001 &&
+    (!sparse || std::abs(z.imag())<=0.01);
+  dc.modelSpreadAvailable=std::isfinite(spread);
+  dc.modelSpread=dc.modelSpreadAvailable?spread:0;
+  if(original && closeReal(trace.transfer[0]) &&
+     ((stable && std::abs(trace.transfer[0].real()-estimate)<=0.001) ||
+      (!stable && std::abs(trace.transfer[0]-z)<=0.01))) {
+    dc.value=trace.transfer[0].real();
+    dc.limited=sparse || !stable;
+    return dc;
+  }
+  require(stable,"DC missing or suspect; low-frequency models disagree or data insufficient");
+  // A physically real but discrepant measured DC may be a genuine unobserved
+  // low-frequency pole/zero (e.g. AC coupling), not a corrupt source sample.
+  // Do not overwrite it based solely on extrapolation. Nonreal DC violates
+  // the real-system Hermitian contract and can be replaced if the fit is stable.
+  require(!original || !closeReal(trace.transfer[0]),
+          "Real DC conflicts with local extrapolation; cannot distinguish corrupt DC from an unobserved pole/zero");
+  dc.effectiveStartHz=f;
+  dc.value=estimate;
+  dc.status=original?"CORRECTED DC":"EXTRAPOLATED DC";
+  dc.method="Local even-real fit; constant/linear/alternate comparison";
+  dc.requiresConfirmation=f>10000.;
+  dc.limited=sparse || dc.requiresConfirmation || original;
+  return dc;
+}
 
 const char *eyeProfileName(EyeProfile profile) {
   switch(profile) {
@@ -163,8 +250,11 @@ Result<EyeData> calculateEye(const ComplexTrace &trace, const EyeSettings &s,
   const double sampleRate=s.bitRateHz*double(s.samplesPerUI);
   require(positive(sampleRate) && s.analysisStopHz<=0.5*sampleRate,
           "Eye analysis cap exceeds simulated sampling Nyquist");
-  require(trace.frequencyHz.front()==0,
-          "Eye time-domain simulation requires measured DC; no DC extrapolation");
+  const auto dc=inspectEyeDc(trace);
+  require(!dc.requiresConfirmation || s.acceptLimitedDc,
+          "Eye DC extrapolation above 10 kHz requires explicit acknowledgement");
+  require(s.analysisStopHz>=dc.firstPositiveHz,
+          "Eye analysis cap below first positive source frequency");
   require(trace.frequencyHz.back()>=s.analysisStopHz,
           "Eye source stops below selected analysis cap; no extrapolation");
   const auto &e=s.electrical;
@@ -204,7 +294,7 @@ Result<EyeData> calculateEye(const ComplexTrace &trace, const EyeSettings &s,
           "Eye voltage swing exceeds finite mV range");
   const auto bits=sequence(s,bitCount);
   bool active=false;
-  auto h=spectrum(trace,s.analysisStopHz,sampleRate,n,cancelled,active);
+  auto h=spectrum(trace,s.analysisStopHz,sampleRate,n,dc,cancelled,active);
   std::vector<Complex> impulseFft=h;
   fft(impulseFft,true);
   check(cancelled);
@@ -223,6 +313,7 @@ Result<EyeData> calculateEye(const ComplexTrace &trace, const EyeSettings &s,
           "Eye transfer has zero energy or unresolved circular/negative delay");
   EyeData data;
   data.settings=s;
+  data.dc=dc;
   data.frameBitCount=bitCount;
   data.reverse=(trace.parameter=="S12" || trace.parameter=="Sdd12");
   data.profileName=eyeProfileName(s.profile);
@@ -319,6 +410,16 @@ Result<EyeData> calculateEye(const ComplexTrace &trace, const EyeSettings &s,
   result.status=Status::Warning; // simulated, ideal out-of-band filter, no PHY pass
   result.diagnostics.push_back({Severity::Warning,"SIMULATED_ONLY",
      "Deterministic periodic NRZ modeled waveform, not a measured eye, BER or PHY compliance"});
+  result.diagnostics.push_back({Severity::Info,
+    dc.status=="ORIGINAL DC"?"ORIGINAL_DC":
+    dc.status=="CORRECTED DC"?"CORRECTED_DC":"EXTRAPOLATED_DC",
+    dc.method});
+  if(dc.limited)
+    result.diagnostics.push_back({Severity::Warning,"DC_QUALITY_LIMITED",
+      "DC continuity, correction or extrapolation is limited by available low-frequency data; unobserved poles cannot be excluded"});
+  if(dc.requiresConfirmation)
+    result.diagnostics.push_back({Severity::Warning,"DC_FREQUENCY_ACKNOWLEDGED",
+      "Effective start above 10 kHz; user acknowledged DC extrapolation limitations"});
   if(data.bandLimited)
     result.diagnostics.push_back({Severity::Warning,"IDEAL_BAND_LIMIT",
       "Above selected measured analysis cap, H is set to zero for simulation ONLY; unknown physical response"});

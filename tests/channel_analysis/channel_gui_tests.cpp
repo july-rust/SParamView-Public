@@ -779,6 +779,106 @@ int main(int argc, char **argv) {
           "Unmeasured Eye analysis cap did not fail closed");
     cap->setValue(10);
 
+    // 012_52: real no-DC Touchstone -> verified mapped source -> preview/manual,
+    // explicit modal cancellation and acceptance, blocked results never export.
+    auto setLowSource=[&](double start) {
+      const QString key=QString::number(start,'f',0);
+      const auto path=si::pathFromUtf8(ildDir.filePath("dc-"+key+".s2p").toStdString());
+      {
+        std::ofstream out(path);out<<std::setprecision(17)<<"# Hz S RI R 50\n";
+        for(double f:{start,2*start,3*start})
+          out<<f<<" 0 0 0.5 0 0.5 0 0 0\n";
+        for(int i=1;i<=16;++i)
+          out<<i*1e9<<" 0 0 0.5 0 0.5 0 0 0\n";
+      }
+      auto low=si::Cache::open(path,
+        si::pathFromUtf8(ildDir.filePath("dc-cache-"+key).toStdString()),nullptr,true);
+      auto ctx=numericContext;
+      ctx.sources[0].sha256=QString::fromStdString(low->meta().sha256);
+      ctx.sources[0].revision="DC fixture "+key;
+      const auto revision=ctx.sources[0].revision.toStdString();
+      const IldSourceInput fixture{low,{channel},revision,low->meta().sha256,1,1};
+      manager.setEyeSourceProvider([fixture](int index) -> std::optional<IldSourceInput> {
+        return index==0 ? std::optional<IldSourceInput>{fixture} : std::optional<IldSourceInput>{};
+      });
+      manager.setContext(ctx);
+    };
+    setLowSource(1000);
+    preview->click();drain(manager.scheduler());
+    check(eye->status()==S::Warning && metrics->text().contains("EXTRAPOLATED DC"),
+          "1 kHz preview without DC must run automatically");
+    const auto lowCsv=ildDir.filePath("dc-1k.csv"),lowPng=ildDir.filePath("dc-1k.png");
+    check(eye->saveEyeCsv(lowCsv)&&eye->saveEyePng(lowPng),"conditioned exports");
+    QFile lowRead(lowCsv);check(lowRead.open(QIODevice::ReadOnly),"DC CSV read");
+    const auto lowBytes=lowRead.readAll();
+    check(lowBytes.contains("# effective_start_hz,1000") &&
+          lowBytes.contains("# dc_status,\"EXTRAPOLATED DC\"") &&
+          lowBytes.contains("# dc_acknowledged,false"),"DC CSV provenance");
+    const QImage lowImage(lowPng);
+    check(lowImage.text("DCStatus")=="EXTRAPOLATED DC" &&
+          lowImage.text("EffectiveStartHz")=="1000","DC PNG provenance");
+    // Custom profile intentionally clears rates/electrical fields; explicitly
+    // restore the manual NRZ settings rather than relying on the previous PHY.
+    profile->setCurrentIndex(8);mode->setCurrentIndex(1);
+    baud->setValue(4.5);reference->setValue(2.25);cap->setValue(10);
+    check(std::abs(baud->value()-4.5)<1e-9 && std::abs(reference->value()-2.25)<1e-9,
+          "explicit manual DC fixture rate");
+    for(int i=0;i<electricalNames.size();++i)
+      eye->findChild<QLineEdit *>(electricalNames[i])->setText(electricalValues[i]);
+    eye->runButton()->click();drain(manager.scheduler());
+    check(eye->status()==S::Warning && metrics->text().contains("EXTRAPOLATED DC"),
+          "manual Eye must use same DC policy");
+    setLowSource(10001);
+    for(bool accept:{false,true}) {
+      preview->click();
+      QPointer<QDialog> prompt;
+      check(pumpUntil([&] {
+        prompt=eye->findChild<QDialog *>(QStringLiteral("eyeDcConsentDialog"));
+        return prompt && prompt->isVisible();
+      }),"10 kHz+ preview must request consent within bounded time");
+      auto *buttons=prompt->findChild<QDialogButtonBox *>();
+      check(buttons,"DC consent buttons missing");
+      auto *button=buttons->button(accept?QDialogButtonBox::Ok:QDialogButtonBox::Cancel);
+      check(button,"DC consent action missing");
+      button->click();
+      check(pumpUntil([&] {
+        return eye->status()==(accept?S::Warning:S::Cancelled) && manager.scheduler().inFlight()==0;
+      }),"DC consent decision did not complete within bounded time");
+      check(pumpUntil([&]{
+        QCoreApplication::sendPostedEvents(nullptr,QEvent::DeferredDelete);
+        return prompt.isNull();
+      }),"DC consent dialog not retired");
+      if(accept) {
+        check(eye->status()==S::Warning && eye->saveEyeCsv(ildDir.filePath("dc-ack.csv")),
+              "accepted DC warning must run");
+        QFile accepted(ildDir.filePath("dc-ack.csv"));
+        check(accepted.open(QIODevice::ReadOnly)&&accepted.readAll().contains("# dc_acknowledged,true"),
+              "DC consent export provenance");
+      } else check(eye->status()==S::Cancelled && !eye->saveEyeCsv(ildDir.filePath("dc-cancel.csv")),
+                   "cancelled DC warning cannot export");
+    }
+    // Changing the immutable source while consent is pending must dismiss it;
+    // an old confirmation cannot launch analysis on the new source.
+    preview->click();
+    QPointer<QDialog> stalePrompt;
+    check(pumpUntil([&]{
+      stalePrompt=eye->findChild<QDialog *>(QStringLiteral("eyeDcConsentDialog"));
+      return stalePrompt && stalePrompt->isVisible();
+    }),"pending DC confirmation missing");
+    setLowSource(100000);
+    check(pumpUntil([&]{
+          QCoreApplication::sendPostedEvents(nullptr,QEvent::DeferredDelete);
+          return stalePrompt.isNull();
+        }) &&
+          !eye->saveEyeCsv(ildDir.filePath("dc-stale-consent.csv")),
+          "source change retained DC consent or allowed export");
+    preview->click();drain(manager.scheduler());
+    check(eye->status()==S::Error && !eye->saveEyeCsv(ildDir.filePath("dc-blocked.csv")) &&
+          !eye->saveEyePng(ildDir.filePath("dc-blocked.png")),"100 kHz must block preview and exports");
+    eye->runButton()->click();drain(manager.scheduler());
+    check(eye->status()==S::Error && !eye->saveEyeCsv(ildDir.filePath("dc-blocked-manual.csv")),
+          "100 kHz must block manual Eye");
+
     manager.setEyeSourceProvider({});
 
     manager.setIcnSourceProvider({});
