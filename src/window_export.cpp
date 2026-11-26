@@ -4,11 +4,11 @@ void MainWindow::exportXlsx() {
     return;
   }
   QDialog d(this);
-  d.setWindowTitle("Excel Export");
+  d.setWindowTitle(sparamview::ui_language::textFor(this, "Excel Export"));
   auto layout = new QVBoxLayout(&d);
-  auto a = new QCheckBox("Summary"), b = new QCheckBox("Detailed results"),
-       c = new QCheckBox("Graphs"),
-       raw = new QCheckBox("Raw trace data (large)");
+  auto a = new QCheckBox(sparamview::ui_language::textFor(this, "Summary")), b = new QCheckBox(sparamview::ui_language::textFor(this, "Detailed results")),
+       c = new QCheckBox(sparamview::ui_language::textFor(this, "Graphs")),
+       raw = new QCheckBox(sparamview::ui_language::textFor(this, "Raw trace data (large)"));
   for (auto check : {a, b, c, raw})
     layout->addWidget(check);
   a->setChecked(true);
@@ -17,13 +17,14 @@ void MainWindow::exportXlsx() {
   auto buttons =
       new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
   layout->addWidget(buttons);
+  sparamview::ui_language::localizeButtons(buttons,this);
   connect(buttons, &QDialogButtonBox::accepted, &d, &QDialog::accept);
   connect(buttons, &QDialogButtonBox::rejected, &d, &QDialog::reject);
   if (d.exec() != QDialog::Accepted)
     return;
   QString path = withExtension(
       QFileDialog::getSaveFileName(
-          this, "Save Excel Workbook",
+          this, sparamview::ui_language::textFor(this, "Save Excel Workbook"),
           sparamview::preferences::saveSuggestion(projectName + "_SI_Analysis_" +
               QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss") + ".xlsx"),
           "Excel (*.xlsx)"),
@@ -45,7 +46,7 @@ void MainWindow::exportXlsx() {
                     stagingDirectory);
       },
       [this, path] {
-        notice->setText("Excel workbook saved: " + QFileInfo(path).fileName());
+        sparamview::ui_language::message(notice,"Excel workbook saved: %1",{QFileInfo(path).fileName()});
         sparamview::preferences::rememberFile(path);
       });
 }
@@ -53,7 +54,7 @@ void MainWindow::savePng() {
   if (results.empty() || busy)
     return;
   QString path =
-      withExtension(QFileDialog::getSaveFileName(this, "Save Plot",
+      withExtension(QFileDialog::getSaveFileName(this, sparamview::ui_language::textFor(this, "Save Plot"),
                                                  sparamview::preferences::saveSuggestion("SI_Graph.png"), "PNG (*.png)"),
                     ".png");
   if (path.isEmpty())
@@ -80,7 +81,7 @@ void MainWindow::saveCsv() {
   exportSettings.reverse = job.reverse.value_or(exportSettings.reverse);
   QString path = withExtension(
       QFileDialog::getSaveFileName(
-          this, "Raw CSV",
+          this, sparamview::ui_language::textFor(this, "Raw CSV"),
           sparamview::preferences::saveSuggestion(qs(r.channel) + "_" + qs(si::name(r.metric)) + ".csv"), "CSV (*.csv)"),
       ".csv");
   if (path.isEmpty())
@@ -238,7 +239,7 @@ void MainWindow::closeEvent(QCloseEvent *e) {
     if (control)
       control->cancelled = true;
     e->ignore();
-    notice->setText("Cancelling the active task. Close the window after cancellation completes.");
+    sparamview::ui_language::message(notice,"Cancelling the active task. Close the window after cancellation completes.");
     return;
   }
   if (!confirmProjectTransition()) {e->ignore();return;}
@@ -249,8 +250,8 @@ void MainWindow::closeEvent(QCloseEvent *e) {
 
 bool MainWindow::confirmProjectTransition() {
   if (!dirty || revisions.empty()) return true;
-  const auto choice=QMessageBox::question(this,"Save Project",
-      "Save the modified settings and channel mapping?",
+  const auto choice=QMessageBox::question(this,sparamview::ui_language::textFor(this, "Save Project"),
+      sparamview::ui_language::textFor(this, "Save the modified settings and channel mapping?"),
       QMessageBox::Save|QMessageBox::Discard|QMessageBox::Cancel);
   if(choice==QMessageBox::Cancel) return false;
   if(choice==QMessageBox::Save){saveProject();return !dirty;}

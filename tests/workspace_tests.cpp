@@ -717,23 +717,38 @@ struct WorkspaceProbe {
    check(newAction!=nullptr,"Missing New action");
    const auto shortcut=newAction->shortcut();
    const int marker=w.markerBox->currentIndex(), performance=w.performanceBox->currentIndex();
+   using si::gui::Feature;
+   auto *ild=w.analysisWindows->openWindow(Feature::Ild);
+   auto *icn=w.analysisWindows->openWindow(Feature::Icn);
+   auto *eye=w.analysisWindows->openWindow(Feature::Eye);
+   check(ild && icn && eye,"Analysis windows missing");
+   const auto generation=w.analysisWindows->context().generation;
+   auto *direction=eye->findChild<QComboBox *>("analysisDirection");
+   auto *manual=eye->findChild<QPushButton *>("analysisRun");
+   check(direction && manual,"Eye language controls missing");
+   direction->setCurrentIndex(1);
+   const auto originalStatus=eye->status();
    for(int i=0;i<100;++i) {
     ko->trigger();verify(w,QString::fromUtf8("파일"),"Korean");
     check(newAction->text()==QString::fromUtf8("새로 만들기"),"Korean New action");
     check(w.tabs->tabText(0)==QString::fromUtf8("그래프"),"Korean plot tab");
     check(w.quickButton->text()==QString::fromUtf8("빠른 분석"),"Korean quick analysis button");
+    check(manual->text()==QString::fromUtf8("수동 실행") && direction->itemText(1)==QString::fromUtf8("역방향"),"Korean open Eye window");
     ja->trigger();verify(w,QString::fromUtf8("ファイル"),"Japanese");
     check(newAction->text()==QString::fromUtf8("新規作成"),"Japanese New action");
     check(w.tabs->tabText(0)==QString::fromUtf8("グラフ"),"Japanese plot tab");
     check(w.quickButton->text()==QString::fromUtf8("クイック解析"),"Japanese quick analysis button");
+    check(manual->text()==QString::fromUtf8("手動実行") && direction->itemText(1)==QString::fromUtf8("逆方向"),"Japanese open Eye window");
     en->trigger();verify(w,"File","English");
     check(newAction->text()=="New","English New action");
+    check(manual->text()=="Run Manual" && direction->currentIndex()==1 && eye->status()==originalStatus && w.analysisWindows->context().generation==generation,"Language changed analysis state");
    }
    check(QLocale().name()==before && w.limitValues[0]->value()==limit &&
          newAction->shortcut()==shortcut && !w.dirty &&
          w.markerBox->currentIndex()==marker && w.performanceBox->currentIndex()==performance,
          "Menu language mutated application state");
    ja->trigger();
+   ild->close();icn->close();eye->close();QApplication::processEvents();
   }
   {MainWindow w;verify(w,QString::fromUtf8("ファイル"),"Japanese");}
   {auto p=store();p.setValue("ui/v1/language","unsupported");p.sync();}

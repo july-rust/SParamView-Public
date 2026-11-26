@@ -56,7 +56,7 @@ void MainWindow::newWorkspace() {
   if (analysisWindows) analysisWindows->retireWorkspace(std::move(retiredNewWorkspace));
   else if (!retiredNewWorkspace->remove())
     qWarning() << "SParamView: retired workspace cleanup deferred";
-  notice->setText("New workspace ready. Previous workspace cache retired; cleanup may be deferred until worker handles are released.");
+  sparamview::ui_language::message(notice,"New workspace ready. Previous workspace cache retired; cleanup may be deferred until worker handles are released.");
 }
 
 void MainWindow::saveProject(bool as) {
@@ -68,7 +68,7 @@ void MainWindow::saveProject(bool as) {
     if (path.isEmpty() || as)
       path =
           withExtension(QFileDialog::getSaveFileName(
-                            this, "Save Project", sparamview::preferences::saveSuggestion(projectName + ".siproject"),
+                            this, sparamview::ui_language::textFor(this, "Save Project"), sparamview::preferences::saveSuggestion(projectName + ".siproject"),
                             "SI Project (*.siproject)"),
                         ".siproject");
     if (path.isEmpty())
@@ -123,7 +123,7 @@ void MainWindow::saveProject(bool as) {
     projectPath = path;
     sparamview::preferences::rememberFile(path);
     dirty = false;
-    notice->setText("Project saved: " + QFileInfo(path).fileName());
+    sparamview::ui_language::message(notice,"Project saved: %1",{QFileInfo(path).fileName()});
   } catch (const std::exception &e) {
     error(qs(e.what()));
   }
@@ -154,7 +154,7 @@ void MainWindow::loadProject(QString path, bool rememberDirectory) {
         source = r["absoluteSource"].toString();
       if (!QFileInfo::exists(source)) {
         source = QFileDialog::getOpenFileName(
-            this, "Locate Source File: " + r["name"].toString(), sparamview::preferences::workingDirectory(),
+            this, sparamview::ui_language::textFor(this, "Locate Source File") + ": " + r["name"].toString(), sparamview::preferences::workingDirectory(),
             "Touchstone (*.s*p *.ts)");
         if (source.isEmpty())
           return;
@@ -281,7 +281,7 @@ void MainWindow::loadProject(QString path, bool rememberDirectory) {
           refreshPlot();
           dirty = false;
           refreshAnalysisContext();
-          notice->setText("Project restored. Reconfirm mapping for revisions whose source files have changed.");
+          sparamview::ui_language::message(notice,"Project restored. Reconfirm mapping for revisions whose source files have changed.");
           if (rememberDirectory) sparamview::preferences::rememberFile(path);
         });
   } catch (const std::exception &e) {
@@ -294,10 +294,10 @@ void MainWindow::preset(bool save) {
       syncSettings();
     QString path =
         save ? withExtension(QFileDialog::getSaveFileName(
-                                 this, "Save Limit Preset", sparamview::preferences::saveSuggestion("SI_Rule.json"),
+                                 this, sparamview::ui_language::textFor(this, "Save Limit Preset"), sparamview::preferences::saveSuggestion("SI_Rule.json"),
                                  "JSON (*.json)"),
                              ".json")
-             : QFileDialog::getOpenFileName(this, "Load Limit Preset", sparamview::preferences::workingDirectory(),
+             : QFileDialog::getOpenFileName(this, sparamview::ui_language::textFor(this, "Load Limit Preset"), sparamview::preferences::workingDirectory(),
                                             "JSON (*.json)");
     if (path.isEmpty())
       return;
@@ -346,8 +346,8 @@ void MainWindow::frequencyLimit() {
     lines << num(f * 1e-9, 6) + ", " + num(v, 3);
   bool ok;
   auto text = QInputDialog::getMultiLineText(
-      this, "Frequency Limit: " + qs(si::name(displayed)),
-      "Enter GHz, dB on each line. Clear the text to restore a constant limit.\nExample: 1, -10\nValues outside the defined range are N/A; limits are not extrapolated.",
+      this, sparamview::ui_language::textFor(this, "Frequency Limit") + ": " + qs(si::name(displayed)),
+      sparamview::ui_language::textFor(this, "Enter GHz, dB on each line. Clear the text to restore a constant limit.\nExample: 1, -10\nValues outside the defined range are N/A; limits are not extrapolated."),
       lines.join('\n'), &ok);
   if (!ok)
     return;
@@ -368,7 +368,7 @@ void MainWindow::frequencyLimit() {
     revised.validate();
     *limit = revised;
     dirty = true;
-    notice->setText("Frequency limits saved. Enable the corresponding limit checkbox and rerun analysis.");
+    sparamview::ui_language::message(notice,"Frequency limits saved. Enable the corresponding limit checkbox and rerun analysis.");
   } catch (const std::exception &e) {
     error(qs(e.what()));
   }

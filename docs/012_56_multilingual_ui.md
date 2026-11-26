@@ -24,3 +24,8 @@ This is a partial implementation, not a completed 012_56 or a release candidate.
 ## Follow-up
 - Previous head fba6ae5: CodeQL passed; Windows x64 and macOS failed the Korean static UI assertion, Windows ARM64 CI passed. Run 45772454110. The combined assertion is split and explicit main tab/button source binding added; root cause awaits retest.
 - Added fixed analysis window controls, guide text, status prefix and selected plot labels with a language property observer. Dynamic result detail strings and dialogs remain incomplete. No qualification claimed.
+
+## Follow-up: dialog and dynamic notice coverage
+- f86d2ede passed the three-platform CI and CodeQL (runs 45774724248 / 45774724390); release publication skipped as intended.
+- Localize TDR/mapping/export/axis dialog controls, selected file-dialog titles, known notices and status bar messages, and add live-open analysis window state regression. User-entered identifiers and numerical locale remain unchanged.
+- Remaining: complete context-aware dynamic analysis diagnostics, report text, native dialogs, all untranslated strings, actual layout and language parity evidence. Do not treat prior CI as qualification of this commit.

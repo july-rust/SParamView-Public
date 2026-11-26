@@ -208,7 +208,7 @@ MainWindow::~MainWindow() {
     qWarning() << "SParamView: private cache will be retried on next launch";
 }
 void MainWindow::error(const QString &text) {
-  QMessageBox::warning(this, "SParamView", text);
+  QMessageBox::warning(this, "SParamView", sparamview::ui_language::textFor(this,text));
 }
 void MainWindow::task(std::function<void(si::Control *)> work,
                       std::function<void()> done) {
@@ -231,7 +231,7 @@ void MainWindow::task(std::function<void(si::Control *)> work,
         this,
         [this, f, text] {
           progress->setValue(int(f * 1000));
-          statusBar()->showMessage(qs(text));
+          sparamview::ui_language::status(statusBar(),qs(text));
         },
         Qt::QueuedConnection);
   };
@@ -245,8 +245,7 @@ void MainWindow::task(std::function<void(si::Control *)> work,
             progress->hide();
             cancelButton->hide();
             watcher->deleteLater();
-            statusBar()->showMessage(state->cancelled ? "Cancelled · Ready"
-                                                      : "Ready");
+            sparamview::ui_language::status(statusBar(),state->cancelled ? "Cancelled · Ready" : "Ready");
             if (!failure->isEmpty())
               error(*failure);
             else if (!state->cancelled && done)

@@ -266,11 +266,11 @@ MainWindow::MainWindow() {
       "Open Touchstone...", QKeySequence::Open, this,
       [this] {
         openPaths(QFileDialog::getOpenFileNames(
-            this, "Select Touchstone Files", sparamview::preferences::workingDirectory(),
+            this, sparamview::ui_language::textFor(this, "Select Touchstone Files"), sparamview::preferences::workingDirectory(),
             "Touchstone (*.s*p *.ts);;All files (*)"));
       });
   file->addAction("Open Project...", this, [this] {
-    auto p = QFileDialog::getOpenFileName(this, "Project", sparamview::preferences::workingDirectory(),
+    auto p = QFileDialog::getOpenFileName(this, sparamview::ui_language::textFor(this, "Project"), sparamview::preferences::workingDirectory(),
                                           "SI Project (*.siproject)");
     if (!p.isEmpty())
       loadProject(p);
@@ -359,11 +359,11 @@ MainWindow::MainWindow() {
           if (si::sha256File(fp(rev.source), c) != rev.cache->meta().sha256)
             throw si::Error("Source hash changed. Reopen the Touchstone file.");
         },
-        [this] { notice->setText("Source SHA-256 verified"); });
+        [this] { sparamview::ui_language::message(notice,"Source SHA-256 verified"); });
   });
   menuBar()->addAction("About", this, [this] {
     QMessageBox::information(
-        this, "About SParamView",
+        this, sparamview::ui_language::textFor(this, "About SParamView"),
         QString("SParamView\nVersion %1\nBuild: Windows %2\n\nCopyright © 2026 july\nsparamview@gmail.com\nLicensed under the MIT License\n\nC++20 / Qt 6\nProcessing is local. Original Touchstone files are not modified.")
             .arg(si::version)
             .arg(QString::fromLatin1(architectureName())));
@@ -715,12 +715,12 @@ MainWindow::MainWindow() {
   cancelButton->hide();
   statusBar()->addPermanentWidget(progress);
   statusBar()->addPermanentWidget(cancelButton);
-  statusBar()->showMessage("Ready · Local processing · Source read-only");
+  sparamview::ui_language::status(statusBar(),"Ready · Local processing · Source read-only");
   connect(cancelButton, &QPushButton::clicked, this, [this] {
     if (control)
       control->cancelled = true;
     cancelButton->setEnabled(false);
-    statusBar()->showMessage("Cancelling...");
+    sparamview::ui_language::status(statusBar(),"Cancelling...");
   });
   connect(revisionBox, &QComboBox::currentIndexChanged, this, [this] {
     updateActiveTouchstoneTitle();
@@ -788,7 +788,7 @@ MainWindow::MainWindow() {
     connect(w, &QDoubleSpinBox::valueChanged, this, [this] {
       markDirty();
       if (!results.empty() && !restoringProject)
-        notice->setText("Settings changed. Run analysis to apply them. Export uses the last completed analysis settings.");
+        sparamview::ui_language::message(notice,"Settings changed. Run analysis to apply them. Export uses the last completed analysis settings.");
     });
   for (auto *box : body->findChildren<QCheckBox *>())
     connect(box,&QCheckBox::toggled,this,[this]{markDirty();});
@@ -835,6 +835,11 @@ MainWindow::MainWindow() {
         readout->setText(menuText(hint, value));
         break;
       }
+  });
+  message(notice,notice->text());
+  languageBindings.push_back([this](Language value){
+    refreshMessage(notice,value);
+    refreshStatus(statusBar(),value);
   });
   installMenu(*this, std::move(languageBindings));
 }

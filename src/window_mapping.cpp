@@ -229,11 +229,11 @@ void MainWindow::openNextPath(QStringList paths, bool batch) {
             refreshAnalysisContext();
             dirty = true;
             sparamview::preferences::rememberFile(current.source);
-            notice->setText(mappingAccepted
+            sparamview::ui_language::message(notice,mappingAccepted
                 ? "Touchstone data loaded. Mapping validated from " + current.mappingSource + ". Select channels and run analysis."
                 : "Touchstone data loaded. Mapping review is required before analysis.");
           } else {
-            notice->setText("Skipped " + QFileInfo(path).fileName() + ": mapping not confirmed.");
+            sparamview::ui_language::message(notice,"Skipped " + QFileInfo(path).fileName() + ": mapping not confirmed.");
           }
         }
         openNextPath(paths, batch);
@@ -414,9 +414,9 @@ void MainWindow::applySettings() {
 void MainWindow::chooseTerminations() {
   if(busy)return;
   try{syncSettings();}catch(const std::exception &e){error(qs(e.what()));return;}
-  QDialog dialog(this);dialog.setWindowTitle("TDR Options");
+  QDialog dialog(this);dialog.setWindowTitle(sparamview::ui_language::textFor(this, "TDR Options"));
   auto layout=new QVBoxLayout(&dialog);
-  layout->addWidget(new QLabel("Select multiple conditions to overlay TDR traces.\nForward: terminate Far / Reverse: terminate Near\nAll other physical ports are matched to their source reference impedances."));
+  layout->addWidget(new QLabel(sparamview::ui_language::textFor(this, "Select multiple conditions to overlay TDR traces.\nForward: terminate Far / Reverse: terminate Near\nAll other physical ports are matched to their source reference impedances.")));
   QCheckBox *choices[5];
   QStringList labels{"Reference: matched to source reference impedance",
     "Resistive: SE 50 Ω / Diff P–N 100 Ω (floating)",
@@ -424,29 +424,30 @@ void MainWindow::chooseTerminations() {
     "Open: SE open / Diff P and N both open",
     "Short: SE–GND short / Diff P–N short (floating)"};
   for(int i=0;i<5;++i) {
-    choices[i]=new QCheckBox(labels[i]);layout->addWidget(choices[i]);
+    choices[i]=new QCheckBox(sparamview::ui_language::textFor(this,labels[i]));layout->addWidget(choices[i]);
     choices[i]->setChecked(std::find(settings.tdrTerminations.begin(),settings.tdrTerminations.end(),si::Termination(i))!=settings.tdrTerminations.end());
   }
-  layout->addWidget(new QLabel("The two SE 50 Ω options are equivalent and are calculated once.\nReflection coefficient ρ is recommended for open circuits. These are ideal resistive/open/short conditions."));
-  auto reflection = new QCheckBox("Show Reflection Coefficient ρ"); reflection->setChecked(settings.tdrReflection); reflection->setToolTip("Useful for open/short comparisons. Impedance tolerance limits do not apply to ρ."); layout->addWidget(reflection);
+  layout->addWidget(new QLabel(sparamview::ui_language::textFor(this, "The two SE 50 Ω options are equivalent and are calculated once.\nReflection coefficient ρ is recommended for open circuits. These are ideal resistive/open/short conditions.")));
+  auto reflection = new QCheckBox(sparamview::ui_language::textFor(this, "Show Reflection Coefficient ρ")); reflection->setChecked(settings.tdrReflection); reflection->setToolTip(sparamview::ui_language::textFor(this, "Useful for open/short comparisons. Impedance tolerance limits do not apply to ρ.")); layout->addWidget(reflection);
   auto buttons=new QDialogButtonBox(QDialogButtonBox::Ok|QDialogButtonBox::Cancel);layout->addWidget(buttons);
+  sparamview::ui_language::localizeButtons(buttons,this);
   connect(buttons,&QDialogButtonBox::rejected,&dialog,&QDialog::reject);
   connect(buttons,&QDialogButtonBox::accepted,&dialog,[&]{
     bool any=false;for(auto c:choices)any|=c->isChecked();
-    if(!any){QMessageBox::information(&dialog,"Select Terminations","Select at least one termination condition.");return;}dialog.accept();
+    if(!any){QMessageBox::information(&dialog,sparamview::ui_language::textFor(this, "Select Terminations"),sparamview::ui_language::textFor(this, "Select at least one termination condition."));return;}dialog.accept();
   });
   if(dialog.exec()!=QDialog::Accepted)return;
   settings.tdrTerminations.clear();
   for(int i=0;i<5;++i)if(choices[i]->isChecked())settings.tdrTerminations.push_back(si::Termination(i));
   settings.tdrReflection = reflection->isChecked(); tdrReflection->setChecked(settings.tdrReflection);
-  dirty=true;applySettings();notice->setText("TDR options changed. Run TDR or Quick Analysis to update results.");
+  dirty=true;applySettings();sparamview::ui_language::message(notice,"TDR options changed. Run TDR or Quick Analysis to update results.");
 }
 
 bool MainWindow::reviewSignalType(Revision &rev) {
   if (rev.signalTypeReviewed || rev.confirmed)
     return true;
   QDialog dialog(this);
-  dialog.setWindowTitle("Signal Type Detection — " + rev.name);
+  dialog.setWindowTitle(sparamview::ui_language::textFor(this, "Signal Type Detection") + " — " + rev.name);
   dialog.setObjectName("signalTypeDetectionDialog");
   dialog.resize(560, 300);
   auto *layout = new QVBoxLayout(&dialog);
@@ -463,17 +464,17 @@ bool MainWindow::reviewSignalType(Revision &rev) {
       "Confirm the electrical signal type before Channel Mapping. You can still edit every physical P/N and Near/Far assignment in the next step."));
   auto *selector = new QComboBox;
   selector->setObjectName("signalTypeSelector");
-  selector->addItem("Select signal type…", "");
-  selector->addItem("Differential", "Differential");
-  selector->addItem("Single-ended", "Single-ended");
-  selector->addItem("Mixed (Differential + Single-ended)", "Mixed");
+  selector->addItem(sparamview::ui_language::textFor(this, "Select signal type…"), "");
+  selector->addItem(sparamview::ui_language::textFor(this, "Differential"), "Differential");
+  selector->addItem(sparamview::ui_language::textFor(this, "Single-ended"), "Single-ended");
+  selector->addItem(sparamview::ui_language::textFor(this, "Mixed (Differential + Single-ended)"), "Mixed");
   const int detected = selector->findData(rev.signalType);
   if (detected > 0)
     selector->setCurrentIndex(detected);
   layout->addWidget(selector);
   auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok |
                                        QDialogButtonBox::Cancel);
-  buttons->button(QDialogButtonBox::Ok)->setText("Continue to Channel Mapping");
+  buttons->button(QDialogButtonBox::Ok)->setText(sparamview::ui_language::textFor(this, "Continue to Channel Mapping"));
   buttons->button(QDialogButtonBox::Ok)->setEnabled(!selector->currentData().toString().isEmpty());
   connect(selector, &QComboBox::currentIndexChanged, &dialog, [=] {
     buttons->button(QDialogButtonBox::Ok)
@@ -482,6 +483,8 @@ bool MainWindow::reviewSignalType(Revision &rev) {
   connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
   connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
   layout->addWidget(buttons);
+  sparamview::ui_language::localizeButtons(buttons,this);
+  buttons->button(QDialogButtonBox::Ok)->setText(sparamview::ui_language::textFor(this, "Continue to Channel Mapping"));
   if (dialog.exec() != QDialog::Accepted)
     return false;
 
@@ -523,7 +526,7 @@ void MainWindow::editMapping() {
     dirty = true;
     rebuildChannels();
     invalidateRevisionResults(revisions[size_t(index)].name);
-    notice->setText("Mapping confirmed. Select channels and run analysis.");
+    sparamview::ui_language::message(notice,"Mapping confirmed. Select channels and run analysis.");
   } catch (const std::exception &e) { error(qs(e.what())); }
 }
 
@@ -532,7 +535,7 @@ bool MainWindow::confirmMapping(Revision &mappingRevision) {
   // The caller owns the staged revision; no workspace mutation occurs here.
   // Signal review and channel confirmation use the same file-local metadata.
   QDialog dialog(this);
-  dialog.setWindowTitle("Channel Mapping — " + mappingRevision.name);
+  dialog.setWindowTitle(sparamview::ui_language::textFor(this, "Channel Mapping") + " — " + mappingRevision.name);
   dialog.setObjectName("channelMappingDialog");
   dialog.resize(980, 540);
   auto layout = new QVBoxLayout(&dialog);
@@ -555,8 +558,7 @@ bool MainWindow::confirmMapping(Revision &mappingRevision) {
   }
   auto grid = new QTableWidget;
   grid->setColumnCount(8);
-  grid->setHorizontalHeaderLabels({"Channel", "Near+", "Near−", "Far+", "Far−",
-                                   "Group", "Alias", "Mapping ID"});
+  grid->setHorizontalHeaderLabels({sparamview::ui_language::textFor(this, "Channel"), "Near+", "Near−", "Far+", "Far−", sparamview::ui_language::textFor(this, "Group"), sparamview::ui_language::textFor(this, "Alias"), sparamview::ui_language::textFor(this, "Mapping ID")});
   grid->horizontalHeader()->setStretchLastSection(true);
   grid->setSelectionBehavior(QAbstractItemView::SelectRows);
   layout->addWidget(grid, 1);
@@ -582,7 +584,7 @@ bool MainWindow::confirmMapping(Revision &mappingRevision) {
   else
     fill(mappingRevision.candidates);
   auto actions = new QHBoxLayout;
-  button("Add Row", actions, [&] {
+  button(sparamview::ui_language::textFor(this, "Add Row"), actions, [&] {
     int i = grid->rowCount();
     grid->insertRow(i);
     grid->setItem(i, 0, new QTableWidgetItem("CH" + QString::number(i + 1)));
@@ -591,14 +593,14 @@ bool MainWindow::confirmMapping(Revision &mappingRevision) {
                   new QTableWidgetItem(
                       QUuid::createUuid().toString(QUuid::WithoutBraces)));
   });
-  button("Delete Selected Rows", actions, [&] {
+  button(sparamview::ui_language::textFor(this, "Delete Selected Rows"), actions, [&] {
     auto rows = grid->selectionModel()->selectedRows();
     std::sort(rows.begin(), rows.end(),
               [](auto a, auto b) { return a.row() > b.row(); });
     for (auto r : rows)
       grid->removeRow(r.row());
   });
-  button("Suggest from Labels", actions, [&] {
+  button(sparamview::ui_language::textFor(this, "Suggest from Labels"), actions, [&] {
     try {
       std::string diagnostic;
       auto proposed = si::suggestMapping(mappingRevision.cache->meta(), &diagnostic, mappingRevision.inferNamedDifferential);
@@ -611,11 +613,11 @@ bool MainWindow::confirmMapping(Revision &mappingRevision) {
       error(qs(e.what())); // Preserve manually entered rows on failure.
     }
   });
-  button("Suggest SE Half-Split", actions, [&] {
+  button(sparamview::ui_language::textFor(this, "Suggest SE Half-Split"), actions, [&] {
     std::vector<si::Channel> cs;
     auto n = mappingRevision.cache->meta().ports;
     if (n % 2) {
-      error("An even number of ports is required.");
+      error(sparamview::ui_language::textFor(this, "An even number of ports is required."));
       return;
     }
     for (uint64_t i = 0; i < n / 2; ++i) {
@@ -631,10 +633,10 @@ bool MainWindow::confirmMapping(Revision &mappingRevision) {
   layout->addLayout(actions);
 
   // Manual pairing uses physical port indices from this source only.
-  auto manualGroup = new QGroupBox("Manual Differential Pairing");
+  auto manualGroup = new QGroupBox(sparamview::ui_language::textFor(this, "Manual Differential Pairing"));
   auto manual = new QGridLayout(manualGroup);
   auto channelName = new QLineEdit;
-  channelName->setPlaceholderText("Channel name");
+  channelName->setPlaceholderText(sparamview::ui_language::textFor(this, "Channel name"));
   manual->addWidget(new QLabel("Channel"), 0, 0);
   manual->addWidget(channelName, 0, 1, 1, 3);
   QComboBox *manualPorts[4];
@@ -649,25 +651,25 @@ bool MainWindow::confirmMapping(Revision &mappingRevision) {
       manualPorts[k]->addItem(
           QString("P%1  %2").arg(port + 1).arg(label), int(port));
     }
-    manual->addWidget(new QLabel(portTitles[k]), 1, k);
+    manual->addWidget(new QLabel(sparamview::ui_language::textFor(this,portTitles[k])), 1, k);
     manual->addWidget(manualPorts[k], 2, k);
   }
   auto manualActions = new QHBoxLayout;
-  button("Create Differential Channel", manualActions, [&] {
+  button(sparamview::ui_language::textFor(this, "Create Differential Channel"), manualActions, [&] {
     int ports[4];
     for (int k = 0; k < 4; ++k) ports[k] = manualPorts[k]->currentData().toInt();
     if (ports[0] < 0 || ports[1] < 0) {
-      error("Select both Near P and Near N.");
+      error(sparamview::ui_language::textFor(this, "Select both Near P and Near N."));
       return;
     }
     if ((ports[2] < 0) != (ports[3] < 0)) {
-      error("Select both Far P and Far N, or leave both blank.");
+      error(sparamview::ui_language::textFor(this, "Select both Far P and Far N, or leave both blank."));
       return;
     }
     std::set<int> selected;
     for (int port : ports)
       if (port >= 0 && !selected.insert(port).second) {
-        error("A physical port cannot be used twice in one differential channel.");
+        error(sparamview::ui_language::textFor(this, "A physical port cannot be used twice in one differential channel."));
         return;
       }
     int row = grid->rowCount();
@@ -700,20 +702,20 @@ bool MainWindow::confirmMapping(Revision &mappingRevision) {
     grid->item(row, a)->setText(right);
     grid->item(row, b)->setText(left);
   };
-  button("Swap P/N", manualActions, [&] {
+  button(sparamview::ui_language::textFor(this, "Swap P/N"), manualActions, [&] {
     auto rows = selectedRows();
-    if (rows.empty()) { error("Select a mapping row first."); return; }
+    if (rows.empty()) { error(sparamview::ui_language::textFor(this, "Select a mapping row first.")); return; }
     for (int row : rows) { swapCells(row, 1, 2); swapCells(row, 3, 4); }
   });
-  button("Swap Near/Far", manualActions, [&] {
+  button(sparamview::ui_language::textFor(this, "Swap Near/Far"), manualActions, [&] {
     auto rows = selectedRows();
-    if (rows.empty()) { error("Select a mapping row first."); return; }
+    if (rows.empty()) { error(sparamview::ui_language::textFor(this, "Select a mapping row first.")); return; }
     for (int row : rows) { swapCells(row, 1, 3); swapCells(row, 2, 4); }
   });
   manual->addLayout(manualActions, 3, 0, 1, 4);
   layout->addWidget(manualGroup);
   auto portLabels = new QComboBox;
-  portLabels->addItem("Physical Ports / Labels");
+  portLabels->addItem(sparamview::ui_language::textFor(this, "Physical Ports / Labels"));
   for (size_t i = 0; i < mappingRevision.cache->meta().labels.size(); ++i)
     portLabels->addItem("P" + QString::number(i + 1) + "  " +
                         qs(mappingRevision.cache->meta().labels[i]));
@@ -722,6 +724,7 @@ bool MainWindow::confirmMapping(Revision &mappingRevision) {
   auto bottom =
       new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel);
   layout->addWidget(bottom);
+  sparamview::ui_language::localizeButtons(bottom,this);
   connect(bottom, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
   connect(bottom, &QDialogButtonBox::accepted, &dialog, [&] {
     try {
@@ -762,7 +765,7 @@ bool MainWindow::confirmMapping(Revision &mappingRevision) {
       si::validateMapping(cs, mappingRevision.cache->meta());
       const auto mappedType = signalTypeForChannels(cs);
       if (mappingRevision.signalTypeReviewed && mappingRevision.signalType != mappedType &&
-          QMessageBox::question(&dialog, "Signal Type Changed",
+          QMessageBox::question(&dialog, sparamview::ui_language::textFor(this, "Signal Type Changed"),
               "The physical mapping is " + mappedType + ", but the reviewed signal type was " + mappingRevision.signalType + ". Accept this change?",
               QMessageBox::Yes | QMessageBox::No, QMessageBox::No) != QMessageBox::Yes) return;
       mappingRevision.channels = std::move(cs);
@@ -786,7 +789,7 @@ void MainWindow::importMapping() {
   if (i < 0 || busy)
     return;
   auto path =
-      QFileDialog::getOpenFileName(this, "Mapping CSV", sparamview::preferences::workingDirectory(), "CSV (*.csv)");
+      QFileDialog::getOpenFileName(this, sparamview::ui_language::textFor(this, "Mapping CSV"), sparamview::preferences::workingDirectory(), "CSV (*.csv)");
   if (path.isEmpty())
     return;
   try {
@@ -795,7 +798,7 @@ void MainWindow::importMapping() {
     const auto mappedType=signalTypeForChannels(cs);
     const auto &prior=revisions[size_t(i)];
     if(prior.signalTypeReviewed && prior.signalType!=mappedType &&
-       QMessageBox::question(this,"Signal Type Changed",
+       QMessageBox::question(this,sparamview::ui_language::textFor(this, "Signal Type Changed"),
          "Imported mapping is "+mappedType+", but the reviewed signal type was "+prior.signalType+". Accept this change?",
          QMessageBox::Yes|QMessageBox::No,QMessageBox::No)!=QMessageBox::Yes)return;
     revisions[size_t(i)].channels = std::move(cs);
@@ -811,7 +814,7 @@ void MainWindow::importMapping() {
     dirty = true;
     invalidateRevisionResults(revisions[size_t(i)].name);
     rebuildChannels();
-    notice->setText("Mapping confirmed. Select channels and run analysis.");
+    sparamview::ui_language::message(notice,"Mapping confirmed. Select channels and run analysis.");
     sparamview::preferences::rememberFile(path);
   } catch (const std::exception &e) {
     error(qs(e.what()));
@@ -822,7 +825,7 @@ void MainWindow::exportMapping() {
   if (i < 0 || busy)
     return;
   auto path =
-      withExtension(QFileDialog::getSaveFileName(this, "Mapping CSV",
+      withExtension(QFileDialog::getSaveFileName(this, sparamview::ui_language::textFor(this, "Mapping CSV"),
                                                  sparamview::preferences::saveSuggestion("mapping.csv"), "CSV (*.csv)"),
                     ".csv");
   if (path.isEmpty())

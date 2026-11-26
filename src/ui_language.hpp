@@ -13,6 +13,9 @@
 #include <QDoubleSpinBox>
 #include <QGroupBox>
 #include <QLabel>
+#include <QStatusBar>
+#include <QDialogButtonBox>
+#include <QPushButton>
 #include <QLineEdit>
 #include <QSignalBlocker>
 #include <QTabWidget>
@@ -252,6 +255,100 @@ inline QString menuText(const QString &source, Language value) {
     {"Example PHY profile, not compliance", "PHY 예제 프로파일, 적합성 검증 아님", "PHY例示プロファイル、適合性試験ではない"},
     {"Assumed matched, 400 mVpp NRZ preview; uses source phase, qualified DC conditioning and bandwidth, not actual PHY settings.", "정합 및 400 mVpp NRZ를 가정한 미리보기입니다. 원본 위상, 검증된 DC 보정 및 대역폭을 사용하며 실제 PHY 설정은 아닙니다.", "整合および400 mVpp NRZを仮定したプレビューです。ソース位相、検証済みDC処理と帯域幅を使用し、実際のPHY設定ではありません。"},
     {"Derive measured band and use explicit exploratory assumptions; not a PHY or standard compliance test.", "측정 대역을 도출하고 명시적인 탐색 가정을 사용합니다. PHY 또는 표준 적합성 시험이 아닙니다.", "測定帯域を導出し、明示的な探索上の仮定を使用します。PHYまたは標準適合性試験ではありません。"},
+    {"Ready", "준비 완료", "準備完了"},
+    {"Ready · Local processing · Source read-only", "준비 완료 · 로컬 처리 · 원본 읽기 전용", "準備完了 · ローカル処理 · ソース読み取り専用"},
+    {"Cancelling...", "취소 중...", "キャンセル中..."},
+    {"Cancelled · Ready", "취소됨 · 준비 완료", "キャンセル済み · 準備完了"},
+    {"Source SHA-256 verified", "원본 SHA-256 검증 완료", "ソースSHA-256検証済み"},
+    {"Settings changed. Run analysis to apply them. Export uses the last completed analysis settings.", "설정이 변경되었습니다. 적용하려면 분석을 실행하십시오. 내보내기는 마지막 완료 분석 설정을 사용합니다.", "設定が変更されました。適用するには解析を実行してください。エクスポートは最後に完了した解析設定を使用します。"},
+    {"Using completed results for the identical analysis request.", "동일한 분석 요청의 완료 결과를 사용합니다.", "同一解析要求の完了結果を使用します。"},
+    {"Analysis complete. Frequency/time and margin values use full-resolution data. TDR starts from the lowest source frequency; check the preview quality notes.", "분석 완료. 주파수/시간 및 마진 값은 전체 해상도 데이터를 사용합니다. TDR은 원본 최저 주파수에서 시작합니다. 미리보기 품질 안내를 확인하십시오.", "解析完了。周波数/時間とマージンは全解像度データを使用します。TDRはソースの最低周波数から開始します。プレビュー品質の注記を確認してください。"},
+    {"TDR options changed. Run TDR or Quick Analysis to update results.", "TDR 옵션이 변경되었습니다. TDR 또는 빠른 분석을 실행하여 결과를 갱신하십시오.", "TDRオプションが変更されました。TDRまたはクイック解析を実行して結果を更新してください。"},
+    {"Mapping confirmed. Select channels and run analysis.", "매핑 확인 완료. 채널을 선택하고 분석을 실행하십시오.", "マッピング確認済み。チャネルを選択して解析を実行してください。"},
+    {"New workspace ready. Previous workspace cache retired; cleanup may be deferred until worker handles are released.", "새 작업 공간이 준비되었습니다. 이전 캐시는 폐기되었으며 작업 핸들이 해제될 때까지 정리가 지연될 수 있습니다.", "新規ワークスペースの準備完了。以前のキャッシュは退役済みで、ワーカーハンドル解放まで削除が遅れる場合があります。"},
+    {"Project restored. Reconfirm mapping for revisions whose source files have changed.", "프로젝트 복원 완료. 원본 파일이 변경된 리비전의 매핑을 다시 확인하십시오.", "プロジェクト復元済み。ソースファイルが変更されたリビジョンのマッピングを再確認してください。"},
+    {"Frequency limits saved. Enable the corresponding limit checkbox and rerun analysis.", "주파수별 기준이 저장되었습니다. 해당 기준 체크박스를 활성화하고 분석을 다시 실행하십시오.", "周波数別判定基準を保存しました。対応するチェックボックスを有効にして再解析してください。"},
+    {"Cancelling the active task. Close the window after cancellation completes.", "실행 중인 작업을 취소합니다. 취소 완료 후 창을 닫으십시오.", "実行中のタスクをキャンセルします。完了後にウィンドウを閉じてください。"},
+    {"Project saved: %1", "프로젝트 저장 완료: %1", "プロジェクト保存済み: %1"},
+    {"Excel workbook saved: %1", "Excel 통합 문서 저장 완료: %1", "Excelブック保存済み: %1"},
+    {"TDR Options", "TDR 옵션", "TDRオプション"},
+    {"Select multiple conditions to overlay TDR traces.\nForward: terminate Far / Reverse: terminate Near\nAll other physical ports are matched to their source reference impedances.", "TDR 트레이스를 중첩할 조건을 복수 선택하십시오.\n정방향: 원단 종단 / 역방향: 근단 종단\n나머지 물리 포트는 원본 기준 임피던스에 정합됩니다.", "TDRトレースを重ねる条件を複数選択してください。\n順方向: 遠端終端 / 逆方向: 近端終端\nその他の物理ポートはソース基準インピーダンスに整合します。"},
+    {"Reference: matched to source reference impedance", "기준: 원본 기준 임피던스에 정합", "基準: ソース基準インピーダンスに整合"},
+    {"Resistive: SE 50 Ω / Diff P–N 100 Ω (floating)", "저항: SE 50 Ω / 차동 P–N 100 Ω (부동)", "抵抗: SE 50 Ω / 差動 P–N 100 Ω (フローティング)"},
+    {"Grounded: SE 50 Ω / Diff P–GND 50 Ω + N–GND 50 Ω", "접지: SE 50 Ω / 차동 P–GND 50 Ω + N–GND 50 Ω", "接地: SE 50 Ω / 差動 P–GND 50 Ω + N–GND 50 Ω"},
+    {"Open: SE open / Diff P and N both open", "개방: SE 개방 / 차동 P와 N 모두 개방", "開放: SE開放 / 差動PとNの両方を開放"},
+    {"Short: SE–GND short / Diff P–N short (floating)", "단락: SE–GND 단락 / 차동 P–N 단락 (부동)", "短絡: SE–GND短絡 / 差動P–N短絡 (フローティング)"},
+    {"The two SE 50 Ω options are equivalent and are calculated once.\nReflection coefficient ρ is recommended for open circuits. These are ideal resistive/open/short conditions.", "두 SE 50 Ω 옵션은 동등하며 한 번만 계산합니다.\n개방 회로에는 반사 계수 ρ를 권장합니다. 이상적인 저항/개방/단락 조건입니다.", "2つのSE 50 Ωオプションは等価で、一度だけ計算します。\n開放回路には反射係数ρを推奨します。理想的な抵抗/開放/短絡条件です。"},
+    {"Show Reflection Coefficient ρ", "반사 계수 ρ 표시", "反射係数ρを表示"},
+    {"Useful for open/short comparisons. Impedance tolerance limits do not apply to ρ.", "개방/단락 비교에 유용합니다. 임피던스 허용 편차 기준은 ρ에 적용되지 않습니다.", "開放/短絡比較に有用です。インピーダンス許容偏差基準はρに適用されません。"},
+    {"Select Terminations", "종단 선택", "終端を選択"},
+    {"Select at least one termination condition.", "종단 조건을 하나 이상 선택하십시오.", "終端条件を1つ以上選択してください。"},
+    {"Signal Type Detection", "신호 유형 감지", "信号タイプ検出"},
+    {"Signal Type Changed", "신호 유형 변경", "信号タイプ変更"},
+    {"Confirm the electrical signal type before Channel Mapping. You can still edit every physical P/N and Near/Far assignment in the next step.", "채널 매핑 전에 전기적 신호 유형을 확인하십시오. 다음 단계에서 모든 물리 P/N 및 근단/원단 할당을 편집할 수 있습니다.", "チャネルマッピングの前に電気的信号タイプを確認してください。次の段階ですべての物理P/Nと近端/遠端割り当てを編集できます。"},
+    {"Select signal type…", "신호 유형 선택…", "信号タイプを選択…"},
+    {"Mixed (Differential + Single-ended)", "혼합 (차동 + 단일 종단)", "混在 (差動 + シングルエンド)"},
+    {"Continue to Channel Mapping", "채널 매핑 계속", "チャネルマッピングへ進む"},
+    {"Group", "그룹", "グループ"},
+    {"Alias", "별칭", "別名"},
+    {"Mapping ID", "매핑 ID", "マッピングID"},
+    {"Add Row", "행 추가", "行を追加"},
+    {"Delete Selected Rows", "선택 행 삭제", "選択行を削除"},
+    {"Suggest from Labels", "라벨 기반 제안", "ラベルから提案"},
+    {"Suggest SE Half-Split", "SE 절반 분할 제안", "SE半分割を提案"},
+    {"Manual Differential Pairing", "수동 차동 페어링", "手動差動ペアリング"},
+    {"Channel name", "채널 이름", "チャネル名"},
+    {"Near P", "근단 P", "近端P"},
+    {"Near N", "근단 N", "近端N"},
+    {"Far P", "원단 P", "遠端P"},
+    {"Far N", "원단 N", "遠端N"},
+    {"Create Differential Channel", "차동 채널 생성", "差動チャネルを作成"},
+    {"Swap P/N", "P/N 교환", "P/N入れ替え"},
+    {"Swap Near/Far", "근단/원단 교환", "近端/遠端入れ替え"},
+    {"Physical Ports / Labels", "물리 포트 / 라벨", "物理ポート / ラベル"},
+    {"Mapping CSV", "매핑 CSV", "マッピングCSV"},
+    {"An even number of ports is required.", "짝수 개의 포트가 필요합니다.", "偶数個のポートが必要です。"},
+    {"Select both Near P and Near N.", "근단 P와 N을 모두 선택하십시오.", "近端PとNの両方を選択してください。"},
+    {"Select both Far P and Far N, or leave both blank.", "원단 P와 N을 모두 선택하거나 모두 비워 두십시오.", "遠端PとNの両方を選択するか、両方を空欄にしてください。"},
+    {"A physical port cannot be used twice in one differential channel.", "하나의 차동 채널에 동일 물리 포트를 두 번 사용할 수 없습니다.", "1つの差動チャネルで同一物理ポートを2回使用できません。"},
+    {"Select a mapping row first.", "매핑 행을 먼저 선택하십시오.", "先にマッピング行を選択してください。"},
+    {"Define at least one channel.", "채널을 하나 이상 정의하십시오.", "チャネルを1つ以上定義してください。"},
+    {"Excel Export", "Excel 내보내기", "Excelエクスポート"},
+    {"Summary", "요약", "概要"},
+    {"Detailed results", "상세 결과", "詳細結果"},
+    {"Graphs", "그래프", "グラフ"},
+    {"Raw trace data (large)", "원시 트레이스 데이터 (대용량)", "生トレースデータ (大容量)"},
+    {"Save Excel Workbook", "Excel 통합 문서 저장", "Excelブックを保存"},
+    {"Save Plot", "그래프 저장", "グラフを保存"},
+    {"Raw CSV", "원시 CSV", "生CSV"},
+    {"Save the modified settings and channel mapping?", "수정된 설정 및 채널 매핑을 저장하시겠습니까?", "変更した設定とチャネルマッピングを保存しますか？"},
+    {"Run analysis first.", "먼저 분석을 실행하십시오.", "先に解析を実行してください。"},
+    {"Save Limit Preset", "판정 기준 프리셋 저장", "判定基準プリセットを保存"},
+    {"Load Limit Preset", "판정 기준 프리셋 불러오기", "判定基準プリセットを読み込む"},
+    {"Frequency Limit", "주파수별 판정 기준", "周波数別判定基準"},
+    {"Enter GHz, dB on each line. Clear the text to restore a constant limit.\nExample: 1, -10\nValues outside the defined range are N/A; limits are not extrapolated.", "각 줄에 GHz, dB를 입력하십시오. 텍스트를 지우면 고정 기준이 복원됩니다.\n예: 1, -10\n정의 범위 밖은 N/A이며 기준을 외삽하지 않습니다.", "各行にGHz、dBを入力してください。テキストを消去すると固定基準に戻ります。\n例: 1, -10\n定義範囲外はN/Aで、基準の外挿は行いません。"},
+    {"Locate Source File", "원본 파일 찾기", "ソースファイルを探す"},
+    {"Project", "프로젝트", "プロジェクト"},
+    {"Select Touchstone Files", "Touchstone 파일 선택", "Touchstoneファイルを選択"},
+    {"About SParamView", "SParamView 정보", "SParamViewについて"},
+    {"Zoom In", "확대", "拡大"},
+    {"Axis Limits...", "축 범위...", "軸範囲..."},
+    {"Plot Axis Limits", "그래프 축 범위", "グラフ軸範囲"},
+    {"X Start", "X 시작", "X開始"},
+    {"X Stop", "X 종료", "X終了"},
+    {"Y Minimum", "Y 최소", "Y最小"},
+    {"Y Maximum", "Y 최대", "Y最大"},
+    {"Auto Y Range", "Y 자동 범위", "Y自動範囲"},
+    {"Invalid Axis Range", "잘못된 축 범위", "無効な軸範囲"},
+    {"The upper limit must be greater than the lower limit.", "상한은 하한보다 커야 합니다.", "上限は下限より大きくなければなりません。"},
+    {"OK", "확인", "OK"},
+    {"Save", "저장", "保存"},
+    {"Discard", "저장 안 함", "破棄"},
+    {"Yes", "예", "はい"},
+    {"No", "아니요", "いいえ"},
+    {"Open a Touchstone file", "Touchstone 파일 열기", "Touchstoneファイルを開く"},
+    {"Open file → Confirm mapping → Select channels → QUICK ANALYSIS. Pass/fail evaluation requires user-defined limits.", "파일 열기 → 매핑 확인 → 채널 선택 → 빠른 분석. 합격/불합격 판정에는 사용자 정의 기준이 필요합니다.", "ファイルを開く → マッピング確認 → チャネル選択 → クイック解析。合否判定にはユーザー定義基準が必要です。"},
+    {"No limits configured → N/A", "판정 기준 미설정 → N/A", "判定基準未設定 → N/A"},
   };
   for (const auto &entry : entries)
     if (source == QString::fromUtf8(entry.en))
@@ -269,13 +366,50 @@ inline Language current(const QObject *object) {
 inline QString textFor(const QObject *object, const QString &source) {
   return menuText(source, current(object));
 }
+// Store the source template separately from its display rendering. Arguments are
+// user data, never translation lookup keys.
+inline void refreshMessage(QLabel *label, Language value) {
+  const auto source=label->property("sparamview.messageSource");
+  if(!source.isValid()) return;
+  auto text=menuText(source.toString(),value);
+  for(const auto &arg:label->property("sparamview.messageArgs").toStringList()) text=text.arg(arg);
+  label->setText(text);
+}
+inline void message(QLabel *label,const QString &source,const QStringList &args={}) {
+  label->setProperty("sparamview.messageSource",source);
+  label->setProperty("sparamview.messageArgs",args);
+  refreshMessage(label,current(label));
+}
+inline void refreshStatus(QStatusBar *bar, Language value) {
+  const auto source=bar->property("sparamview.messageSource");
+  if(source.isValid()) bar->showMessage(menuText(source.toString(),value));
+}
+inline void status(QStatusBar *bar,const QString &source) {
+  bar->setProperty("sparamview.messageSource",source);
+  refreshStatus(bar,current(bar));
+}
+inline void localizeButtons(QDialogButtonBox *box,const QObject *context) {
+  for(auto *button:box->buttons()) {
+    QString source;
+    switch(box->standardButton(button)) {
+      case QDialogButtonBox::Ok: source="OK";break;
+      case QDialogButtonBox::Cancel: source="Cancel";break;
+      case QDialogButtonBox::Save: source="Save";break;
+      case QDialogButtonBox::Discard: source="Discard";break;
+      case QDialogButtonBox::Yes: source="Yes";break;
+      case QDialogButtonBox::No: source="No";break;
+      default: break;
+    }
+    if(!source.isEmpty() && current(context)!=Language::English) button->setText(textFor(context,source));
+  }
+}
 using Refresh = std::function<void(Language)>;
 using Bindings = std::vector<Refresh>;
 // The binding always retains the English source. It never translates user data
 // and never reconstructs a widget. Call only for stable presentation properties.
 template <typename Widget, typename Setter>
 inline void bind(Bindings &out, Widget *widget, const QString &source, Setter setter) {
-  if (!widget || source.isEmpty() || menuText(source, Language::Korean) == source)
+  if (!widget || source.isEmpty() || (menuText(source, Language::Korean) == source && menuText(source, Language::Japanese) == source))
     return;
   out.push_back([guard = QPointer<Widget>(widget), source, setter](Language value) {
     if (guard) setter(guard.data(), menuText(source, value));
