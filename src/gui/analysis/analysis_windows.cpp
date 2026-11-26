@@ -1240,25 +1240,7 @@ void AnalysisWindow::launchIld(bool automatic) {
       identity.mappingIdentity,"Generic ILD bandwidth-weighted least-squares","012_44-v2",
       fitIdentity,identity.workspaceGeneration,identity.mappingGeneration};
     double acPole=0;
-    if(automatic) {
-      si::channel::validateTrace(trace);
-      cfg.startHz=trace.frequencyHz.front();
-      cfg.stopHz=trace.frequencyHz.back();
-      cfg.model=si::channel::IldFitModel::RootLinear;
-      // Eye's start-frequency safety policy does not restrict measured-band ILD.
-      // An unsuccessful/ambiguous low-band fit is not a license to erase data.
-      try {
-        const auto dc=si::channel::inspectEyeDc(trace);
-        if(dc.acModel) {
-          acPole=dc.acPoleHz;
-          // Ideal one-pole amplitude error at 10 fc is ~0.043 dB.
-          // This is a transparent generic fitting policy, not a standard.
-          cfg.startHz=std::max(cfg.startHz,10.*acPole);
-        }
-      } catch(const si::Error &) {
-        // No supported observed pole: retain the entire measured band.
-      }
-    }
+    if(automatic) cfg=si::channel::automaticIldSettings(trace,&acPole);
     auto output=si::channel::calculateIld(trace,cfg,provenance,&cancel);
     if(cancel.load()) return {si::channel::Status::Cancelled,QStringLiteral("Cancelled")};
     auto data=std::make_shared<si::channel::IldData>(std::move(*output.value));
@@ -1515,17 +1497,7 @@ void AnalysisWindow::launchIcn(bool automatic) {
       paths.push_back({chosen[i].first,chosen[i].second,std::move(trace)});
       progress.store(15+int(50*(i+1)/chosen.size()));
     }
-    if(automatic) {
-      const auto &freq=paths.front().transfer.frequencyHz;
-      settings.startHz=freq.front();
-      settings.stopHz=std::min(10e9,freq.back());
-      if(settings.stopHz<=settings.startHz)
-        throw si::Error("No measured overlap with Auto ICN analysis cap");
-      settings.symbolRateHz=std::min(4.5e9,settings.stopHz/1.5);
-      settings.txPeakToPeakV=0.4;
-      settings.riseTimeSeconds=30e-12;
-      settings.rxBandwidthHz=settings.stopHz;
-    }
+    if(automatic) settings=si::channel::automaticIcnSettings(paths.front().transfer);
     const auto &identity=snap.identity();
     si::channel::Provenance provenance{identity.sha256,identity.revision,
       identity.mappingIdentity,"Generic uncorrelated NRZ ICN","012_45-v2",
@@ -1842,15 +1814,10 @@ void AnalysisWindow::launchEye(bool autoPreview, bool acceptLimitedDc) {
       return pending;
     }
     if(autoPreview) {
-      // A transparent engineering example, never an inferred PHY.
-      const double cap=std::min(10e9,trace.frequencyHz.back());
-      settings.profile=EyeProfile::Custom;
-      settings.mode=differential?EyeMode::Differential:EyeMode::SingleEnded;
-      settings.pattern=EyePattern::Prbs7;
-      settings.bitRateHz=std::min(4.5e9,cap/1.5);
-      settings.referenceFrequencyHz=settings.bitRateHz/2;
-      settings.analysisStopHz=cap;
-      settings.electrical={-0.2,0.2,trace.stimulusOhm,trace.responseOhm,0,-1,1};
+      // Preserve explicit consent when replacing the preview defaults.
+      const bool acknowledged=settings.acceptLimitedDc;
+      settings=automaticEyeSettings(trace,differential);
+      settings.acceptLimitedDc=acknowledged;
     }
     if(cancel.load()) throw si::Cancelled();
     progress.store(60);

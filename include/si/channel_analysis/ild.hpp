@@ -11,6 +11,8 @@ struct IldSettings {
   double stopHz = 30e9;
   IldFitModel model = IldFitModel::RootLinear;
 };
+// Generic auto fit: measured band, root-linear, exclude observed RC rolloff only.
+IldSettings automaticIldSettings(const ComplexTrace &trace, double *observedAcPoleHz = nullptr);
 struct IldData {
   std::vector<double> frequencyHz, insertionLossDb, fittedLossDb, deviationDb;
   std::array<double,4> coefficients{}; // normalized f/fScale; unused = 0

@@ -5,6 +5,7 @@
 #include <atomic>
 #include <cstdint>
 #include <limits>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -65,6 +66,11 @@ struct EyeDcInfo {
 // Throws on unsupported/invalid data; a sparse original real DC may be retained
 // as unqualified, never advertised as verified physical DC.
 EyeDcInfo inspectEyeDc(const ComplexTrace &trace);
+// Measured-band model inspection independent of Eye's missing-DC cutoff.
+// A null result does not establish DC coupling or physical topology.
+std::optional<EyeDcInfo> inspectObservedAcModel(const ComplexTrace &trace);
+// Deterministic engineering preview settings, never inferred PHY settings.
+EyeSettings automaticEyeSettings(const ComplexTrace &trace, bool differential);
 struct EyeData {
   EyeDcInfo dc;
   std::vector<double> timeSeconds, transmittedV, receivedV;

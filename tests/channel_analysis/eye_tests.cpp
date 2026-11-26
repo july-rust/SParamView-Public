@@ -498,6 +498,24 @@ int main() {
       contradictory.transfer.insert(contradictory.transfer.begin(),Complex{0.5,0});
       reject([&]{(void)inspectEyeDc(contradictory);},"observed conflicting real DC rejected");
     }
+    // The auto configuration does not infer a PHY; manual reproduction must
+    // give the same deterministic output from the existing periodic engine.
+    {
+      auto autoTrace=thru(16e9,0,0.5);
+      const auto automatic=automaticEyeSettings(autoTrace,true);
+      auto explicitSettings=automatic;
+      explicitSettings.bitRateHz=4.5e9;explicitSettings.referenceFrequencyHz=2.25e9;
+      explicitSettings.analysisStopHz=10e9;
+      explicitSettings.electrical={-0.2,0.2,autoTrace.stimulusOhm,autoTrace.responseOhm,0,-1,1};
+      const auto autoEye=calculateEye(autoTrace,automatic);
+      const auto manualEye=calculateEye(autoTrace,explicitSettings);
+      close(autoEye.value->eyeHeightV,manualEye.value->eyeHeightV,1e-12,"auto/manual Eye height");
+      close(autoEye.value->eyeWidthUI,manualEye.value->eyeWidthUI,1e-12,"auto/manual Eye width");
+      close(autoEye.value->bitRateHz,4.5e9,0,"assumed rate cap");
+      auto amplitude=automatic;amplitude.electrical.txLowV*=1.1;amplitude.electrical.txHighV*=1.1;
+      close(calculateEye(autoTrace,amplitude).value->eyeHeightV,
+        1.1*autoEye.value->eyeHeightV,1e-12,"Eye amplitude sensitivity");
+    }
     std::cout<<"012_54 observed AC pole and analytical droop candidate PASS\n";
     std::cout<<"012_52 DC policy, gain oracle, AC coupling and damaged DC PASS\n";
     std::cout<<"012_46 Eye independent DFT, convolution, metrics, PRBS and resource PASS\n";

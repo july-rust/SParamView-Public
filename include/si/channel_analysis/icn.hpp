@@ -19,6 +19,8 @@ struct IcnSettings {
   double riseTimeSeconds = 30e-12; // Gaussian 10%-90% edge time
   double rxBandwidthHz = 10e9;   // single-pole voltage 3-dB bandwidth
 };
+// Measured band and explicit generic assumed NRZ electrical conditions.
+IcnSettings automaticIcnSettings(const ComplexTrace &trace);
 struct IcnAggressorData {
   std::string id, parameter;
   IcnEnd end = IcnEnd::Next;

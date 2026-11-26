@@ -198,6 +198,31 @@ std::vector<double> apply(const std::vector<double> &signal,
 }
 } // namespace
 
+std::optional<EyeDcInfo> inspectObservedAcModel(const ComplexTrace &trace) {
+  validateTrace(trace);
+  EyeDcInfo dc;
+  const bool original=trace.frequencyHz.front()==0;
+  const size_t first=original?1:0;
+  dc.originalStartHz=trace.frequencyHz.front();
+  dc.effectiveStartHz=dc.originalStartHz;
+  dc.firstPositiveHz=trace.frequencyHz[first];
+  if(observedHighPass(trace,first,dc)) return dc;
+  return std::nullopt;
+}
+
+EyeSettings automaticEyeSettings(const ComplexTrace &trace, bool differential) {
+  validateTrace(trace);
+  EyeSettings settings;
+  settings.profile=EyeProfile::Custom;
+  settings.mode=differential?EyeMode::Differential:EyeMode::SingleEnded;
+  settings.pattern=EyePattern::Prbs7;
+  settings.analysisStopHz=std::min(10e9,trace.frequencyHz.back());
+  settings.bitRateHz=std::min(4.5e9,settings.analysisStopHz/1.5);
+  settings.referenceFrequencyHz=settings.bitRateHz/2.;
+  settings.electrical={-0.2,0.2,trace.stimulusOhm,trace.responseOhm,0,-1,1};
+  return settings;
+}
+
 EyeDcInfo inspectEyeDc(const ComplexTrace &trace) {
   validateTrace(trace);
   EyeDcInfo dc;

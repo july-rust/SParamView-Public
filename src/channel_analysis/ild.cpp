@@ -1,4 +1,5 @@
 #include "si/channel_analysis/ild.hpp"
+#include "si/channel_analysis/eye.hpp"
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -31,6 +32,15 @@ const char *ildModelName(IldFitModel m) {
       return "a0 + a1*sqrt(f/F) + a2*(f/F) + a3*(f/F)^2";
   }
   throw Error("Unsupported ILD fitting model");
+}
+IldSettings automaticIldSettings(const ComplexTrace &trace, double *observedAcPoleHz) {
+  validateTrace(trace);
+  IldSettings settings{trace.frequencyHz.front(),trace.frequencyHz.back(),IldFitModel::RootLinear};
+  const auto model=inspectObservedAcModel(trace);
+  const double pole=model?model->acPoleHz:0.;
+  if(observedAcPoleHz) *observedAcPoleHz=pole;
+  if(model) settings.startHz=std::max(settings.startHz,10.*pole);
+  return settings;
 }
 Result<IldData> calculateIld(const ComplexTrace &trace, const IldSettings &settings,
                              Provenance provenance, const std::atomic_bool *cancelled) {
