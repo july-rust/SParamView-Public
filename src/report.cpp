@@ -351,7 +351,7 @@ void writeReport(const QString &path, const std::vector<si::Result> &results,
       config.append({"Analysis completed UTC",r.analysisTime.isEmpty()?"Not recorded":r.analysisTime});
       config.append({"Signal Type",r.signalType});
       config.append({"Confidence",r.signalConfidence});
-      config.append({"Evidence",r.signalEvidence});
+      config.append({"Evidence",sparamview::ui_language::diagnosticText(r.signalEvidence,language)});
       config.append({"Mapping Source",r.mappingSource});
       config.append({"Mapping confirmed",r.confirmed?"Yes":"No"});
       config.append({"Source SHA-256 verification",r.sourceVerification});
@@ -371,7 +371,7 @@ void writeReport(const QString &path, const std::vector<si::Result> &results,
         config.append({"TDR " + qs(r.channel) + " / " + qs(r.revision),
                        qs(r.quality) + "; df=" + num(r.transformDf) +
                            " Hz; fmax=" + num(r.transformFmax) + " Hz; " +
-                           qs(r.note)});
+                           sparamview::ui_language::diagnosticText(qs(r.note),language)});
     addSheet("Configuration", config);
   }
   if (options.raw) {
