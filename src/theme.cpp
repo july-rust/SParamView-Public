@@ -1,7 +1,25 @@
 #include "app.hpp"
+#include <QFontDatabase>
 void applyLightTheme(QApplication &app) {
   QLocale::setDefault(QLocale(QLocale::English, QLocale::UnitedStates));
   app.setStyle("Fusion");
+  const auto fontPath=QCoreApplication::applicationDirPath()+"/fonts/NotoSansJP-Variable.ttf";
+  const int jpFont=QFontDatabase::addApplicationFont(fontPath);
+  if(jpFont>=0) {
+    const auto families=QFontDatabase::applicationFontFamilies(jpFont);
+    if(!families.isEmpty()) {
+      app.setProperty("sparamview.japaneseFontFamily",families.front());
+#if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
+      for(auto script:{QChar::Script_Hiragana,QChar::Script_Katakana,QChar::Script_Han})
+        QFontDatabase::addApplicationFallbackFontFamily(script,families.front());
+#endif
+      QFont base=app.font();
+      auto fallback=base.families();
+      if(!fallback.contains(families.front()))fallback<<families.front();
+      base.setFamilies(fallback);
+      app.setFont(base);
+    }
+  }
   QPalette palette;
   for (auto group : {QPalette::Active, QPalette::Inactive, QPalette::Disabled}) {
     const bool disabled = group == QPalette::Disabled;
@@ -28,7 +46,7 @@ void applyLightTheme(QApplication &app) {
   // Preserve the Windows font policy, but use native system fonts on macOS
   // and Linux rather than forcing the Windows-only Segoe UI family.
 #ifdef Q_OS_WIN
-  const QString fontRule = QStringLiteral("font-family:'Segoe UI','Malgun Gothic','NanumGothic'; ");
+  const QString fontRule = QStringLiteral("font-family:'Segoe UI','Malgun Gothic','NanumGothic','Noto Sans JP'; ");
 #else
   const QString fontRule;
 #endif

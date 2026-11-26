@@ -1,5 +1,7 @@
 #include "app.hpp"
 #include "../src/ui_language.hpp"
+#include <QTextLayout>
+#include <QGlyphRun>
 #include <iostream>
 void applyCompactAnalysisSettings(MainWindow &window);
 static void check(bool ok, const char *message) { if (!ok) throw si::Error(message); }
@@ -769,6 +771,31 @@ struct WorkspaceProbe {
    check(direction && manual,"Eye language controls missing");
    direction->setCurrentIndex(1);
    const auto originalStatus=eye->status();
+   auto fixedLabels=[&](const QString &source,const QString &victim,const QString &cancel,const QString &csv,const QString &settings){
+     for(auto *window:{ild,icn,eye}) {
+       bool sourceFound=false,victimFound=false;
+       for(auto *label:window->findChildren<QLabel *>()) {
+         sourceFound|=label->text()==source;
+         victimFound|=label->text()==victim;
+       }
+       check(sourceFound && victimFound,"Localized form label binding failed");
+       check(window->findChild<QPushButton *>("analysisCancel")->text()==cancel &&
+             window->findChild<QPushButton *>("analysisCsv")->text()==csv &&
+             window->findChild<QToolButton *>("analysisSettingsToggle")->text()==settings,
+             "Localized fixed button binding failed");
+     }
+   };
+   auto glyphs=[&]{
+     check(!qApp->property("sparamview.japaneseFontFamily").toString().isEmpty(),"Bundled Japanese font not loaded");
+     QTextLayout layout(QString::fromUtf8("日本語 ソース 設定 カタカナ ひらがな"),eye->font());
+     layout.beginLayout();auto line=layout.createLine();line.setLineWidth(10000);layout.endLayout();
+     int count=0;
+     for(const auto &run:layout.glyphRuns())for(auto index:run.glyphIndexes()){
+       check(index!=0,"Japanese glyph fallback produced missing glyph");++count;
+     }
+     check(count>0,"Japanese glyph layout was empty");
+   };
+   glyphs();
    for(int i=0;i<100;++i) {
     ko->trigger();verify(w,QString::fromUtf8("파일"),"Korean");
     check(newAction->text()==QString::fromUtf8("새로 만들기"),"Korean New action");
@@ -776,6 +803,7 @@ struct WorkspaceProbe {
     check(w.quickButton->text()==QString::fromUtf8("빠른 분석"),"Korean quick analysis button");
     check(manual->text()==QString::fromUtf8("수동 실행"),"Korean open Eye Run Manual");
     check(direction->itemText(1)==QString::fromUtf8("역방향"),"Korean open Eye direction");
+    fixedLabels(QString::fromUtf8("원본 / 리비전"),QString::fromUtf8("피간섭 채널"),QString::fromUtf8("취소"),QString::fromUtf8("CSV 내보내기"),QString::fromUtf8("설정"));
     check(QCoreApplication::translate("QPlatformTheme","Cancel")==QString::fromUtf8("취소"),"Korean framework dialog translation");
     ja->trigger();verify(w,QString::fromUtf8("ファイル"),"Japanese");
     check(newAction->text()==QString::fromUtf8("新規作成"),"Japanese New action");
@@ -783,9 +811,11 @@ struct WorkspaceProbe {
     check(w.quickButton->text()==QString::fromUtf8("クイック解析"),"Japanese quick analysis button");
     check(manual->text()==QString::fromUtf8("手動実行"),"Japanese open Eye Run Manual");
     check(direction->itemText(1)==QString::fromUtf8("逆方向"),"Japanese open Eye direction");
+    fixedLabels(QString::fromUtf8("ソース / リビジョン"),QString::fromUtf8("ビクティムチャネル"),QString::fromUtf8("キャンセル"),QString::fromUtf8("CSVエクスポート"),QString::fromUtf8("設定"));
     check(QCoreApplication::translate("QPlatformTheme","Cancel")==QString::fromUtf8("キャンセル"),"Japanese framework dialog translation");
     en->trigger();verify(w,"File","English");
     check(newAction->text()=="New","English New action");
+    fixedLabels("Source / Revision","Victim Channel","Cancel","Export CSV","Settings");
     check(QCoreApplication::translate("QPlatformTheme","Cancel")=="Cancel","English framework dialog translation");
     check(manual->text()=="Run Manual" && direction->currentIndex()==1 && eye->status()==originalStatus && w.analysisWindows->context().generation==generation,"Language changed analysis state");
    }

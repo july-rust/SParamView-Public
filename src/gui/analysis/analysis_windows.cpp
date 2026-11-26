@@ -1021,16 +1021,16 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
   // Fixed constructor labels; dynamic results and source/channel data are excluded.
   for(auto *label:findChildren<QLabel *>()) {
     if(label==statusLabel_ || label==icnContributions_ || label==eyeMetrics_ || label==header) continue;
-    bind(translated,label,label->text(),[](QLabel *w,const QString &s){w->setText(s);});
+    bindUiText(translated,label,label->text(),[](QLabel *w,const QString &s){w->setText(s);});
   }
   for(auto *button:findChildren<QAbstractButton *>()) {
-    bind(translated,button,button->text(),[](QAbstractButton *w,const QString &s){w->setText(s);});
-    if(button!=run_) bind(translated,button,button->toolTip(),[](QAbstractButton *w,const QString &s){w->setToolTip(s);});
+    bindUiText(translated,button,button->text(),[](QAbstractButton *w,const QString &s){w->setText(s);});
+    if(button!=run_) bindUiText(translated,button,button->toolTip(),[](QAbstractButton *w,const QString &s){w->setToolTip(s);});
   }
   for(auto *edit:findChildren<QLineEdit *>())
-    bind(translated,edit,edit->placeholderText(),[](QLineEdit *w,const QString &s){w->setPlaceholderText(s);});
+    bindUiText(translated,edit,edit->placeholderText(),[](QLineEdit *w,const QString &s){w->setPlaceholderText(s);});
   for(auto *spin:findChildren<QDoubleSpinBox *>())
-    bind(translated,spin,spin->specialValueText(),[](QDoubleSpinBox *w,const QString &s){w->setSpecialValueText(s);});
+    bindUiText(translated,spin,spin->specialValueText(),[](QDoubleSpinBox *w,const QString &s){w->setSpecialValueText(s);});
   for(auto *box:{direction_,fitModel_,eyeMode_,eyePattern_,eyeView_,findChild<QComboBox *>("icnPlotView")})
     if(box) bindCombo(translated,box);
   for(auto *tab:findChildren<QTabWidget *>()) {

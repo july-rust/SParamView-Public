@@ -337,6 +337,7 @@ install(TARGETS si_polarity_tests RUNTIME DESTINATION tests)
 if(SI_BUILD_GUI)
   set(CMAKE_AUTORCC ON)
   find_package(Qt6 6.4 REQUIRED COMPONENTS Widgets Concurrent)
+  include(cmake/JapaneseFont.cmake)
   add_executable(si_session_cache_tests tests/session_cache_tests.cpp)
   target_include_directories(si_session_cache_tests PRIVATE src)
   target_compile_definitions(si_session_cache_tests PRIVATE SPARAMVIEW_CACHE_TEST_FAULTS=1)
@@ -388,6 +389,9 @@ if(SI_BUILD_GUI)
   endif()
   qt_add_executable(SParamView ${SPARAMVIEW_SOURCES})
   target_link_libraries(SParamView PRIVATE si_core si_qt_workers si_analysis_gui Qt6::Widgets)
+  add_custom_command(TARGET SParamView POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:SParamView>/fonts"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${SPARAMVIEW_JP_FONT}" "$<TARGET_FILE_DIR:SParamView>/fonts/")
   # Fault hooks cannot be enabled by environment or arguments in SParamView.
   qt_add_executable(si_failure_probe ${SPARAMVIEW_SOURCES})
   set_target_properties(si_failure_probe PROPERTIES WIN32_EXECUTABLE FALSE)
@@ -442,6 +446,7 @@ if(SI_BUILD_GUI)
     COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${CMAKE_SOURCE_DIR}/assets/fonts"
             "$<TARGET_FILE_DIR:si_workspace_tests>/fonts"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${SPARAMVIEW_JP_FONT}" "$<TARGET_FILE_DIR:si_workspace_tests>/fonts/"
     COMMENT "Mirror deployed fonts for deterministic workspace layout testing")
   add_test(NAME workspace_layout COMMAND si_workspace_tests "${CMAKE_SOURCE_DIR}/examples/demo.siproject" "${CMAKE_BINARY_DIR}/workspace-test")
   set_tests_properties(workspace_layout PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 180)

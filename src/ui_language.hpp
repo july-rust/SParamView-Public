@@ -1060,7 +1060,7 @@ using Bindings = std::vector<Refresh>;
 // The binding always retains the English source. It never translates user data
 // and never reconstructs a widget. Call only for stable presentation properties.
 template <typename Widget, typename Setter>
-inline void bind(Bindings &out, Widget *widget, const QString &source, Setter setter) {
+inline void bindUiText(Bindings &out, Widget *widget, const QString &source, Setter setter) {
   if (!widget || source.isEmpty() || (menuText(source, Language::Korean) == source && menuText(source, Language::Japanese) == source))
     return;
   out.push_back([guard = QPointer<Widget>(widget), source, setter](Language value) {
@@ -1089,26 +1089,26 @@ inline void bindMainFixedWidgets(Bindings &out, QWidget *body) {
       "Previous View", "Axis Limits", "Fit All", "Compare Revisions", "Cancel"};
   for (auto *label : body->findChildren<QLabel *>())
     if (fixedLabels.contains(label->text()))
-      bind(out, label, label->text(), [](QLabel *w, const QString &s) { w->setText(s); });
+      bindUiText(out, label, label->text(), [](QLabel *w, const QString &s) { w->setText(s); });
   for (auto *button : body->findChildren<QAbstractButton *>()) {
     if (fixedButtons.contains(button->text()))
-      bind(out, button, button->text(), [](QAbstractButton *w, const QString &s) { w->setText(s); });
+      bindUiText(out, button, button->text(), [](QAbstractButton *w, const QString &s) { w->setText(s); });
     // Action-backed tools receive their labels from QAction. The TDR option
     // tooltip is still used as an English identity by the compact-layout pass.
     auto *tool = qobject_cast<QToolButton *>(button);
     if ((!tool || !tool->defaultAction()) &&
         !button->toolTip().startsWith("TDR options:") &&
         button->objectName() != "directionToggle")
-      bind(out, button, button->toolTip(), [](QAbstractButton *w, const QString &s) { w->setToolTip(s); });
+      bindUiText(out, button, button->toolTip(), [](QAbstractButton *w, const QString &s) { w->setToolTip(s); });
   }
   for (auto *box : body->findChildren<QGroupBox *>())
     if (box->title() == "Quick Analysis")
-      bind(out, box, box->title(), [](QGroupBox *w, const QString &s) { w->setTitle(s); });
+      bindUiText(out, box, box->title(), [](QGroupBox *w, const QString &s) { w->setTitle(s); });
   for (auto *edit : body->findChildren<QLineEdit *>())
     if (edit->placeholderText() == "Search Channels...")
-      bind(out, edit, edit->placeholderText(), [](QLineEdit *w, const QString &s) { w->setPlaceholderText(s); });
+      bindUiText(out, edit, edit->placeholderText(), [](QLineEdit *w, const QString &s) { w->setPlaceholderText(s); });
   for (auto *spin : body->findChildren<QDoubleSpinBox *>())
-    bind(out, spin, spin->specialValueText(), [](QDoubleSpinBox *w, const QString &s) { w->setSpecialValueText(s); });
+    bindUiText(out, spin, spin->specialValueText(), [](QDoubleSpinBox *w, const QString &s) { w->setSpecialValueText(s); });
 }
 // Observe the main window language property without changing data or ownership.
 class LanguageObserver final : public QObject {

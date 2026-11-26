@@ -806,14 +806,14 @@ MainWindow::MainWindow() {
   using namespace sparamview::ui_language;
   Bindings languageBindings;
   bindMainFixedWidgets(languageBindings, body);
-  bind(languageBindings, cancelButton, cancelButton->text(),
+  bindUiText(languageBindings, cancelButton, cancelButton->text(),
        [](QPushButton *w, const QString &s) { w->setText(s); });
   // These combos use indices, not translated text, as their model keys.
   for (auto *box : {markerBox, performanceBox, metricView, rankBox})
     bindCombo(languageBindings, box);
-  bind(languageBindings, metricView, metricView->toolTip(),
+  bindUiText(languageBindings, metricView, metricView->toolTip(),
        [](QComboBox *w, const QString &s) { w->setToolTip(s); });
-  bind(languageBindings, tdrView, tdrView->toolTip(),
+  bindUiText(languageBindings, tdrView, tdrView->toolTip(),
        [](QComboBox *w, const QString &s) { w->setToolTip(s); });
   const QStringList originalTabs = {"Plot", "Compare Revisions"};
   QStringList originalHeaders;
