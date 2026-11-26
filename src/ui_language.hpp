@@ -98,7 +98,7 @@ inline void captureMenu(QAction *action, std::vector<MenuBinding> &bindings) {
   if (!action || action->isSeparator()) return;
   bindings.push_back({action, action->text(), action->iconText(), action->toolTip(),
                       action->iconText() != action->text(),
-                      action->toolTip() != action->text()});
+                      action->toolTip() == QStringLiteral("Full Screen (F11)")});
   if (auto *menu = action->menu())
     for (auto *child : menu->actions()) captureMenu(child, bindings);
 }
