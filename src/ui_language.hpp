@@ -17,6 +17,7 @@
 #include <QApplication>
 #include <QFileDialog>
 #include <QRegularExpression>
+#include <QSet>
 #include <QStatusBar>
 #include <QDialogButtonBox>
 #include <QPushButton>
@@ -58,10 +59,9 @@ inline void remember(Language value) {
 }
 // Initial catalog: main menu and its explicit action icon labels/tooltips.
 // Untranslated strings are not evidence of full application localization.
-inline QString menuText(const QString &source, Language value) {
-  if (value == Language::English) return source;
-  struct Entry { const char *en; const char *ko; const char *ja; };
-  static constexpr Entry entries[] = {
+struct CatalogEntry { const char *en; const char *ko; const char *ja; };
+inline const auto &catalogEntries() {
+  static constexpr CatalogEntry entries[] = {
     {"File", "파일", "ファイル"},
     {"New", "새로 만들기", "新規作成"},
     {"Open Touchstone...", "Touchstone 열기...", "Touchstoneを開く..."},
@@ -938,8 +938,16 @@ inline QString menuText(const QString &source, Language value) {
     {"\nMANUAL SETTINGS", "\n수동 설정", "\n手動設定"},
     {"\nAUTO PREVIEW: assumed 400 mVpp / matched Zref / PRBS7; not actual PHY settings.", "\n자동 미리보기: 400 mVpp / 기준 임피던스 정합 / PRBS7 가정; 실제 PHY 설정 아님.", "\n自動プレビュー: 400 mVpp / 基準インピーダンス整合 / PRBS7を仮定; 実際のPHY設定ではない。"},
     {"Simulated Channel Eye — Not Measured / Not PHY Compliance\nFile: %1 | Revision: %2 | Channel: %3 | %4\nSHA-256: %5\nProfile: %6 | Bit rate: %7 Gbps | Reference: %8 GHz | Cap: %9 GHz", "시뮬레이션 채널 아이 — 실측 / PHY 적합성 검증 아님\n파일: %1 | 리비전: %2 | 채널: %3 | %4\nSHA-256: %5\n프로파일: %6 | 비트율: %7 Gbps | 기준: %8 GHz | 상한: %9 GHz", "シミュレーションチャネルアイ — 実測 / PHY適合性試験ではない\nファイル: %1 | リビジョン: %2 | チャネル: %3 | %4\nSHA-256: %5\nプロファイル: %6 | ビットレート: %7 Gbps | 基準: %8 GHz | 上限: %9 GHz"},
+    {"Saved mapping invalidated: source changed or stored ports are no longer valid. ", "저장된 매핑이 무효화되었습니다: 원본이 변경되었거나 저장된 포트가 더 이상 유효하지 않습니다. ", "保存済みマッピングは無効になりました: ソースが変更されたか、保存されたポートが無効です。 "},
+    {"Current source re-evaluated; previous mapping was discarded. ", "현재 원본을 재평가했으며 이전 매핑은 폐기되었습니다. ", "現在のソースを再評価し、以前のマッピングを破棄しました。 "},
+    {" User confirmed the signal type before Channel Mapping.", " 사용자가 채널 매핑 전에 신호 유형을 확인했습니다.", " ユーザーはチャネルマッピングの前に信号タイプを確認しました。"},
+    {"Touchstone [Mixed-Mode Order] S/D/C descriptors declare %1. P/N membership and Near/Far direction are separate.", "Touchstone [Mixed-Mode Order] S/D/C 기술자가 %1 신호 유형을 선언합니다. P/N 구성과 근단/원단 방향은 별개입니다.", "Touchstone [Mixed-Mode Order] のS/D/C記述子は%1を宣言しています。P/Nの組み合わせと近端/遠端の方向は別です。"},
   };
-  for (const auto &entry : entries)
+  return entries;
+}
+inline QString menuText(const QString &source, Language value) {
+  if (value == Language::English) return source;
+  for (const auto &entry : catalogEntries())
     if (source == QString::fromUtf8(entry.en))
       return QString::fromUtf8(value == Language::Korean ? entry.ko : entry.ja);
   return source;
@@ -976,9 +984,29 @@ inline void setFrameworkLanguage(Language value) {
     QCoreApplication::installTranslator(translator.data());
   } else translator->value=value;
 }
-inline QString diagnosticText(const QString &source,Language value) {
+inline QString diagnosticTextImpl(const QString &source,Language value,int depth) {
   const auto exact=menuText(source,value);
-  if(exact!=source || value==Language::English)return exact;
+  if(exact!=source || value==Language::English || depth>=8)return exact;
+  // Only producer-defined composite wrappers are decomposed. Arbitrary paths,
+  // identifiers and external system messages are never split on punctuation.
+  const QStringList prosePrefixes={
+    "Saved mapping invalidated: source changed or stored ports are no longer valid. ",
+    "Current source re-evaluated; previous mapping was discarded. ",
+    "S descriptors declare single-ended data. Confirm the physical mapping and Near/Far direction. ",
+    "DC extrapolation and/or complex grid resampling used. "};
+  for(const auto &prefix:prosePrefixes) {
+    if(source.startsWith(prefix))
+      return menuText(prefix,value)+diagnosticTextImpl(source.mid(prefix.size()),value,depth+1);
+  }
+  const QString confirmed=" User confirmed the signal type before Channel Mapping.";
+  if(source.endsWith(confirmed))
+    return diagnosticTextImpl(source.left(source.size()-confirmed.size()),value,depth+1)+menuText(confirmed,value);
+  const QString descriptorPrefix="Touchstone [Mixed-Mode Order] S/D/C descriptors declare ";
+  const QString descriptorSuffix=". P/N membership and Near/Far direction are separate.";
+  if(source.startsWith(descriptorPrefix) && source.endsWith(descriptorSuffix)) {
+    const auto type=source.mid(descriptorPrefix.size(),source.size()-descriptorPrefix.size()-descriptorSuffix.size());
+    return menuText("Touchstone [Mixed-Mode Order] S/D/C descriptors declare %1. P/N membership and Near/Far direction are separate.",value).arg(menuText(type,value));
+  }
   static const QRegularExpression dc(QStringLiteral("^Effective start (.+) Hz: DC extrapolation above 10 kHz is limited\\. Continue with simulated Eye\\?$"));
   const auto match=dc.match(source);
   if(match.hasMatch())return menuText("Effective start %1 Hz: DC extrapolation above 10 kHz is limited. Continue with simulated Eye?",value).arg(match.captured(1));
@@ -1000,6 +1028,9 @@ inline QString diagnosticText(const QString &source,Language value) {
   for(const auto &prefix:prefixes)if(source.startsWith(prefix))
     return menuText(prefix,value)+source.mid(prefix.size());
   return source;
+}
+inline QString diagnosticText(const QString &source,Language value) {
+  return diagnosticTextImpl(source,value,0);
 }
 inline void refreshCompareLanguage(QTableWidget *table,Language value) {
   if(!table || table->columnCount()!=10)return;
