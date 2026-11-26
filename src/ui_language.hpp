@@ -13,6 +13,9 @@
 #include <QDoubleSpinBox>
 #include <QGroupBox>
 #include <QLabel>
+#include <QTranslator>
+#include <QApplication>
+#include <QFileDialog>
 #include <QRegularExpression>
 #include <QStatusBar>
 #include <QDialogButtonBox>
@@ -521,11 +524,166 @@ inline QString menuText(const QString &source, Language value) {
     {"Analysis worker capacity exceeded", "분석 작업 용량 초과", "解析ワーカー容量超過"},
     {"Cursor: %1 %2; simulated only", "커서: %1 %2; 시뮬레이션 전용", "カーソル: %1 %2; シミュレーションのみ"},
     {"SParamView\nVersion %1\nBuild: Windows %2\n\nCopyright © 2026 july\nsparamview@gmail.com\nLicensed under the MIT License\n\nC++20 / Qt 6\nProcessing is local. Original Touchstone files are not modified.", "SParamView\n버전 %1\n빌드: Windows %2\n\nCopyright © 2026 july\nsparamview@gmail.com\nMIT 라이선스\n\nC++20 / Qt 6\n로컬에서 처리하며 원본 Touchstone 파일은 수정하지 않습니다.", "SParamView\nバージョン %1\nビルド: Windows %2\n\nCopyright © 2026 july\nsparamview@gmail.com\nMITライセンス\n\nC++20 / Qt 6\nローカルで処理し、元のTouchstoneファイルは変更しません。"},
+    {"Open", "열기", "開く"},
+    {"Close", "닫기", "閉じる"},
+    {"Apply", "적용", "適用"},
+    {"Reset", "초기화", "リセット"},
+    {"Help", "도움말", "ヘルプ"},
+    {"Restore Defaults", "기본값 복원", "既定値に戻す"},
+    {"Save All", "모두 저장", "すべて保存"},
+    {"Yes to All", "모두 예", "すべてはい"},
+    {"No to All", "모두 아니요", "すべていいえ"},
+    {"Abort", "중단", "中止"},
+    {"Retry", "다시 시도", "再試行"},
+    {"Ignore", "무시", "無視"},
+    {"Look in:", "찾는 위치:", "場所:"},
+    {"File name:", "파일 이름:", "ファイル名:"},
+    {"Files of type:", "파일 형식:", "ファイルの種類:"},
+    {"Save in:", "저장 위치:", "保存先:"},
+    {"Open a file", "파일 열기", "ファイルを開く"},
+    {"Save As", "다른 이름으로 저장", "名前を付けて保存"},
+    {"New Folder", "새 폴더", "新しいフォルダー"},
+    {"Create New Folder", "새 폴더 만들기", "新しいフォルダーを作成"},
+    {"List View", "목록 보기", "一覧表示"},
+    {"Detail View", "자세히 보기", "詳細表示"},
+    {"Show hidden files", "숨김 파일 표시", "隠しファイルを表示"},
+    {"Parent Directory", "상위 폴더", "親ディレクトリ"},
+    {"Back", "뒤로", "戻る"},
+    {"Go back", "뒤로 이동", "戻る"},
+    {"Go forward", "앞으로 이동", "進む"},
+    {"Go to the parent directory", "상위 폴더로 이동", "親ディレクトリへ移動"},
+    {"Name", "이름", "名前"},
+    {"Size", "크기", "サイズ"},
+    {"Type", "유형", "種類"},
+    {"Date Modified", "수정한 날짜", "更新日時"},
+    {"Computer", "컴퓨터", "コンピューター"},
+    {"My Computer", "내 컴퓨터", "マイコンピューター"},
+    {"Folder", "폴더", "フォルダー"},
+    {"Directory", "디렉터리", "ディレクトリ"},
+    {"All Files (*)", "모든 파일 (*)", "すべてのファイル (*)"},
+    {"All files (*)", "모든 파일 (*)", "すべてのファイル (*)"},
+    {"File not found.", "파일을 찾을 수 없습니다.", "ファイルが見つかりません。"},
+    {"%1 already exists.\nDo you want to replace it?", "%1이(가) 이미 존재합니다.\n덮어쓰시겠습니까?", "%1は既に存在します。\n置き換えますか？"},
+    {"%1\nFile not found.\nCheck the file name and try again.", "%1\n파일을 찾을 수 없습니다.\n파일 이름을 확인하고 다시 시도하십시오.", "%1\nファイルが見つかりません。\nファイル名を確認して再試行してください。"},
+    {"Confirm Save As", "다른 이름으로 저장 확인", "名前を付けて保存の確認"},
+    {"Rename", "이름 바꾸기", "名前を変更"},
+    {"Delete", "삭제", "削除"},
+    {"Undo", "실행 취소", "元に戻す"},
+    {"Redo", "다시 실행", "やり直す"},
+    {"Cut", "잘라내기", "切り取り"},
+    {"Copy", "복사", "コピー"},
+    {"Paste", "붙여넣기", "貼り付け"},
+    {"Select aggressor...", "간섭원 선택...", "アグレッサーを選択..."},
+    {"Use independent-path RSS model (assumed, not measured)", "독립 경로 RSS 모델 사용 (가정, 실측 아님)", "独立経路RSSモデルを使用 (仮定、実測ではない)"},
+    {"Numerical engine pending in a later 012 stage", "수치 엔진은 후속 단계에서 지원 예정", "数値エンジンは後続段階で対応予定"},
+    {"Select NEXT/FEXT aggressors and run the generic ICN model.", "NEXT/FEXT 간섭원을 선택하고 일반 ICN 모델을 실행하십시오.", "NEXT/FEXTアグレッサーを選択して一般ICNモデルを実行してください。"},
+    {"All TX/RX incident voltages, source/termination and RX range are required", "모든 TX/RX 입사 전압, 원본/종단 및 RX 범위가 필요합니다.", "すべてのTX/RX入射電圧、ソース/終端、RX範囲が必要です。"},
+    {"Effective start %1 Hz: DC extrapolation above 10 kHz is limited. Continue with simulated Eye?", "유효 시작 주파수 %1 Hz: 10 kHz 초과 DC 외삽은 제한적입니다. 아이 시뮬레이션을 계속하시겠습니까?", "有効開始周波数 %1 Hz: 10 kHzを超えるDC外挿は制限があります。アイシミュレーションを続行しますか？"},
+    {"Channel / Aggressor", "채널 / 간섭원", "チャネル / アグレッサー"},
+    {"Baseline", "기준 리비전", "基準リビジョン"},
+    {"Candidate", "비교 리비전", "比較リビジョン"},
+    {"Base Worst", "기준 최악값", "基準最悪値"},
+    {"Candidate Worst", "비교 최악값", "比較最悪値"},
+    {"Raw Δ dB", "원시 Δ dB", "生Δ dB"},
+    {"Improvement dB", "개선량 dB", "改善量 dB"},
+    {"Min pointwise improvement", "최소 지점별 개선량", "最小点別改善量"},
+    {"Best / Note", "우수 / 참고", "優位 / 注記"},
+    {"Common band", "공통 대역", "共通帯域"},
+    {"Candidate improved", "비교 리비전 개선", "比較リビジョン改善"},
+    {"Baseline better", "기준 리비전 우수", "基準リビジョン優位"},
+    {"Equal", "동일", "同等"},
+    {"Unmatched logical channel", "논리 채널 불일치", "論理チャネル不一致"},
+    {"Unmatched logical aggressor", "논리 간섭원 불일치", "論理アグレッサー不一致"},
+    {"Single-ended TDR", "단일 종단 TDR", "シングルエンドTDR"},
+    {"Differential TDR", "차동 TDR", "差動TDR"},
+    {"Cache reused", "캐시 재사용", "キャッシュ再利用"},
+    {"Imported", "가져옴", "インポート済み"},
+    {"Unknown", "알 수 없음", "不明"},
+    {"Confirmed", "확인 완료", "確認済み"},
+    {"Review required", "확인 필요", "確認が必要"},
+    {"User Confirmed", "사용자 확인", "ユーザー確認済み"},
+    {"Manual Mapping", "수동 매핑", "手動マッピング"},
+    {"AUTO", "자동", "自動"},
+    {"MANUAL", "수동", "手動"},
+    {"DERIVED measured band; DEFAULT_ASSUMPTION root-linear fit above 10 times observed AC-like pole; excluded band not evaluated", "측정 대역에서 유도; 기본 가정: 관측 AC 유사 극점의 10배 위에서 제곱근-선형 피팅; 제외 대역 미평가", "測定帯域から導出; 既定の仮定: 観測AC状極の10倍より上で平方根-線形フィット; 除外帯域は未評価"},
+    {"DERIVED measured band; DEFAULT_ASSUMPTION root-linear fit; no qualified observed AC pole", "측정 대역에서 유도; 기본 가정: 제곱근-선형 피팅; 검증된 관측 AC 극점 없음", "測定帯域から導出; 既定の仮定: 平方根-線形フィット; 確認済みの観測AC極なし"},
+    {"DERIVED measured band and compatible mapped paths; DEFAULT_ASSUMPTION 400 mVpp NRZ, rate min(4.5 GBd, cap/1.5), 30 ps Gaussian edge, RX bandwidth equals cap, independent RSS", "측정 대역과 호환 매핑 경로에서 유도; 기본 가정: 400 mVpp NRZ, 속도 min(4.5 GBd, 상한/1.5), 30 ps 가우시안 에지, RX 대역폭은 상한, 독립 RSS", "測定帯域と互換マッピング経路から導出; 既定の仮定: 400 mVpp NRZ、レート min(4.5 GBd, 上限/1.5)、30 psガウシアンエッジ、RX帯域幅は上限、独立RSS"},
+    {"Low-pass step; Kaiser beta 6 default; complex linear resampling; automatic DC extrapolation; source Z0 retained. If the FFT grid loses response: direct nonuniform low-pass step with convergence and source interpolation sensitivity checks (LIMITED).", "저역통과 계단 응답; 기본 Kaiser β 6; 복소 선형 리샘플링; 자동 DC 외삽; 원본 Z0 유지. FFT 격자에서 응답 손실 시 수렴 및 원본 보간 민감도 검사를 포함한 직접 비균일 저역통과 계단 응답 (LIMITED).", "ローパスステップ; 既定Kaiser β 6; 複素線形リサンプリング; 自動DC外挿; ソースZ0保持。FFTグリッドで応答が失われる場合、収束とソース補間感度を検査する直接非一様ローパスステップ (LIMITED)。"},
+    {"Preview: synthetic/reference-library checks; PowerSI / VNA acceptance pending", "미리보기: 합성/참조 라이브러리 검사; PowerSI / VNA 승인 대기", "プレビュー: 合成/参照ライブラリ検査; PowerSI / VNA承認待ち"},
+    {"20*log10(abs(S)); RL/NEXT/FEXT pass value <= limit; IL pass value >= limit", "20*log10(abs(S)); RL/NEXT/FEXT 합격값 <= 기준; IL 합격값 >= 기준", "20*log10(abs(S)); RL/NEXT/FEXT合格値 <= 基準; IL合格値 >= 基準"},
+    {"Forward: NEXT Aggressor Near -> Victim Near; FEXT Aggressor Near -> Victim Far. Reverse starts at Aggressor Far.", "정방향: NEXT 간섭원 근단 -> 피간섭 근단; FEXT 간섭원 근단 -> 피간섭 원단. 역방향은 간섭원 원단에서 시작합니다.", "順方向: NEXTアグレッサー近端 -> ビクティム近端; FEXTアグレッサー近端 -> ビクティム遠端。逆方向はアグレッサー遠端から開始。"},
+    {"GOOD/LIMITED/UNSUITABLE describe transform suitability, not device compliance or guaranteed accuracy.", "GOOD/LIMITED/UNSUITABLE은 변환 적합성을 나타내며 장치 적합성이나 정확도를 보증하지 않습니다.", "GOOD/LIMITED/UNSUITABLEは変換適性を示し、機器適合性や精度を保証しません。"},
+    {"Revision delta: candidate dB - baseline dB. Direction delta: absolute N->F versus F->N difference for RL/IL; diagnostic only.", "리비전 차이: 비교 dB - 기준 dB. 방향 차이: RL/IL의 N->F와 F->N 절대 차이; 진단용.", "リビジョン差: 比較dB - 基準dB。方向差: RL/ILのN->FとF->Nの絶対差; 診断用。"},
+    {"Included in Raw_* sheets", "Raw_* 시트에 포함", "Raw_*シートに含む"},
+    {"Excluded (default); selected traces can be exported as CSV", "제외 (기본값); 선택한 트레이스를 CSV로 내보낼 수 있습니다.", "除外 (既定); 選択トレースをCSVにエクスポート可能"},
+    {"Immutable parsed-data snapshot used for calculation; current disk file is not re-read during export.", "계산에는 불변 파싱 데이터 스냅샷을 사용하며 내보낼 때 현재 디스크 파일을 다시 읽지 않습니다.", "計算には不変の解析済みデータスナップショットを使用し、エクスポート時に現在のディスクファイルを再読込しません。"},
   };
   for (const auto &entry : entries)
     if (source == QString::fromUtf8(entry.en))
       return QString::fromUtf8(value == Language::Korean ? entry.ko : entry.ja);
   return source;
+}
+// Localize Qt-owned controls without changing QLocale or requiring network resources.
+class FrameworkTranslator final : public QTranslator {
+public:
+  explicit FrameworkTranslator(QObject *parent):QTranslator(parent) {}
+  Language value=Language::English;
+  bool isEmpty() const override {return false;}
+  QString translate(const char *context,const char *sourceText,const char *,int) const override {
+    if(!context || !sourceText || value==Language::English) return {};
+    const QString c=QString::fromLatin1(context);
+    if(c!="QPlatformTheme" && c!="QDialogButtonBox" && c!="QFileDialog" &&
+       c!="QFileSystemModel" && c!="QMessageBox" && c!="QInputDialog" &&
+       c!="QLineEdit" && c!="QWidgetTextControl" && c!="QAbstractSpinBox" &&
+       c!="QComboBox" && c!="QScrollBar" && c!="QDialog" && c!="QMenu") return {};
+    const QString source=QString::fromUtf8(sourceText);
+    QString key=source; key.remove('&');
+    // In Qt file navigation, Forward denotes browser history, not SI direction.
+    if(c=="QFileDialog" && key=="Forward") key="Go forward";
+    const auto localized=menuText(key,value);
+    return localized==key ? QString() : localized;
+  }
+};
+inline void setFrameworkLanguage(Language value) {
+  if(!qApp) return;
+  // Qt dialogs must follow the application's language, not the OS display language.
+  QCoreApplication::setAttribute(Qt::AA_DontUseNativeDialogs,true);
+  static QPointer<FrameworkTranslator> translator;
+  if(!translator) {
+    translator=new FrameworkTranslator(qApp);
+    translator->value=value;
+    QCoreApplication::installTranslator(translator.data());
+  } else translator->value=value;
+}
+inline QString diagnosticText(const QString &source,Language value) {
+  const auto exact=menuText(source,value);
+  if(exact!=source || value==Language::English)return exact;
+  static const QRegularExpression dc(QStringLiteral("^Effective start (.+) Hz: DC extrapolation above 10 kHz is limited\\. Continue with simulated Eye\\?$"));
+  const auto match=dc.match(source);
+  if(match.hasMatch())return menuText("Effective start %1 Hz: DC extrapolation above 10 kHz is limited. Continue with simulated Eye?",value).arg(match.captured(1));
+  return source;
+}
+inline void refreshCompareLanguage(QTableWidget *table,Language value) {
+  if(!table || table->columnCount()!=10)return;
+  const QStringList sources={"Channel / Aggressor","Baseline","Candidate","Base Worst",
+    "Candidate Worst","Raw Δ dB","Improvement dB","Min pointwise improvement","Best / Note","Common band"};
+  for(int i=0;i<sources.size();++i)
+    if(auto *item=table->horizontalHeaderItem(i))item->setText(menuText(sources[i],value));
+  for(int i=0;i<table->rowCount();++i)
+    if(auto *item=table->item(i,8)) {
+      auto source=item->data(Qt::UserRole);
+      if(source.isValid())item->setText(diagnosticText(source.toString(),value));
+    }
+}
+inline void refreshTdrViewLanguage(QComboBox *box,Language value) {
+  if(!box || box->count()!=2)return;
+  const QSignalBlocker block(box);
+  const QStringList names={"Single-ended","Differential"};
+  const QStringList initial={"Single-ended TDR","Differential TDR"};
+  for(int i=0;i<2;++i) {
+    const auto suffix=box->itemData(i,Qt::UserRole+1);
+    box->setItemText(i,menuText(suffix.isValid()?names[i]:initial[i],value)+suffix.toString());
+  }
 }
 // Read only the UI language property, never the numeric locale.
 inline Language current(const QObject *object) {
@@ -544,7 +702,10 @@ inline void refreshMessage(QLabel *label, Language value) {
   const auto source=label->property("sparamview.messageSource");
   if(!source.isValid()) return;
   const auto pattern=menuText(source.toString(),value);
-  const auto args=label->property("sparamview.messageArgs").toStringList();
+  auto args=label->property("sparamview.messageArgs").toStringList();
+  for(const auto &index:label->property("sparamview.messageLocalizedArgs").toList()) {
+    const int i=index.toInt();if(i>=0 && i<args.size())args[i]=menuText(args[i],value);
+  }
   QString rendered;
   qsizetype offset=0;
   static const QRegularExpression placeholder(QStringLiteral("%([1-9][0-9]?)"));
@@ -559,9 +720,10 @@ inline void refreshMessage(QLabel *label, Language value) {
   rendered+=pattern.mid(offset);
   label->setText(rendered);
 }
-inline void message(QLabel *label,const QString &source,const QStringList &args={}) {
+inline void message(QLabel *label,const QString &source,const QStringList &args={},const QVariantList &localizedArgs={}) {
   label->setProperty("sparamview.messageSource",source);
   label->setProperty("sparamview.messageArgs",args);
+  label->setProperty("sparamview.messageLocalizedArgs",localizedArgs);
   refreshMessage(label,current(label));
 }
 inline void refreshStatus(QStatusBar *bar, Language value) {
@@ -691,6 +853,7 @@ inline void installMenu(QMainWindow &window, Bindings extra = {}) {
   const auto initial = saved();
   auto apply = [bindings, extra, owner = QPointer<QMainWindow>(&window)](Language language) {
     if (!owner) return;
+    setFrameworkLanguage(language);
     owner->setProperty("sparamview.uiLanguage", code(language));
     for (const auto &binding : bindings) {
       if (!binding.action) continue;

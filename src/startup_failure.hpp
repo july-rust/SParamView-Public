@@ -38,6 +38,7 @@ inline int reportStartupFailure(const QString &detail, bool automated) {
             << cause.toUtf8().toStdString() << '\n';
   if (canShowStartupDialog(automated)) {
     const auto language=ui_language::saved();
+    ui_language::setFrameworkLanguage(language);
     QMessageBox::critical(nullptr,ui_language::menuText("SParamView - Startup failed",language),
       ui_language::menuText("Cannot start SParamView.\n\n",language)+ui_language::menuText(cause,language)+
       ui_language::menuText("\n\nCheck the cache location, folder permissions and available disk space, then restart the application.",language));

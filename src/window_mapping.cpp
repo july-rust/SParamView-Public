@@ -229,7 +229,7 @@ void MainWindow::openNextPath(QStringList paths, bool batch) {
             refreshAnalysisContext();
             dirty = true;
             sparamview::preferences::rememberFile(current.source);
-            if(mappingAccepted) sparamview::ui_language::message(notice,"Touchstone data loaded. Mapping validated from %1. Select channels and run analysis.",{current.mappingSource});
+            if(mappingAccepted) sparamview::ui_language::message(notice,"Touchstone data loaded. Mapping validated from %1. Select channels and run analysis.",{current.mappingSource},{0});
             else sparamview::ui_language::message(notice,"Touchstone data loaded. Mapping review is required before analysis.");
           } else {
             sparamview::ui_language::message(notice,"Skipped %1: mapping not confirmed.",{QFileInfo(path).fileName()});
@@ -267,7 +267,7 @@ void MainWindow::rebuildChannels() {
     groupBox->addItem(qs(g));
   auto &m = r.cache->meta();
   sparamview::ui_language::message(selectionInfo,"%1 ports · %2 points\n%3 · %4\nSignal: %5 (%6)\nSource: %7\nMapping: %8",
-    {QString::number(m.ports),QString::number(m.points),qs(m.version),r.cache->reused()?"Cache reused":"Imported",r.signalType,r.signalConfidence,r.mappingSource.isEmpty()?"Unknown":r.mappingSource,r.confirmed?"Confirmed":"Review required"});
+    {QString::number(m.ports),QString::number(m.points),qs(m.version),r.cache->reused()?"Cache reused":"Imported",r.signalType,r.signalConfidence,r.mappingSource.isEmpty()?"Unknown":r.mappingSource,r.confirmed?"Confirmed":"Review required"},{3,4,5,6,7});
 }
 std::vector<si::Channel> MainWindow::selectedChannels() const {
   std::vector<si::Channel> out;

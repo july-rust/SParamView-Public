@@ -1044,7 +1044,7 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     const auto title=menuText(labelFor(feature_),value);
     setWindowTitle(QStringLiteral("SParamView · ")+title);
     header->setText(QStringLiteral("<b>")+title+QStringLiteral("</b> — ")+menuText("Channel Analysis",value));
-    statusLabel_->setText(menuText(statusName(status_),value)+QStringLiteral(" — ")+menuText(statusDetailsSource_,value));
+    statusLabel_->setText(menuText(statusName(status_),value)+QStringLiteral(" — ")+diagnosticText(statusDetailsSource_,value));
     statusLabel_->setToolTip(statusLabel_->text());
     for(auto *graph:{ildGraph_,icnGraph_,eyeGraph_}) if(graph) graph->update();
   });
@@ -1116,7 +1116,7 @@ void AnalysisWindow::setStatus(si::channel::Status status, const QString &detail
   status_ = status;
   statusDetailsSource_ = details;
   summaryStatus_=false;
-  statusLabel_->setText(sparamview::ui_language::textFor(this,statusName(status)) + QStringLiteral(" — ") + sparamview::ui_language::textFor(this,details));
+  statusLabel_->setText(sparamview::ui_language::textFor(this,statusName(status)) + QStringLiteral(" — ") + sparamview::ui_language::diagnosticText(details,sparamview::ui_language::current(this)));
   statusLabel_->setToolTip(statusLabel_->text());
   if(auto *tabs=findChild<QTabWidget *>(QStringLiteral("analysisDetailsTabs")))
     tabs->setCurrentIndex(0);
@@ -1128,8 +1128,8 @@ QString AnalysisWindow::resultSummary() const {
     .arg(d.rmsDb,0,'g',6).arg(d.peakAbsoluteDb,0,'g',6)
     .arg(d.peakFrequencyHz/1e9,0,'g',7).arg(qulonglong(d.frequencyHz.size()))
     .arg(d.rangeStartHz/1e9,0,'g',7).arg(d.rangeStopHz/1e9,0,'g',7)+
-      QStringLiteral(" | ")+QString::fromStdString(d.analysisMode)+QStringLiteral(": ")+
-      QString::fromStdString(d.configurationReason);
+      QStringLiteral(" | ")+sparamview::ui_language::textFor(this,QString::fromStdString(d.analysisMode))+QStringLiteral(": ")+
+      sparamview::ui_language::textFor(this,QString::fromStdString(d.configurationReason));
   }
   if(icnResult_) {
     const auto &d=*icnResult_;
@@ -1139,8 +1139,8 @@ QString AnalysisWindow::resultSummary() const {
     .arg(d.totalRmsV*1000,0,'g',7).arg(qulonglong(d.aggressors.size()))
     .arg(d.bandLimited?sparamview::ui_language::textFor(this,QStringLiteral(" | BAND LIMITED")):QString())
     .arg(d.actualStartHz/1e9,0,'g',7).arg(d.actualStopHz/1e9,0,'g',7)+
-      QStringLiteral(" | ")+QString::fromStdString(d.analysisMode)+QStringLiteral(": ")+
-      QString::fromStdString(d.configurationReason)+
+      QStringLiteral(" | ")+sparamview::ui_language::textFor(this,QString::fromStdString(d.analysisMode))+QStringLiteral(": ")+
+      sparamview::ui_language::textFor(this,QString::fromStdString(d.configurationReason))+
       QStringLiteral(" | %1 GBd, %2 mVpp, %3 ps, RX %4 GHz")
         .arg(d.settings.symbolRateHz/1e9,0,'g',7).arg(d.settings.txPeakToPeakV*1000,0,'g',7)
         .arg(d.settings.riseTimeSeconds*1e12,0,'g',7).arg(d.settings.rxBandwidthHz/1e9,0,'g',7);
@@ -1292,7 +1292,7 @@ bool AnalysisWindow::startWork(AsyncWork work, bool automaticBand) {
           dialog->setAttribute(Qt::WA_DeleteOnClose);
           dialog->setWindowModality(Qt::WindowModal);
           auto *layout=new QVBoxLayout(dialog);
-          auto *message=new QLabel(outcome.diagnostic,dialog);
+          auto *message=new QLabel(sparamview::ui_language::diagnosticText(outcome.diagnostic,sparamview::ui_language::current(guard.data())),dialog);
           message->setWordWrap(true);
           layout->addWidget(message);
           auto *buttons=new QDialogButtonBox(QDialogButtonBox::Ok|QDialogButtonBox::Cancel,dialog);

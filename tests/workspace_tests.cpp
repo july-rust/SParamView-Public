@@ -1,4 +1,5 @@
 #include "app.hpp"
+#include "../src/ui_language.hpp"
 #include <iostream>
 void applyCompactAnalysisSettings(MainWindow &window);
 static void check(bool ok, const char *message) { if (!ok) throw si::Error(message); }
@@ -632,6 +633,24 @@ struct WorkspaceProbe {
            eye->saveEyeCsv(parityPrefix+"eye.csv"),"Localized CSV export failed");
      check(read(parityPrefix+"ild.csv")==ildBefore && read(parityPrefix+"icn.csv")==icnBefore &&
            read(parityPrefix+"eye.csv")==eyeBefore,"Language switch changed canonical CSV bytes");
+     int featureIndex=0;
+     for(auto *window:{ild,icn,eye}) {
+       window->resize(984,688);
+       QApplication::processEvents();
+       check(window->width()<=984 && window->height()<=688,"Localized analysis window exceeds 1024x768 work area");
+       for(const auto *name:{"analysisRun","analysisCancel","analysisCsv","analysisPng"}) {
+         auto *button=window->findChild<QPushButton *>(name);
+         check(button && button->isVisible() && window->rect().contains(QRect(button->mapTo(window,QPoint(0,0)),button->size())),
+               "Localized analysis action clipped");
+       }
+       for(const auto *name:{window==eye?"eyeSettingsScroll":"analysisSettingsScroll","analysisPlotScroll"}) {
+         auto *scroll=window->findChild<QScrollArea *>(name);
+         check(scroll && scroll->isVisible() && scroll->viewport()->width()>0 && scroll->viewport()->height()>0,
+               "Localized analysis scroll viewport inaccessible");
+       }
+       const auto png=QDir(out).filePath(QString("language_%1_%2.png").arg(QString::fromLatin1(lang)).arg(featureIndex++));
+       check(window->grab().save(png),"Localized screen evidence save failed");
+     }
    }
    // A bad output target must fail without modifying the workspace or source.
    check(!ild->saveIldCsv(fixture.path()) && values(w)==legacy,
@@ -757,14 +776,17 @@ struct WorkspaceProbe {
     check(w.quickButton->text()==QString::fromUtf8("빠른 분석"),"Korean quick analysis button");
     check(manual->text()==QString::fromUtf8("수동 실행"),"Korean open Eye Run Manual");
     check(direction->itemText(1)==QString::fromUtf8("역방향"),"Korean open Eye direction");
+    check(QCoreApplication::translate("QPlatformTheme","Cancel")==QString::fromUtf8("취소"),"Korean framework dialog translation");
     ja->trigger();verify(w,QString::fromUtf8("ファイル"),"Japanese");
     check(newAction->text()==QString::fromUtf8("新規作成"),"Japanese New action");
     check(w.tabs->tabText(0)==QString::fromUtf8("グラフ"),"Japanese plot tab");
     check(w.quickButton->text()==QString::fromUtf8("クイック解析"),"Japanese quick analysis button");
     check(manual->text()==QString::fromUtf8("手動実行"),"Japanese open Eye Run Manual");
     check(direction->itemText(1)==QString::fromUtf8("逆方向"),"Japanese open Eye direction");
+    check(QCoreApplication::translate("QPlatformTheme","Cancel")==QString::fromUtf8("キャンセル"),"Japanese framework dialog translation");
     en->trigger();verify(w,"File","English");
     check(newAction->text()=="New","English New action");
+    check(QCoreApplication::translate("QPlatformTheme","Cancel")=="Cancel","English framework dialog translation");
     check(manual->text()=="Run Manual" && direction->currentIndex()==1 && eye->status()==originalStatus && w.analysisWindows->context().generation==generation,"Language changed analysis state");
    }
    check(QLocale().name()==before && w.limitValues[0]->value()==limit &&

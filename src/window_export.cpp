@@ -199,12 +199,12 @@ void MainWindow::compareRevisions() {
         for (size_t i = 0; i < rows->size(); ++i)
           for (int j = 0; j < (*rows)[i].size(); ++j) {
             auto v = (*rows)[i][j];
-            compareTable->setItem(
-                int(i), j,
-                new QTableWidgetItem(v.metaType().id() == QMetaType::Double
-                                         ? num(v.toDouble())
-                                         : v.toString()));
+            auto *item=new QTableWidgetItem(v.metaType().id() == QMetaType::Double
+                                         ? num(v.toDouble()) : v.toString());
+            if(j==8)item->setData(Qt::UserRole,v.toString());
+            compareTable->setItem(int(i),j,item);
           }
+        sparamview::ui_language::refreshCompareLanguage(compareTable,sparamview::ui_language::current(this));
         compareTable->resizeColumnsToContents();
         // The comparison tab must be visible when invoked from results focus.
         if (workspaceMode == 2) setWorkspaceMode(0);
