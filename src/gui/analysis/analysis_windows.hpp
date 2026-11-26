@@ -95,6 +95,7 @@ public:
   bool saveIldCsv(const QString &filename);
   bool saveIldPng(const QString &filename);
   void cancelWork();
+  void refreshLanguage(const QString &code);
   si::channel::Status status() const { return status_; }
   QPushButton *runButton() const { return run_; }
   QPushButton *cancelButton() const { return cancel_; }
@@ -156,6 +157,7 @@ private:
   si::channel::Provenance eyeProvenance_;
   QString eyeSourceFilename_;
   QString statusDetailsSource_;
+  std::function<void(const QString &)> languageRefresh_;
   QLabel *statusLabel_ = nullptr, *graphPlaceholder_ = nullptr;
   QLabel *icnContributions_ = nullptr;
   QWidget *ildGraph_ = nullptr, *icnGraph_ = nullptr;
@@ -175,6 +177,7 @@ public:
   explicit AnalysisWindowManager(QMainWindow *owner);
   ~AnalysisWindowManager() override;
   void installMenu();
+  void refreshLanguage(const QString &code);
   void setContext(AnalysisContext context);
   // Keep an old project cache directory alive while any cancelled worker
   // may still own a SourceSnapshot backed by its files.

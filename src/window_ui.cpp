@@ -840,6 +840,7 @@ MainWindow::MainWindow() {
   languageBindings.push_back([this](Language value){
     refreshMessage(notice,value);
     refreshStatus(statusBar(),value);
+    analysisWindows->refreshLanguage(code(value));
   });
   installMenu(*this, std::move(languageBindings));
 }

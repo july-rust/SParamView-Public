@@ -29,3 +29,7 @@ This is a partial implementation, not a completed 012_56 or a release candidate.
 - f86d2ede passed the three-platform CI and CodeQL (runs 45774724248 / 45774724390); release publication skipped as intended.
 - Localize TDR/mapping/export/axis dialog controls, selected file-dialog titles, known notices and status bar messages, and add live-open analysis window state regression. User-entered identifiers and numerical locale remain unchanged.
 - Remaining: complete context-aware dynamic analysis diagnostics, report text, native dialogs, all untranslated strings, actual layout and language parity evidence. Do not treat prior CI as qualification of this commit.
+
+## Follow-up: direct analysis window notification
+- 38f3759: CodeQL passed; Windows x64 and macOS failed Korean open Eye window (run 45777624953). Windows ARM64 passed; native packaged gate skipped.
+- Use explicit manager-to-window language notification, explicit Run and direction bindings, and refresh newly opened windows. Split the failing assertion without removing coverage. Added translations for common analysis diagnostics and export dialog captions. Retest required; exact original failure subcondition not yet proven.

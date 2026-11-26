@@ -733,12 +733,14 @@ struct WorkspaceProbe {
     check(newAction->text()==QString::fromUtf8("새로 만들기"),"Korean New action");
     check(w.tabs->tabText(0)==QString::fromUtf8("그래프"),"Korean plot tab");
     check(w.quickButton->text()==QString::fromUtf8("빠른 분석"),"Korean quick analysis button");
-    check(manual->text()==QString::fromUtf8("수동 실행") && direction->itemText(1)==QString::fromUtf8("역방향"),"Korean open Eye window");
+    check(manual->text()==QString::fromUtf8("수동 실행"),"Korean open Eye Run Manual");
+    check(direction->itemText(1)==QString::fromUtf8("역방향"),"Korean open Eye direction");
     ja->trigger();verify(w,QString::fromUtf8("ファイル"),"Japanese");
     check(newAction->text()==QString::fromUtf8("新規作成"),"Japanese New action");
     check(w.tabs->tabText(0)==QString::fromUtf8("グラフ"),"Japanese plot tab");
     check(w.quickButton->text()==QString::fromUtf8("クイック解析"),"Japanese quick analysis button");
-    check(manual->text()==QString::fromUtf8("手動実行") && direction->itemText(1)==QString::fromUtf8("逆方向"),"Japanese open Eye window");
+    check(manual->text()==QString::fromUtf8("手動実行"),"Japanese open Eye Run Manual");
+    check(direction->itemText(1)==QString::fromUtf8("逆方向"),"Japanese open Eye direction");
     en->trigger();verify(w,"File","English");
     check(newAction->text()=="New","English New action");
     check(manual->text()=="Run Manual" && direction->currentIndex()==1 && eye->status()==originalStatus && w.analysisWindows->context().generation==generation,"Language changed analysis state");

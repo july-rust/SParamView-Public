@@ -1048,8 +1048,28 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     statusLabel_->setToolTip(statusLabel_->text());
     for(auto *graph:{ildGraph_,icnGraph_,eyeGraph_}) if(graph) graph->update();
   });
-  new LanguageObserver(this,owner,std::move(translated));
+  // Direct manager notification avoids event-filter order/platform dependence.
+  languageRefresh_=[this, translated=std::move(translated)](const QString &codeValue) {
+    const auto value=fromCode(codeValue);
+    for(const auto &refresh:translated) refresh(value);
+    run_->setText(menuText(feature_==Feature::Com?"Run":"Run Manual",value));
+    const QSignalBlocker block(direction_);
+    direction_->setItemText(0,menuText("Forward",value));
+    direction_->setItemText(1,menuText("Reverse",value));
+    QString runTip;
+    if(feature_==Feature::Ild) runTip=ildProvider_?"Run verified ILD fit":"ILD source provider unavailable";
+    if(feature_==Feature::Icn) runTip=icnProvider_?"Run generic band-limited NRZ ICN":"ICN source provider unavailable";
+    if(feature_==Feature::Eye) runTip=eyeProvider_?"Run phase-preserving simulated NRZ Eye with explicit electrical conditions":"Verified Eye source provider unavailable";
+    if(!runTip.isEmpty()) run_->setToolTip(menuText(runTip,value));
+    if(icnContributions_ && !icnResult_) icnContributions_->setText(menuText("No current ICN result.",value));
+    if(eyeMetrics_ && !eyeResult_) eyeMetrics_->setText(menuText("Simulated Channel Eye — Not Measured / Not PHY Compliance",value));
+  };
+  refreshLanguage(code(current(this)));
   fitToScreen();
+}
+void AnalysisWindow::refreshLanguage(const QString &codeValue) {
+  setProperty("sparamview.uiLanguage",codeValue);
+  if(languageRefresh_) languageRefresh_(codeValue);
 }
 void AnalysisWindow::showEvent(QShowEvent *event) {
   QWidget::showEvent(event);
@@ -1394,7 +1414,7 @@ void AnalysisWindow::showIld(const WorkOutcome &outcome) {
 }
 void AnalysisWindow::exportIldCsv() {
   if(!ildResult_) return;
-  const QString name=QFileDialog::getSaveFileName(this,QStringLiteral("Export ILD data"),
+  const QString name=QFileDialog::getSaveFileName(this,sparamview::ui_language::textFor(this,QStringLiteral("Export ILD data")),
                           sparamview::preferences::saveSuggestion(QStringLiteral("ILD.csv")),QStringLiteral("CSV (*.csv)"));
   if(!name.isEmpty() && saveIldCsv(name)) sparamview::preferences::rememberFile(name);
 }
@@ -1451,7 +1471,7 @@ bool AnalysisWindow::saveIldCsv(const QString &name) {
 }
 void AnalysisWindow::exportIldPng() {
   if(!ildResult_ || !ildGraph_) return;
-  const QString name=QFileDialog::getSaveFileName(this,QStringLiteral("Export ILD plot"),
+  const QString name=QFileDialog::getSaveFileName(this,sparamview::ui_language::textFor(this,QStringLiteral("Export ILD plot")),
                        sparamview::preferences::saveSuggestion(QStringLiteral("ILD.png")),QStringLiteral("PNG (*.png)"));
   if(!name.isEmpty() && saveIldPng(name)) sparamview::preferences::rememberFile(name);
 }
@@ -1677,7 +1697,7 @@ void AnalysisWindow::showIcn(const WorkOutcome &outcome) {
 void AnalysisWindow::exportIcnCsv() {
   if(!icnResult_) return;
   const QString name=QFileDialog::getSaveFileName(this,
-    QStringLiteral("Export ICN numerical data"),sparamview::preferences::saveSuggestion(QStringLiteral("ICN.csv")),
+    sparamview::ui_language::textFor(this,QStringLiteral("Export ICN numerical data")),sparamview::preferences::saveSuggestion(QStringLiteral("ICN.csv")),
     QStringLiteral("CSV (*.csv)"));
   if(!name.isEmpty() && saveIcnCsv(name)) sparamview::preferences::rememberFile(name);
 }
@@ -1761,7 +1781,7 @@ bool AnalysisWindow::saveIcnCsv(const QString &name) {
 void AnalysisWindow::exportIcnPng() {
   if(!icnResult_) return;
   const QString name=QFileDialog::getSaveFileName(this,
-    QStringLiteral("Export ICN plot"),sparamview::preferences::saveSuggestion(QStringLiteral("ICN.png")),
+    sparamview::ui_language::textFor(this,QStringLiteral("Export ICN plot")),sparamview::preferences::saveSuggestion(QStringLiteral("ICN.png")),
     QStringLiteral("PNG (*.png)"));
   if(!name.isEmpty() && saveIcnPng(name)) sparamview::preferences::rememberFile(name);
 }
@@ -2023,7 +2043,7 @@ void AnalysisWindow::showEye(const WorkOutcome &outcome) {
 void AnalysisWindow::exportEyeCsv() {
   if(!eyeResult_)return;
   const QString name=QFileDialog::getSaveFileName(this,
-      QStringLiteral("Export simulated Eye numerical data"),sparamview::preferences::saveSuggestion(QStringLiteral("Eye.csv")),
+      sparamview::ui_language::textFor(this,QStringLiteral("Export simulated Eye numerical data")),sparamview::preferences::saveSuggestion(QStringLiteral("Eye.csv")),
       QStringLiteral("CSV (*.csv)"));
   if(!name.isEmpty() && saveEyeCsv(name)) sparamview::preferences::rememberFile(name);
 }
@@ -2138,7 +2158,7 @@ bool AnalysisWindow::saveEyeCsv(const QString &name) {
 void AnalysisWindow::exportEyePng() {
   if(!eyeResult_)return;
   const QString name=QFileDialog::getSaveFileName(this,
-      QStringLiteral("Export simulated Eye graph"),sparamview::preferences::saveSuggestion(QStringLiteral("Eye.png")),
+      sparamview::ui_language::textFor(this,QStringLiteral("Export simulated Eye graph")),sparamview::preferences::saveSuggestion(QStringLiteral("Eye.png")),
       QStringLiteral("PNG (*.png)"));
   if(!name.isEmpty() && saveEyePng(name)) sparamview::preferences::rememberFile(name);
 }
@@ -2291,6 +2311,9 @@ void AnalysisWindowManager::installMenu() {
     actions_[i] = action;
   }
 }
+void AnalysisWindowManager::refreshLanguage(const QString &codeValue) {
+  for(auto &window:windows_) if(window) window->refreshLanguage(codeValue);
+}
 void AnalysisWindowManager::setContext(AnalysisContext context) {
   context.generation = ++contextGeneration_;
   context_ = std::move(context);
@@ -2348,6 +2371,7 @@ AnalysisWindow *AnalysisWindowManager::openWindow(Feature feature) {
   if(feature == Feature::Icn) window->setIcnSourceProvider(icnProvider_);
   if(feature == Feature::Eye) window->setEyeSourceProvider(eyeProvider_);
   window->setContext(context_);
+  window->refreshLanguage(sparamview::ui_language::code(sparamview::ui_language::current(owner_)));
   windows_[index] = window;
   connect(window, &QObject::destroyed, this, [this, index] {
     windows_[index] = nullptr;
