@@ -24,7 +24,7 @@ static void localizationCatalogQualification() {
     check(placeholders(en)==placeholders(ko) && placeholders(en)==placeholders(ja),"Localization placeholder mismatch");
     check(menuText(en,Language::Korean)==ko && menuText(en,Language::Japanese)==ja,"Localization lookup mismatch");
   }
-  check(keys.size()>=880,"Localization catalog unexpectedly reduced");
+  check(keys.size()>=886,"Localization catalog unexpectedly reduced");
   const QString wrapper="Saved mapping invalidated: source changed or stored ports are no longer valid. ";
   const QString evidence="Current source re-evaluated; previous mapping was discarded. ";
   const QString suffix=" User confirmed the signal type before Channel Mapping.";
@@ -38,6 +38,13 @@ static void localizationCatalogQualification() {
     check(diagnosticText(raw,lang)==expected,"Composite mapping diagnostic localization failed");
     check(diagnosticText(wrapper+portPrefix+opaque,lang)==menuText(wrapper,lang)+menuText(portPrefix,lang)+opaque,"Composite diagnostic changed opaque filename");
     check(diagnosticText(opaque,lang)==opaque,"Unknown diagnostic unexpectedly changed");
+    const QString tdr="Nonuniform low-pass step; original frequency intervals; even-real DC extrapolation; Kaiser beta=%1; quadrature error=%2; interpolation sensitivity=%3. Preview; PowerSI/VNA correlation pending.";
+    const QString singular=" Impedance display singular/out of range; rho retained; invalid ohm samples omitted.";
+    check(diagnosticText(tdr.arg("6.000000","0.000001","0.000002")+singular,lang)==menuText(tdr,lang).arg("6.000000","0.000001","0.000002")+menuText(singular,lang),"Nonuniform TDR diagnostic mismatch");
+    const QString preview="Preview Kaiser beta=%1; reference-tool release validation pending.";
+    const QString dc="DC extrapolation and/or complex grid resampling used. ";
+    check(diagnosticText(dc+preview.arg("6.000000"),lang)==menuText(dc,lang)+menuText(preview,lang).arg("6.000000"),"Preview TDR diagnostic mismatch");
+    check(diagnosticText(portPrefix+opaque+suffix,lang)==menuText(portPrefix,lang)+opaque+suffix,"Opaque path suffix unexpectedly translated");
   }
 }
 struct WorkspaceProbe {
