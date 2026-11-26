@@ -74,7 +74,7 @@ void checkCompactLayout(AnalysisWindow *window) {
   const auto originalSize=window->size();
   const bool originalSettings=toggle->isChecked();
   toggle->setChecked(true);
-  for(const QSize size:{QSize(984,688),QSize(640,480)}) {
+  for(const QSize size:{QSize(984,648),QSize(640,480)}) {
     window->resize(size);
     QCoreApplication::processEvents();
     check(window->width()<=size.width() && window->height()<=size.height(),
@@ -149,7 +149,10 @@ int main(int argc, char **argv) {
       check(action && !action->isEnabled(), "Unimplemented engine is exposed as ready");
     }
 
-    manager.setContext(context());
+    auto longContext=context();
+    longContext.sources[0].revision=QString(180,QLatin1Char('X'));
+    longContext.sources[0].channels[0]=QString(120,QLatin1Char('V'));
+    manager.setContext(longContext);
     AnalysisWindow *windows[featureCount]{};
     for (int i = 0; i < releaseFeatureCount; ++i) {
       auto feature = static_cast<Feature>(i);
@@ -163,6 +166,7 @@ int main(int argc, char **argv) {
       for (int j = 0; j < i; ++j)
         check(windows[i] != windows[j], "Distinct analysis features share a window");
     }
+    manager.setContext(context());
     // The three release menu actions stay disabled until an engine registers.
     // Only the isolated test manager enables the action to check focus/reuse.
     manager.setEngineAvailable(Feature::Ild, true);
@@ -658,6 +662,7 @@ int main(int argc, char **argv) {
           metrics->text().contains(QStringLiteral("Width")) &&
           metrics->text().contains(QStringLiteral("Not Measured")),
           "Eye numerical display and caution missing");
+    checkCompactLayout(eye);
     auto *eyeCsv=eye->findChild<QPushButton *>(QStringLiteral("analysisCsv"));
     auto *eyePng=eye->findChild<QPushButton *>(QStringLiteral("analysisPng"));
     check(eyeCsv && eyeCsv->isEnabled() && eyePng && eyePng->isEnabled(),
