@@ -24,7 +24,15 @@ static void localizationCatalogQualification() {
     check(placeholders(en)==placeholders(ko) && placeholders(en)==placeholders(ja),"Localization placeholder mismatch");
     check(menuText(en,Language::Korean)==ko && menuText(en,Language::Japanese)==ja,"Localization lookup mismatch");
   }
-  check(keys.size()>=930,"Localization catalog unexpectedly reduced");
+  check(keys.size()>=932,"Localization catalog unexpectedly reduced");
+  for (auto language : {Language::English,Language::Korean,Language::Japanese}) {
+    check(menuText("Touchstone (*.s*p *.ts)",language).endsWith(" (*.s*p *.ts)"),
+          "Localized Touchstone filter changed file patterns");
+    check(menuText("SI Project (*.siproject)",language).endsWith(" (*.siproject)"),
+          "Localized project filter changed file pattern");
+    check(menuText("All files (*)",language).endsWith(" (*)"),
+          "Localized all-files filter changed file pattern");
+  }
   const QString wrapper="Saved mapping invalidated: source changed or stored ports are no longer valid. ";
   const QString evidence="Current source re-evaluated; previous mapping was discarded. ";
   const QString suffix=" User confirmed the signal type before Channel Mapping.";
