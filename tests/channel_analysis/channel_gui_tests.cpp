@@ -61,6 +61,71 @@ void drain(AsyncScheduler &scheduler) {
   check(pumpUntil([&] { return scheduler.inFlight() == 0; }),
         "Worker did not drain before timeout");
 }
+// The application actions must stay in the client area even when the
+// settings, plot or diagnostic text needs its own scrollbar.
+void checkCompactLayout(AnalysisWindow *window) {
+  auto *splitter=window->findChild<QSplitter *>(QStringLiteral("analysisWorkspaceSplitter"));
+  auto *plot=window->findChild<QScrollArea *>(QStringLiteral("analysisPlotScroll"));
+  auto *details=window->findChild<QTabWidget *>(QStringLiteral("analysisDetailsTabs"));
+  auto *toggle=window->findChild<QToolButton *>(QStringLiteral("analysisSettingsToggle"));
+  auto *settings=window->findChild<QScrollArea *>(window->feature()==Feature::Eye
+      ?QStringLiteral("eyeSettingsScroll"):QStringLiteral("analysisSettingsScroll"));
+  check(splitter && plot && details && toggle && settings,"Compact analysis workspace missing");
+  const auto originalSize=window->size();
+  const bool originalSettings=toggle->isChecked();
+  toggle->setChecked(true);
+  for(const QSize size:{QSize(984,648),QSize(640,480)}) {
+    window->resize(size);
+    QCoreApplication::processEvents();
+    check(window->width()<=size.width() && window->height()<=size.height(),
+          "Analysis content prevents small-window resizing");
+    const QStringList actions={QStringLiteral("analysisRun"),
+      QStringLiteral("analysisCancel"),QStringLiteral("analysisCsv"),
+      QStringLiteral("analysisPng"),window->feature()==Feature::Eye
+      ?QStringLiteral("eyeAutoPreview"):QStringLiteral("analysisAuto")};
+    for(const auto &name:actions) {
+      auto *button=window->findChild<QPushButton *>(name);
+      check(button && button->isVisibleTo(window) &&
+          window->rect().contains(QRect(button->mapTo(window,QPoint(0,0)),button->size())),
+          "Analysis action clipped or hidden at compact size");
+    }
+    check(plot->isVisibleTo(window) && plot->viewport()->width()>100 &&
+        plot->viewport()->height()>80,"Plot viewport is not usable at compact size");
+    check(settings->isVisibleTo(window) && settings->viewport()->width()>80,
+          "Settings viewport unavailable at compact size");
+    if(size.width()==984)
+      check(plot->verticalScrollBar()->maximum()==0,
+            "Default analysis plot must fit in the reference compact client area");
+    if(window->feature()==Feature::Eye) {
+      auto *tabs=window->findChild<QTabWidget *>(QStringLiteral("eyeManualSettingsTabs"));
+      check(tabs && tabs->count()==3,"Eye manual settings must be grouped");
+      const QStringList representatives={QStringLiteral("eyeBitRateGbps"),
+          QStringLiteral("eyeFftLength"),QStringLiteral("eyeRxMaximumMv")};
+      for(int i=0;i<tabs->count();++i) {
+        tabs->setCurrentIndex(i);
+        auto *field=tabs->widget(i)->findChild<QWidget *>(representatives[i]);
+        check(field && field->isVisibleTo(settings->widget()),
+              "Eye manual field inaccessible on its settings tab");
+        settings->ensureWidgetVisible(field,2,2);
+        QCoreApplication::processEvents();
+        check(settings->viewport()->rect().intersects(
+            QRect(field->mapTo(settings->viewport(),QPoint(0,0)),field->size())),
+            "Eye manual field cannot be reached by scrolling");
+      }
+      tabs->setCurrentIndex(0);
+    }
+    const int expandedWidth=plot->viewport()->width();
+    toggle->setChecked(false);
+    QCoreApplication::processEvents();
+    check(settings->isHidden() && plot->viewport()->width()>=expandedWidth,
+          "Collapsing settings must release plot space");
+    toggle->setChecked(true);
+    QCoreApplication::processEvents();
+  }
+  toggle->setChecked(originalSettings);
+  window->resize(originalSize);
+  QCoreApplication::processEvents();
+}
 }
 
 int main(int argc, char **argv) {
@@ -84,7 +149,14 @@ int main(int argc, char **argv) {
       check(action && !action->isEnabled(), "Unimplemented engine is exposed as ready");
     }
 
-    manager.setContext(context());
+    auto longContext=context();
+    longContext.sources[0].revision=QString(180,QLatin1Char('X'));
+    longContext.sources[0].channels[0]=QString(120,QLatin1Char('V'));
+    auto alternate=longContext.sources[0];
+    alternate.revision=QString(180,QLatin1Char('Y'));
+    alternate.channels[0]=QString(120,QLatin1Char('W'));
+    longContext.sources.append(alternate);
+    manager.setContext(longContext);
     AnalysisWindow *windows[featureCount]{};
     for (int i = 0; i < releaseFeatureCount; ++i) {
       auto feature = static_cast<Feature>(i);
@@ -94,9 +166,31 @@ int main(int argc, char **argv) {
       check(windows[i]->runButton() && !windows[i]->runButton()->isEnabled(),
             "An unfinished numerical engine must not run");
       check(manager.openWindow(feature) == windows[i], "Duplicate analysis window created");
+      checkCompactLayout(windows[i]);
+      auto *sourceCombo=windows[i]->findChild<QComboBox *>(QStringLiteral("analysisSource"));
+      auto *victimCombo=windows[i]->findChild<QComboBox *>(QStringLiteral("analysisVictim"));
+      check(sourceCombo && victimCombo,"Source/victim selector missing");
+      check(sourceCombo->toolTip()==longContext.sources[0].revision &&
+            victimCombo->toolTip()==longContext.sources[0].channels[0],
+            "Initial full-name tooltip missing");
+      sourceCombo->setCurrentIndex(1);
+      check(sourceCombo->toolTip()==alternate.revision &&
+            victimCombo->toolTip()==alternate.channels[0],
+            "Source change did not refresh full-name tooltip");
+      victimCombo->setCurrentIndex(1);
+      check(victimCombo->toolTip()==alternate.channels[1],
+            "Victim change did not refresh full-name tooltip");
+      windows[i]->setContext(AnalysisContext{});
+      check(sourceCombo->toolTip().isEmpty() && victimCombo->toolTip().isEmpty(),
+            "Cleared context retained stale tooltip");
+      windows[i]->setContext(longContext);
+      check(sourceCombo->toolTip()==longContext.sources[0].revision &&
+            victimCombo->toolTip()==longContext.sources[0].channels[0],
+            "Restored context did not refresh full-name tooltip");
       for (int j = 0; j < i; ++j)
         check(windows[i] != windows[j], "Distinct analysis features share a window");
     }
+    manager.setContext(context());
     // The three release menu actions stay disabled until an engine registers.
     // Only the isolated test manager enables the action to check focus/reuse.
     manager.setEngineAvailable(Feature::Ild, true);
@@ -240,6 +334,7 @@ int main(int argc, char **argv) {
     check(ild->status()==S::Valid, "Real ILD worker did not produce VALID result");
     check(ild->findChild<QWidget *>(QStringLiteral("ildResultGraph"))!=nullptr,
           "Actual ILD graph widget missing");
+    checkCompactLayout(ild);
     auto *csv=ild->findChild<QPushButton *>(QStringLiteral("analysisCsv"));
     auto *png=ild->findChild<QPushButton *>(QStringLiteral("analysisPng"));
     check(csv && csv->isEnabled() && png && png->isEnabled(),
@@ -420,6 +515,7 @@ int main(int argc, char **argv) {
           "Real ICN did not produce qualified result");
     check(icn->findChild<QWidget *>(QStringLiteral("icnResultGraph"))!=nullptr,
           "Actual ICN result graph missing");
+    checkCompactLayout(icn);
     auto *icnCsv=icn->findChild<QPushButton *>(QStringLiteral("analysisCsv"));
     auto *icnPng=icn->findChild<QPushButton *>(QStringLiteral("analysisPng"));
     check(icnCsv && icnCsv->isEnabled() && icnPng && icnPng->isEnabled(),
@@ -590,6 +686,7 @@ int main(int argc, char **argv) {
           metrics->text().contains(QStringLiteral("Width")) &&
           metrics->text().contains(QStringLiteral("Not Measured")),
           "Eye numerical display and caution missing");
+    checkCompactLayout(eye);
     auto *eyeCsv=eye->findChild<QPushButton *>(QStringLiteral("analysisCsv"));
     auto *eyePng=eye->findChild<QPushButton *>(QStringLiteral("analysisPng"));
     check(eyeCsv && eyeCsv->isEnabled() && eyePng && eyePng->isEnabled(),
