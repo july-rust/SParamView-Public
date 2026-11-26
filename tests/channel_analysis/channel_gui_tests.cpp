@@ -225,6 +225,15 @@ int main(int argc, char **argv) {
     check(ild->runButton()->isEnabled(), "Verified ILD Run disabled");
     auto *ildModel=ild->findChild<QComboBox *>(QStringLiteral("ildFitModel"));
     check(ildModel && ildModel->currentIndex()==1,"ILD default must be root-linear");
+    auto *ildAuto=ild->findChild<QPushButton *>(QStringLiteral("analysisAuto"));
+    check(ildAuto && ildAuto->isEnabled(),"ILD auto action missing");
+    ildAuto->click();drain(manager.scheduler());
+    check(ild->status()==S::Valid,"ILD automatic measured-band fit failed");
+    const QString autoIldPath=ildDir.filePath(QStringLiteral("ild-auto.csv"));
+    check(ild->saveIldCsv(autoIldPath),"ILD auto CSV failed");
+    QFile autoIldFile(autoIldPath);
+    check(autoIldFile.open(QIODevice::ReadOnly) && autoIldFile.readAll().contains("# analysis_mode,AUTO"),
+          "ILD auto provenance absent");
     ildModel->setCurrentIndex(2); // fixture is an exact quadratic-root model
     ild->runButton()->click();
     drain(manager.scheduler());
@@ -374,6 +383,15 @@ int main(int argc, char **argv) {
           "ICN menu/run unavailable with verified source provider");
     auto *items=icn->findChild<QListWidget *>(QStringLiteral("icnAggressorList"));
     check(items && items->count()==2,"Expected NEXT and FEXT aggressor choices");
+    auto *icnAuto=icn->findChild<QPushButton *>(QStringLiteral("analysisAuto"));
+    check(icnAuto && icnAuto->isEnabled(),"ICN auto action missing");
+    icnAuto->click();drain(manager.scheduler());
+    check(icn->status()==S::Valid || icn->status()==S::Warning,"ICN automatic mapped paths failed");
+    const QString autoIcnPath=ildDir.filePath(QStringLiteral("icn-auto.csv"));
+    check(icn->saveIcnCsv(autoIcnPath),"ICN auto CSV failed");
+    QFile autoIcnFile(autoIcnPath);
+    check(autoIcnFile.open(QIODevice::ReadOnly) && autoIcnFile.readAll().contains("# analysis_mode,AUTO"),
+          "ICN auto provenance absent");
     items->item(0)->setCheckState(Qt::Checked);
     items->item(1)->setCheckState(Qt::Checked);
     auto *rss=icn->findChild<QCheckBox *>(QStringLiteral("icnIndependentAssumption"));

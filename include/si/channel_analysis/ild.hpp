@@ -20,6 +20,8 @@ struct IldData {
   double minimumDb = 0, maximumDb = 0, peakAbsoluteDb = 0, rmsDb = 0;
   double peakFrequencyHz = 0;
   std::string parameter, modelName;
+  std::string analysisMode = "MANUAL", configurationReason = "USER_SPECIFIED";
+  double autoAcPoleHz = 0;
 };
 Result<IldData> calculateIld(const ComplexTrace &trace, const IldSettings &settings,
                              Provenance provenance = {},
