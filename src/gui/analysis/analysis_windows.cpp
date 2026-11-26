@@ -582,18 +582,23 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
   setWindowTitle(QStringLiteral("SParamView · ") + labelFor(feature));
   setMinimumSize(300,240);
   auto *frameLayout=new QVBoxLayout(this);
-  frameLayout->setContentsMargins(0,0,0,0);
-  auto *pageScroll=new QScrollArea(this);
-  pageScroll->setObjectName(QStringLiteral("analysisPageScroll"));
-  pageScroll->setWidgetResizable(true);
-  auto *page=new QWidget;
-  auto *outer = new QVBoxLayout(page);
-  pageScroll->setWidget(page);
-  frameLayout->addWidget(pageScroll);
+  frameLayout->setContentsMargins(8,8,8,8);
+  frameLayout->setSpacing(6);
+  auto *heading=new QHBoxLayout;
+  frameLayout->addLayout(heading);
+  auto *splitter=new QSplitter(Qt::Horizontal,this);
+  splitter->setObjectName(QStringLiteral("analysisWorkspaceSplitter"));
+  splitter->setChildrenCollapsible(false);
+  auto *resultsPanel=new QWidget;
+  resultsPanel->setMinimumWidth(0);
+  auto *outer=new QVBoxLayout(resultsPanel);
+  outer->setContentsMargins(0,0,0,0);
+  outer->setSpacing(5);
+  frameLayout->addWidget(splitter,1);
   auto *header = new QLabel(QStringLiteral("<b>") + labelFor(feature_) +
        QStringLiteral("</b> — Channel Analysis"));
   header->setTextFormat(Qt::RichText);
-  outer->addWidget(header);
+  heading->addWidget(header,1);
   auto *guide=new QLabel;
   guide->setObjectName(QStringLiteral("analysisInterpretation"));
   guide->setWordWrap(true);
@@ -602,7 +607,6 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     feature_==Feature::Icn?QStringLiteral(
     "Reading ICN: lower RMS and weighted PSD are preferable under identical TX/RX and band settings. Steep cumulative growth identifies noisy bands; compare path contributions. RSS assumes independent paths, not measured correlation. No standard PASS limit."):
     QStringLiteral("Reading Eye: larger eye height and width imply more simulated decision margin; closed or overlapping levels indicate risk. Threshold and sampling lines are model conditions, not a PHY mask or BER measurement."));
-  outer->addWidget(guide);
   auto *settingsToggle=new QToolButton;
   settingsToggle->setObjectName(QStringLiteral("analysisSettingsToggle"));
   settingsToggle->setText(QStringLiteral("Settings"));
@@ -610,11 +614,17 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
   settingsToggle->setChecked(true);
   settingsToggle->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
   settingsToggle->setArrowType(Qt::DownArrow);
-  outer->addWidget(settingsToggle);
+  heading->addWidget(settingsToggle);
   auto *panel=new QWidget;
   auto *form = new QFormLayout(panel);
-  form->setRowWrapPolicy(QFormLayout::WrapLongRows);
-  form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+  auto configureForm=[](QFormLayout *layout) {
+    layout->setContentsMargins(6,6,6,6);
+    layout->setHorizontalSpacing(8);
+    layout->setVerticalSpacing(5);
+    layout->setRowWrapPolicy(QFormLayout::WrapLongRows);
+    layout->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+  };
+  configureForm(form);
   connect(settingsToggle,&QToolButton::toggled,settingsToggle,[settingsToggle](bool checked){
     settingsToggle->setArrowType(checked?Qt::DownArrow:Qt::RightArrow);
   });
@@ -622,6 +632,13 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
   source_->setObjectName(QStringLiteral("analysisSource"));
   victim_ = new QComboBox;
   victim_->setObjectName(QStringLiteral("analysisVictim"));
+  for(auto *combo:{source_,victim_}) {
+    combo->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+    combo->setMinimumContentsLength(12);
+    connect(combo,&QComboBox::currentTextChanged,combo,[combo](const QString &text){
+      combo->setToolTip(text);
+    });
+  }
   aggressor_ = new QComboBox;
   aggressor_->setObjectName(QStringLiteral("analysisAggressor"));
   direction_ = new QComboBox;
@@ -643,8 +660,7 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     fitModel_->addItems({QStringLiteral("Linear"), QStringLiteral("Root + linear"),
                          QStringLiteral("Root + linear + quadratic")});
     fitModel_->setCurrentIndex(1);
-    form->addRow(QStringLiteral("ILD fit model"),fitModel_);
-  }
+   }
   if(feature_ == Feature::Icn) {
     icnAggressors_=new QListWidget;
     icnAggressors_->setObjectName(QStringLiteral("icnAggressorList"));
@@ -676,6 +692,8 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     form->addRow(QStringLiteral("Aggressor"), aggressor_);
   else aggressor_->hide();
   form->addRow(QStringLiteral("Direction"), direction_);
+  if(feature_==Feature::Ild)
+    form->addRow(QStringLiteral("Fit model"),fitModel_);
   if(feature_!=Feature::Eye) {
     form->addRow(QStringLiteral("Start frequency"), fromGhz_);
     form->addRow(QStringLiteral("Stop frequency"), toGhz_);
@@ -736,39 +754,60 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
       QStringLiteral("eyeTxSourceOhm"),QStringLiteral("eyeRxTerminationOhm"),
       QStringLiteral("eyeRxThresholdMv"),QStringLiteral("eyeRxMinimumMv"),
       QStringLiteral("eyeRxMaximumMv")};
-    form->addRow(QStringLiteral("PHY profile (example, not compliance)"),eyeProfile_);
-    form->addRow(QStringLiteral("Transfer mode"),eyeMode_);
-    form->addRow(QStringLiteral("NRZ bit rate"),eyeBitRate_);
-    form->addRow(QStringLiteral("NRZ Nyquist reference (coupled)"),eyeReference_);
-    form->addRow(QStringLiteral("Independent analysis cap"),toGhz_);
-    form->addRow(QStringLiteral("Pattern"),eyePattern_);
-    form->addRow(QStringLiteral("Custom pattern"),eyeBits_);
-    form->addRow(QStringLiteral("FFT samples"),eyeFft_);
-    form->addRow(QStringLiteral("Samples per UI"),eyeSamples_);
+    auto *manualTabs=new QTabWidget;
+    manualTabs->setObjectName(QStringLiteral("eyeManualSettingsTabs"));
+    auto addSettingsTab=[&](const QString &name) {
+      auto *tab=new QWidget;
+      auto *layout=new QFormLayout(tab);
+      configureForm(layout);
+      manualTabs->addTab(tab,name);
+      return layout;
+    };
+    auto *signalForm=addSettingsTab(QStringLiteral("Signal"));
+    auto *waveformForm=addSettingsTab(QStringLiteral("Pattern / FFT"));
+    auto *electricalForm=addSettingsTab(QStringLiteral("TX / RX"));
+    eyeProfile_->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+    eyeProfile_->setMinimumContentsLength(12);
+    eyeProfile_->setToolTip(QStringLiteral("Example PHY profile, not compliance"));
+    signalForm->addRow(QStringLiteral("PHY profile (example)"),eyeProfile_);
+    signalForm->addRow(QStringLiteral("Transfer mode"),eyeMode_);
+    signalForm->addRow(QStringLiteral("NRZ bit rate"),eyeBitRate_);
+    signalForm->addRow(QStringLiteral("Nyquist (coupled)"),eyeReference_);
+    signalForm->addRow(QStringLiteral("Analysis cap"),toGhz_);
+    waveformForm->addRow(QStringLiteral("Pattern"),eyePattern_);
+    waveformForm->addRow(QStringLiteral("Custom pattern"),eyeBits_);
+    waveformForm->addRow(QStringLiteral("FFT samples"),eyeFft_);
+    waveformForm->addRow(QStringLiteral("Samples per UI"),eyeSamples_);
     for(int i=0;i<7;++i) {
       eyeElectrical_[size_t(i)]=new QLineEdit;
       eyeElectrical_[size_t(i)]->setObjectName(names[i]);
       eyeElectrical_[size_t(i)]->setPlaceholderText(
         QStringLiteral("Required — physical reference-plane value"));
-      form->addRow(fields[i],eyeElectrical_[size_t(i)]);
+      electricalForm->addRow(fields[i],eyeElectrical_[size_t(i)]);
     }
-    form->addRow(QStringLiteral("Graph view"),eyeView_);
+    form->addRow(manualTabs);
   }
   if(feature_==Feature::Icn) {
-    form->addRow(QStringLiteral("NEXT / FEXT paths (check multiple)"),icnAggressors_);
-    form->addRow(QStringLiteral("Aggressor correlation"),icnIndependent_);
+    form->addRow(new QLabel(QStringLiteral("NEXT / FEXT paths (check multiple)")));
+    form->addRow(icnAggressors_);
+    icnIndependent_->setText(QStringLiteral("Independent-path RSS (assumed)"));
+    form->addRow(icnIndependent_);
     form->addRow(QStringLiteral("NRZ symbol rate"),icnBaud_);
-    form->addRow(QStringLiteral("TX amplitude, peak-to-peak"),icnVpp_);
-    form->addRow(QStringLiteral("Gaussian rise time"),icnRise_);
-    form->addRow(QStringLiteral("RX 3 dB bandwidth"),icnRx_);
+    form->addRow(QStringLiteral("TX amplitude (pp)"),icnVpp_);
+    form->addRow(QStringLiteral("Rise time"),icnRise_);
+    form->addRow(QStringLiteral("RX bandwidth"),icnRx_);
   }
   auto *settingsScroll=new QScrollArea;
   settingsScroll->setObjectName(feature_==Feature::Eye?QStringLiteral("eyeSettingsScroll"):QStringLiteral("analysisSettingsScroll"));
   settingsScroll->setWidgetResizable(true);
   settingsScroll->setWidget(panel);
-  settingsScroll->setMinimumHeight(100);
-  settingsScroll->setMaximumHeight(280);
-  outer->addWidget(settingsScroll);
+  settingsScroll->setMinimumSize(0,0);
+  settingsScroll->setSizePolicy(QSizePolicy::Ignored,QSizePolicy::Expanding);
+  splitter->addWidget(settingsScroll);
+  splitter->addWidget(resultsPanel);
+  splitter->setStretchFactor(0,0);
+  splitter->setStretchFactor(1,1);
+  splitter->setSizes({340,620});
   connect(settingsToggle,&QToolButton::toggled,settingsScroll,&QWidget::setVisible);
   auto *controls = new QHBoxLayout;
   run_ = new QPushButton(QStringLiteral("Run"));
@@ -807,21 +846,52 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
   progress_->setValue(0);
   progress_->setObjectName(QStringLiteral("analysisProgress"));
   controls->addWidget(progress_, 1);
-  outer->addLayout(controls);
+  frameLayout->addLayout(controls);
+  auto *plotScroll=new QScrollArea;
+  plotScroll->setObjectName(QStringLiteral("analysisPlotScroll"));
+  plotScroll->setWidgetResizable(true);
+  plotScroll->setMinimumSize(0,0);
+  auto *plotPanel=new QWidget;
+  auto *plotLayout=new QVBoxLayout(plotPanel);
+  plotLayout->setContentsMargins(0,0,0,0);
+  plotLayout->setSpacing(0);
+  plotScroll->setWidget(plotPanel);
+  auto *detailsTabs=new QTabWidget;
+  detailsTabs->setObjectName(QStringLiteral("analysisDetailsTabs"));
+  detailsTabs->setMinimumHeight(90);
+  detailsTabs->setMaximumHeight(148);
+  auto *pageScroll=new QScrollArea;
+  pageScroll->setObjectName(QStringLiteral("analysisPageScroll"));
+  pageScroll->setWidgetResizable(true);
+  auto *detailsPage=new QWidget;
+  auto *detailsLayout=new QVBoxLayout(detailsPage);
+  detailsLayout->setContentsMargins(6,4,6,4);
+  detailsLayout->setSpacing(4);
+  pageScroll->setWidget(detailsPage);
+  detailsTabs->addTab(pageScroll,QStringLiteral("Results / warnings"));
+  auto *guideScroll=new QScrollArea;
+  guideScroll->setWidgetResizable(true);
+  auto *guidePage=new QWidget;
+  auto *guideLayout=new QVBoxLayout(guidePage);
+  guideLayout->setContentsMargins(6,4,6,4);
+  guideLayout->addWidget(guide);
+  guideLayout->addStretch();
+  guideScroll->setWidget(guidePage);
+  detailsTabs->addTab(guideScroll,QStringLiteral("How to read"));
   statusLabel_ = new QLabel;
   statusLabel_->setObjectName(QStringLiteral("analysisStatus"));
   statusLabel_->setWordWrap(true);
-  outer->addWidget(statusLabel_);
+  detailsLayout->addWidget(statusLabel_);
   graphPlaceholder_ = new QLabel(QStringLiteral("No numerical data. Analysis engine is not installed."));
   graphPlaceholder_->setObjectName(QStringLiteral("analysisGraphPlaceholder"));
   graphPlaceholder_->setAlignment(Qt::AlignCenter);
   graphPlaceholder_->setMinimumHeight(180);
   graphPlaceholder_->setFrameStyle(QFrame::StyledPanel);
-  outer->addWidget(graphPlaceholder_, 1);
+  plotLayout->addWidget(graphPlaceholder_,1);
   if(feature_ == Feature::Ild) {
     graphPlaceholder_->hide();
     ildGraph_=new IldPlotWidget(this);
-    outer->addWidget(ildGraph_,2);
+    plotLayout->addWidget(ildGraph_,1);
   } else if(feature_==Feature::Icn) {
     graphPlaceholder_->hide();
     auto *view=new QComboBox;
@@ -834,20 +904,24 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     connect(view,&QComboBox::currentIndexChanged,this,[this](int v){
       static_cast<IcnPlotWidget *>(icnGraph_)->setPanel(v);
     });
-    outer->addWidget(icnGraph_,2);
+    plotLayout->addWidget(icnGraph_,1);
     icnContributions_=new QLabel(QStringLiteral("Select NEXT/FEXT paths to display individual contributions."));
     icnContributions_->setObjectName(QStringLiteral("icnContributions"));
     icnContributions_->setWordWrap(true);
-    outer->addWidget(icnContributions_);
+    detailsLayout->addWidget(icnContributions_);
   } else if(feature_==Feature::Eye) {
     graphPlaceholder_->hide();
     eyeGraph_=new EyePlotWidget(this);
-    outer->addWidget(eyeGraph_,2);
+    outer->addWidget(eyeView_);
+    plotLayout->addWidget(eyeGraph_,1);
     eyeMetrics_=new QLabel(QStringLiteral("Simulated Channel Eye — Not Measured / Not PHY Compliance"));
     eyeMetrics_->setObjectName(QStringLiteral("eyeMetrics"));
     eyeMetrics_->setWordWrap(true);
-    outer->addWidget(eyeMetrics_);
+    detailsLayout->addWidget(eyeMetrics_);
   }
+  detailsLayout->addStretch();
+  outer->addWidget(plotScroll,1);
+  outer->addWidget(detailsTabs);
   auto *exports = new QHBoxLayout;
   csv_ = new QPushButton(QStringLiteral("Export CSV"));
   png_ = new QPushButton(QStringLiteral("Export PNG"));
@@ -858,7 +932,7 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
   exports->addWidget(csv_);
   exports->addWidget(png_);
   exports->addStretch();
-  outer->addLayout(exports);
+  frameLayout->addLayout(exports);
   setStatus(si::channel::Status::NotEvaluated,
             QStringLiteral("Engine not yet implemented; no simulated or conformant results"));
   connect(cancel_, &QPushButton::clicked, this, [this] { cancelWork(); });
@@ -977,7 +1051,9 @@ void AnalysisWindow::fitToScreen() {
   if(!screen) screen=QGuiApplication::primaryScreen();
   if(!screen) return;
   const QRect available=screen->availableGeometry();
-  const QSize preferred(feature_==Feature::Eye?1120:940,feature_==Feature::Eye?840:720);
+  // Consistent initial client size, bounded by the active screen work area.
+  // 1024x768 desktop (including decorations/taskbar) must remain usable.
+  const QSize preferred(984,688);
   const QSize bounded=preferred.boundedTo(QSize(std::max(300,available.width()-40),std::max(240,available.height()-80)));
   resize(bounded);
   move(available.x()+(available.width()-width())/2,available.y()+(available.height()-height())/2);
@@ -986,6 +1062,8 @@ void AnalysisWindow::setStatus(si::channel::Status status, const QString &detail
   status_ = status;
   statusLabel_->setText(statusName(status) + QStringLiteral(" — ") + details);
   statusLabel_->setToolTip(statusLabel_->text());
+  if(auto *tabs=findChild<QTabWidget *>(QStringLiteral("analysisDetailsTabs")))
+    tabs->setCurrentIndex(0);
 }
 QString AnalysisWindow::selectionIdentity() const {
   const int index = source_->currentIndex();
