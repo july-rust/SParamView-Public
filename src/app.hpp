@@ -137,8 +137,8 @@ public:
       return;
     if (findChild<QPushButton *>("headerOpenProjectButton"))
       return;
-    auto *first = centralWidget()->layout()->itemAt(0);
-    auto *banner = first ? dynamic_cast<QBoxLayout *>(first->layout()) : nullptr;
+    auto *contents = findChild<QWidget *>("workspaceHeaderContents");
+    auto *banner = contents ? qobject_cast<QBoxLayout *>(contents->layout()) : nullptr;
     if (!banner)
       return;
     int insertAt = banner->count();
