@@ -96,8 +96,7 @@ struct WorkspaceProbe {
   auto *right=w.horizontalSplit->widget(1);
   QLayout *rightLayout=right ? right->layout() : nullptr;
   auto *plotPage=w.tabs->widget(0);
-  QLayout *plotLayout=plotPage ? plotPage->layout() : nullptr;
-  QLayout *resultsLayout=w.resultsPanel->layout();
+  (void)plotPage;
   std::cerr << "WORKSPACE MINWIDTH PHASE=" << phase;
   widget("window",&w);
   widget("central",w.centralWidget());
@@ -112,9 +111,10 @@ struct WorkspaceProbe {
   widget("settings",w.settingsPanel);
   layout("root",w.centralWidget()?w.centralWidget()->layout():nullptr);
   layout("right-layout",rightLayout);
-  layout("workspace-bar",rightLayout&&rightLayout->count()>0?rightLayout->itemAt(0)->layout():nullptr);
-  layout("graph-options",plotLayout&&plotLayout->count()>0?plotLayout->itemAt(0)->layout():nullptr);
-  layout("result-bar",resultsLayout&&resultsLayout->count()>0?resultsLayout->itemAt(0)->layout():nullptr);
+  for (const auto *name : {"workspaceToolbar", "workspaceGraphControls", "workspaceResultControls"}) {
+    auto *strip=w.findChild<QScrollArea *>(name);
+    layout(name,strip&&strip->widget()?strip->widget()->layout():nullptr);
+  }
   std::cerr << std::endl;
  }
  static void assertCompactToolbar(MainWindow &w) {
@@ -157,6 +157,47 @@ struct WorkspaceProbe {
    {"margin",r.margin},{"parameter",qs(r.parameter)},{"termination",int(r.termination)}});
   return QJsonDocument(a).toJson(QJsonDocument::Compact);
  }
+ static void compactMainWindowQualification(MainWindow &w,const QString &out) {
+  stage("012_58 compact main workspace qualification");
+  const auto originalSize=w.size();
+  const auto originalValues=values(w);
+  const auto originalSettings=settingsJson(w.lastSettings);
+  const auto originalJobs=w.lastJobs.size();
+  // 984x688 is a conservative logical client-area target for 1024x768
+  // desktops with window decorations and taskbar. This is not a physical
+  // monitor or high-DPI certification.
+  const QSize target(984,688);
+  for (const auto *code : {"ko","ja","en"}) {
+   auto *action=w.findChild<QAction *>(QString("uiLanguage_%1").arg(code));
+   check(action!=nullptr,"Missing compact-workspace language action");
+   action->trigger(); w.resize(target); settle(w);
+   widthDiagnostics(w,code);
+   check(w.width()<=target.width() && w.height()<=target.height(),
+         "Localized main window exceeds compact work area");
+   for (const auto *name : {"workspaceHeader","workspaceToolbar","workspaceGraphControls","workspaceResultControls"}) {
+    auto *strip=w.findChild<QScrollArea *>(name);
+    check(strip && strip->widget() && strip->isVisible(),"Compact control strip missing");
+    check(strip->verticalScrollBar()->maximum()==0,"Compact strip clipped vertically");
+    for (auto *control : strip->widget()->findChildren<QWidget *>()) {
+     if (!control->isVisibleTo(strip->widget())) continue;
+     if (!qobject_cast<QAbstractButton *>(control) &&
+         !qobject_cast<QComboBox *>(control) &&
+         !qobject_cast<QAbstractSpinBox *>(control)) continue;
+     strip->ensureWidgetVisible(control,0,0);
+     QApplication::processEvents();
+     const QRect bounds(control->mapTo(strip->viewport(),QPoint(0,0)),control->size());
+     check(strip->viewport()->rect().adjusted(-1,-1,1,1).contains(bounds),
+           "Compact workspace control cannot be reached by scrolling");
+    }
+    strip->horizontalScrollBar()->setValue(0);
+   }
+   check(values(w)==originalValues && settingsJson(w.lastSettings)==originalSettings &&
+         w.lastJobs.size()==originalJobs,"Compact language switch changed numerical results");
+   check(w.grab().save(out+QString("/MainCompact_%1.png").arg(code)),"Cannot save compact workspace screenshot");
+  }
+  w.resize(originalSize);settle(w);
+  assertCompactToolbar(w);
+ }
  static QJsonObject run(MainWindow &w, const QString &project, const QString &out, QSize size) {
   stage("show and settle window");
   w.resetWorkspaceLayout(); w.resize(size); w.show(); settle(w);
@@ -181,6 +222,7 @@ struct WorkspaceProbe {
   w.run(w.settings.quick); settle(w); check(!w.results.empty(),"Analysis missing");
   widthDiagnostics(w,"after-quick");
   assertCompactToolbar(w);
+  compactMainWindowQualification(w,out);
   if (w.revisions.size() > 1) {
    const int originalRevision=w.revisionBox->currentIndex();
    const int otherRevision=originalRevision==0?1:0;
@@ -228,6 +270,7 @@ struct WorkspaceProbe {
   auto compactSettings=w.findChild<QScrollArea*>("analysisSettingsPanel");
   check(compactSettings&&compactSettings->maximumHeight()<=74,"Compact analysis settings preserve more plot height");
   result["compact_quick_analysis_ui"]=true;
+  result["compact_main_three_languages_984x688"]=true;
 
   auto advancedButton=w.findChild<QToolButton*>("advancedToggle");
   auto advancedPanel=w.findChild<QWidget*>("advancedSettings");
