@@ -24,7 +24,7 @@ static void localizationCatalogQualification() {
     check(placeholders(en)==placeholders(ko) && placeholders(en)==placeholders(ja),"Localization placeholder mismatch");
     check(menuText(en,Language::Korean)==ko && menuText(en,Language::Japanese)==ja,"Localization lookup mismatch");
   }
-  check(keys.size()>=911,"Localization catalog unexpectedly reduced");
+  check(keys.size()>=928,"Localization catalog unexpectedly reduced");
   const QString wrapper="Saved mapping invalidated: source changed or stored ports are no longer valid. ";
   const QString evidence="Current source re-evaluated; previous mapping was discarded. ";
   const QString suffix=" User confirmed the signal type before Channel Mapping.";
@@ -49,6 +49,30 @@ static void localizationCatalogQualification() {
     check(diagnosticText(dc+preview.arg("6.000000")+load.arg(termination,"Far"),lang)==
           menuText(dc,lang)+menuText(preview,lang).arg("6.000000")+menuText(load,lang).arg(menuText(termination,lang),menuText("Far",lang)),"Composite TDR load note mismatch");
     check(diagnosticText(portPrefix+opaque+suffix,lang)==menuText(portPrefix,lang)+opaque+suffix,"Opaque path suffix unexpectedly translated");
+    const QString fStart="frequency start %1 Hz requested, source starts at %2 Hz";
+    const QString fStop="frequency stop %1 Hz requested, source ends at %2 Hz";
+    const QString tStart="TDR start %1 s requested, first evaluated sample is %2 s";
+    const QString tStop="TDR stop %1 s requested, computed window ends at %2 s";
+    const QString range="Requested range incomplete: %1. Evaluated %2 to %3 %4.";
+    const QString ng=" An evaluated limit violation was found, so verdict remains NG.";
+    const QString na=" The evaluated portion did not fail, but the overall verdict is N/A.";
+    const QStringList rawIssues={fStart.arg("1.000000e+03","1.000000e+06"),fStop.arg("2.000000e+10","1.000000e+10")};
+    const QStringList expectedIssues={menuText(fStart,lang).arg("1.000000e+03","1.000000e+06"),menuText(fStop,lang).arg("2.000000e+10","1.000000e+10")};
+    const auto rawRange=range.arg(rawIssues.join("; "),"1.000000e+06","1.000000e+10","Hz");
+    const auto translatedRange=menuText(range,lang).arg(expectedIssues.join("; "),"1.000000e+06","1.000000e+10","Hz");
+    check(diagnosticText(rawRange+ng,lang)==translatedRange+menuText(ng,lang),"Frequency coverage NG diagnostic mismatch");
+    check(diagnosticText(rawRange+na,lang)==translatedRange+menuText(na,lang),"Frequency coverage N/A diagnostic mismatch");
+    const QStringList tRaw={rawIssues.at(1),tStart.arg("1.000000e-12","2.000000e-12"),tStop.arg("3.000000e-09","2.000000e-09")};
+    const QStringList tLocalized={expectedIssues.at(1),menuText(tStart,lang).arg("1.000000e-12","2.000000e-12"),menuText(tStop,lang).arg("3.000000e-09","2.000000e-09")};
+    const auto tdrHead=dc+preview.arg("6.000000")+load.arg(termination,"Far");
+    const auto translatedHead=menuText(dc,lang)+menuText(preview,lang).arg("6.000000")+menuText(load,lang).arg(menuText(termination,lang),menuText("Far",lang));
+    check(diagnosticText(tdrHead+" "+range.arg(tRaw.join("; "),"2.000000e-12","2.000000e-09","s")+na,lang)==
+          translatedHead+" "+menuText(range,lang).arg(tLocalized.join("; "),"2.000000e-12","2.000000e-09","s")+menuText(na,lang),"TDR composite coverage diagnostic mismatch");
+    const QString limit="Frequency-dependent limit boundary/kink checks at %1 non-source point(s) use complex interpolation; redundant collinear limit points do not alter the evaluation grid.";
+    const QString marker=" Manual marker values at non-source frequencies use complex interpolation for display only and do not change pass/fail.";
+    check(diagnosticText(limit.arg("12")+" "+rawRange+ng+marker,lang)==menuText(limit,lang).arg("12")+" "+translatedRange+menuText(ng,lang)+menuText(marker,lang),"Combined limit, coverage and marker diagnostic mismatch");
+    const auto unknown=range.arg("unknown clause","1","2","Hz");
+    check(diagnosticText(unknown,lang)==unknown,"Unknown coverage clause should remain opaque");
   }
 }
 struct WorkspaceProbe {
