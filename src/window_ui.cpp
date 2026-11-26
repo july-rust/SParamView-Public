@@ -364,7 +364,7 @@ MainWindow::MainWindow() {
   menuBar()->addAction("About", this, [this] {
     QMessageBox::information(
         this, sparamview::ui_language::textFor(this, "About SParamView"),
-        QString("SParamView\nVersion %1\nBuild: Windows %2\n\nCopyright © 2026 july\nsparamview@gmail.com\nLicensed under the MIT License\n\nC++20 / Qt 6\nProcessing is local. Original Touchstone files are not modified.")
+        sparamview::ui_language::textFor(this,"SParamView\nVersion %1\nBuild: Windows %2\n\nCopyright © 2026 july\nsparamview@gmail.com\nLicensed under the MIT License\n\nC++20 / Qt 6\nProcessing is local. Original Touchstone files are not modified.")
             .arg(si::version)
             .arg(QString::fromLatin1(architectureName())));
   });
@@ -541,7 +541,7 @@ MainWindow::MainWindow() {
 });
   tolerance = spin(0,1000,1); tolerance->setValue(settings.tolerancePercent); tdrLimit->setChecked(settings.tdrLimitEnabled); tolerance->setSuffix(" %"); tolerance->setMaximumWidth(72);
   target = spin(0,10000,1); target->setSpecialValueText("Auto Z₀"); target->setSuffix(" Ω"); target->setMaximumWidth(92);
-  auto tdrOptions = new QToolButton; tdrOptions->setText("⚙"); tdrOptions->setToolTip("TDR options: reference impedance, terminations and reflection coefficient"); connect(tdrOptions, &QToolButton::clicked, this, [this] { chooseTerminations(); });
+  auto tdrOptions = new QToolButton; tdrOptions->setObjectName("tdrOptionButton"); tdrOptions->setText("⚙"); tdrOptions->setToolTip("TDR options: reference impedance, terminations and reflection coefficient"); connect(tdrOptions, &QToolButton::clicked, this, [this] { chooseTerminations(); });
   terminationSummary = new QLabel; terminationSummary->setMaximumWidth(72); tdrReflection = new QCheckBox; tdrReflection->hide();
   tdrRow->addWidget(tdrLimit); tdrRow->addWidget(metricButtons[4]); tdrRow->addWidget(new QLabel("±")); tdrRow->addWidget(tolerance); tdrRow->addWidget(target); tdrRow->addWidget(terminationSummary); tdrRow->addWidget(tdrOptions); controls->addWidget(tdrSegment,2); config->addLayout(controls);
   auto advanced = new QWidget;
@@ -839,7 +839,10 @@ MainWindow::MainWindow() {
   message(notice,notice->text());
   message(summary,summary->text());
   message(selectionInfo,selectionInfo->text());
-  languageBindings.push_back([this](Language value){
+  languageBindings.push_back([this,tdrOptions](Language value){
+    tdrOptions->setText(menuText("Option",value));
+    tdrOptions->setToolTip(menuText("TDR options: reference impedance, terminations and reflection coefficient",value));
+    terminationSummary->setToolTip(menuText("Apply the termination at the opposite end of the selected channel. All other physical ports are matched to their source reference impedances.",value));
     refreshMessage(notice,value);
     refreshMessage(summary,value);
     refreshMessage(selectionInfo,value);

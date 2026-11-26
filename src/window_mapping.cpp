@@ -381,7 +381,7 @@ void MainWindow::applySettings() {
   QStringList labels;
   for(auto t:settings.tdrTerminations)labels<<qs(si::shortName(t,true));
   terminationSummary->setText(labels.join(" + "));
-  terminationSummary->setToolTip("Apply the termination at the opposite end of the selected channel. All other physical ports are matched to their source reference impedances.");
+  terminationSummary->setToolTip(sparamview::ui_language::textFor(this,"Apply the termination at the opposite end of the selected channel. All other physical ports are matched to their source reference impedances."));
   tolerance->setValue(settings.tolerancePercent);
   timeStart->setValue(settings.tdrStartSeconds * 1e9);
   timeStop->setValue(std::isfinite(settings.tdrStopSeconds)

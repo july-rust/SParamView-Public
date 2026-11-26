@@ -42,3 +42,7 @@ This is a partial implementation, not a completed 012_56 or a release candidate.
 - Main graph presentation language stored in PlotSnapshot, not solver settings; redraw invalidates only the rendered graph, without changing axes, results or source context. Export graphs use captured ReportOptions language.
 - Localized mapping explanatory templates and workspace notice/summary templates. Template substitution is single-pass, so user filenames containing percent placeholders remain literal.
 - Remaining source-origin diagnostic codes and unlisted strings still require an end-to-end audit.
+
+## Follow-up: compatibility and diagnostics
+- 057cefe passed all platform and native ARM64 package gates plus CodeQL (45780576450 / 45780576419). Publication skipped.
+- Fixed translated group/aggressor placeholder serialization: canonical legacy values are stored and selected by index on restore. Localized TDR option by stable object name and startup dialog. Added live results/CSV byte equality and project serialization assertions. Latest commit requires CI; physical 1024x768 language-specific visual inspection, full string inventory, and native OS dialog localization remain outstanding.

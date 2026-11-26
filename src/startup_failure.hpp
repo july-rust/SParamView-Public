@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ui_language.hpp"
 #include <QApplication>
 #include <QGuiApplication>
 #include <QMessageBox>
@@ -36,12 +37,10 @@ inline int reportStartupFailure(const QString &detail, bool automated) {
   std::cerr << "SParamView startup failed: "
             << cause.toUtf8().toStdString() << '\n';
   if (canShowStartupDialog(automated)) {
-    QMessageBox::critical(
-        nullptr, QStringLiteral("SParamView - Startup failed"),
-        QStringLiteral("Cannot start SParamView.\n\n") + cause +
-            QStringLiteral(
-                "\n\nCheck the cache location, folder permissions and "
-                "available disk space, then restart the application."));
+    const auto language=ui_language::saved();
+    QMessageBox::critical(nullptr,ui_language::menuText("SParamView - Startup failed",language),
+      ui_language::menuText("Cannot start SParamView.\n\n",language)+ui_language::menuText(cause,language)+
+      ui_language::menuText("\n\nCheck the cache location, folder permissions and available disk space, then restart the application.",language));
   }
   return EXIT_FAILURE;
 }

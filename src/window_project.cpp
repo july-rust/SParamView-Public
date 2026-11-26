@@ -108,9 +108,9 @@ void MainWindow::saveProject(bool as) {
         {"revisions", sources},
         {"ui", QJsonObject{{"revision", revisionBox->currentIndex()},
                            {"selected", selected},
-                           {"group", groupBox->currentText()},
+                           {"group", groupBox->currentIndex()<=0 ? QString("All groups") : groupBox->currentText()},
                            {"search", search->text()},
-                           {"aggressor", aggressorBox->currentText()},
+                           {"aggressor", aggressorBox->currentIndex()<=0 ? QString("AUTO (same group)") : aggressorBox->currentText()},
                            {"metric", int(displayed)},
                            {"directionMode", directionMode},
                            {"geometry",
@@ -263,9 +263,11 @@ void MainWindow::loadProject(QString path, bool rememberDirectory) {
           rebuildChannels();
           applySettings();
           setDirectionMode(ui.contains("directionMode") ? std::clamp(ui["directionMode"].toInt(),0,2) : (settings.reverse?1:0));
-          groupBox->setCurrentText(ui["group"].toString("All groups"));
+          const auto group=ui["group"].toString("All groups");
+          groupBox->setCurrentIndex(group=="All groups"?0:std::max(0,groupBox->findText(group)));
           search->setText(ui["search"].toString());
-          aggressorBox->setCurrentText(ui["aggressor"].toString("AUTO (same group)"));
+          const auto aggressor=ui["aggressor"].toString("AUTO (same group)");
+          aggressorBox->setCurrentIndex(aggressor=="AUTO (same group)"?0:std::max(0,aggressorBox->findText(aggressor)));
           auto selected = ui["selected"].toArray();
           for (int i = 0; i < channels->count(); ++i)
             channels->item(i)->setCheckState(

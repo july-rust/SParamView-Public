@@ -354,7 +354,7 @@ protected:
       const double xValue=view_==0?2*xFraction
                          :data_->timeSeconds.empty()?0:
                            xFraction*data_->timeSeconds.back()*1e12;
-      setToolTip(QStringLiteral("Cursor: %1 %2; simulated only")
+      setToolTip(sparamview::ui_language::textFor(this,QStringLiteral("Cursor: %1 %2; simulated only"))
         .arg(xValue,0,'g',8).arg(view_==0?QStringLiteral("UI"):QStringLiteral("ps")));
     }
     lastX_=e->position().x();update();e->accept();
@@ -1288,7 +1288,7 @@ bool AnalysisWindow::startWork(AsyncWork work, bool automaticBand) {
           // avoids a nested event loop inside the worker-completion callback.
           auto *dialog=new QDialog(guard.data());
           dialog->setObjectName(QStringLiteral("eyeDcConsentDialog"));
-          dialog->setWindowTitle(QStringLiteral("Eye DC extrapolation"));
+          dialog->setWindowTitle(sparamview::ui_language::textFor(guard.data(),"Eye DC extrapolation"));
           dialog->setAttribute(Qt::WA_DeleteOnClose);
           dialog->setWindowModality(Qt::WindowModal);
           auto *layout=new QVBoxLayout(dialog);
@@ -1296,7 +1296,8 @@ bool AnalysisWindow::startWork(AsyncWork work, bool automaticBand) {
           message->setWordWrap(true);
           layout->addWidget(message);
           auto *buttons=new QDialogButtonBox(QDialogButtonBox::Ok|QDialogButtonBox::Cancel,dialog);
-          buttons->button(QDialogButtonBox::Ok)->setText(QStringLiteral("Continue"));
+          sparamview::ui_language::localizeButtons(buttons,guard.data());
+          buttons->button(QDialogButtonBox::Ok)->setText(sparamview::ui_language::textFor(guard.data(),"Continue"));
           buttons->button(QDialogButtonBox::Ok)->setAutoDefault(false);
           buttons->button(QDialogButtonBox::Cancel)->setDefault(true);
           layout->addWidget(buttons);

@@ -617,12 +617,34 @@ struct WorkspaceProbe {
    stage("012_49 second revision analysis");
    exercise(1);
    check(values(w)==legacy,"Revision analysis altered legacy result set");
+   // Existing immutable results and canonical CSV must survive language switches.
+   const QString parityPrefix=QDir(fixture.path()).filePath("rev1-");
+   const auto ildBefore=read(parityPrefix+"ild.csv"),icnBefore=read(parityPrefix+"icn.csv"),eyeBefore=read(parityPrefix+"eye.csv");
+   const auto statusBefore=eye->status();
+   const auto contextBefore=manager.context().generation;
+   for(const auto *lang:{"ko","ja","en"}) {
+     auto *action=w.findChild<QAction *>(QString("uiLanguage_")+lang);
+     check(action!=nullptr,"Missing parity language action");
+     action->trigger();
+     check(values(w)==legacy && eye->status()==statusBefore && manager.context().generation==contextBefore &&
+           manager.scheduler().inFlight()==0,"Language switch changed computed result/context");
+     check(ild->saveIldCsv(parityPrefix+"ild.csv") && icn->saveIcnCsv(parityPrefix+"icn.csv") &&
+           eye->saveEyeCsv(parityPrefix+"eye.csv"),"Localized CSV export failed");
+     check(read(parityPrefix+"ild.csv")==ildBefore && read(parityPrefix+"icn.csv")==icnBefore &&
+           read(parityPrefix+"eye.csv")==eyeBefore,"Language switch changed canonical CSV bytes");
+   }
    // A bad output target must fail without modifying the workspace or source.
    check(!ild->saveIldCsv(fixture.path()) && values(w)==legacy,
          "Export failure damaged main analysis");
    const auto saved=QDir(fixture.path()).filePath("roundtrip.siproject");
+   w.groupBox->setCurrentIndex(0);w.aggressorBox->setCurrentIndex(0);
+   w.findChild<QAction *>("uiLanguage_ko")->trigger();
    w.projectPath=saved;w.saveProject();
    check(QFileInfo(saved).isFile() && !w.dirty,"Integrated project save failed");
+   const auto savedUi=QJsonDocument::fromJson(read(saved)).object()["ui"].toObject();
+   check(savedUi["group"].toString()=="All groups" && savedUi["aggressor"].toString()=="AUTO (same group)",
+         "Localized project persisted translated sentinel");
+   w.findChild<QAction *>("uiLanguage_en")->trigger();
    // Hold a real verified source snapshot inside the same scheduler used by
    // Eye. This lifetime probe is separate from the actual Eye runs above.
    // A bounded release guard prevents hangs even if an assertion throws.
