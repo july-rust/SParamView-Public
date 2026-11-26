@@ -100,7 +100,7 @@ protected:
       const auto &xs=data_->frequencyHz;
       auto it=std::lower_bound(xs.begin(),xs.end(),frequency);
       const size_t i=it==xs.end()?xs.size()-1:size_t(it-xs.begin());
-      setToolTip(QStringLiteral("%1 GHz | IL %2 dB | fit %3 dB | ILD %4 dB")
+      setToolTip(sparamview::ui_language::textFor(this,"%1 GHz | IL %2 dB | fit %3 dB | ILD %4 dB")
         .arg(xs[i]/1e9,0,'g',8).arg(data_->insertionLossDb[i],0,'g',7)
         .arg(data_->fittedLossDb[i],0,'g',7)
         .arg(data_->deviationDb[i],0,'g',7));
@@ -2311,7 +2311,7 @@ AnalysisWindowManager::AnalysisWindowManager(QMainWindow *owner)
     for (auto &workspace : retiredWorkspaces_)
       if (workspace && !workspace->remove()) {
         qWarning() << "SParamView: retired analysis workspace cleanup deferred";
-        owner_->statusBar()->showMessage("Previous cache could not be removed; cleanup will be retried on exit.");
+        sparamview::ui_language::status(owner_->statusBar(),"Previous cache could not be removed; cleanup will be retried on exit.");
       }
     retiredWorkspaces_.clear();
   });
@@ -2357,7 +2357,7 @@ void AnalysisWindowManager::retireWorkspace(std::shared_ptr<QTemporaryDir> works
   if (scheduler_.inFlight() == 0) {
     if (!workspace->remove()) {
       qWarning() << "SParamView: retired workspace cleanup deferred";
-      owner_->statusBar()->showMessage("Previous cache could not be removed; cleanup will be retried on exit.");
+      sparamview::ui_language::status(owner_->statusBar(),"Previous cache could not be removed; cleanup will be retried on exit.");
     }
     return;
   }
