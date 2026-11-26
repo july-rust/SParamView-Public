@@ -52,3 +52,7 @@ This is a partial implementation, not a completed 012_56 or a release candidate.
 - Qt-owned standard controls use a small embedded framework translator; Qt dialogs intentionally use the non-native presentation so app language is not dictated by the OS. OS-owned menus, file-system names and system diagnostics remain outside the app contract.
 - Compare table and dynamic TDR labels refresh from canonical sources; report human-readable configuration descriptions are localized, machine keys remain stable.
 - Added explicit 984x688 client size and action-visibility checks for all three analysis windows in all languages, plus nine PNG screenshots per workspace test run. No physical desktop or human glyph inspection claimed. Full arbitrary core exception prose is not yet fully translated; exact coverage audit still needed.
+
+## Diagnostic coverage audit
+- Static literal scan of supported Touchstone/cache/mapping/legacy metric and ILD/ICN/Eye core paths found previously untranslated application diagnostics. Added 301 source keys for these paths and mapping explanations; explicit prefixes preserve interpolated identifiers. Core strings, exceptions, output schema and numeric algorithms remain unchanged.
+- Exact and explicit-prefix display resolution is used at main warning/status, mapping explanations and selected result/graph tooltips. System-provided exception details and composite engine notes may still contain raw English; no claim that all paths are fully covered. Latest CI and screen evidence are required before merging.

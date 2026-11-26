@@ -208,7 +208,7 @@ MainWindow::~MainWindow() {
     qWarning() << "SParamView: private cache will be retried on next launch";
 }
 void MainWindow::error(const QString &text) {
-  QMessageBox::warning(this, "SParamView", sparamview::ui_language::textFor(this,text));
+  QMessageBox::warning(this, "SParamView", sparamview::ui_language::diagnosticText(text,sparamview::ui_language::current(this)));
 }
 void MainWindow::task(std::function<void(si::Control *)> work,
                       std::function<void()> done) {

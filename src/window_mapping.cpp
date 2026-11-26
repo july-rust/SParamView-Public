@@ -446,10 +446,10 @@ bool MainWindow::reviewSignalType(Revision &rev) {
   auto *layout = new QVBoxLayout(&dialog);
   auto *signalSummary = new QLabel(
       sparamview::ui_language::textFor(this,"<b>Detected:</b> %1 &nbsp;&nbsp; <b>Confidence:</b> %2")
-          .arg(rev.signalType, rev.signalConfidence));
+          .arg(sparamview::ui_language::textFor(this,rev.signalType),sparamview::ui_language::textFor(this,rev.signalConfidence)));
   layout->addWidget(signalSummary);
   auto *evidence = new QLabel(
-      sparamview::ui_language::textFor(this,"<b>Evidence:</b> ") + rev.signalEvidence +
+      sparamview::ui_language::textFor(this,"<b>Evidence:</b> ") + sparamview::ui_language::diagnosticText(rev.signalEvidence,sparamview::ui_language::current(this)) +
       sparamview::ui_language::textFor(this,"<br><br>SParamView recognizes a name-based P/N pair only when two net names have the same length and differ at exactly one character, where that character is P versus N. The P/N position may be anywhere in the name. Irregular or ambiguous names are not guessed."));
   evidence->setWordWrap(true);
   layout->addWidget(evidence);
@@ -534,17 +534,17 @@ bool MainWindow::confirmMapping(Revision &mappingRevision) {
   auto layout = new QVBoxLayout(&dialog);
   auto info = new QLabel(
       sparamview::ui_language::textFor(this,"Signal Type: %1 (%2)\nEvidence: %3\nSource: %4\nPort numbering starts at 1. Leave Near−/Far− blank for single-ended channels.\nVerify Near/Far and P/N against the physical connections. A blank Far end supports reflection/TDR only.")
-          .arg(mappingRevision.signalType)
-          .arg(mappingRevision.signalConfidence)
-          .arg(mappingRevision.signalEvidence)
-          .arg(mappingRevision.mappingSource.isEmpty() ? "Unknown" : mappingRevision.mappingSource));
+          .arg(sparamview::ui_language::textFor(this,mappingRevision.signalType))
+          .arg(sparamview::ui_language::textFor(this,mappingRevision.signalConfidence))
+          .arg(sparamview::ui_language::diagnosticText(mappingRevision.signalEvidence,sparamview::ui_language::current(this)))
+          .arg(sparamview::ui_language::textFor(this,mappingRevision.mappingSource.isEmpty() ? "Unknown" : mappingRevision.mappingSource)));
   info->setWordWrap(true);
   info->setText(info->text()+sparamview::ui_language::textFor(this,"\nUnmapped physical ports: ")+QString::number(unmappedPorts(mappingRevision)));
   layout->addWidget(info);
   if (!mappingRevision.mappingWarning.isEmpty()) {
     auto warning = new QLabel(
         sparamview::ui_language::textFor(this,"File data loaded, but automatic mapping could not be confirmed. Check port labels and enter the mapping manually or import a Mapping CSV.\n") +
-        mappingRevision.mappingWarning);
+        sparamview::ui_language::diagnosticText(mappingRevision.mappingWarning,sparamview::ui_language::current(this)));
     warning->setObjectName("mappingWarning");
     warning->setWordWrap(true);
     layout->addWidget(warning);

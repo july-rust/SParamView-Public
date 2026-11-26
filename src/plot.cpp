@@ -370,7 +370,7 @@ void paintGraph(QPainter &p, QRectF r, const PlotSnapshot &s, bool interactive) 
     p.drawText(r.adjusted(40, 110, -40, -35),
                Qt::AlignCenter | Qt::TextWordWrap,
                plotText(s,"Quick TDR unavailable · UNSUITABLE\n\nThe current input data and transform settings cannot produce a Quick TDR waveform.\nDo not use this result for impedance evaluation.\n\n") +
-                   qs(s.curves.front().note));
+                   sparamview::ui_language::diagnosticText(qs(s.curves.front().note),sparamview::ui_language::fromCode(s.displayLanguage)));
     p.restore();
     return;
   }
