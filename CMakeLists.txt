@@ -485,6 +485,9 @@ endif()
 
 find_package(Python3 COMPONENTS Interpreter QUIET)
 if(Python3_Interpreter_FOUND)
+  add_test(NAME localization_catalog_source_guard
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/check_localization_catalog.py")
+  set_tests_properties(localization_catalog_source_guard PROPERTIES TIMEOUT 30)
   # 012_09: signed-profile evidence is not satisfied by synthetic 012_02 oracles.
   add_test(NAME channel_com_normative_gate
     COMMAND "${Python3_EXECUTABLE}" -m unittest discover
