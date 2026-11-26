@@ -3,8 +3,10 @@
 // Numerical exploration ONLY: never a measured eye, BER, or PHY conformance.
 #include "si/channel_analysis/common.hpp"
 #include <atomic>
+#include <array>
 #include <cstdint>
 #include <limits>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -56,11 +58,22 @@ struct EyeDcInfo {
   double originalStartHz = 0, effectiveStartHz = 0, firstPositiveHz = 0;
   double value = 0, modelSpread = 0;
   std::string status = "ORIGINAL DC", method = "Original";
+  // Classification of observed/locally reconstructed transfer, not topology.
+  std::string couplingModel = "UNDETERMINED";
   bool requiresConfirmation = false, limited = false, modelSpreadAvailable = false;
+  // Observed one-pole AC-like transfer, not proof of physical capacitor topology.
+  bool acModel = false;
+  double acPoleHz = 0, acGain = 0, acFitMaxResidual = 0;
+  // Analytic one-pole droop is not full measured-channel long-pattern qualification.
 };
 // Throws on unsupported/invalid data; a sparse original real DC may be retained
 // as unqualified, never advertised as verified physical DC.
 EyeDcInfo inspectEyeDc(const ComplexTrace &trace);
+// Measured-band model inspection independent of Eye's missing-DC cutoff.
+// A null result does not establish DC coupling or physical topology.
+std::optional<EyeDcInfo> inspectObservedAcModel(const ComplexTrace &trace);
+// Deterministic engineering preview settings, never inferred PHY settings.
+EyeSettings automaticEyeSettings(const ComplexTrace &trace, bool differential);
 struct EyeData {
   EyeDcInfo dc;
   std::vector<double> timeSeconds, transmittedV, receivedV;
@@ -70,6 +83,15 @@ struct EyeData {
   std::vector<double> overlayPhaseUI;
   double bitRateHz = 0, referenceFrequencyHz = 0, analysisStopHz = 0;
   double unitIntervalSeconds = 0, timeStepSeconds = 0;
+  double acTimeConstantSeconds = 0, acFrameDroopFraction = 0;
+  // Ideal low-band model only. NRZ runs start from a settled opposite level.
+  double acRunBits = 0, acRunDroopFraction = 0, acFiveTauBits = 0;
+  double acFiveTauRemainingFraction = 0;
+  // Band-limited, model-dependent isolated unit step at 1/3/5 tau. The
+  // slow pole is separated analytically; two FFT grids check residual sensitivity.
+  bool acLongModelAvailable = false, acLongModelConverged = false;
+  std::array<double,3> acLongStepVPerV{};
+  double acLongGridMaxDelta = 0;
   double samplingPhaseUI = 0, estimatedDelaySeconds = 0;
   double eyeHeightV = 0, eyeWidthSeconds = 0, eyeWidthUI = 0;
   double minimumHighV = 0, maximumLowV = 0;

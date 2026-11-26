@@ -330,6 +330,7 @@ int main() {
       }
       auto dc=inspectEyeDc(t);
       check(dc.requiresConfirmation==(f>10000.) && dc.status=="EXTRAPOLATED DC","frequency boundary policy");
+      check(dc.couplingModel=="DC_LIKE_LOCAL","nonzero stable local DC-like model");
       if(f>10000.)reject([&]{(void)calculateEye(t,s);},"explicit limited DC acknowledgement required");
       const auto actual=calculateEye(t,approved);
       close(actual.value->dc.value,0.5,0.001,"analytic gain DC");
@@ -433,9 +434,96 @@ int main() {
     auto sparse=thru();sparse.frequencyHz.insert(sparse.frequencyHz.begin()+1,1000);
     sparse.transfer.insert(sparse.transfer.begin()+1,Complex{1,0});
     sparse.frequencyHz.erase(sparse.frequencyHz.begin());sparse.transfer.erase(sparse.transfer.begin());
-    check(inspectEyeDc(sparse).limited,"sparse low-band reconstruction must disclose limitation");
+    check(inspectEyeDc(sparse).limited && inspectEyeDc(sparse).couplingModel=="UNDETERMINED",
+          "sparse low-band reconstruction must disclose limitation");
     auto ambiguous=sparse;ambiguous.transfer[0]={0.5,0.4};
     reject([&]{(void)calculateEye(ambiguous,s);},"sparse ambiguous AC pole must not be invented");
+    // 012_54: observed 15.863 kHz pole with low-band points on both sides.
+    // Independent analytic circuit formula uses separate real/imag components.
+    {
+      constexpr double fc=15863., gain=0.93;
+      auto measured=lowTrace(1000);
+      measured.frequencyHz.clear(); measured.transfer.clear();
+      for(double f:{1000.,2000.,4000.,8000.,10000.,12000.,16000.,20000.,24000.,32000.,48000.,60000.,80000.}) {
+        measured.frequencyHz.push_back(f);
+        const double x=f/fc;
+        measured.transfer.emplace_back(gain*x*x/(1+x*x),gain*x/(1+x*x));
+      }
+      for(size_t k=1;k<=512;++k) {
+        const double f=16e9*double(k)/512.;
+        const double x=f/fc;
+        measured.frequencyHz.push_back(f);
+        measured.transfer.emplace_back(gain*x*x/(1+x*x),gain*x/(1+x*x));
+      }
+      const auto estimate=inspectEyeDc(measured);
+      check(estimate.acModel && estimate.couplingModel=="AC_LIKE_ONE_POLE" && estimate.limited && !estimate.requiresConfirmation,
+            "observed AC pole must be accepted with limited provenance");
+      close(estimate.value,0,1e-12,"AC zero DC");
+      close(estimate.acPoleHz,fc,1e-6,"analytic pole");
+      close(estimate.acGain,gain,1e-12,"analytic gain");
+      close(estimate.acFitMaxResidual,0,1e-12,"held-out complex response");
+      auto result=calculateEye(measured,acSettings);
+      const auto &eye=*result.value;
+      const double tau=1./(2*pi*fc);
+      close(eye.acTimeConstantSeconds,tau,1e-15,"analytic RC time constant");
+      close(eye.acFrameDroopFraction,1.-std::exp(-double(eye.timeSeconds.size())*eye.timeStepSeconds/tau),
+            1e-12,"analytic RC droop, not full channel step");
+      // Independent brute-force run length from the input waveform, including
+      // the wrap boundary; compare a time-domain state recurrence to exp().
+      size_t longest=0, same=0;
+      const size_t samples=eye.settings.samplesPerUI;
+      const size_t frameSymbols=eye.transmittedV.size()/samples;
+      double previous=eye.transmittedV[(frameSymbols-1)*samples];
+      for(size_t i=0;i<2*frameSymbols;++i) {
+        const double now=eye.transmittedV[(i%frameSymbols)*samples];
+        same=std::abs(now-previous)<1e-12?same+1:1;
+        longest=std::max(longest,same); previous=now;
+      }
+      close(eye.acRunBits,double(longest),0,"longest periodic NRZ run");
+      const double ui=eye.unitIntervalSeconds;
+      const double decay=std::exp(-ui/tau);
+      double remaining=1.;
+      for(size_t i=0;i<longest;++i) remaining*=decay;
+      close(eye.acRunDroopFraction,1.-remaining,1e-12,"independent run droop");
+      const auto longBits=size_t(std::ceil(5.*tau/ui));
+      close(eye.acFiveTauBits,double(longBits),0,"five tau duration");
+      remaining=1.;
+      for(size_t i=0;i<longBits;++i) remaining*=decay;
+      close(eye.acFiveTauRemainingFraction,remaining,1e-11,"independent long-run state recurrence");
+      check(eye.acLongModelAvailable && eye.acLongModelConverged,"isolated long step grid agreement");
+      const std::array<double,3> tauMultipliers{1.,3.,5.};
+      for(size_t j=0;j<tauMultipliers.size();++j)
+        close(eye.acLongStepVPerV[j],gain*std::exp(-tauMultipliers[j]),0.001,
+              "isolated channel RC step vs independent continuous analytical response");
+      check(std::any_of(result.diagnostics.begin(),result.diagnostics.end(),
+        [](const auto &d){return d.code=="BASELINE_WANDER_NOT_QUALIFIED";}),
+        "periodic preview must not qualify long response");
+      auto badHoldout=measured; badHoldout.transfer[5]+=Complex{0.01,0.01};
+      reject([&]{(void)inspectEyeDc(badHoldout);},"held-out AC fit mismatch rejected");
+      auto contradictory=measured;
+      contradictory.frequencyHz.insert(contradictory.frequencyHz.begin(),0.);
+      contradictory.transfer.insert(contradictory.transfer.begin(),Complex{0.5,0});
+      reject([&]{(void)inspectEyeDc(contradictory);},"observed conflicting real DC rejected");
+    }
+    // The auto configuration does not infer a PHY; manual reproduction must
+    // give the same deterministic output from the existing periodic engine.
+    {
+      auto autoTrace=thru(16e9,0,0.5);
+      const auto automatic=automaticEyeSettings(autoTrace,true);
+      auto explicitSettings=automatic;
+      explicitSettings.bitRateHz=4.5e9;explicitSettings.referenceFrequencyHz=2.25e9;
+      explicitSettings.analysisStopHz=10e9;
+      explicitSettings.electrical={-0.2,0.2,autoTrace.stimulusOhm,autoTrace.responseOhm,0,-1,1};
+      const auto autoEye=calculateEye(autoTrace,automatic);
+      const auto manualEye=calculateEye(autoTrace,explicitSettings);
+      close(autoEye.value->eyeHeightV,manualEye.value->eyeHeightV,1e-12,"auto/manual Eye height");
+      close(autoEye.value->eyeWidthUI,manualEye.value->eyeWidthUI,1e-12,"auto/manual Eye width");
+      close(autoEye.value->bitRateHz,4.5e9,0,"assumed rate cap");
+      auto amplitude=automatic;amplitude.electrical.txLowV*=1.1;amplitude.electrical.txHighV*=1.1;
+      close(calculateEye(autoTrace,amplitude).value->eyeHeightV,
+        1.1*autoEye.value->eyeHeightV,1e-12,"Eye amplitude sensitivity");
+    }
+    std::cout<<"012_54 observed AC pole and analytical droop candidate PASS\n";
     std::cout<<"012_52 DC policy, gain oracle, AC coupling and damaged DC PASS\n";
     std::cout<<"012_46 Eye independent DFT, convolution, metrics, PRBS and resource PASS\n";
     std::cout<<"012_07 Eye deterministic golden, phase and fail-closed PASS\n";

@@ -142,6 +142,34 @@ int main() {
     try { (void)calculateIcn({{"A",IcnEnd::Next,flat(0.1)}},s,{},&cancelled); }
     catch(const si::Cancelled&) {rejected=true;}
     require(rejected,"Cancelled");
+    // Auto values are assumptions; compare explicit settings to the same
+    // measured-band numeric engine and verify Vpp linear sensitivity.
+    const auto autoTrace=flat(0.1);
+    const auto automatic=automaticIcnSettings(autoTrace);
+    IcnSettings explicitSettings;
+    explicitSettings.startHz=0;explicitSettings.stopHz=2e9;
+    explicitSettings.symbolRateHz=2e9/1.5;explicitSettings.txPeakToPeakV=0.4;
+    explicitSettings.riseTimeSeconds=30e-12;explicitSettings.rxBandwidthHz=2e9;
+    const std::vector<IcnAggressorInput> autoPaths{{"A",IcnEnd::Next,autoTrace},
+      {"B",IcnEnd::Fext,flat(0.2)}};
+    const auto autoResult=calculateIcn(autoPaths,automatic);
+    const auto manualResult=calculateIcn(autoPaths,explicitSettings);
+    close(autoResult.value->totalRmsV,manualResult.value->totalRmsV,1e-12,"auto/manual ICN RMS");
+    double autoPower=0,previousPsd=0;
+    for(size_t i=0;i<autoTrace.frequencyHz.size();++i) {
+      const double autoFrequency=autoTrace.frequencyHz[i];
+      const double edge=2*std::acos(-1.)*autoFrequency*30e-12/2.5631031310892007;
+      const double p=0.05*independentPsd(autoFrequency,explicitSettings)*std::exp(-edge*edge);
+      if(i) autoPower+=0.5*(p+previousPsd)*(autoFrequency-autoTrace.frequencyHz[i-1]);
+      previousPsd=p;
+    }
+    close(autoResult.value->totalRmsV,std::sqrt(autoPower),1e-12,"auto independent PSD integral");
+    auto variation=automatic;variation.txPeakToPeakV*=1.1;
+    close(calculateIcn(autoPaths,variation).value->totalRmsV,1.1*autoResult.value->totalRmsV,1e-12,"auto amplitude sensitivity");
+    const auto noDcAuto=automaticIcnSettings(measured);
+    require(calculateIcn({{"A",IcnEnd::Next,measured}},noDcAuto).status==Status::Warning,
+      "Auto ICN missing DC remains band limited");
+    std::cout<<"012_54 automatic ICN policy, independent PSD and sensitivity PASS\n";
     std::cout<<"012_06 ICN numerical golden PASS\n";
     return 0;
   } catch(const std::exception &e) {

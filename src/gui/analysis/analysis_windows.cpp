@@ -788,6 +788,18 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     run_->setText(QStringLiteral("Run Manual"));
     connect(eyePreview_,&QPushButton::clicked,this,[this]{launchEye(true);});
   }
+  if(feature_==Feature::Ild || feature_==Feature::Icn) {
+    autoAnalysis_=new QPushButton(QStringLiteral("Auto Analysis"));
+    autoAnalysis_->setObjectName(QStringLiteral("analysisAuto"));
+    autoAnalysis_->setEnabled(false);
+    autoAnalysis_->setToolTip(QStringLiteral("Derive measured band and use explicit exploratory assumptions; not a PHY or standard compliance test."));
+    controls->addWidget(autoAnalysis_);
+    run_->setText(QStringLiteral("Run Manual"));
+    connect(autoAnalysis_,&QPushButton::clicked,this,[this] {
+      if(feature_==Feature::Ild) launchIld(true);
+      else if(feature_==Feature::Icn) launchIcn(true);
+    });
+  }
   controls->addWidget(run_);
   controls->addWidget(cancel_);
   progress_ = new QProgressBar;
@@ -1069,13 +1081,13 @@ void AnalysisWindow::setContext(const AnalysisContext &context) {
              QStringLiteral("Context updated; select channels and run the verified engine") :
              QStringLiteral("Context updated; analysis engine not installed"));
 }
-bool AnalysisWindow::startWork(AsyncWork work) {
+bool AnalysisWindow::startWork(AsyncWork work, bool automaticBand) {
   const int index = source_->currentIndex();
   if (!scheduler_ || !work || index < 0 || index >= context_.sources.size())
     return false;
   const auto &item = context_.sources[index];
   if (!item.mappingConfirmed || item.sha256.isEmpty() || item.mappingDigest.isEmpty() ||
-      victim_->currentText().isEmpty() || (feature_!=Feature::Eye && fromGhz_->value() >= toGhz_->value())) {
+      victim_->currentText().isEmpty() || (!automaticBand && feature_!=Feature::Eye && fromGhz_->value() >= toGhz_->value())) {
     setStatus(si::channel::Status::InvalidSource,
               QStringLiteral("Confirmed source, mapping and frequency band required"));
     return false;
@@ -1177,15 +1189,16 @@ void AnalysisWindow::setIldSourceProvider(IldSourceProvider provider) {
   ildProvider_=std::move(provider);
   if(feature_ == Feature::Ild) {
     run_->setEnabled(bool(ildProvider_));
+    if(autoAnalysis_) autoAnalysis_->setEnabled(bool(ildProvider_));
     run_->setToolTip(ildProvider_?QStringLiteral("Run verified ILD fit")
                 :QStringLiteral("ILD source provider unavailable"));
   }
 }
-void AnalysisWindow::launchIld() {
+void AnalysisWindow::launchIld(bool automatic) {
   if(feature_ != Feature::Ild || !ildProvider_) return;
   const int idx=source_->currentIndex();
   if(idx<0 || idx>=context_.sources.size() ||
-      victim_->currentIndex()<0 || fromGhz_->value()>=toGhz_->value()) {
+      victim_->currentIndex()<0 || (!automatic && fromGhz_->value()>=toGhz_->value())) {
     setStatus(si::channel::Status::InvalidSource,QStringLiteral("Choose confirmed source, channel and frequency range"));
     return;
   }
@@ -1207,9 +1220,9 @@ void AnalysisWindow::launchIld() {
   cfg.startHz=fromGhz_->value()*1e9;
   cfg.stopHz=toGhz_->value()*1e9;
   cfg.model=static_cast<si::channel::IldFitModel>(fitModel_->currentIndex());
-  const std::string fitIdentity=selectionIdentity().toStdString();
-  const bool accepted=startWork([input=*input,victimId,reverse,cfg,fitIdentity]
-     (const std::atomic_bool &cancel,std::atomic_int &progress)->WorkOutcome {
+  const std::string fitIdentity=selectionIdentity().toStdString()+(automatic?"|AUTO_ILD":"|MANUAL_ILD");
+  const bool accepted=startWork([input=*input,victimId,reverse,cfg,fitIdentity,automatic]
+     (const std::atomic_bool &cancel,std::atomic_int &progress) mutable ->WorkOutcome {
     if(cancel.load()) return {si::channel::Status::Cancelled,QStringLiteral("Cancelled")};
     progress.store(10);
     // Capture/re-hash on worker thread; never use live GUI objects.
@@ -1226,9 +1239,18 @@ void AnalysisWindow::launchIld() {
     si::channel::Provenance provenance{identity.sha256,identity.revision,
       identity.mappingIdentity,"Generic ILD bandwidth-weighted least-squares","012_44-v2",
       fitIdentity,identity.workspaceGeneration,identity.mappingGeneration};
+    double acPole=0;
+    if(automatic) cfg=si::channel::automaticIldSettings(trace,&acPole);
     auto output=si::channel::calculateIld(trace,cfg,provenance,&cancel);
     if(cancel.load()) return {si::channel::Status::Cancelled,QStringLiteral("Cancelled")};
     auto data=std::make_shared<si::channel::IldData>(std::move(*output.value));
+    if(automatic) {
+      data->analysisMode="AUTO";
+      data->autoAcPoleHz=acPole;
+      data->configurationReason=acPole>0?
+        "DERIVED measured band; DEFAULT_ASSUMPTION root-linear fit above 10 times observed AC-like pole; excluded band not evaluated":
+        "DERIVED measured band; DEFAULT_ASSUMPTION root-linear fit; no qualified observed AC pole";
+    }
     progress.store(100);
     WorkOutcome outcome;
     outcome.status=output.status;
@@ -1236,7 +1258,7 @@ void AnalysisWindow::launchIld() {
     outcome.ild=std::move(data);
     outcome.provenance=std::move(output.provenance);
     return outcome;
-  });
+  },automatic);
   if(!accepted) return;
 }
 void AnalysisWindow::showIld(const WorkOutcome &outcome) {
@@ -1250,7 +1272,9 @@ void AnalysisWindow::showIld(const WorkOutcome &outcome) {
   setStatus(outcome.status,QStringLiteral("Band RMS %1 dB | peak abs %2 dB @ %3 GHz | %4 samples | %5–%6 GHz. Bandwidth-weighted fit; no standard PASS")
     .arg(d.rmsDb,0,'g',6).arg(d.peakAbsoluteDb,0,'g',6)
     .arg(d.peakFrequencyHz/1e9,0,'g',7).arg(qulonglong(d.frequencyHz.size()))
-    .arg(d.rangeStartHz/1e9,0,'g',7).arg(d.rangeStopHz/1e9,0,'g',7));
+    .arg(d.rangeStartHz/1e9,0,'g',7).arg(d.rangeStopHz/1e9,0,'g',7)+
+      QStringLiteral(" | ")+QString::fromStdString(d.analysisMode)+QStringLiteral(": ")+
+      QString::fromStdString(d.configurationReason));
 }
 void AnalysisWindow::exportIldCsv() {
   if(!ildResult_) return;
@@ -1282,6 +1306,9 @@ bool AnalysisWindow::saveIldCsv(const QString &name) {
      <<"# parameter,"<<safe(d.parameter)<<"\n"
      <<"# algorithm,"<<safe(ildProvenance_.algorithm)<<"\n"
      <<"# algorithm_version,"<<safe(ildProvenance_.version)<<"\n"
+     <<"# analysis_mode,"<<d.analysisMode.c_str()<<"\n"
+     <<"# configuration_reason,"<<safe(d.configurationReason)<<"\n"
+     <<"# auto_ac_pole_hz,"<<(d.autoAcPoleHz>0?QString::number(d.autoAcPoleHz,'g',17):QStringLiteral("NOT_EVALUATED"))<<"\n"
      <<"# fitting_model,"<<safe(d.modelName)<<"\n"
      <<"# frequency_normalization_hz,"<<QString::number(d.frequencyScaleHz,'g',17)<<"\n"
      <<"# fit_start_hz,"<<QString::number(d.rangeStartHz,'g',17)<<"\n"
@@ -1315,8 +1342,14 @@ void AnalysisWindow::exportIldPng() {
 bool AnalysisWindow::saveIldPng(const QString &name) {
   if(!ildResult_ || !ildGraph_ || name.isEmpty()) return false;
   QSaveFile file(name);
+  auto image=ildGraph_->grab().toImage();
+  image.setText(QStringLiteral("AnalysisMode"),QString::fromStdString(ildResult_->analysisMode));
+  image.setText(QStringLiteral("ConfigurationReason"),QString::fromStdString(ildResult_->configurationReason));
+  image.setText(QStringLiteral("FitStartHz"),QString::number(ildResult_->rangeStartHz,'g',17));
+  image.setText(QStringLiteral("FitStopHz"),QString::number(ildResult_->rangeStopHz,'g',17));
+  image.setText(QStringLiteral("SourceSHA256"),QString::fromStdString(ildProvenance_.sourceSha256));
   const bool okay=file.open(QIODevice::WriteOnly) &&
-                   ildGraph_->grab().save(&file,"PNG") && file.commit();
+                   image.save(&file,"PNG") && file.commit();
   if(!okay) setStatus(si::channel::Status::Error,QStringLiteral("ILD PNG write failed"));
   return okay;
 }
@@ -1347,6 +1380,7 @@ void AnalysisWindow::setIcnSourceProvider(IcnSourceProvider provider) {
   icnProvider_=std::move(provider);
   if(feature_==Feature::Icn) {
     run_->setEnabled(bool(icnProvider_));
+    if(autoAnalysis_) autoAnalysis_->setEnabled(bool(icnProvider_));
     run_->setToolTip(icnProvider_?QStringLiteral("Run generic band-limited NRZ ICN")
       :QStringLiteral("ICN source provider unavailable"));
   }
@@ -1360,11 +1394,14 @@ void AnalysisWindow::clearIcn() {
     png_->setEnabled(false);
   }
 }
-void AnalysisWindow::launchIcn() {
+// Collect explicit manual paths or snapshot the candidates for automatic selection.
+// Keep source identity, direction and user RSS consent immutable in the worker.
+// Automatic selection never skips incompatible data silently or truncates paths.
+void AnalysisWindow::launchIcn(bool automatic) {
   if(feature_!=Feature::Icn || !icnProvider_) return;
   const int idx=source_->currentIndex();
   if(idx<0 || idx>=context_.sources.size() || victim_->currentIndex()<0 ||
-     fromGhz_->value()>=toGhz_->value()) {
+     (!automatic && fromGhz_->value()>=toGhz_->value())) {
     setStatus(si::channel::Status::InvalidSource,
               QStringLiteral("Select confirmed source and frequency band"));
     return;
@@ -1377,7 +1414,7 @@ void AnalysisWindow::launchIcn() {
     return;
   }
   std::vector<std::pair<std::string,si::channel::IcnEnd>> chosen;
-  for(int k=0;k<icnAggressors_->count();++k) {
+  for(int k=0;!automatic && k<icnAggressors_->count();++k) {
     auto *item=icnAggressors_->item(k);
     if(item->checkState()!=Qt::Checked) continue;
     const int index=item->data(Qt::UserRole).toInt();
@@ -1390,12 +1427,12 @@ void AnalysisWindow::launchIcn() {
     chosen.emplace_back(source.channelIds[index].toStdString(),
         end==0?si::channel::IcnEnd::Next:si::channel::IcnEnd::Fext);
   }
-  if(chosen.empty() || chosen.size()>32) {
+  if(!automatic && (chosen.empty() || chosen.size()>32)) {
     setStatus(si::channel::Status::NotEvaluated,
               QStringLiteral("Select 1–32 NEXT/FEXT aggressor paths"));
     return;
   }
-  if(chosen.size()>1 && !icnIndependent_->isChecked()) {
+  if(!automatic && chosen.size()>1 && !icnIndependent_->isChecked()) {
     setStatus(si::channel::Status::NotEvaluated,
       QStringLiteral("Multiple paths require the independent-path RSS model. Enable the model or select one path."));
     return;
@@ -1417,9 +1454,12 @@ void AnalysisWindow::launchIcn() {
   settings.txPeakToPeakV=icnVpp_->value()*1e-3;
   settings.riseTimeSeconds=icnRise_->value()*1e-12;
   settings.rxBandwidthHz=icnRx_->value()*1e9;
-  const std::string settingsIdentity=selectionIdentity().toStdString();
-  startWork([input=*input,victimId,reverse,chosen,settings,settingsIdentity]
-      (const std::atomic_bool &cancel,std::atomic_int &progress)->WorkOutcome {
+  const std::string settingsIdentity=selectionIdentity().toStdString()+(automatic?"|AUTO_ICN":"|MANUAL_ICN");
+  std::vector<std::string> candidateIds;
+  if(automatic) for(const auto &id:source.channelIds) candidateIds.push_back(id.toStdString());
+  const bool rssAssumed=icnIndependent_->isChecked();
+  startWork([input=*input,victimId,reverse,chosen,settings,settingsIdentity,automatic,candidateIds,rssAssumed]
+      (const std::atomic_bool &cancel,std::atomic_int &progress) mutable ->WorkOutcome {
     if(cancel.load()) throw si::Cancelled();
     progress.store(10);
     auto snap=si::channel::SourceSnapshot::capture(
@@ -1428,6 +1468,20 @@ void AnalysisWindow::launchIcn() {
     if(snap.identity().sha256!=input.expectedSha)
       throw si::Error("ICN source SHA mismatch");
     const auto &victim=snap.channel(victimId);
+    if(automatic) {
+      for(const auto &id:candidateIds) {
+        if(cancel.load()) throw si::Cancelled();
+        const auto &a=snap.channel(id);
+        if(a.id==victim.id || a.group!=victim.group ||
+           a.differential()!=victim.differential()) continue;
+        chosen.emplace_back(a.id,si::channel::IcnEnd::Next);
+        chosen.emplace_back(a.id,si::channel::IcnEnd::Fext);
+      }
+      if(chosen.empty() || chosen.size()>32)
+        throw si::Error("Auto ICN needs 1..32 compatible paths; use Manual to select a subset");
+      if(chosen.size()>1 && !rssAssumed)
+        throw si::Error("Auto ICN multiple paths require explicitly enabled independent-path RSS");
+    }
     std::vector<si::channel::IcnAggressorInput> paths;
     paths.reserve(chosen.size());
     for(size_t i=0;i<chosen.size();++i) {
@@ -1443,6 +1497,7 @@ void AnalysisWindow::launchIcn() {
       paths.push_back({chosen[i].first,chosen[i].second,std::move(trace)});
       progress.store(15+int(50*(i+1)/chosen.size()));
     }
+    if(automatic) settings=si::channel::automaticIcnSettings(paths.front().transfer);
     const auto &identity=snap.identity();
     si::channel::Provenance provenance{identity.sha256,identity.revision,
       identity.mappingIdentity,"Generic uncorrelated NRZ ICN","012_45-v2",
@@ -1450,6 +1505,10 @@ void AnalysisWindow::launchIcn() {
     auto result=si::channel::calculateIcn(paths,settings,provenance,&cancel);
     result.value->victimId=victimId;
     result.value->direction=reverse?"reverse":"forward";
+    if(automatic) {
+      result.value->analysisMode="AUTO";
+      result.value->configurationReason="DERIVED measured band and compatible mapped paths; DEFAULT_ASSUMPTION 400 mVpp NRZ, rate min(4.5 GBd, cap/1.5), 30 ps Gaussian edge, RX bandwidth equals cap, independent RSS";
+    }
     if(cancel.load()) throw si::Cancelled();
     progress.store(100);
     WorkOutcome outcome;
@@ -1458,7 +1517,7 @@ void AnalysisWindow::launchIcn() {
     outcome.icn=std::make_shared<si::channel::IcnData>(std::move(*result.value));
     outcome.provenance=std::move(result.provenance);
     return outcome;
-  });
+  },automatic);
 }
 void AnalysisWindow::showIcn(const WorkOutcome &outcome) {
   if(!outcome.icn || !icnGraph_) return;
@@ -1492,7 +1551,12 @@ void AnalysisWindow::showIcn(const WorkOutcome &outcome) {
     .arg(d.nextRmsV*1000,0,'g',7).arg(d.fextRmsV*1000,0,'g',7)
     .arg(d.totalRmsV*1000,0,'g',7).arg(qulonglong(d.aggressors.size()))
     .arg(d.bandLimited?QStringLiteral(" | BAND LIMITED"):QString())
-    .arg(d.actualStartHz/1e9,0,'g',7).arg(d.actualStopHz/1e9,0,'g',7));
+    .arg(d.actualStartHz/1e9,0,'g',7).arg(d.actualStopHz/1e9,0,'g',7)+
+      QStringLiteral(" | ")+QString::fromStdString(d.analysisMode)+QStringLiteral(": ")+
+      QString::fromStdString(d.configurationReason)+
+      QStringLiteral(" | %1 GBd, %2 mVpp, %3 ps, RX %4 GHz")
+        .arg(d.settings.symbolRateHz/1e9,0,'g',7).arg(d.settings.txPeakToPeakV*1000,0,'g',7)
+        .arg(d.settings.riseTimeSeconds*1e12,0,'g',7).arg(d.settings.rxBandwidthHz/1e9,0,'g',7));
 }
 void AnalysisWindow::exportIcnCsv() {
   if(!icnResult_) return;
@@ -1532,6 +1596,8 @@ bool AnalysisWindow::saveIcnCsv(const QString &name) {
      <<"# model,"<<safe(d.model)<<"\n"
      <<"# victim_id,"<<safe(d.victimId)<<"\n"
      <<"# direction,"<<safe(d.direction)<<"\n"
+     <<"# analysis_mode,"<<d.analysisMode.c_str()<<"\n"
+     <<"# configuration_reason,"<<safe(d.configurationReason)<<"\n"
      <<"# correlation_assumption,independent_path_rss\n"
      <<"# requested_start_hz,"<<n(d.settings.startHz)<<"\n"
      <<"# requested_stop_hz,"<<n(d.settings.stopHz)<<"\n"
@@ -1588,8 +1654,14 @@ bool AnalysisWindow::saveIcnPng(const QString &name) {
      (status_!=si::channel::Status::Valid &&
       status_!=si::channel::Status::Warning)) return false;
   QSaveFile file(name);
+  auto image=icnGraph_->grab().toImage();
+  image.setText(QStringLiteral("AnalysisMode"),QString::fromStdString(icnResult_->analysisMode));
+  image.setText(QStringLiteral("ConfigurationReason"),QString::fromStdString(icnResult_->configurationReason));
+  image.setText(QStringLiteral("SymbolRateBaud"),QString::number(icnResult_->settings.symbolRateHz,'g',17));
+  image.setText(QStringLiteral("TxVpp"),QString::number(icnResult_->settings.txPeakToPeakV,'g',17));
+  image.setText(QStringLiteral("SourceSHA256"),QString::fromStdString(icnProvenance_.sourceSha256));
   const bool okay=file.open(QIODevice::WriteOnly) &&
-                   icnGraph_->grab().save(&file,"PNG") && file.commit();
+                   image.save(&file,"PNG") && file.commit();
   if(!okay) setStatus(si::channel::Status::Error,QStringLiteral("ICN PNG write failed"));
   return okay;
 }
@@ -1742,22 +1814,17 @@ void AnalysisWindow::launchEye(bool autoPreview, bool acceptLimitedDc) {
       return pending;
     }
     if(autoPreview) {
-      // A transparent engineering example, never an inferred PHY.
-      const double cap=std::min(10e9,trace.frequencyHz.back());
-      settings.profile=EyeProfile::Custom;
-      settings.mode=differential?EyeMode::Differential:EyeMode::SingleEnded;
-      settings.pattern=EyePattern::Prbs7;
-      settings.bitRateHz=std::min(4.5e9,cap/1.5);
-      settings.referenceFrequencyHz=settings.bitRateHz/2;
-      settings.analysisStopHz=cap;
-      settings.electrical={-0.2,0.2,trace.stimulusOhm,trace.responseOhm,0,-1,1};
+      // Preserve explicit consent when replacing the preview defaults.
+      const bool acknowledged=settings.acceptLimitedDc;
+      settings=automaticEyeSettings(trace,differential);
+      settings.acceptLimitedDc=acknowledged;
     }
     if(cancel.load()) throw si::Cancelled();
     progress.store(60);
     // Retain the actual source identity and the explicit preview/manual input mode.
     const auto &id=snapshot.identity();
     Provenance provenance{id.sha256,id.revision,id.mappingIdentity,
-      "Phase-preserving deterministic NRZ Eye","012_52-v1",
+      "Phase-preserving deterministic NRZ Eye","012_54-ac-candidate",
       settingsIdentity,id.workspaceGeneration,id.mappingGeneration};
     auto result=calculateEye(trace,settings,provenance,&cancel);
     if(cancel.load()) throw si::Cancelled();
@@ -1798,7 +1865,23 @@ void AnalysisWindow::showEye(const WorkOutcome &outcome) {
     .arg(d.dc.firstPositiveHz,0,'g',12)
     .arg(d.dc.limited?QStringLiteral("LIMITED"):QStringLiteral("LOCAL CHECKS PASSED"))
     .arg(QString::fromStdString(d.dc.method));
-  eyeMetrics_->setText(assumption+dcText+QStringLiteral(
+  const QString acText=d.dc.acModel?QStringLiteral(
+    "AC-like pole %1 Hz | Fit residual %2 | RC time constant %3 us | Analytic frame droop %4% | Full baseline wander NOT QUALIFIED\n")
+    .arg(d.dc.acPoleHz,0,'g',7).arg(d.dc.acFitMaxResidual,0,'g',7)
+    .arg(d.acTimeConstantSeconds*1e6,0,'g',7).arg(d.acFrameDroopFraction*100,0,'g',7)+
+      QStringLiteral("Ideal RC only: longest periodic run %1 bits, droop %2%; at %3 bits (>=5 tau), remaining %4%.\n")
+      .arg(d.acRunBits,0,'g',7).arg(d.acRunDroopFraction*100,0,'g',7)
+      .arg(d.acFiveTauBits,0,'g',12).arg(d.acFiveTauRemainingFraction*100,0,'g',7):QString();
+  QString longText;
+  if(d.dc.acModel) {
+    if(d.acLongModelAvailable)
+      longText=QStringLiteral("Isolated modeled step [1/3/5 tau] = %1 / %2 / %3 V/V | grid delta %4 | %5 (not physical qualification)\n")
+        .arg(d.acLongStepVPerV[0],0,'g',7).arg(d.acLongStepVPerV[1],0,'g',7)
+        .arg(d.acLongStepVPerV[2],0,'g',7).arg(d.acLongGridMaxDelta,0,'g',7)
+        .arg(d.acLongModelConverged?QStringLiteral("GRID AGREEMENT"):QStringLiteral("GRID LIMITED"));
+    else longText=QStringLiteral("Isolated modeled long step: NOT EVALUATED\n");
+  }
+  eyeMetrics_->setText(assumption+dcText+QStringLiteral("Coupling model: %1 (not physical topology proof)\n").arg(QString::fromStdString(d.dc.couplingModel))+acText+longText+QStringLiteral(
     "Simulated Channel Eye — Not Measured / Not PHY Compliance\n"
     "Height %1 mV | Width %2 ps (%3 UI) | Max-height phase %4 UI | Delay %5 ps\n"
     "Low maximum %6 mV | High minimum %7 mV | Received [%8, %9] mV\n"
@@ -1869,6 +1952,21 @@ bool AnalysisWindow::saveEyeCsv(const QString &name) {
      <<"# dc_real,"<<n(d.dc.value)<<"\n"
      <<"# dc_model_spread,"<<(d.dc.modelSpreadAvailable?n(d.dc.modelSpread):QStringLiteral("NOT_EVALUATED"))<<"\n"
      <<"# dc_quality,"<<(d.dc.limited?"LIMITED":"LOCAL_CHECKS_PASSED")<<"\n"
+     <<"# coupling_model,"<<d.dc.couplingModel.c_str()<<"\n"
+     <<"# ac_pole_hz,"<<(d.dc.acModel?n(d.dc.acPoleHz):QStringLiteral("NOT_EVALUATED"))<<"\n"
+     <<"# ac_fit_max_residual,"<<(d.dc.acModel?n(d.dc.acFitMaxResidual):QStringLiteral("NOT_EVALUATED"))<<"\n"
+     <<"# ac_time_constant_s,"<<(d.dc.acModel?n(d.acTimeConstantSeconds):QStringLiteral("NOT_EVALUATED"))<<"\n"
+     <<"# ac_analytic_frame_droop_fraction,"<<(d.dc.acModel?n(d.acFrameDroopFraction):QStringLiteral("NOT_EVALUATED"))<<"\n"
+     <<"# ac_longest_periodic_run_bits,"<<(d.dc.acModel?n(d.acRunBits):QStringLiteral("NOT_EVALUATED"))<<"\n"
+     <<"# ac_ideal_run_droop_fraction,"<<(d.dc.acModel?n(d.acRunDroopFraction):QStringLiteral("NOT_EVALUATED"))<<"\n"
+     <<"# ac_five_tau_run_bits,"<<(d.dc.acModel?n(d.acFiveTauBits):QStringLiteral("NOT_EVALUATED"))<<"\n"
+     <<"# ac_five_tau_remaining_fraction,"<<(d.dc.acModel?n(d.acFiveTauRemainingFraction):QStringLiteral("NOT_EVALUATED"))<<"\n"
+     <<"# ac_long_step_model,"<<(d.acLongModelAvailable?(d.acLongModelConverged?"GRID_AGREEMENT":"GRID_LIMITED"):"NOT_EVALUATED")<<"\n"
+     <<"# ac_long_step_1tau_v_per_v,"<<(d.acLongModelAvailable?n(d.acLongStepVPerV[0]):QStringLiteral("NOT_EVALUATED"))<<"\n"
+     <<"# ac_long_step_3tau_v_per_v,"<<(d.acLongModelAvailable?n(d.acLongStepVPerV[1]):QStringLiteral("NOT_EVALUATED"))<<"\n"
+     <<"# ac_long_step_5tau_v_per_v,"<<(d.acLongModelAvailable?n(d.acLongStepVPerV[2]):QStringLiteral("NOT_EVALUATED"))<<"\n"
+     <<"# ac_long_step_grid_delta,"<<(d.acLongModelAvailable?n(d.acLongGridMaxDelta):QStringLiteral("NOT_EVALUATED"))<<"\n"
+     <<"# baseline_wander_coverage,NOT_QUALIFIED\n"
      <<"# dc_acknowledged,"<<(d.dc.requiresConfirmation && eyeSettings.acceptLimitedDc?"true":"false")<<"\n"
      <<"# transfer_parameter,"<<safe(d.transferParameter)<<"\n"
      <<"# victim_id,"<<safe(d.victimId)<<"\n"
@@ -1996,6 +2094,27 @@ bool AnalysisWindow::saveEyePng(const QString &name) {
   output.setText(QStringLiteral("EffectiveStartHz"),QString::number(eyeResult_->dc.effectiveStartHz,'g',17));
   output.setText(QStringLiteral("DCQuality"),eyeResult_->dc.limited?QStringLiteral("LIMITED"):QStringLiteral("LOCAL_CHECKS_PASSED"));
   output.setText(QStringLiteral("DCReal"),QString::number(eyeResult_->dc.value,'g',17));
+  output.setText(QStringLiteral("CouplingModel"),QString::fromStdString(eyeResult_->dc.couplingModel));
+  output.setText(QStringLiteral("BaselineWanderCoverage"),QStringLiteral("NOT_QUALIFIED"));
+  if(eyeResult_->dc.acModel) {
+    output.setText(QStringLiteral("ACPoleHz"),QString::number(eyeResult_->dc.acPoleHz,'g',17));
+    output.setText(QStringLiteral("ACFitMaxResidual"),QString::number(eyeResult_->dc.acFitMaxResidual,'g',17));
+    output.setText(QStringLiteral("ACTimeConstantSeconds"),QString::number(eyeResult_->acTimeConstantSeconds,'g',17));
+    output.setText(QStringLiteral("ACAnalyticFrameDroopFraction"),QString::number(eyeResult_->acFrameDroopFraction,'g',17));
+    output.setText(QStringLiteral("ACLongestPeriodicRunBits"),QString::number(eyeResult_->acRunBits,'g',17));
+    output.setText(QStringLiteral("ACIdealRunDroopFraction"),QString::number(eyeResult_->acRunDroopFraction,'g',17));
+    output.setText(QStringLiteral("ACFiveTauRunBits"),QString::number(eyeResult_->acFiveTauBits,'g',17));
+    output.setText(QStringLiteral("ACFiveTauRemainingFraction"),QString::number(eyeResult_->acFiveTauRemainingFraction,'g',17));
+    output.setText(QStringLiteral("ACLongStepModel"),eyeResult_->acLongModelAvailable?
+      (eyeResult_->acLongModelConverged?QStringLiteral("GRID_AGREEMENT"):QStringLiteral("GRID_LIMITED")):
+      QStringLiteral("NOT_EVALUATED"));
+    if(eyeResult_->acLongModelAvailable) {
+      output.setText(QStringLiteral("ACLongStep1TauVPerV"),QString::number(eyeResult_->acLongStepVPerV[0],'g',17));
+      output.setText(QStringLiteral("ACLongStep3TauVPerV"),QString::number(eyeResult_->acLongStepVPerV[1],'g',17));
+      output.setText(QStringLiteral("ACLongStep5TauVPerV"),QString::number(eyeResult_->acLongStepVPerV[2],'g',17));
+      output.setText(QStringLiteral("ACLongGridDelta"),QString::number(eyeResult_->acLongGridMaxDelta,'g',17));
+    }
+  }
   output.setText(QStringLiteral("DCModelSpread"),eyeResult_->dc.modelSpreadAvailable?
     QString::number(eyeResult_->dc.modelSpread,'g',17):QStringLiteral("NOT_EVALUATED"));
   output.setText(QStringLiteral("DCAcknowledged"),eyeResult_->dc.requiresConfirmation &&

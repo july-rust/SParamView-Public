@@ -137,6 +137,37 @@ int main() {
   reject([&]{calculateIld(notEnough,s);},"insufficient fit samples");
   std::atomic_bool cancelled{true};
   reject([&]{calculateIld(fromLoss(linear),s,{},&cancelled);},"cancellation");
+  // Auto and manually reproduced settings must yield identical numerics.
+  const auto autoTrace=fromLoss(root);
+  double autoPole=-1;
+  const auto autoCfg=automaticIldSettings(autoTrace,&autoPole);
+  near(autoPole,0,0,"no observed AC pole in flat-phase fixture");
+  near(autoCfg.startHz,0,0,"measured ILD start");
+  near(autoCfg.stopHz,16e9,0,"measured ILD stop");
+  const IldSettings explicitCfg{0,16e9,IldFitModel::RootLinear};
+  const auto autoFit=calculateIld(autoTrace,autoCfg);
+  const auto manualFit=calculateIld(autoTrace,explicitCfg);
+  near(autoFit.value->rmsDb,manualFit.value->rmsDb,1e-12,"auto/manual ILD RMS");
+  near(autoFit.value->rmsDb,0,1e-9,"auto independent root fit");
+  // AC pole deliberately above Eye's 100 kHz cutoff: ILD still examines
+  // measured data. Use analytic complex RC transfer and disclosed fit range.
+  ComplexTrace acTrace;
+  acTrace.parameter="S21";acTrace.stimulusOhm=acTrace.responseOhm=50;
+  constexpr double fc=1e6;
+  for(double f:{1e5,2e5,4e5,5e5,7e5,9e5,1.1e6,1.5e6,2e6,3e6,4e6,8e6,9e6,11e6,2e7,5e7,1e8,2e8,5e8,1e9}) {
+    acTrace.frequencyHz.push_back(f);
+    const double z=f/fc;
+    acTrace.transfer.emplace_back(z*z/(1+z*z),z/(1+z*z));
+  }
+  const auto acAuto=automaticIldSettings(acTrace,&autoPole);
+  near(autoPole,fc,1e-6,"observed AC pole independent of Eye cutoff");
+  near(acAuto.startHz,10*fc,1e-5,"AC-aware fit start");
+  const auto acFit=calculateIld(acTrace,acAuto);
+  const auto acManual=calculateIld(acTrace,IldSettings{10*fc,1e9,IldFitModel::RootLinear});
+  near(acFit.value->rmsDb,acManual.value->rmsDb,1e-10,"AC auto/manual fit");
+  const auto wideFit=calculateIld(acTrace,IldSettings{1e5,1e9,IldFitModel::RootLinear});
+  check(wideFit.value->rmsDb>acFit.value->rmsDb,"AC rolloff sensitivity");
+  std::cout<<"012_54 automatic ILD policy and numeric equivalence PASS\n";
   std::cout<<"012_05 ILD numeric oracle PASS\n";
   return 0;
  }catch(const std::exception &e){std::cerr<<"ILD FAIL: "<<e.what()<<'\n';return 1;}

@@ -84,7 +84,7 @@ public:
   void setContext(const AnalysisContext &context);
   // Engine adapters call this only after validated input snapshot creation.
   // This does not enable the public Run action without an installed engine.
-  bool startWork(AsyncWork work);
+  bool startWork(AsyncWork work, bool automaticBand = false);
   void setIldSourceProvider(IldSourceProvider provider);
   void setIcnSourceProvider(IcnSourceProvider provider);
   void setEyeSourceProvider(EyeSourceProvider provider);
@@ -111,12 +111,12 @@ private:
   void invalidateRequest();
   void setStatus(si::channel::Status status, const QString &details);
   QString selectionIdentity() const;
-  void launchIld();
+  void launchIld(bool automatic = false);
   void showIld(const WorkOutcome &outcome);
   void exportIldCsv();
   void exportIldPng();
   void clearIld();
-  void launchIcn();
+  void launchIcn(bool automatic = false);
   void showIcn(const WorkOutcome &outcome);
   void exportIcnCsv();
   void exportIcnPng();
@@ -165,7 +165,7 @@ private:
   std::shared_ptr<const si::channel::IldData> ildResult_;
   si::channel::Provenance ildProvenance_;
   QProgressBar *progress_ = nullptr;
-  QPushButton *run_ = nullptr, *cancel_ = nullptr, *csv_ = nullptr, *png_ = nullptr, *eyePreview_ = nullptr;
+  QPushButton *run_ = nullptr, *cancel_ = nullptr, *csv_ = nullptr, *png_ = nullptr, *eyePreview_ = nullptr, *autoAnalysis_ = nullptr;
   QTimer progressPoll_;
 };
 

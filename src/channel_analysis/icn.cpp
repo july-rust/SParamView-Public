@@ -44,6 +44,21 @@ double nonnegative(double x) {
 }
 } // namespace
 
+IcnSettings automaticIcnSettings(const ComplexTrace &trace) {
+  validateTrace(trace);
+  IcnSettings settings;
+  // Request 0 Hz to preserve the missing-DC/band-limited provenance; the
+  // existing engine intersects the integral with the measured range.
+  settings.startHz=0.;
+  settings.stopHz=std::min(10e9,trace.frequencyHz.back());
+  require(settings.stopHz>trace.frequencyHz.front(),"No measured overlap with Auto ICN analysis cap");
+  settings.symbolRateHz=std::min(4.5e9,settings.stopHz/1.5);
+  settings.txPeakToPeakV=0.4;
+  settings.riseTimeSeconds=30e-12;
+  settings.rxBandwidthHz=settings.stopHz;
+  return settings;
+}
+
 Result<IcnData> calculateIcn(const std::vector<IcnAggressorInput> &aggressors,
                              const IcnSettings &s, Provenance provenance,
                              const std::atomic_bool *cancelled) {
