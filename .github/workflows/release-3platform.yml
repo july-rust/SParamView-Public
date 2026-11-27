@@ -529,6 +529,12 @@ jobs:
             -DCMAKE_OSX_ARCHITECTURES=arm64 \
             -DCMAKE_OSX_DEPLOYMENT_TARGET="$MACOS_DEPLOYMENT_TARGET"
           cmake --build "$temp/build" --target si_navigation_tests --parallel 3
+          # The full candidate build copies fonts through workspace-test targets.
+          # The isolated navigation-only target must use identical font assets.
+          test -s "$PWD/build-macos/fonts/NanumGothic-Regular.ttf"
+          mkdir -p "$temp/build/fonts"
+          cp -R "$PWD/build-macos/fonts/." "$temp/build/fonts/"
+          diff -qr "$PWD/build-macos/fonts" "$temp/build/fonts"
           evidence="$PWD/build-macos/01261-paired"
           mkdir -p "$evidence"
           # Alternate order to reduce warm-up and run-order bias.
