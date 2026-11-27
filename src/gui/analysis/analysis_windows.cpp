@@ -226,8 +226,9 @@ protected:
         const auto notice=sparamview::ui_language::textFor(this,
             QStringLiteral("Detail view: first point outside Y range"));
         p.setPen(palette().text().color());
-        const QRectF banner=QRectF(area.left()+5,area.top()+4,
-                                  std::max(1.0,area.width()-10),22);
+        const qreal noticeWidth=std::min(area.width()-10.0,
+            qreal(p.fontMetrics().horizontalAdvance(notice)+12));
+        const QRectF banner(area.right()-noticeWidth-5,area.top()+4,noticeWidth,22);
         p.fillRect(banner,palette().base());
         p.drawText(banner,Qt::AlignRight|Qt::AlignVCenter,
             p.fontMetrics().elidedText(notice,Qt::ElideRight,int(banner.width())));
