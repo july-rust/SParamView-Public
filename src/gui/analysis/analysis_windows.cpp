@@ -148,7 +148,7 @@ protected:
         bounds.include(y0[sampleIndex]);
         if(panel==0) bounds.include(d.fittedLossDb[sampleIndex]);
       }
-      if(!bounds.pad(0.08,panel==1)) continue;
+      if(!bounds.pad(0.08,panel==1,false,0.05)) continue;
       const double low=bounds.low,high=bounds.high;
       p.setPen(QPen(palette().mid().color(),1));
       p.drawRect(area);
@@ -264,7 +264,7 @@ protected:
       for(size_t i=0;i<n;++i)
         for(int w=0;w<seriesCount;++w) bounds.include(sample(i,w));
       // Linear PSD/RMS are nonnegative; dB power is not forced toward 0 dB.
-      if(!bounds.pad(0.08,panel!=0,panel!=0)) continue;
+      if(!bounds.pad(0.08,panel!=0,panel!=0,panel==0?0.05:0.0)) continue;
       const double low=bounds.low,high=bounds.high;
       p.setPen(QPen(palette().mid().color(),1));
       p.drawRect(area);
@@ -396,7 +396,7 @@ protected:
       for(double v:d.impulse.values) include(v);
       for(double v:d.unitPulse.values)include(v);
     }
-    if(!bounds.pad(0.10)) return;
+    if(!bounds.pad(0.10,false,false,view_==2?0.0:0.001)) return;
     const double low=bounds.low,high=bounds.high;
     p.setPen(palette().mid().color());p.drawRect(area);
     p.setPen(palette().text().color());
@@ -670,6 +670,8 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     fitModel_->setCurrentIndex(1);
   }
   if(feature_ == Feature::Icn) {
+    fromGhz_->setObjectName(QStringLiteral("icnStartGhz"));
+    toGhz_->setObjectName(QStringLiteral("icnStopGhz"));
     icnAggressors_=new QListWidget;
     icnAggressors_->setObjectName(QStringLiteral("icnAggressorList"));
     icnAggressors_->setMinimumHeight(100);
