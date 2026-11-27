@@ -1,6 +1,7 @@
 #include "ui_language.hpp"
 #include "app.hpp"
 #include <algorithm>
+#include <cmath>
 PlotWidget::PlotWidget(QWidget *parent) : QWidget(parent) {
   setMinimumSize(360, 180);
   setMouseTracking(true);
@@ -86,12 +87,12 @@ void PlotWidget::zoomAt(double factor, QPointF pixel, bool x, bool y) {
 void PlotWidget::zoomBy(double factor) { zoomAt(factor,graphArea(rect(),snapshot).center(),true,false); }
 void PlotWidget::wheelEvent(QWheelEvent *e) {
   if (!graphArea(rect(),snapshot).contains(e->position())) { e->ignore(); return; }
-  double delta=e->angleDelta().y();
-  if (delta==0) delta=e->pixelDelta().y();
-  if (delta==0) return;
+  const double delta=e->pixelDelta().isNull()?e->angleDelta().y():e->pixelDelta().y();
+  if (delta==0) { e->ignore(); return; }
+  const double steps=std::clamp(delta/120.0,-4.0,4.0);
   bool control=e->modifiers().testFlag(Qt::ControlModifier);
   bool shift=e->modifiers().testFlag(Qt::ShiftModifier);
-  zoomAt(delta>0 ? .8 : 1.25,e->position(),!control,control || shift);
+  zoomAt(std::pow(.8,steps),e->position(),!control,control || shift);
   e->accept();
 }
 void PlotWidget::mousePressEvent(QMouseEvent *e) {
