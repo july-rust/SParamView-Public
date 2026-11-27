@@ -26,6 +26,29 @@ class ReleaseSafety(unittest.TestCase):
                 self.assertEqual({Path(n).name for n in z.namelist()},set(samples))
                 for name in z.namelist(): self.assertEqual(z.read(name),samples[Path(name).name])
 
+    def test_windows_user_and_qa_packages_are_distinct(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)/'full'; root.mkdir()
+            output = Path(folder)/'out'
+            samples = {'SParamView.exe': b'app', 'tools/si_cli.exe': b'cli',
+                       'tests/si_v130_touchstone_tests.exe': b'test',
+                       'tests/fonts/font.ttf': b'font', 'Run_Windows_Verification.cmd': b'qa',
+                       'platforms/qwindows.dll': b'plugin', 'LICENSE': b'license',
+                       'COPYRIGHT.txt': b'copyright', 'build-provenance.json': b'{"version":"1.3.5","commit":"abc"}'}
+            for name, data in samples.items():
+                path=root/name; path.parent.mkdir(parents=True, exist_ok=True); path.write_bytes(data)
+            with patch.dict(os.environ, {'GITHUB_SHA':'abc'}):
+                inventory=publisher.stage_windows_packages(root,output,'1.3.5','x64')
+            user,qa=publisher.verify_windows_candidate(output,'1.3.5','abc','x64')
+            with zipfile.ZipFile(user) as z:
+                self.assertEqual(set(z.namelist()),{n for n in samples if not n.startswith('tests/') and n!='Run_Windows_Verification.cmd'})
+            with zipfile.ZipFile(qa) as z:
+                self.assertEqual(set(z.namelist()),set(samples))
+            self.assertLess(inventory['user_uncompressed_bytes'],inventory['full_uncompressed_bytes'])
+            user.write_bytes(user.read_bytes()+b'tampered')
+            with self.assertRaisesRegex(RuntimeError,'digest mismatch'):
+                publisher.verify_windows_candidate(output,'1.3.5','abc','x64')
+
     def stopped(self, answers, message, environment=None):
         env=dict(SPARAMVIEW_VERSION='1.2.4a',GITHUB_SHA='a'*40,GITHUB_REPOSITORY='owner/repo',
                  GITHUB_REF='refs/heads/main',GITHUB_EVENT_NAME='push',GITHUB_RUN_ID='42')

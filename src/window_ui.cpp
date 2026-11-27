@@ -245,6 +245,88 @@ protected:
   }
 };
 
+// Keep a control row's natural layout, but allow horizontal navigation on
+// narrow screens instead of forcing the entire main window wider than the
+// available desktop. Reserve one scrollbar extent so translated text and
+// native scrollbar styles cannot clip the controls vertically.
+class WorkspaceControlStrip final : public QScrollArea {
+public:
+  WorkspaceControlStrip(QHBoxLayout *row, const QString &name) {
+    setObjectName(name);
+    setFrameShape(QFrame::NoFrame);
+    setWidgetResizable(true);
+    setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    auto *stripContentWidget = new QWidget;
+    stripContentWidget->setObjectName(name + "Contents");
+    // Use compact padding without shrinking the font or the clickable text.
+    // This also offsets the scrollbar height in short desktop work areas.
+    stripContentWidget->setStyleSheet(
+        "QPushButton,QToolButton { padding:3px 6px; }"
+        "QComboBox,QDoubleSpinBox,QSpinBox,QLineEdit { padding:2px 4px; }");
+    row->setContentsMargins(0, 0, 0, 0);
+    stripContentWidget->setLayout(row);
+    setWidget(stripContentWidget);
+    stripContentWidget->installEventFilter(this);
+  }
+  QSize sizeHint() const override {
+    if (!widget()) return QSize(0, 0);
+    const auto natural = widget()->sizeHint();
+    return QSize(natural.width(), rowHeight());
+  }
+  QSize minimumSizeHint() const override { return QSize(0, rowHeight()); }
+protected:
+  bool eventFilter(QObject *watched, QEvent *event) override {
+    if (watched == widget() && event->type() == QEvent::LayoutRequest)
+      updateGeometry();
+    return QScrollArea::eventFilter(watched, event);
+  }
+private:
+  int rowHeight() const {
+    if (!widget()) return 0;
+    return std::max(widget()->sizeHint().height(), widget()->minimumSizeHint().height())
+        + style()->pixelMetric(QStyle::PM_ScrollBarExtent, nullptr, this)
+        + 2 * frameWidth();
+  }
+};
+
+void MainWindow::installHeaderProjectButtons() {
+  if (!centralWidget() || !centralWidget()->layout())
+    return;
+  if (findChild<QPushButton *>("headerOpenProjectButton"))
+    return;
+  auto *contents = findChild<QWidget *>("workspaceHeaderContents");
+  auto *headerButtonLayout = contents ? qobject_cast<QBoxLayout *>(contents->layout()) : nullptr;
+  if (!headerButtonLayout)
+    return;
+  int insertAt = headerButtonLayout->count();
+  for (int headerIndex = 0; headerIndex < headerButtonLayout->count(); ++headerIndex) {
+    auto *item = headerButtonLayout->itemAt(headerIndex);
+    auto *existing = item ? qobject_cast<QPushButton *>(item->widget()) : nullptr;
+    if (existing && existing->text().contains("Open Touchstone")) {
+      insertAt = headerIndex + 1;
+      break;
+    }
+  }
+  auto *openProject = new QPushButton("Open Project");
+  openProject->setObjectName("headerOpenProjectButton");
+  openProject->setToolTip("Open an SParamView project (.siproject)");
+  connect(openProject, &QPushButton::clicked, this, [this] {
+    const auto path = QFileDialog::getOpenFileName(
+        this, sparamview::ui_language::textFor(this, "Project"), sparamview::preferences::workingDirectory(), sparamview::ui_language::textFor(this, "SI Project (*.siproject)"));
+    if (!path.isEmpty())
+      loadProject(path);
+  });
+  auto *headerSaveActionButton = new QPushButton("Save Project");
+  headerSaveActionButton->setObjectName("headerSaveProjectButton");
+  headerSaveActionButton->setToolTip("Save the current SParamView project");
+  connect(headerSaveActionButton, &QPushButton::clicked, this,
+          [this] { saveProject(); });
+  headerButtonLayout->insertWidget(insertAt, openProject);
+  headerButtonLayout->insertWidget(insertAt + 1, headerSaveActionButton);
+}
+
 MainWindow::MainWindow() {
   workspaceCache = std::make_shared<QTemporaryDir>(
       QDir(cacheSession.path()).filePath("workspace-XXXXXX"));
@@ -259,16 +341,19 @@ MainWindow::MainWindow() {
   resize(1440, 980);
   setAcceptDrops(true);
   auto file = menuBar()->addMenu("File");
+  auto *newAction = file->addAction("New", QKeySequence::New, this, &MainWindow::newWorkspace);
+  newAction->setObjectName("newWorkspaceAction");
+  file->addSeparator();
   file->addAction(
       "Open Touchstone...", QKeySequence::Open, this,
       [this] {
         openPaths(QFileDialog::getOpenFileNames(
-            this, "Select Touchstone Files", {},
-            "Touchstone (*.s*p *.ts);;All files (*)"));
+            this, sparamview::ui_language::textFor(this, "Select Touchstone Files"), sparamview::preferences::workingDirectory(),
+            sparamview::ui_language::textFor(this, "Touchstone (*.s*p *.ts)") + ";;" + sparamview::ui_language::textFor(this, "All files (*)")));
       });
   file->addAction("Open Project...", this, [this] {
-    auto p = QFileDialog::getOpenFileName(this, "Project", {},
-                                          "SI Project (*.siproject)");
+    auto p = QFileDialog::getOpenFileName(this, sparamview::ui_language::textFor(this, "Project"), sparamview::preferences::workingDirectory(),
+                                          sparamview::ui_language::textFor(this, "SI Project (*.siproject)"));
     if (!p.isEmpty())
       loadProject(p);
   });
@@ -322,6 +407,24 @@ MainWindow::MainWindow() {
     if (channels) channels->clearSelection();
   });
   viewMenu->addAction("Reset Layout", this, &MainWindow::resetWorkspaceLayout);
+  analysisWindows = std::make_unique<si::gui::AnalysisWindowManager>(this);
+  analysisWindows->installMenu();
+  // Only GUI-thread provider access may read MainWindow revisions. The returned
+  // cache/mapping are immutable worker inputs and SHA-verified on the worker.
+  auto channelSourceProvider = [this](int index)
+      -> std::optional<si::gui::IldSourceInput> {
+    if(index<0 || size_t(index)>=revisions.size()) return std::nullopt;
+    const auto &revision=revisions[size_t(index)];
+    if(!revision.confirmed || !revision.cache || revision.channels.empty())
+      return std::nullopt;
+    const auto generation=std::max<quint64>(1,analysisWindows->context().generation);
+    return si::gui::IldSourceInput{
+      revision.cache,revision.channels,ss(revision.name),
+      revision.cache->meta().sha256,generation,generation};
+  };
+  analysisWindows->setIldSourceProvider(channelSourceProvider);
+  analysisWindows->setIcnSourceProvider(channelSourceProvider);
+  analysisWindows->setEyeSourceProvider(channelSourceProvider);
   auto rules = menuBar()->addMenu("Limit");
   rules->addAction("Save Preset...", this, [this] { preset(true); });
   rules->addAction("Load Preset...", this, [this] { preset(false); });
@@ -338,20 +441,27 @@ MainWindow::MainWindow() {
           if (si::sha256File(fp(rev.source), c) != rev.cache->meta().sha256)
             throw si::Error("Source hash changed. Reopen the Touchstone file.");
         },
-        [this] { notice->setText("Source SHA-256 verified"); });
+        [this] { sparamview::ui_language::message(notice,"Source SHA-256 verified"); });
   });
   menuBar()->addAction("About", this, [this] {
+#if defined(Q_OS_WIN)
+    const QString buildPlatform = "Windows";
+#elif defined(Q_OS_MACOS)
+    const QString buildPlatform = "macOS";
+#else
+    const QString buildPlatform = QSysInfo::productType();
+#endif
     QMessageBox::information(
-        this, "About SParamView",
-        QString("SParamView\nVersion %1\nBuild: Windows %2\n\nCopyright © 2026 july\nsparamview@gmail.com\nLicensed under the MIT License\n\nC++20 / Qt 6\nProcessing is local. Original Touchstone files are not modified.")
+        this, sparamview::ui_language::textFor(this, "About SParamView"),
+        sparamview::ui_language::textFor(this,"SParamView\nVersion %1\nBuild: %2\n\nCopyright © 2026 july\nsparamview@gmail.com\nLicensed under the MIT License\n\nC++20 / Qt 6\nProcessing is local. Original Touchstone files are not modified.")
             .arg(si::version)
-            .arg(QString::fromLatin1(architectureName())));
+            .arg(buildPlatform + " " + QString::fromLatin1(architectureName())));
   });
   body = new QWidget;
   setCentralWidget(body);
   auto root = new QVBoxLayout(body);
-  root->setContentsMargins(12, 10, 12, 8);
-  root->setSpacing(8);
+  root->setContentsMargins(12, 6, 12, 6);
+  root->setSpacing(4);
   auto banner = new QHBoxLayout;
   banner->setSpacing(8);
   auto brand = new QLabel(
@@ -362,11 +472,11 @@ MainWindow::MainWindow() {
   banner->addStretch();
   button("+ Open Touchstone", banner, [this] {
     openPaths(QFileDialog::getOpenFileNames(
-        this, "Touchstone", {}, "Touchstone (*.s*p *.ts);;All files (*)"));
+        this, sparamview::ui_language::textFor(this, "Select Touchstone Files"), sparamview::preferences::workingDirectory(), sparamview::ui_language::textFor(this, "Touchstone (*.s*p *.ts)") + ";;" + sparamview::ui_language::textFor(this, "All files (*)")));
   });
   button("Open Sample", banner, [this] { loadDemo(); });
   button("Export XLSX", banner, [this] { exportXlsx(); });
-  root->addLayout(banner);
+  root->addWidget(new WorkspaceControlStrip(banner, "workspaceHeader"));
   auto split = horizontalSplit = new QSplitter;
   split->setObjectName("workspaceHorizontalSplit");
   split->setHandleWidth(8);
@@ -451,8 +561,8 @@ MainWindow::MainWindow() {
   split->addWidget(channelContainer);
   auto content = new QWidget;
   auto right = new QVBoxLayout(content);
-  right->setContentsMargins(12, 8, 8, 8);
-  right->setSpacing(10);
+  right->setContentsMargins(12, 4, 8, 4);
+  right->setSpacing(4);
   auto workspaceBar = new QHBoxLayout;
   workspaceBar->setSpacing(5);
   int viewIndex = 0;
@@ -481,7 +591,7 @@ MainWindow::MainWindow() {
     if (action == fullscreenAction) { tool->setText("⛶"); tool->setToolTip("Full Screen (F11)"); }
     workspaceBar->addWidget(tool);
   }
-  right->addLayout(workspaceBar);
+  right->addWidget(new WorkspaceControlStrip(workspaceBar, "workspaceToolbar"));
   auto settingsScroll = new QScrollArea;
   settingsPanel = settingsScroll; settingsScroll->setObjectName("analysisSettingsPanel"); settingsScroll->setWidgetResizable(true); settingsScroll->setFrameShape(QFrame::NoFrame); settingsScroll->setMinimumHeight(44); settingsScroll->setMaximumHeight(74);
   auto settingsContent = new QWidget; settingsScroll->setWidget(settingsContent);
@@ -500,7 +610,11 @@ MainWindow::MainWindow() {
     else
       run({metric});
   });
-    limitValues[i] = spin(-600,100,2); limitValues[i]->setSuffix(" dB"); limitValues[i]->setMaximumWidth(86);
+    limitValues[i] = spin(-600,100,2);
+    const si::Limit *defaults[] = {&settings.rl, &settings.il, &settings.next, &settings.fext};
+    limitValues[i]->setValue(defaults[i]->constant);
+    limits[i]->setChecked(defaults[i]->enabled);
+    limitValues[i]->setSuffix(" dB"); limitValues[i]->setMaximumWidth(86);
     row->addWidget(limits[i]); row->addWidget(metricButtons[i]); row->addWidget(new QLabel(operators[i])); row->addWidget(limitValues[i]); controls->addWidget(segment,1);
   }
   auto tdrSegment = new QWidget; auto tdrRow = new QHBoxLayout(tdrSegment); tdrRow->setContentsMargins(4,0,4,0); tdrRow->setSpacing(3);
@@ -514,9 +628,9 @@ MainWindow::MainWindow() {
   else
     run({metric});
 });
-  tolerance = spin(0,1000,1); tolerance->setValue(10); tolerance->setSuffix(" %"); tolerance->setMaximumWidth(72);
+  tolerance = spin(0,1000,1); tolerance->setValue(settings.tolerancePercent); tdrLimit->setChecked(settings.tdrLimitEnabled); tolerance->setSuffix(" %"); tolerance->setMaximumWidth(72);
   target = spin(0,10000,1); target->setSpecialValueText("Auto Z₀"); target->setSuffix(" Ω"); target->setMaximumWidth(92);
-  auto tdrOptions = new QToolButton; tdrOptions->setText("⚙"); tdrOptions->setToolTip("TDR options: reference impedance, terminations and reflection coefficient"); connect(tdrOptions, &QToolButton::clicked, this, [this] { chooseTerminations(); });
+  auto tdrOptions = new QToolButton; tdrOptions->setObjectName("tdrOptionButton"); tdrOptions->setText("⚙"); tdrOptions->setToolTip("TDR options: reference impedance, terminations and reflection coefficient"); connect(tdrOptions, &QToolButton::clicked, this, [this] { chooseTerminations(); });
   terminationSummary = new QLabel; terminationSummary->setMaximumWidth(72); tdrReflection = new QCheckBox; tdrReflection->hide();
   tdrRow->addWidget(tdrLimit); tdrRow->addWidget(metricButtons[4]); tdrRow->addWidget(new QLabel("±")); tdrRow->addWidget(tolerance); tdrRow->addWidget(target); tdrRow->addWidget(terminationSummary); tdrRow->addWidget(tdrOptions); controls->addWidget(tdrSegment,2); config->addLayout(controls);
   auto advanced = new QWidget;
@@ -557,7 +671,7 @@ MainWindow::MainWindow() {
   connect(advancedToggle, &QToolButton::toggled, this,
           [this, advanced, advancedToggle, settingsScroll](bool checked) {
     advanced->setVisible(checked);
-    advancedToggle->setText(checked ? "Advanced ▾" : "Advanced ▸");
+    advancedToggle->setText(sparamview::ui_language::textFor(this, checked ? "Advanced ▾" : "Advanced ▸"));
     settingsScroll->setMaximumHeight(checked ? 190 : 74);
     if (checked) {
       settingsAction->setChecked(true);
@@ -572,10 +686,11 @@ MainWindow::MainWindow() {
   });
   tabs = new QTabWidget;
   tabs->setObjectName("analysisTabs");
+  tabs->setStyleSheet("QTabBar::tab { padding:5px 12px; }");
   auto plotPage = new QWidget;
-  auto pv = new QVBoxLayout(plotPage);
-  pv->setContentsMargins(10, 8, 10, 8);
-  pv->setSpacing(8);
+  auto plotPageLayout = new QVBoxLayout(plotPage);
+  plotPageLayout->setContentsMargins(10, 4, 10, 4);
+  plotPageLayout->setSpacing(4);
   auto graphOptions = new QHBoxLayout;
   graphOptions->setSpacing(6);
   metricView = new QComboBox;
@@ -605,16 +720,16 @@ MainWindow::MainWindow() {
   button("Previous View", graphOptions, [this] { plot->previousView(); });
   button("Axis Limits", graphOptions, [this] { plot->editAxes(); });
   button("Fit All", graphOptions, [this] { plot->fitView(); });
-  pv->addLayout(graphOptions);
+  plotPageLayout->addWidget(new WorkspaceControlStrip(graphOptions, "workspaceGraphControls"));
   plot = new PlotWidget;
-  pv->addWidget(plot, 1);
+  plotPageLayout->addWidget(plot, 1);
   auto readout = new QLabel("Wheel: X zoom · Ctrl+wheel: Y zoom · Drag: pan · Shift+drag: box zoom");
-  readout->setMinimumHeight(22);
+  readout->setMinimumHeight(18);
   readout->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
   readout->setWordWrap(true);
-  pv->addWidget(readout);
+  plotPageLayout->addWidget(readout);
   plot->cursorChanged = [readout](const QString &text) {
-    readout->setText(text.isEmpty() ? "Wheel: X zoom · Ctrl+wheel: Y zoom · Drag: pan · Shift+drag: box zoom" : text);
+    readout->setText(text.isEmpty() ? sparamview::ui_language::textFor(readout, "Wheel: X zoom · Ctrl+wheel: Y zoom · Drag: pan · Shift+drag: box zoom") : text);
   };
   connect(areaZoom, &QToolButton::toggled, plot, &PlotWidget::setBoxZoom);
   tabs->addTab(plotPage, "Plot");
@@ -636,8 +751,8 @@ MainWindow::MainWindow() {
   resultsPanel = new QWidget;
   resultsPanel->setObjectName("resultsPanel");
   auto resultLayout = new QVBoxLayout(resultsPanel);
-  resultLayout->setContentsMargins(10, 8, 10, 8);
-  resultLayout->setSpacing(8);
+  resultLayout->setContentsMargins(10, 4, 10, 4);
+  resultLayout->setSpacing(4);
   auto resultBar = new QHBoxLayout;
   resultBar->setSpacing(8);
   summary = new QLabel("No limits configured → N/A");
@@ -655,7 +770,7 @@ MainWindow::MainWindow() {
   rankBox->addItems({"Worst Margin", "Worst Value", "Channel", "Result"});
   resultBar->addWidget(rankBox);
   button("Compare Revisions", resultBar, [this] { compareRevisions(); });
-  resultLayout->addLayout(resultBar);
+  resultLayout->addWidget(new WorkspaceControlStrip(resultBar, "workspaceResultControls"));
   table = new QTableWidget;
   table->setObjectName("analysisResults");
   table->setColumnCount(13);
@@ -668,7 +783,7 @@ MainWindow::MainWindow() {
   table->setEditTriggers(QAbstractItemView::NoEditTriggers);
   table->verticalHeader()->hide();
   table->horizontalHeader()->setStretchLastSection(true);
-  table->setMinimumHeight(100);
+  table->setMinimumHeight(84);
   table->setAlternatingRowColors(true);
   resultLayout->addWidget(table, 1);
   analysisSplit->addWidget(resultsPanel);
@@ -680,7 +795,7 @@ MainWindow::MainWindow() {
   analysisSplit->setSizes({560, 260});
   notice = new QLabel("Open file → Confirm mapping → Select channels → QUICK ANALYSIS. Pass/fail evaluation requires user-defined limits.");
   notice->setWordWrap(true);
-  notice->setStyleSheet("color:#64758b;padding:4px 8px");
+  notice->setStyleSheet("color:#64758b;padding:2px 8px");
   root->addWidget(notice);
   progress = new QProgressBar;
   progress->setMaximumWidth(180);
@@ -690,17 +805,18 @@ MainWindow::MainWindow() {
   cancelButton->hide();
   statusBar()->addPermanentWidget(progress);
   statusBar()->addPermanentWidget(cancelButton);
-  statusBar()->showMessage("Ready · Local processing · Source read-only");
+  sparamview::ui_language::status(statusBar(),"Ready · Local processing · Source read-only");
   connect(cancelButton, &QPushButton::clicked, this, [this] {
     if (control)
       control->cancelled = true;
     cancelButton->setEnabled(false);
-    statusBar()->showMessage("Cancelling...");
+    sparamview::ui_language::status(statusBar(),"Cancelling...");
   });
   connect(revisionBox, &QComboBox::currentIndexChanged, this, [this] {
     updateActiveTouchstoneTitle();
     rebuildChannels();
     if (!busy) { refreshResults(); refreshPlot(); }
+    refreshAnalysisContext();
   });
   connect(groupBox, &QComboBox::currentIndexChanged, this, [this] {
     QString group = groupBox->currentText();
@@ -762,7 +878,7 @@ MainWindow::MainWindow() {
     connect(w, &QDoubleSpinBox::valueChanged, this, [this] {
       markDirty();
       if (!results.empty() && !restoringProject)
-        notice->setText("Settings changed. Run analysis to apply them. Export uses the last completed analysis settings.");
+        sparamview::ui_language::message(notice,"Settings changed. Run analysis to apply them. Export uses the last completed analysis settings.");
     });
   for (auto *box : body->findChildren<QCheckBox *>())
     connect(box,&QCheckBox::toggled,this,[this]{markDirty();});
@@ -773,6 +889,66 @@ MainWindow::MainWindow() {
   connect(channels,&QListWidget::itemChanged,this,[this]{markDirty();});
   restoreWorkspaceLayout();
   updateActiveTouchstoneTitle();
+  refreshAnalysisContext();
+  // Install the header buttons before capturing fixed English UI strings.
+  // Startup and test callers can still call the idempotent helper.
+  installHeaderProjectButtons();
+  using namespace sparamview::ui_language;
+  Bindings languageBindings;
+  bindMainFixedWidgets(languageBindings, body);
+  bindUiText(languageBindings, cancelButton, cancelButton->text(),
+       [](QPushButton *w, const QString &s) { w->setText(s); });
+  // These combos use indices, not translated text, as their model keys.
+  for (auto *box : {markerBox, performanceBox, metricView, rankBox})
+    bindCombo(languageBindings, box);
+  bindUiText(languageBindings, metricView, metricView->toolTip(),
+       [](QComboBox *w, const QString &s) { w->setToolTip(s); });
+  bindUiText(languageBindings, tdrView, tdrView->toolTip(),
+       [](QComboBox *w, const QString &s) { w->setToolTip(s); });
+  const QStringList originalTabs = {"Plot", "Compare Revisions"};
+  QStringList originalHeaders;
+  for (int i = 0; i < table->columnCount(); ++i)
+    originalHeaders << table->horizontalHeaderItem(i)->text();
+  languageBindings.push_back([this, advancedToggle, readout, originalTabs, originalHeaders](Language value) {
+    const QSignalBlocker blockTable(table);
+    quickButton->setText(menuText(QStringLiteral("QUICK ANALYSIS"), value));
+    for (int i = 0; i < originalTabs.size(); ++i)
+      tabs->setTabText(i, menuText(originalTabs[i], value));
+    for (int i = 0; i < originalHeaders.size(); ++i)
+      table->horizontalHeaderItem(i)->setText(menuText(originalHeaders[i], value));
+    advancedToggle->setText(menuText(advancedToggle->isChecked() ? "Advanced ▾" : "Advanced ▸", value));
+    directionButton->setText(menuText(QStringList{"Near → Far", "Far → Near", "Both"}[directionMode], value));
+    directionButton->setToolTip(menuText("Direction: Near → Far → Far → Near → Both", value));
+    const QString hint = "Wheel: X zoom · Ctrl+wheel: Y zoom · Drag: pan · Shift+drag: box zoom";
+    for (auto previous : {Language::English, Language::Korean, Language::Japanese})
+      if (readout->text() == menuText(hint, previous)) {
+        readout->setText(menuText(hint, value));
+        break;
+      }
+  });
+  message(notice,notice->text());
+  message(summary,summary->text());
+  message(selectionInfo,selectionInfo->text());
+  languageBindings.push_back([this,tdrOptions](Language value){
+    tdrOptions->setText(menuText("Option",value));
+    tdrOptions->setToolTip(menuText("TDR options: reference impedance, terminations and reflection coefficient",value));
+    terminationSummary->setToolTip(menuText("Apply the termination at the opposite end of the selected channel. All other physical ports are matched to their source reference impedances.",value));
+    refreshMessage(notice,value);
+    refreshMessage(summary,value);
+    refreshMessage(selectionInfo,value);
+    refreshCompareLanguage(compareTable,value);
+    refreshResultLanguage();
+    refreshTdrViewLanguage(tdrView,value);
+    { const QSignalBlocker blockGroup(groupBox),blockAggressor(aggressorBox);
+      if(groupBox->count()) groupBox->setItemText(0,menuText("All groups",value));
+      if(aggressorBox->count()) aggressorBox->setItemText(0,menuText("AUTO (same group)",value)); }
+    plot->snapshot.displayLanguage=code(value);
+    plot->invalidateGraph();
+    plot->update();
+    refreshStatus(statusBar(),value);
+    analysisWindows->refreshLanguage(code(value));
+  });
+  installMenu(*this, std::move(languageBindings));
 }
 void MainWindow::markDirty() {
   if(!restoringProject && !revisions.empty()) dirty=true;

@@ -1,5 +1,7 @@
+#include "ui_language.hpp"
 #include "app.hpp"
 #include <algorithm>
+#include <cmath>
 PlotWidget::PlotWidget(QWidget *parent) : QWidget(parent) {
   setMinimumSize(360, 180);
   setMouseTracking(true);
@@ -85,12 +87,12 @@ void PlotWidget::zoomAt(double factor, QPointF pixel, bool x, bool y) {
 void PlotWidget::zoomBy(double factor) { zoomAt(factor,graphArea(rect(),snapshot).center(),true,false); }
 void PlotWidget::wheelEvent(QWheelEvent *e) {
   if (!graphArea(rect(),snapshot).contains(e->position())) { e->ignore(); return; }
-  double delta=e->angleDelta().y();
-  if (delta==0) delta=e->pixelDelta().y();
-  if (delta==0) return;
+  const double delta=e->pixelDelta().isNull()?e->angleDelta().y():e->pixelDelta().y();
+  if (delta==0) { e->ignore(); return; }
+  const double steps=std::clamp(delta/120.0,-4.0,4.0);
   bool control=e->modifiers().testFlag(Qt::ControlModifier);
   bool shift=e->modifiers().testFlag(Qt::ShiftModifier);
-  zoomAt(delta>0 ? .8 : 1.25,e->position(),!control,control || shift);
+  zoomAt(std::pow(.8,steps),e->position(),!control,control || shift);
   e->accept();
 }
 void PlotWidget::mousePressEvent(QMouseEvent *e) {
@@ -193,27 +195,27 @@ void PlotWidget::keyPressEvent(QKeyEvent *e) {
 }
 void PlotWidget::contextMenuEvent(QContextMenuEvent *e) {
   QMenu menu(this);
-  menu.addAction("Fit All",this,[this]{fitView();});
-  menu.addAction("Previous View",this,[this]{previousView();});
-  menu.addAction("Zoom In",this,[this]{zoomBy(.8);});
-  menu.addAction("Axis Limits...",this,[this]{editAxes();});
+  menu.addAction(sparamview::ui_language::textFor(this, "Fit All"),this,[this]{fitView();});
+  menu.addAction(sparamview::ui_language::textFor(this, "Previous View"),this,[this]{previousView();});
+  menu.addAction(sparamview::ui_language::textFor(this, "Zoom In"),this,[this]{zoomBy(.8);});
+  menu.addAction(sparamview::ui_language::textFor(this, "Axis Limits..."),this,[this]{editAxes();});
   menu.exec(e->globalPos());
 }
 void PlotWidget::editAxes() {
   if (snapshot.curves.empty()) return;
   auto v=currentView();double scale=snapshot.metric==si::Metric::TDR?1e9:1e-9;
-  QDialog dialog(this);dialog.setWindowTitle("Plot Axis Limits");QFormLayout layout(&dialog);
+  QDialog dialog(this);dialog.setWindowTitle(sparamview::ui_language::textFor(this, "Plot Axis Limits"));QFormLayout layout(&dialog);
   QDoubleSpinBox l,r,b,t;
   for (auto p:{&l,&r,&b,&t}) { p->setDecimals(9);p->setRange(-1e12,1e12); }
   l.setValue(v.left*scale);r.setValue(v.right*scale);b.setValue(v.bottom);t.setValue(v.top);
   QString x=snapshot.metric==si::Metric::TDR?" [ns]":" [GHz]";
-  layout.addRow("X Start"+x,&l);layout.addRow("X Stop"+x,&r);
-  layout.addRow("Y Minimum",&b);layout.addRow("Y Maximum",&t);
-  QCheckBox automatic("Auto Y Range");automatic.setChecked(!std::isfinite(snapshot.viewBottom));layout.addRow(&automatic);
+  layout.addRow(sparamview::ui_language::textFor(this, "X Start")+x,&l);layout.addRow(sparamview::ui_language::textFor(this, "X Stop")+x,&r);
+  layout.addRow(sparamview::ui_language::textFor(this, "Y Minimum"),&b);layout.addRow(sparamview::ui_language::textFor(this, "Y Maximum"),&t);
+  QCheckBox automatic(sparamview::ui_language::textFor(this, "Auto Y Range"));automatic.setChecked(!std::isfinite(snapshot.viewBottom));layout.addRow(&automatic);
   if(snapshot.heatmap && snapshot.metric!=si::Metric::TDR) { b.setEnabled(false);t.setEnabled(false);automatic.setChecked(true);automatic.setEnabled(false); }
-  QDialogButtonBox buttons(QDialogButtonBox::Ok|QDialogButtonBox::Cancel);layout.addRow(&buttons);
+  QDialogButtonBox buttons(QDialogButtonBox::Ok|QDialogButtonBox::Cancel);layout.addRow(&buttons);sparamview::ui_language::localizeButtons(&buttons,this);
   connect(&buttons,&QDialogButtonBox::accepted,&dialog,[&]{
-    if(r.value()<=l.value() || (!automatic.isChecked() && t.value()<=b.value())) { QMessageBox::warning(&dialog,"Invalid Axis Range","The upper limit must be greater than the lower limit.");return; }
+    if(r.value()<=l.value() || (!automatic.isChecked() && t.value()<=b.value())) { QMessageBox::warning(&dialog,sparamview::ui_language::textFor(this, "Invalid Axis Range"),sparamview::ui_language::textFor(this, "The upper limit must be greater than the lower limit."));return; }
     dialog.accept();
   });
   connect(&buttons,&QDialogButtonBox::rejected,&dialog,&QDialog::reject);

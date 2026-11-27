@@ -1,0 +1,338 @@
+#!/usr/bin/env python3
+"""Fail-closed COM reference manifest checks (NOT a COM numerical solver).
+
+Schema checks are safe for a BLOCKED scaffold. Qualification requires a pinned
+reference, license evidence and three physically present independently sourced
+reference cases. A PASS here verifies evidence integrity and numeric comparison,
+not IEEE compliance or the correctness of the original external reference.
+"""
+from __future__ import annotations
+import argparse
+import hashlib
+import json
+import math
+import re
+from pathlib import Path
+
+SHA256 = re.compile(r"^[0-9a-f]{64}$")
+COMMIT = re.compile(r"^[0-9a-f]{40}$")
+VALID_STATES = {"BLOCKED", "REFERENCE_READY", "LOCKED"}
+
+class QualificationError(ValueError):
+    pass
+
+def _require(test: bool, reason: str) -> None:
+    if not test:
+        raise QualificationError(reason)
+
+def _dict(value: object, label: str) -> dict:
+    _require(isinstance(value, dict), f"{label}: expected object")
+    return value
+
+def schema_check(manifest: dict) -> None:
+    _require(manifest.get("contract_version") == 1, "contract_version must be 1")
+    _require(manifest.get("status") in VALID_STATES, "invalid status")
+    _require(isinstance(manifest.get("profile_id"), str) and bool(manifest["profile_id"]), "profile_id missing")
+    for name in ("standard", "reference", "license"):
+        _dict(manifest.get(name), name)
+    _require(isinstance(manifest.get("cases"), list), "cases must be an array")
+
+def _evidence_file(item: object, root: Path, label: str) -> Path:
+    spec = _dict(item, label)
+    relative = spec.get("path")
+    digest = spec.get("sha256")
+    _require(isinstance(relative, str) and bool(relative), f"{label}: path missing")
+    _require(isinstance(digest, str) and SHA256.fullmatch(digest) is not None, f"{label}: SHA256 absent/invalid")
+    path = Path(relative)
+    _require(not path.is_absolute(), f"{label}: absolute paths prohibited")
+    root = root.resolve(strict=True)
+    resolved = (root / path).resolve(strict=True)
+    _require(resolved.is_relative_to(root) and resolved.is_file(), f"{label}: path escapes fixture root or is not file")
+    actual = hashlib.sha256(resolved.read_bytes()).hexdigest()
+    _require(actual == digest, f"{label}: SHA256 mismatch")
+    return resolved
+
+def _finite(value: object, label: str) -> float:
+    _require(type(value) in (int, float) and math.isfinite(value), f"{label}: expected finite number")
+    return float(value)
+
+def reference_ready(manifest: dict) -> dict:
+    """012_02 stage gate: source/reproducible 2-case oracle, NOT PHY compliance.
+
+    The CI's numerical job must independently execute and prove the evidence
+    linked here. Manifest fields alone are never a substitute for actual runs.
+    """
+    schema_check(manifest)
+    _require(manifest["status"] == "REFERENCE_READY", "reference stage is not REFERENCE_READY")
+    std = manifest["standard"]
+    for key in ("edition", "annex", "applicable_clause", "parameter_table"):
+        _require(isinstance(std.get(key), str) and bool(std[key].strip()), f"standard.{key} missing")
+    _require(std.get("approval_status") == "PUBLISHED", "draft IEEE PHY standard not approved")
+    _require(str(std.get("normative_source_url", "")).startswith("https://standards.ieee.org/ieee/802.3ck/"),
+             "normative source must be IEEE 802.3ck published catalog")
+    _require(std.get("parameter_values_qualified") is False,
+             "reference readiness does not qualify the final PHY numeric parameter table")
+    ref = manifest["reference"]
+    _require(isinstance(ref.get("source_commit"), str) and COMMIT.fullmatch(ref["source_commit"]) is not None,
+             "official COM reference source not pinned")
+    _require(str(ref.get("release")) == "4.17.0", "unexpected reference version")
+    _require(isinstance(ref.get("source_content_sha256"), str) and SHA256.fullmatch(ref["source_content_sha256"]) is not None,
+             "source bytes SHA-256 not pinned")
+    lic = manifest["license"]
+    _require(lic.get("verified_spdx") == "BSD-3-Clause",
+             "BSD3 COM source repository license required")
+    _require(isinstance(lic.get("confirmed_root_license_sha256"), str) and
+             SHA256.fullmatch(lic["confirmed_root_license_sha256"]) is not None,
+             "BSD3 license SHA-256 must be pinned")
+    _require(lic.get("distribution_strategy") == "QA_ONLY_REFERENCE_EXTERNAL" and
+             lic.get("bundled_third_party_sources") is False and
+             lic.get("bundled_third_party_channel_files") is False,
+             "do not redistribute third-party code/channel data under an unreviewed license")
+    oracle = _dict(manifest.get("independent_oracle"), "independent_oracle")
+    _require(isinstance(oracle.get("source_commit"), str) and COMMIT.fullmatch(oracle["source_commit"]) is not None,
+             "independent code commit not pinned")
+    _require(oracle.get("source_license_spdx") == "BSD-3-Clause", "independent source license not pinned")
+    _require(isinstance(oracle.get("channels_zip_sha256"), str) and SHA256.fullmatch(oracle["channels_zip_sha256"]) is not None,
+             "external channel data ZIP SHA256 not pinned")
+    for key in ("expected_results_url", "execution_run_url", "evidence_artifact_url", "channels_url"):
+        _require(str(oracle.get(key, "")).startswith("https://"),
+                 f"independent_oracle.{key} missing")
+    _require(oracle.get("execution_result") == "SUCCESS", "no successful actual numerical run")
+    _require("NOT IEEE 802.3ck normative conformance" in oracle.get("scope", ""),
+             "non-normative correlation must be explicitly labeled")
+    cases = manifest.get("reference_oracles")
+    _require(isinstance(cases, list) and len(cases) >= 2, "two actual reference comparisons required")
+    profiles = set()
+    for item in cases:
+        case = _dict(item, "reference_oracle")
+        _require(case.get("kind") == "ALGORITHM_CORRELATION_NON_NORMATIVE",
+                 "normative and algorithm oracles must not be conflated")
+        _require(isinstance(case.get("id"), str) and bool(case["id"]), "case ID missing")
+        counts = _dict(case.get("aggressor_count"), "aggressor_count")
+        nex, fex = counts.get("next"), counts.get("fext")
+        _require(type(nex) is int and type(fex) is int and nex >= 0 and fex >= 0,
+                 "aggressor counts invalid")
+        profile = "WITH_CROSSTALK" if nex + fex > 0 else "NO_CROSSTALK"
+        _require(profile not in profiles, "duplicate independent case condition")
+        profiles.add(profile)
+        for metric in ("com_db", "fom"):
+            expected = _finite(case.get("published_" + metric), "published_" + metric)
+            measured = _finite(case.get("ci_reproduced_" + metric), "ci_reproduced_" + metric)
+            _require(abs(expected - measured) <= 1e-9, "independent numerical correlation mismatch")
+        tolerance = _finite(case.get("tolerance_db"), "tolerance_db")
+        _require(0 < tolerance <= 1e-9, "published reference tolerance not locked to strict scalar gate")
+    _require(profiles == {"NO_CROSSTALK", "WITH_CROSSTALK"}, "both crosstalk conditions required")
+    _require(manifest.get("cases") == [], "normative IEEE conformance cases must remain separate")
+    return {"status": "REFERENCE_READY_NOT_IEEE_CONFORMANCE",
+            "independent_numeric_cases": len(cases),
+            "remaining": "012_09/11 require final approved PHY full table/Test1+Test2 and >=3 same-profile goldens"}
+
+
+def qualify(manifest: dict, root: Path) -> dict:
+    """Check provenance and reference arithmetic; never claim full COM compliance."""
+    schema_check(manifest)
+    _require(manifest["status"] == "LOCKED", "COM profile is BLOCKED: no qualification")
+    std = manifest["standard"]
+    for key in ("edition", "annex", "applicable_clause", "parameter_table"):
+        _require(isinstance(std.get(key), str) and bool(std[key].strip()), f"standard.{key} missing")
+    _require(std.get("approval_status") == "PUBLISHED",
+             "unapproved IEEE drafts cannot be used for conformance profiles")
+    official_url = std.get("normative_source_url")
+    _require(isinstance(official_url, str) and official_url.startswith("https://standards.ieee.org/"),
+             "standard.normative_source_url must reference a published IEEE standard")
+    ref = manifest["reference"]
+    _require(isinstance(ref.get("source_commit"), str) and COMMIT.fullmatch(ref["source_commit"]) is not None,
+             "reference.source_commit requires a pinned 40-character SHA")
+    _require(isinstance(ref.get("release"), str) and bool(ref["release"]), "reference.release missing")
+    _require(str(ref.get("source_url", "")).startswith("https://"), "reference.source_url must be HTTPS")
+    lic = manifest["license"]
+    _require(lic.get("verified_spdx") in ("BSD-3-Clause", "Apache-2.0", "MIT"),
+             "license not independently verified and approved")
+    _evidence_file(lic.get("evidence"), root, "license.evidence")
+    cases = manifest["cases"]
+    _require(len(cases) >= 3, "at least three independently reproducible cases required")
+    seen = set()
+    details = []
+    observed_kinds = set()
+    for case in cases:
+        c = _dict(case, "case")
+        case_id = c.get("id")
+        _require(isinstance(case_id, str) and case_id and case_id not in seen, "duplicate/missing case id")
+        seen.add(case_id)
+        _require(str(c.get("published_source_url", "")).startswith("https://"),
+                 f"{case_id}: independent published source URL required")
+        assets = c.get("input_files")
+        _require(isinstance(assets, list) and len(assets) >= 2, f"{case_id}: THRU/config input required")
+        kinds = {str(_dict(a, "input").get("kind")) for a in assets}
+        _require({"thru", "config"} <= kinds, f"{case_id}: missing THRU/config")
+        observed_kinds |= kinds
+        for index, asset in enumerate(assets):
+            _evidence_file(asset, root, f"{case_id}.input_files[{index}]")
+        run_file = _evidence_file(c.get("reproduced_result"), root, f"{case_id}.reproduced_result")
+        run = _dict(json.loads(run_file.read_text(encoding="utf-8")), f"{case_id}.result")
+        result = _finite(run.get("com_db"), f"{case_id}.result.com_db")
+        _require(run.get("reference_commit") == ref["source_commit"], f"{case_id}: reference commit mismatch")
+        _require(run.get("profile_id") == manifest["profile_id"], f"{case_id}: profile mismatch")
+        expected = _finite(c.get("published_expected_com_db"), f"{case_id}.published_expected_com_db")
+        tolerance = _finite(c.get("tolerance_db"), f"{case_id}.tolerance_db")
+        _require(tolerance >= 0, f"{case_id}: tolerance cannot be negative")
+        _require(str(c.get("tolerance_basis_url", "")).startswith("https://"),
+                 f"{case_id}: independent tolerance basis URL required")
+        delta = abs(result - expected)
+        _require(delta <= tolerance, f"{case_id}: numerical deviation {delta} dB exceeds {tolerance} dB")
+        details.append({"id": case_id, "delta_db": delta, "tolerance_db": tolerance})
+    _require({"next", "fext"} <= observed_kinds,
+             "qualified set must include both NEXT and FEXT inputs")
+    return {"status": "MANIFEST_AND_REFERENCE_COMPARISON_PASS",
+            "limitations": "Not a certification of IEEE conformance or source independence",
+            "cases": details}
+
+
+def qualify_normative(manifest: dict, root: Path) -> dict:
+    """012_09 production gate (not a substitute for independent standards audit).
+
+    Keep the existing qualify() as the synthetic manifest arithmetic/integrity
+    unit-test helper. The *CLI* must never accept those synthetic fixtures as
+    proof of IEEE 802.3ck-2022 Test 1 / Test 2 COM conformance.
+    """
+    schema_check(manifest)
+    _require(manifest["status"] == "LOCKED",
+             "official 802.3ck profile still REFERENCE_READY/BLOCKED")
+    std = _dict(manifest["standard"], "standard")
+    _require(std.get("edition") == "IEEE Std 802.3ck-2022" and
+             std.get("applicable_clause") == "120F.4.1" and
+             str(std.get("parameter_table", "")).startswith("120F-8"),
+             "must use final IEEE 802.3ck-2022 Annex 120F.4.1 / Table 120F-8")
+    _require(std.get("approval_status") == "PUBLISHED" and
+             std.get("parameter_values_qualified") is True,
+             "final approved Table 120F-8 parameters have not been independently qualified")
+    _require(str(std.get("normative_source_url", "")).startswith(
+                 "https://standards.ieee.org/ieee/802.3ck/"),
+             "final IEEE 802.3ck normative source URL missing")
+    reference = _dict(manifest["reference"], "reference")
+    _require(reference.get("release") == "4.17.0" and
+             reference.get("source_commit") ==
+             "47459695a169fdf1fd10c541a5b19c69a5ae9285" and
+             reference.get("source_content_sha256") ==
+             "cdcd739ac13c9cc3ca59733fd938a015f040429655b5dbf5543c897789cfed9b",
+             "pinned COM 4.17 official reference identity changed")
+    license_info = _dict(manifest["license"], "license")
+    _require(license_info.get("distribution_strategy") == "QA_ONLY_REFERENCE_EXTERNAL" and
+             license_info.get("bundled_third_party_sources") is False and
+             license_info.get("bundled_third_party_channel_files") is False,
+             "COM QA reference/data are not authorized for binary redistribution")
+    _require(manifest["profile_id"] ==
+             "IEEE-802.3ck-2022-100GAUI-1-C2C-120F-QUALIFIED",
+             "candidate/draft PHY profile must not satisfy normative qualification")
+    audit = _dict(std.get("final_parameter_audit"), "standard.final_parameter_audit")
+    audit_path = _evidence_file(audit.get("evidence"), root, "final_parameter_audit.evidence")
+    report = _dict(json.loads(audit_path.read_text(encoding="utf-8")),
+                   "final_parameter_audit.report")
+    _require(report.get("edition") == std["edition"] and
+             report.get("clause") == std["applicable_clause"] and
+             report.get("table") == "120F-8",
+             "parameter audit is not the final approved PHY table")
+    _require(report.get("review_status") == "INDEPENDENT_REVIEWED",
+             "approved standard parameter table has no independent review receipt")
+    required_groups = {"timing", "package_test1", "package_test2", "tx",
+                       "rx", "noise_jitter", "optimization", "exceptions"}
+    entries = report.get("groups")
+    _require(isinstance(entries, list) and
+             required_groups <= {x.get("name") for x in entries if isinstance(x, dict)},
+             "missing audited PHY parameter groups or package test variations")
+    for row in entries:
+        _require(isinstance(row, dict) and row.get("source_locator") and
+                 row.get("verified") is True,
+                 "unverified/missing approved standard parameter source locator")
+    _require(len(manifest["cases"]) >= 3,
+             "at least three independent same-PHY golden channels required")
+    base = qualify(manifest, root)
+    seen_channels = set()
+    for case in manifest["cases"]:
+        case_id = case["id"]
+        thru = [x for x in case["input_files"] if x.get("kind") == "thru"]
+        _require(len(thru) == 1, f"{case_id}: exactly one THRU source required")
+        fingerprint = thru[0]["sha256"]
+        _require(fingerprint not in seen_channels,
+                 f"{case_id}: duplicated THRU source cannot count as independent case")
+        seen_channels.add(fingerprint)
+        runs = case.get("package_runs")
+        _require(isinstance(runs, list) and len(runs) == 2,
+                 f"{case_id}: both normative Test 1 and Test 2 runs required")
+        observed = set()
+        for run in runs:
+            item = _dict(run, f"{case_id}.package_run")
+            test = item.get("test")
+            _require(test in ("Test1", "Test2") and test not in observed,
+                     f"{case_id}: invalid/duplicate package test case")
+            observed.add(test)
+            result_path = _evidence_file(item.get("reference_result"),
+                                         root, f"{case_id}.{test}.reference")
+            reference = _dict(json.loads(result_path.read_text(encoding="utf-8")),
+                              f"{case_id}.{test}.reference")
+            impl_path = _evidence_file(item.get("cpp_result"),
+                                       root, f"{case_id}.{test}.cpp")
+            _require(impl_path != result_path,
+                     f"{case_id}.{test}: C++ result reuses reference artifact path")
+            _require(item["cpp_result"]["sha256"] != item["reference_result"]["sha256"],
+                     f"{case_id}.{test}: C++ and reference artifacts must be distinct bytes")
+            implementation = _dict(json.loads(impl_path.read_text(encoding="utf-8")),
+                                   f"{case_id}.{test}.cpp")
+            engine = _dict(implementation.get("engine_provenance"),
+                           f"{case_id}.{test}.cpp.engine_provenance")
+            impl_sha = manifest.get("implementation_commit")
+            _require(isinstance(impl_sha, str) and COMMIT.fullmatch(impl_sha) is not None,
+                     "C++ engine implementation commit must be SHA pinned")
+            _require(engine.get("producer") == "SPARAMVIEW_CPP20_COM_ENGINE" and
+                     engine.get("execution_kind") == "REAL_BINARY_OUTPUT" and
+                     engine.get("source_commit") == impl_sha and
+                     str(engine.get("ci_run_url", "")).startswith(
+                         "https://github.com/july-rust/SParamView-Public/actions/runs/") and
+                     isinstance(engine.get("binary_sha256"), str) and
+                     SHA256.fullmatch(engine["binary_sha256"]) is not None,
+                     f"{case_id}.{test}: missing C++ binary/build/run provenance")
+            for label, d in (("reference", reference), ("cpp", implementation)):
+                _require(d.get("test") == test and
+                         d.get("profile_id") == manifest["profile_id"] and
+                         d.get("source_sha256") == fingerprint,
+                         f"{case_id}.{test}.{label}: source/profile/test mismatch")
+            _require(reference.get("reference_commit") ==
+                     manifest["reference"]["source_commit"],
+                     f"{case_id}.{test}: official reference version mismatch")
+            expected = _finite(reference.get("com_db"), f"{case_id}.{test}.reference.com_db")
+            actual = _finite(implementation.get("com_db"), f"{case_id}.{test}.cpp.com_db")
+            tol = _finite(item.get("tolerance_db"), f"{case_id}.{test}.tolerance_db")
+            _require(0 <= tol <= 0.1,
+                     f"{case_id}.{test}: invalid/unreasonably loose numeric tolerance")
+            _require(abs(actual - expected) <= tol,
+                     f"{case_id}.{test}: independent reference disagreement")
+        _require(observed == {"Test1", "Test2"},
+                 f"{case_id}: incomplete package tests")
+    return {"status": "PROFILE_AND_ENGINE_EVIDENCE_VALIDATED",
+            "cases": len(manifest["cases"]),
+            "package_runs": 2 * len(manifest["cases"]),
+            "limitations": "Machine-checked SHA/results are not a substitute for "
+                           "reviewing the actual IEEE standard and external oracle."}
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--manifest", required=True, type=Path)
+    parser.add_argument("--root", required=True, type=Path)
+    parser.add_argument("--mode", choices=("schema", "reference-ready", "qualify"), default="qualify")
+    args = parser.parse_args()
+    try:
+        manifest = _dict(json.loads(args.manifest.read_text(encoding="utf-8")), "manifest")
+        if args.mode == "schema":
+            schema_check(manifest)
+            print("SCHEMA PASS (COM numerical qualification NOT claimed)")
+        elif args.mode == "reference-ready":
+            print(json.dumps(reference_ready(manifest), indent=2))
+        else:
+            print(json.dumps(qualify_normative(manifest, args.root), indent=2))
+        return 0
+    except (QualificationError, OSError, ValueError, json.JSONDecodeError) as exc:
+        print(f"BLOCKED/FAIL: {exc}")
+        return 2
+
+if __name__ == "__main__":
+    raise SystemExit(main())

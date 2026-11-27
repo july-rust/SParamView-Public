@@ -584,6 +584,8 @@ void writeMappingCsv(const fs::path &p, const std::vector<Channel> &cs) {
     out << ',' << csvText(c.group) << ',' << csvText(c.alias) << ','
         << csvText(c.id) << ",v3-text-percent\r\n";
   }
+  // close() flushes buffered bytes and reports delayed write failures.
+  out.close();
   if (!out)
     throw Error("CSV write failed");
 }

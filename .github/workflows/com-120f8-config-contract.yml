@@ -1,0 +1,145 @@
+name: COM final 120F reference config and source input contract (012_12)
+on:
+  pull_request:
+    branches: [integration/v1.4.0]
+    paths:
+      - 'scripts/com_120f8_config_contract.py'
+      - 'scripts/com_120f8_numerical_gate.py'
+      - 'tests/channel_analysis/test_com_120f8_numerical_gate.py'
+      - 'tests/channel_analysis/test_com_120f8_config_contract.py'
+      - 'tests/channel_analysis/test_com_120f8_published_profile.py'
+      - 'include/si/channel_analysis/com_120f8.hpp'
+      - 'tests/fixtures/channel/com_reference/manifest.json'
+      - '.github/workflows/com-120f8-config-contract.yml'
+  push:
+    branches: [integration/v1.4.0]
+    paths:
+      - 'scripts/com_120f8_config_contract.py'
+      - 'scripts/com_120f8_numerical_gate.py'
+      - 'tests/channel_analysis/test_com_120f8_numerical_gate.py'
+      - 'tests/channel_analysis/test_com_120f8_config_contract.py'
+      - 'tests/channel_analysis/test_com_120f8_published_profile.py'
+      - 'include/si/channel_analysis/com_120f8.hpp'
+      - 'tests/fixtures/channel/com_reference/manifest.json'
+      - '.github/workflows/com-120f8-config-contract.yml'
+permissions:
+  contents: read
+jobs:
+  source-verified-offline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Verify original numeric source and conversion contract
+        run: |
+          python -m unittest discover -s tests/channel_analysis -p 'test_com_120f8_published_profile.py' -v
+          python -m unittest discover -s tests/channel_analysis -p 'test_com_120f8_config_contract.py' -v
+          python -m unittest discover -s tests/channel_analysis -p 'test_com_120f8_numerical_gate.py' -v
+      - name: Generate config for three offline candidates without false runtime claims
+        shell: bash
+        run: |
+          set -euo pipefail
+          for loss in 10 16 18; do
+            python scripts/com_120f8_config_contract.py --channel "$loss" \
+              --output-csv "$RUNNER_TEMP/012-12-c2c-$loss.csv" \
+              > "$RUNNER_TEMP/012-12-static-$loss.json"
+            python - "$RUNNER_TEMP/012-12-static-$loss.json" <<'PY'
+          import json,sys
+          d=json.load(open(sys.argv[1],encoding='utf-8'))
+          assert d['status']=='STATIC_CONTRACT_PASS' and d['mapped_source_leaves']==68
+          assert d['source_inputs']['status']=='NOT_RUN'
+          assert d['independent_parser_load']['status']=='NOT_RUN'
+          assert d['normative_com_db'] is None and d['normative_pass_fail'] is None
+          PY
+          done
+  independent-loader-and-ieee-input:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    needs: source-verified-offline
+    steps:
+      - uses: actions/checkout@v5
+      - name: Checkout pinned independent COM 4.17-compatible SiCoPR
+        uses: actions/checkout@v5
+        with:
+          repository: tbermen/SiCoPR
+          ref: cb7c4be5c63d41e88b6ee7d04fb17e0046ab0f75
+          path: _external_qa_sicopr
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Verify source commit and install QA-only third-party parser
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C _external_qa_sicopr rev-parse HEAD)" = cb7c4be5c63d41e88b6ee7d04fb17e0046ab0f75
+          test -f _external_qa_sicopr/LICENSE
+          python -m pip install --disable-pip-version-check --no-cache-dir './_external_qa_sicopr[plots]'
+      - name: Download SHA-pinned public historical IEEE channel archive
+        shell: bash
+        run: |
+          python - "$RUNNER_TEMP/012-12-pinned-source.zip" <<'PY'
+          import importlib.util,pathlib,sys
+          spec=importlib.util.spec_from_file_location('historical','scripts/com_3ck_c2c_real_reference.py')
+          module=importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(module)
+          raw=module.download(module.CHANNEL_URL,module.CHANNEL_ZIP_SHA)
+          pathlib.Path(sys.argv[1]).write_bytes(raw)
+          print('IEEE historical original source SHA verified:',module.CHANNEL_ZIP_SHA)
+          PY
+      - name: Real reference CSV parse and original S4P SHA qualification for three groups
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p _qa_receipts
+          for loss in 10 16 18; do
+            python scripts/com_120f8_config_contract.py --channel "$loss" \
+              --output-csv "$RUNNER_TEMP/012-12-reference-$loss.csv" \
+              --source-zip "$RUNNER_TEMP/012-12-pinned-source.zip" \
+              --loader-checkout _external_qa_sicopr \
+              > "_qa_receipts/012-12-verified-$loss.json"
+            python - "_qa_receipts/012-12-verified-$loss.json" <<'PY'
+          import json,sys
+          d=json.load(open(sys.argv[1],encoding='utf-8'))
+          assert d['status']=='STATIC_CONTRACT_PASS' and d['mapped_source_leaves']==68
+          assert d['package_case_order']==['Test 1','Test 2']
+          assert d['source_inputs']['status']=='INPUT_SHA_PASS'
+          assert d['source_inputs']['historical_only'] is True
+          assert d['independent_parser_load']['status']=='RUNTIME_LOAD_PASS'
+          assert d['independent_parser_load']['official_ieee_matlab_run']=='NOT_RUN'
+          assert d['normative_com_db'] is None and d['normative_pass_fail'] is None
+          print('012_12 input/profile qualified WITHOUT COM verdict',d['source_inputs']['channel_loss_label_db'])
+          PY
+          done
+      - name: Enforce 012_13 six-case numerical fail-closed boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/com_120f8_numerical_gate.py \
+            --receipt _qa_receipts/012-12-verified-10.json \
+            --receipt _qa_receipts/012-12-verified-16.json \
+            --receipt _qa_receipts/012-12-verified-18.json \
+            --output _qa_receipts/012-13-numerical-boundary.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path("_qa_receipts/012-13-numerical-boundary.json").read_text())
+          assert d["status"] == "FINAL_120F8_NUMERICAL_BLOCKED"
+          assert d["case_count"] == 6 and not d["final_120f_golden_qualified"]
+          assert d["final_profile_numeric_computation"] == "NOT_RUN"
+          assert all(x["reference_com_db"] is None and x["reference_fom_db"] is None
+                     and x["normative_pass_fail"] is None for x in d["cases"])
+          print("012_13: six candidate configurations verified, COM not evaluated")
+          PY
+      - name: Upload source-free QA receipts only, never vendor bytes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: com-012-12-config-and-input-qualification-receipts
+          path: |
+            _qa_receipts/012-12-verified-*.json
+            _qa_receipts/012-13-numerical-boundary.json
+          if-no-files-found: warn

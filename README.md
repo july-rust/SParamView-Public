@@ -5,7 +5,7 @@ SParamView is a desktop tool for Touchstone-based S-parameter analysis and visua
 > **Important Notice**
 > SParamView calculates and visualizes the provided Touchstone data as a reference tool. Depending on the input data, frequency range, port/channel mapping, interpolation or approximation, and other analysis conditions, displayed graphs and calculated results may differ from the actual system or measurement results. Do not treat the output as 100% accurate or authoritative. Use it as a reference for engineering review, and independently verify important decisions against the original data and trusted measurement or analysis results.
 
-Current official release: **[v1.3.5](https://github.com/july-rust/SParamView-Public/releases/tag/v1.3.5)**. v1.3.5 corrects spreadsheet save/reopen data loss with Mapping CSV v3 and refreshes successful-import guidance. It adds isolated startup/crash and native GUI qualification while retaining the v1.3.4 startup/cache protections. v1.3.3 previously hardened Touchstone port parsing and preserved mapping compatibility. v1.3.2 isolated project replacement caches, resets previous plot and comparison state, and shows the active Touchstone filename in the title bar. It retains v1.3.1 multi-process safety and preserves the [v1.3.0](https://github.com/july-rust/SParamView-Public/releases/tag/v1.3.0) Touchstone compatibility changes and all historical release assets. Validation covers core, Windows x64/ARM64, native ARM64 and macOS Apple Silicon.
+Current official release: **[v1.4.0](https://github.com/july-rust/SParamView-Public/releases/tag/v1.4.0)**. Independent ILD, ICN and Eye Diagram windows, runtime language switching and GUI improvements; COM deferred.
 
 Supported release targets:
 - Windows x64
@@ -17,10 +17,21 @@ Documentation:
 - [한국어 README](README_KO.md)
 - [English User Guide](docs/USER_GUIDE_EN.md)
 - [한국어 사용설명서](docs/USER_GUIDE_KO.md)
-- [Release notes](docs/Release_1.3.5.md)
+- [Release notes](docs/Release_1.4.0.md)
 - [Revision history](docs/Revision_History.md)
-- [Planned future feature: separate ILD / ICN / COM / Eye Diagram windows](docs/Channel_Analysis_Development_Plan.md)
-- [v1.4.0 numbered development plan (012_01–012_14)](docs/Development_Plan_012_v1.4.0.md)
+- [Historical channel-analysis development plan (COM deferred)](docs/Channel_Analysis_Development_Plan.md)
+- [Development history and release closeout (012_62)](docs/Development_Plan_012_v1.4.0.md)
+
+### What's new in v1.4.0
+
+- Independent ILD, Generic ICN and simulated NRZ Eye Diagram analysis windows. Select the mapped victim/path; use Auto Analysis/Auto Preview for initial conditions or Run Manual for known conditions. Review assumptions, warnings, and quality status; export CSV/PNG.
+- ILD displays measured/fitted insertion loss and deviation. ICN integrates mapped NEXT/FEXT paths with explicit signal/filter and independent-path RSS assumptions. Eye Diagram is a band-limited simulation, not measured BER. Auto settings are engineering assumptions, not inferred PHY settings.
+- Eye Diagram checks DC quality. For missing DC, start frequency up to 10 kHz has no frequency-based confirmation, above 10 kHz and below 100 kHz requires confirmation, and at or above 100 kHz is blocked; other quality checks still apply. Conditional AC-like one-pole extrapolation does not establish physical topology or long-pattern accuracy.
+- Runtime English/Korean/Japanese language switching; Language menu stays in English. New resets the workspace after unsaved-change confirmation; multiple Touchstone files are processed sequentially with individual mapping. Last directory and main-window state are remembered. Analysis windows adapt to the display; guidance scrolls independently of plots. Table refresh, overlay and rendering are optimized.
+- Default limits: RL -10 dB, IL -3 dB, NEXT/FEXT -20 dB, TDR -10%; checks initially off. These are configurable examples, not standards.
+- Windows user ZIP excludes optional test executables and verification launcher; separate QA ZIP supports validation.
+
+**Scope:** engineering-reference calculations only. COM is deferred and has no production menu. No IEEE/SNIA/MIPI compliance, measured BER or exhaustive physical-platform/HiDPI certification is claimed.
 
 Core analysis includes RL/IL/NEXT/FEXT and Quick TDR workflows. Quick TDR is a band-limited estimate and should not be treated as an instrument-equivalent measurement.
 

@@ -1,10 +1,10 @@
 # SParamView User Guide
 
-**Applies to:** SParamView **v1.3.5 official release**
+**Applies to:** SParamView **v1.4.0 official release**
 **Supported platforms:** Windows x64 / Windows ARM64 / macOS Apple Silicon (arm64)
-**Documentation updated:** **2026-11-14 (KST)**. v1.3.5 integrates Mapping CSV formula-safety, lossless versioned import, guarded GUI startup and fail-closed cache construction; v1.3.3 hardens malformed numeric port declarations and uses linear input parsing while preserving valid legacy label conventions. Covers v1.3.2 project switching and title bar, v1.3.1 multi-process cache safety, v1.3.0 Touchstone/port-label compatibility, Windows package layout, and the v1.2.5 cache policy. Historical release assets are unchanged.
+**Documentation updated:** 2026-11-27 (KST). Includes new analyzers, localization and GUI improvements.
 
-[한국어 사용자 설명서](USER_GUIDE_KO.md) | [English README](../README_EN.md) | [v1.3.5 Release Notes](Release_1.3.5.md)
+[한국어 사용자 설명서](USER_GUIDE_KO.md) | [English README](../README_EN.md) | [v1.4.0 Release Notes](Release_1.4.0.md)
 
 ---
 
@@ -98,7 +98,7 @@ See [Temporary Cache Cleanup](Temporary_Cache_Cleanup.md) and [v1.2.5 Release No
 - **Standard representations:** Hz/kHz/MHz/GHz, RI/MA/DB, supported Full/Lower/Upper matrices, physical-port references, two-port ordering, and declared mixed-mode data. Correct P/N and Near/Far mapping still require verified physical evidence.
 - **Port-name comments:** `! Port 1 = J1-A1 NET_P` and vendor `! Port1_J1_A1::NET_P` are both recognized. A `!.DiffChannels` comment block is a vendor extension, **not** the standardized Touchstone `[Mixed-Mode Order]` keyword. Invalid, incomplete or conflicting endpoint/NET/polarity evidence is not silently trusted; confirm mapping manually.
 - **Cache lifecycle:** binary cache metadata schema changed in v1.3.0 to avoid reusing older missing port labels. The v1.2.5 owned-session temporary-file cleanup policy continues unchanged.
-- **Windows installed ZIP:** the root contains only `SParamView.exe` as an EXE, together with necessary Qt and MSVC runtime DLLs. The CLI lives at `tools/si_cli.exe`, test programs at `tests/si_*.exe`, and the packaged `Run_Windows_Verification.cmd` uses those locations.
+- **Windows installed ZIP:** the root contains only `SParamView.exe` as an EXE, together with necessary Qt and MSVC runtime DLLs. The CLI remains at `tools/si_cli.exe`. For v1.4.0 candidates, the separate optional full QA ZIP contains `tests/si_*.exe` and `Run_Windows_Verification.cmd`; the standard user ZIP does not contain these QA-only files.
 
 Official specification: [IBIS Touchstone v2.1](https://ibis.org/touchstone_ver2.1/touchstone_ver2_1.pdf). Release verification: [GitHub Actions v1.3.0](https://github.com/july-rust/SParamView-Public/actions/runs/40807027224).
 
@@ -110,15 +110,15 @@ Download the package that matches your system from GitHub Releases.
 
 | System | Recommended package |
 |---|---|
-| Windows x64 | `SParamView_Windows_x64_v1.3.5.zip` |
-| Windows ARM64 | `SParamView_Windows_ARM64_v1.3.5.zip` |
-| macOS Apple Silicon | `SParamView_macOS_AppleSilicon_arm64_v1.3.5.dmg` or `.zip` |
+| Windows x64 | `SParamView_Windows_x64_v1.4.0.zip` |
+| Windows ARM64 | `SParamView_Windows_ARM64_v1.4.0.zip` |
+| macOS Apple Silicon | `SParamView_macOS_AppleSilicon_arm64_v1.4.0.dmg` or `.zip` |
 
 SHA-256 files are also provided with the release. To verify download integrity, run `Get-FileHash <filename> -Algorithm SHA256` in Windows PowerShell or `shasum -a 256 <filename>` in macOS Terminal, then compare the result with the corresponding `.sha256` file.
 
 ### 2.2 Windows
 
-Extract the ZIP package and run the root-level `SParamView.exe`; auxiliary command-line and test executables are in `tools/` and `tests/`. Windows reputation or security warnings may appear. Confirm that the file came from the official GitHub release, verify the SHA-256 value, and follow your organization’s security policy before running it.
+Extract the ZIP package and run the root-level `SParamView.exe`; the command-line tool is in `tools/`. Test executables and the verification command are in the separate full QA ZIP for v1.4.0 candidates. Windows reputation or security warnings may appear. Confirm that the file came from the official GitHub release, verify the SHA-256 value, and follow your organization’s security policy before running it.
 
 ### 2.3 macOS Apple Silicon
 
@@ -588,7 +588,7 @@ Contact: **sparamview@gmail.com**
 
 ## 22. Documentation verification sources
 
-Historical v1.2.1 feature changes are supported by the [v1.2.1 release notes](Release_1.2.1.md) and the source links below. For the current release, see the [v1.3.5 release notes](Release_1.3.5.md), [temporary-cache policy](Temporary_Cache_Cleanup.md), [revision history](Revision_History.md), and [tagged source](https://github.com/july-rust/SParamView-Public/tree/v1.3.5). Previous v1.2.4a validation is retained in the [historical release notes](Release_1.2.4a.md).
+Historical v1.2.1 feature changes are supported by the [v1.2.1 release notes](Release_1.2.1.md) and the source links below. For the current release, see the [v1.4.0 release notes](Release_1.4.0.md), [temporary-cache policy](Temporary_Cache_Cleanup.md), [revision history](Revision_History.md), and [tagged source](https://github.com/july-rust/SParamView-Public/tree/v1.4.0). Previous v1.2.4a validation is retained in the [historical release notes](Release_1.2.4a.md).
 
 - [Initial TDR axes and automatic scaling](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/src/plot.cpp)
 - [Plot interaction and viewport restoration](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/src/navigation.cpp)
@@ -601,4 +601,20 @@ Historical v1.2.1 feature changes are supported by the [v1.2.1 release notes](Re
 
 ### Document Version
 
-This guide was updated on **2026-11-14 (KST)** for the **SParamView v1.3.5 official release**. The embedded screenshots remain **historical v1.2.1 validation captures** (see [images/README.md](images/README.md)); no v1.3.2 screenshots are claimed. The published v1.3.0 tag and attached guide assets remain immutable.
+This guide applies to v1.4.0 (2026-11-27 KST); embedded screenshots are historical v1.2.1 captures.
+
+
+
+
+## 23. What's new in v1.4.0
+
+- Independent ILD, Generic ICN and simulated NRZ Eye Diagram analysis windows. Select the mapped victim/path; use Auto Analysis/Auto Preview for initial conditions or Run Manual for known conditions. Review assumptions, warnings, and quality status; export CSV/PNG.
+- ILD displays measured/fitted insertion loss and deviation. ICN integrates mapped NEXT/FEXT paths with explicit signal/filter and independent-path RSS assumptions. Eye Diagram is a band-limited simulation, not measured BER. Auto settings are engineering assumptions, not inferred PHY settings.
+- Eye Diagram checks DC quality. For missing DC, start frequency up to 10 kHz has no frequency-based confirmation, above 10 kHz and below 100 kHz requires confirmation, and at or above 100 kHz is blocked; other quality checks still apply. Conditional AC-like one-pole extrapolation does not establish physical topology or long-pattern accuracy.
+- Runtime English/Korean/Japanese language switching; Language menu stays in English. New resets the workspace after unsaved-change confirmation; multiple Touchstone files are processed sequentially with individual mapping. Last directory and main-window state are remembered. Analysis windows adapt to the display; guidance scrolls independently of plots. Table refresh, overlay and rendering are optimized.
+- Default limits: RL -10 dB, IL -3 dB, NEXT/FEXT -20 dB, TDR -10%; checks initially off. These are configurable examples, not standards.
+- Windows user ZIP excludes optional test executables and verification launcher; separate QA ZIP supports validation.
+
+**Scope:** engineering-reference calculations only. COM is deferred and has no production menu. No IEEE/SNIA/MIPI compliance, measured BER or exhaustive physical-platform/HiDPI certification is claimed.
+
+[Release notes](Release_1.4.0.md) · [ILD](Channel_Analysis_ILD_012_05.md) · [ICN](Channel_Analysis_ICN_012_06.md) · [Eye Diagram](Channel_Analysis_Eye_012_07.md) · [AC/Auto](qualification/012_54_AC_Auto_Analysis.md).

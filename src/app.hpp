@@ -2,8 +2,11 @@
 #include "si/core.hpp"
 #include "workers.hpp"
 #include "cache_session.hpp"
+#include "user_preferences.hpp"
+#include "gui/analysis/analysis_windows.hpp"
 #include <QtConcurrent>
 #include <QtWidgets>
+#include <QWindow>
 #include <functional>
 #include <set>
 
@@ -38,6 +41,7 @@ struct PlotSnapshot {
   std::vector<si::Result> curves;
   si::Settings settings;
   QString project = "Untitled";
+  QString displayLanguage = QStringLiteral("en");
   si::Metric metric = si::Metric::RL;
   bool heatmap = false, margin = false, bothDirections = false, fitAll = false;
   std::set<std::string> highlightChannelIds;
@@ -48,6 +52,7 @@ QRectF graphArea(QRectF, const PlotSnapshot &);
 std::pair<double, double> graphXRange(const PlotSnapshot &);
 std::pair<double, double> graphYRange(const PlotSnapshot &);
 QString graphParameterLabel(const PlotSnapshot &);
+QString graphTitleLabel(const PlotSnapshot &);
 QString graphQualityLabel(const PlotSnapshot &);
 void paintGraph(QPainter &, QRectF, const PlotSnapshot &, bool interactive = false);
 QPolygonF simplifyGraphLine(const QPolygonF &, double tolerance);
@@ -109,6 +114,7 @@ private:
 };
 struct ReportOptions {
   bool summary = true, details = true, graphs = true, raw = false;
+  QString displayLanguage = QStringLiteral("en");
 };
 void writeReport(const QString &path, const std::vector<si::Result> &,
                  const std::vector<Revision> &, const si::Settings &,
@@ -123,44 +129,11 @@ public:
   MainWindow();
   ~MainWindow() override;
   void openPaths(QStringList);
-  void loadProject(QString);
+  void loadProject(QString, bool rememberDirectory = true);
+  void showWithSavedWindowState();
   bool selftest(const QString &examples, const QString &output);
   bool validateProject(const QString &project, const QString &output);
-  void installHeaderProjectButtons() {
-    if (!centralWidget() || !centralWidget()->layout())
-      return;
-    if (findChild<QPushButton *>("headerOpenProjectButton"))
-      return;
-    auto *first = centralWidget()->layout()->itemAt(0);
-    auto *banner = first ? dynamic_cast<QBoxLayout *>(first->layout()) : nullptr;
-    if (!banner)
-      return;
-    int insertAt = banner->count();
-    for (int i = 0; i < banner->count(); ++i) {
-      auto *item = banner->itemAt(i);
-      auto *existing = item ? qobject_cast<QPushButton *>(item->widget()) : nullptr;
-      if (existing && existing->text().contains("Open Touchstone")) {
-        insertAt = i + 1;
-        break;
-      }
-    }
-    auto *openProject = new QPushButton("Open Project");
-    openProject->setObjectName("headerOpenProjectButton");
-    openProject->setToolTip("Open an SParamView project (.siproject)");
-    connect(openProject, &QPushButton::clicked, this, [this] {
-      const auto path = QFileDialog::getOpenFileName(
-          this, "Project", {}, "SI Project (*.siproject)");
-      if (!path.isEmpty())
-        loadProject(path);
-    });
-    auto *saveProjectButton = new QPushButton("Save Project");
-    saveProjectButton->setObjectName("headerSaveProjectButton");
-    saveProjectButton->setToolTip("Save the current SParamView project");
-    connect(saveProjectButton, &QPushButton::clicked, this,
-            [this] { saveProject(); });
-    banner->insertWidget(insertAt, openProject);
-    banner->insertWidget(insertAt + 1, saveProjectButton);
-  }
+  void installHeaderProjectButtons();
 
 protected:
   void dragEnterEvent(QDragEnterEvent *) override;
@@ -170,6 +143,7 @@ protected:
 private:
   // Declared before all cache users so its directory outlives their handles.
   CacheSession cacheSession;
+  std::unique_ptr<si::gui::AnalysisWindowManager> analysisWindows;
   // A private workspace subtree rotates on successful full-project replacement.
   // Appending a Touchstone revision keeps the existing workspace subtree.
   std::shared_ptr<QTemporaryDir> workspaceCache;
@@ -177,6 +151,7 @@ private:
   std::vector<si::Result> results;
   std::vector<si::Job> lastJobs;
   std::vector<size_t> resultRows;
+  bool resultColumnSizingDirty = true; // language/header changes invalidate content widths
   si::Settings settings, lastSettings;
   QString projectName = "Untitled", projectPath;
   bool busy = false, dirty = false, restoringProject = false;
@@ -214,6 +189,8 @@ private:
   int workspaceMode = 0, savedWorkspaceTab = 0, directionMode = 0;
   bool normalChannelsVisible = true, normalSettingsVisible = true;
   bool fullscreenWasMaximized = false;
+  bool persistStartupWindow = false;
+  void saveStartupWindowState();
   QRect fullscreenNormalGeometry;
   QByteArray normalSplitState, normalHorizontalState;
   void setWorkspaceMode(int);
@@ -232,6 +209,8 @@ private:
   void syncSettings();
   void applySettings();
   void editMapping();
+  bool confirmMapping(Revision &);
+  void openNextPath(QStringList, bool);
   bool reviewSignalType(Revision &);
   void chooseTerminations();
   void importMapping();
@@ -241,9 +220,12 @@ private:
   bool hasCurrentResult(si::Metric) const;
   std::vector<si::Job> requestedJobs(const std::vector<si::Metric> &) const;
   bool confirmProjectTransition();
+  void newWorkspace();
   void markDirty();
   void invalidateRevisionResults(const QString &);
+  void refreshAnalysisContext();
   void refreshResults();
+  void refreshResultLanguage();
   void showMetric(si::Metric);
   void refreshPlot(bool selectedOnly = false);
   void saveProject(bool as = false);

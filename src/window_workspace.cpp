@@ -1,3 +1,44 @@
+void MainWindow::showWithSavedWindowState() {
+  using namespace sparamview::preferences;
+  persistStartupWindow = true;
+  const auto state = readWindowState();
+  auto *screen = QGuiApplication::screenAt(QCursor::pos());
+  if (!screen) screen = QGuiApplication::primaryScreen();
+  if (screen) {
+    // Associate the native window with the cursor's screen before showing it.
+    winId();
+    if (windowHandle()) windowHandle()->setScreen(screen);
+    const auto area = screen->availableGeometry();
+    const auto rect = centeredNormalGeometry(state.normalSize, area);
+    if (rect.isValid()) {
+      resize(rect.size());
+      move(rect.topLeft());
+      if (!state.maximized) {
+        QTimer::singleShot(0, this, [this, area] {
+          if (!isMaximized() && !isMinimized() && !isFullScreen())
+            move(pos() + area.center() - frameGeometry().center());
+        });
+      }
+    }
+  } else if (state.normalSize.isValid()) {
+    resize(state.normalSize);
+  }
+  if (state.maximized) showMaximized();
+  else showNormal();
+}
+
+void MainWindow::saveStartupWindowState() {
+  if (!persistStartupWindow) return;
+  const bool full = isFullScreen();
+  const bool maximized = full ? fullscreenWasMaximized : isMaximized();
+  QRect normal = full && fullscreenNormalGeometry.isValid()
+                    ? fullscreenNormalGeometry : normalGeometry();
+  if (!normal.isValid() && !isMinimized() && !full && !maximized)
+    normal = geometry();
+  // Do not replace a good preference with invalid/minimized geometry.
+  if (normal.isValid() && !normal.size().isEmpty())
+    sparamview::preferences::writeWindowState({normal.size(), maximized});
+}
 void MainWindow::updateActiveTouchstoneTitle() {
   QString title = "SParamView · " + qs(si::version);
   if (QString::fromLatin1(architectureName()) == "ARM64")
@@ -28,7 +69,7 @@ void MainWindow::setResultsTextSize(int pixels) {
 void MainWindow::setDirectionMode(int mode) {
   if(directionMode != (mode % 3 + 3) % 3) markDirty();
   directionMode = (mode % 3 + 3) % 3;
-  if (directionButton) { directionButton->setText(QStringList{"Near → Far", "Far → Near", "Both"}[directionMode]); directionButton->setToolTip("Direction: Near → Far → Far → Near → Both"); }
+  if (directionButton) { directionButton->setText(sparamview::ui_language::textFor(this, QStringList{"Near → Far", "Far → Near", "Both"}[directionMode])); directionButton->setToolTip(sparamview::ui_language::textFor(this, "Direction: Near → Far → Far → Near → Both")); }
   settings.reverse = directionMode == 1;
   if (!results.empty() && !busy) { refreshResults(); refreshPlot(); }
 }
@@ -94,7 +135,9 @@ void MainWindow::toggleFullscreen() {
     }
   } else {
     fullscreenWasMaximized = isMaximized();
-    if (!fullscreenWasMaximized) fullscreenNormalGeometry = geometry();
+    // Refresh on every entry, including maximized -> fullscreen. Never reuse
+    // a normal rectangle from an earlier fullscreen session.
+    fullscreenNormalGeometry = fullscreenWasMaximized ? normalGeometry() : geometry();
     showFullScreen();
   }
   fullscreenAction->setChecked(isFullScreen());
@@ -144,6 +187,8 @@ void MainWindow::saveWorkspaceLayout() {
   prefs.setValue("tablePixels", tableTextSize->currentData());
 }
 MainWindow::~MainWindow() {
+  // Shutdown channel workers before destroying QFutureWatchers and source caches.
+  analysisWindows.reset();
   if (viewControl) viewControl->cancelled = true;
   viewPool.waitForDone();
   if (control)
@@ -163,7 +208,7 @@ MainWindow::~MainWindow() {
     qWarning() << "SParamView: private cache will be retried on next launch";
 }
 void MainWindow::error(const QString &text) {
-  QMessageBox::warning(this, "SParamView", text);
+  QMessageBox::warning(this, "SParamView", sparamview::ui_language::diagnosticText(text,sparamview::ui_language::current(this)));
 }
 void MainWindow::task(std::function<void(si::Control *)> work,
                       std::function<void()> done) {
@@ -186,7 +231,7 @@ void MainWindow::task(std::function<void(si::Control *)> work,
         this,
         [this, f, text] {
           progress->setValue(int(f * 1000));
-          statusBar()->showMessage(qs(text));
+          sparamview::ui_language::status(statusBar(),qs(text));
         },
         Qt::QueuedConnection);
   };
@@ -200,12 +245,11 @@ void MainWindow::task(std::function<void(si::Control *)> work,
             progress->hide();
             cancelButton->hide();
             watcher->deleteLater();
+            sparamview::ui_language::status(statusBar(),state->cancelled ? "Cancelled · Ready" : "Ready");
             if (!failure->isEmpty())
               error(*failure);
             else if (!state->cancelled && done)
               done();
-            statusBar()->showMessage(state->cancelled ? "Cancelled · Ready"
-                                                      : "Ready");
           });
   taskPool.setMaxThreadCount(1);
   taskPool.setExpiryTimeout(-1);

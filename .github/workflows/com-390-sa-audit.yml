@@ -1,0 +1,55 @@
+name: COM IEEE 2022 sponsor-ballot C2C read-only audit (012_09)
+on:
+  pull_request:
+    branches: [integration/v1.4.0]
+    paths:
+      - 'scripts/ieee_com_390_sa_probe.py'
+      - 'tests/channel_analysis/test_ieee_com_390_sa_probe.py'
+      - '.github/workflows/com-390-sa-audit.yml'
+  push:
+    branches: [integration/v1.4.0]
+    paths:
+      - 'scripts/ieee_com_390_sa_probe.py'
+      - 'tests/channel_analysis/test_ieee_com_390_sa_probe.py'
+      - '.github/workflows/com-390-sa-audit.yml'
+  workflow_dispatch:
+jobs:
+  historical-profile-provenance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Test read-only XLSX inventory, no fabricated IEEE qualification
+        run: |
+          python -m unittest discover -s tests/channel_analysis -p test_ieee_com_390_sa_probe.py -v
+      - name: Extract sponsor-ballot-era C2C numeric settings from official IEEE hosted archive
+        run: |
+          set -o pipefail
+          python scripts/ieee_com_390_sa_probe.py | tee com-390-3ck-sa-c2c-provenance.json
+      - name: Assert that this source cannot be mislabeled as final standard/COM C++ PASS
+        run: |
+          python - <<'PY'
+          import json
+          with open("com-390-3ck-sa-c2c-provenance.json",encoding="utf-8") as f:
+              d=json.load(f)
+          assert d["source_url"].startswith("https://www.ieee802.org/")
+          assert len(d["zip_sha256"])==64
+          assert len(d["profile_workbook_sha256"])==64
+          assert d["named_parameter_count"]>=12
+          assert d["normative_table_120F8_qualified"] is False
+          assert d["ieee_com_cpp_numerical_goldens"]==0
+          assert d["third_party_bytes_uploaded"] is False
+          print("2022 IEEE SA C2C HISTORICAL SOURCE AUDITED; FINAL COM NOT QUALIFIED")
+          PY
+      - name: Preserve metadata only — NEVER redistribute third-party ZIP or XLSX
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ieee-2022-3ck-sa-c2c-config-evidence
+          path: com-390-3ck-sa-c2c-provenance.json
+          if-no-files-found: warn

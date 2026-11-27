@@ -1,0 +1,1300 @@
+// 012_04: event-loop and worker lifecycle tests (no numerical engine needed).
+#include "gui/analysis/analysis_windows.hpp"
+#include "../../src/gui/analysis/plot_axis.hpp"
+#include <QApplication>
+#include <QCoreApplication>
+#include <QElapsedTimer>
+#include <QDir>
+#include <QEvent>
+#include <QPointer>
+#include <QThread>
+#include <QTimer>
+#include <iostream>
+#include <cmath>
+#include <fstream>
+#include <iomanip>
+#include <filesystem>
+#include <QTemporaryDir>
+#include <QFile>
+#include <QImage>
+#include <QVariant>
+#include <QMouseEvent>
+#include <QWheelEvent>
+#include <QPalette>
+#include <QColor>
+#include <stdexcept>
+
+using namespace si::gui;
+using S = si::channel::Status;
+namespace {
+void check(bool condition, const char *message) {
+  if (!condition) throw std::runtime_error(message);
+}
+bool pumpUntil(const std::function<bool()> &predicate, int timeoutMs = 6000) {
+  QElapsedTimer elapsed;
+  elapsed.start();
+  while (!predicate() && elapsed.elapsed() < timeoutMs) {
+    QCoreApplication::processEvents(QEventLoop::AllEvents, 30);
+    QThread::msleep(2);
+  }
+  QCoreApplication::processEvents();
+  return predicate();
+}
+// Wait for the normal event loop to paint the new data; grab() would
+// itself force painting and can mask a native window update regression.
+QVariantList paintedAxes(QWidget *plot,int panel) {
+  const QByteArray key=QByteArray("paintedAxes")+QByteArray::number(panel);
+  check(pumpUntil([&]{return plot->property(key.constData()).toList().size()==4;}),
+        "Analysis result did not reach normal paint event");
+  const auto axes=plot->property(key.constData()).toList();
+  for(const auto &v:axes) check(std::isfinite(v.toDouble()),"Nonfinite painted axis");
+  check(axes[1].toDouble()>axes[0].toDouble() &&
+        axes[3].toDouble()>axes[2].toDouble(),"Degenerate painted axis");
+  return axes;
+}
+void sendPlotWheel(QWidget *plot,QPoint pixels,QPoint angles) {
+  const QPoint center=plot->rect().center();
+  QWheelEvent event(QPointF(center),QPointF(plot->mapToGlobal(center)),
+                    pixels,angles,Qt::NoButton,Qt::NoModifier,
+                    Qt::ScrollUpdate,false);
+  QCoreApplication::sendEvent(plot,&event);
+}
+void checkBand(const QVariantList &axes,double start,double stop) {
+  check(std::abs(axes[0].toDouble()-start)<1 &&
+        std::abs(axes[1].toDouble()-stop)<1,"Painted frequency range is stale");
+}
+AnalysisContext context(const QString &sha = QStringLiteral("fixture-sha-256"),
+                        bool confirmed = true) {
+  AnalysisContext result;
+  result.activeSource = 0;
+  SourceItem source;
+  source.revision = QStringLiteral("Fixture Revision A");
+  source.sha256 = sha;
+  source.mappingDigest = QStringLiteral("physical-mapping-fixture");
+  source.channels = {QStringLiteral("Victim A"), QStringLiteral("Aggressor B")};
+  source.mappingConfirmed = confirmed;
+  result.sources.append(source);
+  return result;
+}
+AsyncWork slowWork(int loops = 90) {
+  return [loops](const std::atomic_bool &cancel, std::atomic_int &progress) -> WorkOutcome {
+    for (int i = 0; i < loops; ++i) {
+      if (cancel.load()) return {S::Cancelled, QStringLiteral("Cancellation observed")};
+      progress.store(i * 100 / loops);
+      QThread::msleep(3);
+    }
+    return {S::Valid, QStringLiteral("Fixture-only completion; not a real analysis")};
+  };
+}
+void drain(AsyncScheduler &scheduler) {
+  check(pumpUntil([&] { return scheduler.inFlight() == 0; }),
+        "Worker did not drain before timeout");
+}
+// The application actions must stay in the client area even when the
+// settings, plot or diagnostic text needs its own scrollbar.
+void checkCompactLayout(AnalysisWindow *window) {
+  auto *splitter=window->findChild<QSplitter *>(QStringLiteral("analysisWorkspaceSplitter"));
+  auto *plot=window->findChild<QScrollArea *>(QStringLiteral("analysisPlotScroll"));
+  auto *details=window->findChild<QTabWidget *>(QStringLiteral("analysisDetailsTabs"));
+  auto *toggle=window->findChild<QToolButton *>(QStringLiteral("analysisSettingsToggle"));
+  auto *settings=window->findChild<QScrollArea *>(window->feature()==Feature::Eye
+      ?QStringLiteral("eyeSettingsScroll"):QStringLiteral("analysisSettingsScroll"));
+  check(splitter && plot && details && toggle && settings,"Compact analysis workspace missing");
+  const auto originalSize=window->size();
+  const bool originalSettings=toggle->isChecked();
+  toggle->setChecked(true);
+  for(const QSize size:{QSize(984,648),QSize(640,480)}) {
+    window->resize(size);
+    QCoreApplication::processEvents();
+    check(window->width()<=size.width() && window->height()<=size.height(),
+          "Analysis content prevents small-window resizing");
+    const QStringList actions={QStringLiteral("analysisRun"),
+      QStringLiteral("analysisCancel"),QStringLiteral("analysisCsv"),
+      QStringLiteral("analysisPng"),window->feature()==Feature::Eye
+      ?QStringLiteral("eyeAutoPreview"):QStringLiteral("analysisAuto")};
+    for(const auto &name:actions) {
+      auto *button=window->findChild<QPushButton *>(name);
+      check(button && button->isVisibleTo(window) &&
+          window->rect().contains(QRect(button->mapTo(window,QPoint(0,0)),button->size())),
+          "Analysis action clipped or hidden at compact size");
+    }
+    check(plot->isVisibleTo(window) && plot->viewport()->width()>100 &&
+        plot->viewport()->height()>80,"Plot viewport is not usable at compact size");
+    check(settings->isVisibleTo(window) && settings->viewport()->width()>80,
+          "Settings viewport unavailable at compact size");
+    if(size.width()==984)
+      check(plot->verticalScrollBar()->maximum()==0,
+            "Default analysis plot must fit in the reference compact client area");
+    details->setCurrentIndex(0);
+    QCoreApplication::processEvents();
+    const QSize plotBefore=plot->viewport()->size();
+    const int detailsBefore=details->height();
+    details->setCurrentIndex(1);
+    QCoreApplication::processEvents();
+    auto *guide=window->findChild<QScrollArea *>("analysisGuideScroll");
+    check(guide && guide->isVisibleTo(window) &&
+          guide->verticalScrollBar()->maximum()>0,
+          "Long interpretation must remain scrollable");
+    guide->verticalScrollBar()->setValue(guide->verticalScrollBar()->maximum());
+    check(plot->viewport()->size()==plotBefore && details->height()==detailsBefore,
+          "Interpretation tab must not shrink plot viewport");
+    details->setCurrentIndex(0);
+    QCoreApplication::processEvents();
+    check(plot->viewport()->size()==plotBefore,"Returning to result tab resized plot");
+    if(window->feature()==Feature::Eye) {
+      auto *tabs=window->findChild<QTabWidget *>(QStringLiteral("eyeManualSettingsTabs"));
+      check(tabs && tabs->count()==3,"Eye manual settings must be grouped");
+      const QStringList representatives={QStringLiteral("eyeBitRateGbps"),
+          QStringLiteral("eyeFftLength"),QStringLiteral("eyeRxMaximumMv")};
+      for(int i=0;i<tabs->count();++i) {
+        tabs->setCurrentIndex(i);
+        auto *field=tabs->widget(i)->findChild<QWidget *>(representatives[i]);
+        check(field && field->isVisibleTo(settings->widget()),
+              "Eye manual field inaccessible on its settings tab");
+        settings->ensureWidgetVisible(field,2,2);
+        QCoreApplication::processEvents();
+        check(settings->viewport()->rect().intersects(
+            QRect(field->mapTo(settings->viewport(),QPoint(0,0)),field->size())),
+            "Eye manual field cannot be reached by scrolling");
+      }
+      tabs->setCurrentIndex(0);
+    }
+    const int expandedWidth=plot->viewport()->width();
+    toggle->setChecked(false);
+    QCoreApplication::processEvents();
+    check(settings->isHidden() && plot->viewport()->width()>=expandedWidth,
+          "Collapsing settings must release plot space");
+    toggle->setChecked(true);
+    QCoreApplication::processEvents();
+  }
+  toggle->setChecked(originalSettings);
+  window->resize(originalSize);
+  QCoreApplication::processEvents();
+}
+}
+
+int main(int argc, char **argv) {
+  QApplication app(argc, argv);
+  std::cout << "Analysis GUI platform: " << QGuiApplication::platformName().toStdString() << std::endl;
+  try {
+  // Numeric display bounds are independent of the analysis engine and mode.
+  using si::gui::detail::PlotBounds;
+  {
+    PlotBounds negativeDb;negativeDb.include(-80);negativeDb.include(-75);
+    check(negativeDb.pad(0.08,false,false,0.05) && negativeDb.low<-80 && negativeDb.high>-75 && negativeDb.high<0,"dB axis incorrectly includes zero");
+    PlotBounds tiny; tiny.include(0);tiny.include(1e-8);
+    check(tiny.pad(0.08,true,true) && tiny.low==0 && tiny.high>1e-8 && tiny.high<2e-8,"Tiny linear ICN axis flattened by absolute padding");
+    PlotBounds zero;zero.include(0);
+    check(zero.pad(0.08,true,true) && zero.low==0 && zero.high>0,"Zero-only data axis degenerate");
+    PlotBounds deviation;deviation.include(1e-13);
+    check(deviation.pad(0.08,true,false,0.05) && deviation.low<0 && deviation.high>=0.05,"ILD residual axis lacks meaningful zero-reference scale");
+    PlotBounds invalid;invalid.include(std::numeric_limits<double>::quiet_NaN());
+    check(!invalid.pad(0.08),"Nonfinite plot data accepted");
+    PlotBounds endpoint,interior,focused;
+    interior.include(-0.2);interior.include(0.3);
+    endpoint=interior;endpoint.include(23.9259);
+    check(si::gui::detail::firstSampleFocus(endpoint,interior,1e6,20e9,true,focused) &&
+          focused.low< -0.2 && focused.high>0.3 && focused.high<1,
+          "Isolated first-frequency peak flattens detail axis");
+    check(!si::gui::detail::firstSampleFocus(endpoint,interior,1e9,20e9,true,focused),
+          "Wide low-frequency interval must not be focused away");
+    check(!si::gui::detail::firstSampleFocus(interior,interior,1e6,20e9,true,focused),
+          "Normal data must retain full autoscaling");
+    PlotBounds interiorPeak=interior;interiorPeak.include(22);
+    check(!si::gui::detail::firstSampleFocus(endpoint,interiorPeak,1e6,20e9,true,focused),
+          "Broad/second peak must remain in displayed bounds");
+  }
+    QMainWindow main;
+    AnalysisWindowManager manager(&main);
+    manager.installMenu();
+    auto *analysisMenu = main.menuBar()->findChild<QMenu *>(QStringLiteral("channelAnalysisMenu"));
+    check(analysisMenu && analysisMenu->actions().size() == 3,
+          "Analysis menu must expose exactly ILD, ICN and Eye");
+    check(!manager.action(Feature::Com) && !manager.existingWindow(Feature::Com),
+          "Deferred COM must not expose an action or window");
+    manager.setEngineAvailable(Feature::Com, true);
+    check(!manager.action(Feature::Com) && !manager.openWindow(Feature::Com) &&
+          !manager.existingWindow(Feature::Com),
+          "Deferred COM must remain inaccessible even after enable request");
+    const int releaseFeatureCount = int(Feature::Com);
+    for (int i = 0; i < releaseFeatureCount; ++i) {
+      auto *action = manager.action(static_cast<Feature>(i));
+      check(action && !action->isEnabled(), "Unimplemented engine is exposed as ready");
+    }
+
+    auto longContext=context();
+    longContext.sources[0].revision=QString(180,QLatin1Char('X'));
+    longContext.sources[0].channels[0]=QString(120,QLatin1Char('V'));
+    auto alternate=longContext.sources[0];
+    alternate.revision=QString(180,QLatin1Char('Y'));
+    alternate.channels[0]=QString(120,QLatin1Char('W'));
+    longContext.sources.append(alternate);
+    manager.setContext(longContext);
+    AnalysisWindow *windows[featureCount]{};
+    for (int i = 0; i < releaseFeatureCount; ++i) {
+      auto feature = static_cast<Feature>(i);
+      windows[i] = manager.openWindow(feature);
+      check(windows[i] && windows[i]->isWindow() && windows[i]->isVisible(),
+            "Analysis must open in a non-modal top-level window");
+      check(windows[i]->runButton() && !windows[i]->runButton()->isEnabled(),
+            "An unfinished numerical engine must not run");
+      check(manager.openWindow(feature) == windows[i], "Duplicate analysis window created");
+      QCoreApplication::processEvents();
+      if(QGuiApplication::screens().size()==1) {
+        const QRect work=windows[i]->screen()->availableGeometry();
+        const QSize preferred(std::max(640,qRound(work.width()*.75)),
+                              std::max(480,qRound(work.height()*.75)));
+        const QSize expected=preferred.boundedTo(QSize(std::max(300,work.width()-40),
+                                                      std::max(240,work.height()-80)));
+        check(windows[i]->size()==expected,"Initial analysis size must follow logical screen work area");
+      }
+      checkCompactLayout(windows[i]);
+      auto *sourceCombo=windows[i]->findChild<QComboBox *>(QStringLiteral("analysisSource"));
+      auto *victimCombo=windows[i]->findChild<QComboBox *>(QStringLiteral("analysisVictim"));
+      check(sourceCombo && victimCombo,"Source/victim selector missing");
+      check(sourceCombo->toolTip()==longContext.sources[0].revision &&
+            victimCombo->toolTip()==longContext.sources[0].channels[0],
+            "Initial full-name tooltip missing");
+      sourceCombo->setCurrentIndex(1);
+      check(sourceCombo->toolTip()==alternate.revision &&
+            victimCombo->toolTip()==alternate.channels[0],
+            "Source change did not refresh full-name tooltip");
+      victimCombo->setCurrentIndex(1);
+      check(victimCombo->toolTip()==alternate.channels[1],
+            "Victim change did not refresh full-name tooltip");
+      windows[i]->setContext(AnalysisContext{});
+      check(sourceCombo->toolTip().isEmpty() && victimCombo->toolTip().isEmpty(),
+            "Cleared context retained stale tooltip");
+      windows[i]->setContext(longContext);
+      check(sourceCombo->toolTip()==longContext.sources[0].revision &&
+            victimCombo->toolTip()==longContext.sources[0].channels[0],
+            "Restored context did not refresh full-name tooltip");
+      for (int j = 0; j < i; ++j)
+        check(windows[i] != windows[j], "Distinct analysis features share a window");
+    }
+    manager.setContext(context());
+    // The three release menu actions stay disabled until an engine registers.
+    // Only the isolated test manager enables the action to check focus/reuse.
+    manager.setEngineAvailable(Feature::Ild, true);
+    manager.action(Feature::Ild)->trigger();
+    check(manager.existingWindow(Feature::Ild) == windows[0],
+          "Repeated Analysis action did not reuse the existing window");
+    manager.setEngineAvailable(Feature::Ild, false);
+
+    // The main event loop must remain responsive during a background job.
+    bool timerFired = false;
+    QTimer::singleShot(20, &main, [&] { timerFired = true; });
+    check(windows[0]->startWork(slowWork()), "Test job failed to start");
+    check(pumpUntil([&] { return timerFired; }, 1000),
+          "A worker blocked the Qt event loop");
+    windows[0]->cancelButton()->click();
+    drain(manager.scheduler());
+    check(windows[0]->status() == S::Cancelled,
+          "Cancelled job must not publish a VALID result");
+
+    // A completed result is invalidated on context and mapping transitions.
+    check(windows[1]->startWork(slowWork(5)), "Short job failed to start");
+    drain(manager.scheduler());
+    check(windows[1]->status() == S::Valid, "Fixture job completion missing");
+    manager.setContext(context(QStringLiteral("different-source-sha")));
+    check(windows[1]->status() == S::Stale,
+          "Context change must invalidate previously completed results");
+
+    // A result from the older source is never published as the current result.
+    check(windows[2]->startWork(slowWork()), "Stale test job did not start");
+    manager.setContext(context(QStringLiteral("newer-source-sha")));
+    drain(manager.scheduler());
+    check(windows[2]->status() == S::Stale, "Older source result was not discarded");
+
+    // Exceptions from worker threads are carried to the GUI without terminate.
+    check(windows[1]->startWork([](const std::atomic_bool &,
+                                   std::atomic_int &) -> WorkOutcome {
+      throw std::runtime_error("synthetic engine failure");
+    }), "Exception test job did not start");
+    drain(manager.scheduler());
+    check(windows[1]->status() == S::Error, "Worker exception status not propagated");
+    check(windows[1]->startWork([](const std::atomic_bool &,
+                                   std::atomic_int &) -> WorkOutcome {
+      throw si::Cancelled();
+    }),"Cancelled exception test did not start");
+    drain(manager.scheduler());
+    check(windows[1]->status()==S::Cancelled,
+          "Cooperative cancellation exception reported as ERROR");
+
+
+    // Deleting a window while its worker is alive must not use a dangling QObject.
+    check(windows[0]->startWork(slowWork()), "Close-while-busy job did not start");
+    QPointer<AnalysisWindow> closed(windows[0]);
+    windows[0]->close();
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    QCoreApplication::processEvents();
+    check(!closed, "Closed window was not deleted");
+    drain(manager.scheduler());
+    auto *reopened = manager.openWindow(Feature::Ild);
+    check(reopened && reopened->isVisible(), "Closed analysis window did not reopen");
+
+    // No silently valid result from unconfirmed mappings.
+    manager.setContext(context(QStringLiteral("unknown"), false));
+    check(!reopened->startWork(slowWork(1)), "Unconfirmed mapping accepted");
+    check(reopened->status() == S::InvalidSource, "Invalid mapping not diagnosed");
+
+    // An old project workspace must remain alive while a cancelled/retired
+    // worker can still read its SourceSnapshot, then be removed on drain.
+    manager.setContext(context());
+    check(reopened->startWork(slowWork()), "Retired workspace fixture did not start");
+    auto retired = std::make_shared<QTemporaryDir>();
+    check(retired->isValid(), "Temporary project workspace could not be created");
+    const QString retiredPath = retired->path();
+    manager.retireWorkspace(retired);
+    retired.reset();
+    check(QDir(retiredPath).exists(), "Workspace removed while analysis worker was running");
+    manager.scheduler().cancel(Feature::Ild);
+    drain(manager.scheduler());
+    check(pumpUntil([&] { return !QDir(retiredPath).exists(); }),
+          "Retired workspace was not removed after workers drained");
+
+    manager.setContext(context());
+    for (int i = 0; i < releaseFeatureCount; ++i) {
+      auto *w = manager.existingWindow(static_cast<Feature>(i));
+      check(w && w->isVisible(), "One feature close affected an unrelated window");
+    }
+
+    // 012_05 real channel fixture: verified cached Touchstone -> independent ILD
+    // numerical worker -> GUI results, without fake completed jobs.
+    QTemporaryDir ildDir;
+    check(ildDir.isValid(), "ILD fixture temp directory");
+    const auto snp=si::pathFromUtf8((ildDir.path()+QStringLiteral("/ild.s2p")).toStdString());
+    {
+      std::ofstream out(snp);
+      out<<std::setprecision(17)<<"# GHz S RI R 50\n";
+      for(int i=0;i<=16;++i) {
+        const double x=double(i)/16.0;
+        const double loss=1.5+2.0*std::sqrt(x)+3.0*x+0.25*x*x;
+        const double v=std::pow(10.0,-loss/20.0);
+        out<<i<<" 0 0 "<<v<<" 0 "<<v*0.5<<" 0 0 0\n";
+      }
+    }
+    auto cache=si::Cache::open(snp,
+      si::pathFromUtf8((ildDir.path()+QStringLiteral("/cache")).toStdString()),
+      nullptr,true);
+    si::Channel channel;
+    channel.id="victim";channel.name="Victim";channel.nearP=0;channel.farP=1;
+    AnalysisContext numericContext;
+    numericContext.activeSource=0;
+    SourceItem numericSource;
+    numericSource.sha256=QString::fromStdString(cache->meta().sha256);
+    numericSource.mappingDigest=QStringLiteral("confirmed-physical-map");
+    numericSource.revision=QStringLiteral("ILD fixture revision");
+    numericSource.mappingConfirmed=true;
+    numericSource.channels={QStringLiteral("Victim")};
+    numericSource.channelIds={QStringLiteral("victim")};
+    numericContext.sources.append(numericSource);
+    manager.setIldSourceProvider([cache,channel](int index)
+      -> std::optional<IldSourceInput> {
+      if(index!=0)return std::nullopt;
+      return IldSourceInput{cache,{channel},"ILD fixture revision",
+                            cache->meta().sha256,1,1};
+    });
+    manager.setContext(numericContext);
+    auto *ild=manager.openWindow(Feature::Ild);
+    check(manager.action(Feature::Ild)->isEnabled(), "ILD menu not enabled");
+    check(ild->runButton()->isEnabled(), "Verified ILD Run disabled");
+    auto *ildModel=ild->findChild<QComboBox *>(QStringLiteral("ildFitModel"));
+    check(ildModel && ildModel->currentIndex()==1,"ILD default must be root-linear");
+    auto *ildAuto=ild->findChild<QPushButton *>(QStringLiteral("analysisAuto"));
+    check(ildAuto && ildAuto->isEnabled(),"ILD auto action missing");
+    ildAuto->click();drain(manager.scheduler());
+    check(ild->status()==S::Valid,"ILD automatic measured-band fit failed");
+    const QString autoIldPath=ildDir.filePath(QStringLiteral("ild-auto.csv"));
+    check(ild->saveIldCsv(autoIldPath),"ILD auto CSV failed");
+    QFile autoIldFile(autoIldPath);
+    check(autoIldFile.open(QIODevice::ReadOnly) && autoIldFile.readAll().contains("# analysis_mode,AUTO"),
+          "ILD auto provenance absent");
+    ildModel->setCurrentIndex(2); // fixture is an exact quadratic-root model
+    ild->runButton()->click();
+    drain(manager.scheduler());
+    check(ild->status()==S::Valid, "Real ILD worker did not produce VALID result");
+    check(ild->findChild<QWidget *>(QStringLiteral("ildResultGraph"))!=nullptr,
+          "Actual ILD graph widget missing");
+    checkCompactLayout(ild);
+    auto *ildStart=ild->findChild<QDoubleSpinBox *>("ildStartGhz");
+    auto *ildStop=ild->findChild<QDoubleSpinBox *>("ildStopGhz");
+    auto *ildPlot=ild->findChild<QWidget *>("ildResultGraph");
+    check(ildStart && ildStop && ildPlot,"Missing ILD manual scale controls");
+    const auto ildFullAxes=paintedAxes(ildPlot,0);
+    checkBand(ildFullAxes,0,16e9);
+    ildStart->setValue(4);ildStop->setValue(12);
+    ild->runButton()->click();drain(manager.scheduler());
+    check(ild->status()==S::Valid,"ILD manual band analysis failed");
+    const auto ildNarrow=paintedAxes(ildPlot,0);
+    checkBand(ildNarrow,4e9,12e9);
+    // Independent analytical fixture: loss=1.5+2sqrt(x)+3x+0.25x².
+    const double expectedLow=1.5+2*std::sqrt(.25)+3*.25+.25*.25*.25;
+    const double expectedHigh=1.5+2*std::sqrt(.75)+3*.75+.25*.75*.75;
+    const double padding=std::max(.05,(expectedHigh-expectedLow)*.08);
+    check(std::abs(ildNarrow[2].toDouble()-(expectedLow-padding))<1e-7 &&
+          std::abs(ildNarrow[3].toDouble()-(expectedHigh+padding))<1e-7,
+          "ILD actual painted Y range does not match independent oracle");
+    ildStart->setValue(0);ildStop->setValue(30);
+    ild->runButton()->click();drain(manager.scheduler());
+    check(ild->status()==S::Valid,"ILD original manual settings restore failed");
+    check(paintedAxes(ildPlot,0)==ildFullAxes,"ILD full manual axis restore failed");
+    const auto fullDrawSamples=ildPlot->property("ildVisibleSampleCount").toULongLong();
+    check(fullDrawSamples>4,"ILD full-band draw sample count missing");
+    // Pixel-only wheel input (trackpad), followed by ordinary mouse-wheel input.
+    sendPlotWheel(ildPlot,QPoint(0,30),QPoint());
+    check(pumpUntil([&]{return ildPlot->property("paintedAxes0").toList()!=ildFullAxes;}),
+          "ILD pixel-only trackpad input did not zoom");
+    const auto ildPixelZoom=paintedAxes(ildPlot,0);
+    const double pixelSpan=ildPixelZoom[1].toDouble()-ildPixelZoom[0].toDouble();
+    check(std::abs(pixelSpan/16e9-std::pow(.8,.25))<1e-9,
+          "ILD trackpad zoom must be fractional, not a full mouse notch");
+    sendPlotWheel(ildPlot,QPoint(),QPoint(0,120));
+    check(pumpUntil([&]{return ildPlot->property("paintedAxes0").toList()!=ildPixelZoom;}),
+          "ILD mouse wheel did not zoom");
+    const auto ildWheelZoom=paintedAxes(ildPlot,0);
+    check(std::abs((ildWheelZoom[1].toDouble()-ildWheelZoom[0].toDouble())/pixelSpan-.8)<1e-9,
+          "ILD conventional one-notch wheel zoom changed");
+    const auto zoomDrawSamples=ildPlot->property("ildVisibleSampleCount").toULongLong();
+    check(zoomDrawSamples>=2 && zoomDrawSamples<fullDrawSamples,
+          "ILD zoom did not restrict draw sample work");
+    std::cout << "012_60 ILD full_samples=" << fullDrawSamples
+              << " zoom_samples=" << zoomDrawSamples << std::endl;
+    ild->runButton()->click();drain(manager.scheduler());
+    check(paintedAxes(ildPlot,0)==ildFullAxes,"ILD manual rerun must reset zoom");
+    auto *csv=ild->findChild<QPushButton *>(QStringLiteral("analysisCsv"));
+    auto *png=ild->findChild<QPushButton *>(QStringLiteral("analysisPng"));
+    check(csv && csv->isEnabled() && png && png->isEnabled(),
+          "Verified ILD exports not enabled");
+    const QString csvPath=ildDir.filePath(QStringLiteral("ild-result.csv"));
+    const QString pngPath=ildDir.filePath(QStringLiteral("ild-result.png"));
+    check(ild->saveIldCsv(csvPath),"Actual ILD CSV file export failed");
+    check(ild->saveIldPng(pngPath),"Actual ILD PNG file export failed");
+    QFile csvFile(csvPath);
+    check(csvFile.open(QIODevice::ReadOnly),"ILD CSV cannot be read back");
+    const QByteArray csvBytes=csvFile.readAll();
+    check(csvBytes.contains("Frequency_GHz,IL_dB,Fitted_IL_dB,ILD_dB") &&
+          csvBytes.contains("# source_sha256,") &&
+          csvBytes.contains("# fitting_model,"),
+          "CSV numerical/provenance columns missing");
+    check(csvBytes.count('\n')>=32,"CSV numeric row count suspicious");
+    check(csvBytes.contains("# fit_weighting,trapezoidal_bandwidth_cell") &&
+          csvBytes.contains("# rms_definition,band_integral_piecewise_linear") &&
+          csvBytes.contains("# peak_frequency_hz,") &&
+          csvBytes.contains("# requested_stop_hz,30000000000"),
+          "ILD export calculation contract incomplete");
+    auto normalizedIld=QByteArray(csvBytes).replace("\r\n","\n");
+    const QByteArray ildHeader="Frequency_GHz,IL_dB,Fitted_IL_dB,ILD_dB\n";
+    const auto ildAt=normalizedIld.indexOf(ildHeader);
+    check(ildAt>=0,"ILD CSV header missing");
+    const auto ildRows=normalizedIld.mid(ildAt+ildHeader.size()).split('\n');
+    check(ildRows.size()==18 && ildRows.back().isEmpty(),"ILD CSV exact row count");
+    for(int i=0;i<=16;++i) {
+      const auto fields=ildRows[i].split(',');
+      check(fields.size()==4,"ILD CSV column count");
+      bool fOk=false,ilOk=false,fitOk=false,resOk=false;
+      const double f=fields[0].toDouble(&fOk), il=fields[1].toDouble(&ilOk),
+                   fit=fields[2].toDouble(&fitOk), residual=fields[3].toDouble(&resOk);
+      const double x=double(i)/16, expected=1.5+2*std::sqrt(x)+3*x+0.25*x*x;
+      check(fOk&&ilOk&&fitOk&&resOk&&std::abs(f-i)<1e-9&&
+            std::abs(il-expected)<1e-8&&std::abs(fit-expected)<1e-8&&
+            std::abs(residual)<1e-8,"ILD CSV independent analytical numeric row");
+    }
+    QImage actualPng(pngPath);
+    check(!actualPng.isNull() && actualPng.width()>200 &&
+          actualPng.height()>200,"PNG not a usable rendered plot");
+
+    auto *ildStatus=ild->findChild<QLabel *>(QStringLiteral("analysisStatus"));
+    check(ildStatus && ildStatus->text().contains("Band RMS") &&
+          ildStatus->text().contains("0–16 GHz"),"ILD actual band and RMS definition missing");
+    auto *seDirection=ild->findChild<QComboBox *>(QStringLiteral("analysisDirection"));
+    check(seDirection,"Single-ended ILD direction missing");
+    seDirection->setCurrentIndex(1);
+    check(ild->status()==S::Stale && !csv->isEnabled() && !png->isEnabled(),
+          "ILD direction change must invalidate outputs");
+    ild->runButton()->click();drain(manager.scheduler());
+    check(ild->status()==S::Valid,"Single-ended reverse ILD failed");
+    const auto reverseName=ildDir.filePath(QStringLiteral("ild-reverse.csv"));
+    check(ild->saveIldCsv(reverseName),"Single-ended reverse ILD CSV failed");
+    QFile reverseFile(reverseName);
+    check(reverseFile.open(QIODevice::ReadOnly),"Single-ended reverse CSV read failed");
+    auto reverseBytes=QByteArray(reverseFile.readAll()).replace("\r\n","\n");
+    check(reverseBytes.contains("# parameter,\"S12\""),"Single-ended reverse parameter");
+    const auto reverseAt=reverseBytes.indexOf(ildHeader);
+    check(reverseAt>=0,"Single-ended reverse CSV header");
+    auto reverseRows=reverseBytes.mid(reverseAt+ildHeader.size()).split('\n');
+    check(reverseRows.size()==18,"Single-ended reverse CSV row count");
+    for(int i=0;i<=16;++i) {
+      const auto fields=reverseRows[i].split(',');
+      check(fields.size()==4,"Reverse CSV columns");
+      bool ok=false,fitOk=false,resOk=false;
+      const double x=double(i)/16, expected=1.5+2*std::sqrt(x)+3*x+0.25*x*x+20*std::log10(2.0);
+      const double loss=fields[1].toDouble(&ok), fit=fields[2].toDouble(&fitOk),
+                   residual=fields[3].toDouble(&resOk);
+      check(ok&&fitOk&&resOk&&std::abs(loss-expected)<1e-8&&
+            std::abs(fit-expected)<1e-8&&std::abs(residual)<1e-8,"Reverse ILD independent oracle");
+    }
+    // Invalid unmeasured band must not publish or export previous data.
+    check(ildStart&&ildStop,"ILD range controls missing");
+    ildStart->setValue(20);ildStop->setValue(30);
+    ild->runButton()->click();drain(manager.scheduler());
+    check(ild->status()==S::Error && !csv->isEnabled() && !png->isEnabled() &&
+          !ild->saveIldCsv(ildDir.filePath("unmeasured-ild.csv")) &&
+          !ild->saveIldPng(ildDir.filePath("unmeasured-ild.png")),"Unmeasured ILD band exported");
+    ildStart->setValue(0);seDirection->setCurrentIndex(0);
+    ild->runButton()->click();drain(manager.scheduler());
+    check(ild->status()==S::Valid,"ILD did not recover after invalid band");
+    numericContext.sources[0].sha256=QStringLiteral("stale-sha");
+    manager.setContext(numericContext);
+    check(ild->status()==S::Stale,"Context replacement failed to mark ILD STALE");
+    check(!csv->isEnabled() && !png->isEnabled(),"Stale ILD allowed export");
+    check(!ild->saveIldCsv(ildDir.filePath(QStringLiteral("stale.csv"))) &&
+          !ild->saveIldPng(ildDir.filePath(QStringLiteral("stale.png"))),
+          "STALE result was exported as current");
+    // Reproduce a narrow low-frequency endpoint peak without customer data.
+    const auto endpointPath=si::pathFromUtf8(ildDir.filePath("endpoint.s2p").toStdString());
+    {
+      std::ofstream out(endpointPath);
+      out<<std::setprecision(17)<<"# GHz S RI R 50\n";
+      for(int i=0;i<=1000;++i) {
+        const double f=i==0?1e-6:i*0.02;
+        const double loss=i==0?25.5:1.5+0.5*std::sqrt(f/20)+f/20;
+        const double v=std::pow(10.,-loss/20.);
+        out<<f<<" 0 0 "<<v<<" 0 "<<v<<" 0 0 0\n";
+      }
+    }
+    auto endpointCache=si::Cache::open(endpointPath,
+      si::pathFromUtf8(ildDir.filePath("endpoint-cache").toStdString()),nullptr,true);
+    numericContext.sources[0].sha256=QString::fromStdString(endpointCache->meta().sha256);
+    manager.setIldSourceProvider([endpointCache,channel](int index)->std::optional<IldSourceInput>{
+      if(index!=0)return std::nullopt;
+      return IldSourceInput{endpointCache,{channel},"ILD fixture revision",
+                            endpointCache->meta().sha256,1,1};
+    });
+    manager.setContext(numericContext);
+    ildModel->setCurrentIndex(1);
+    ildStart->setValue(0);ildStop->setValue(30);
+    ild->runButton()->click();drain(manager.scheduler());
+    check(ild->status()==S::Valid,"Manual isolated-endpoint ILD analysis failed");
+    auto *detailY=ild->findChild<QCheckBox *>("ildDetailYRange");
+    check(detailY && !detailY->isChecked(),"ILD full range must be default on every OS");
+    const auto endpointFull=paintedAxes(ildPlot,0);
+    check(endpointFull[3].toDouble()>25.5,"Full range excluded endpoint");
+    const auto fullCsv=ildDir.filePath("endpoint-full.csv");
+    check(ild->saveIldCsv(fullCsv),"Endpoint full CSV failed");
+    detailY->setChecked(true);
+    const auto endpointDetail=paintedAxes(ildPlot,0);
+    check(endpointDetail[3].toDouble()<5,"Detail range did not focus isolated endpoint");
+    const auto detailCsv=ildDir.filePath("endpoint-detail.csv");
+    check(ild->saveIldCsv(detailCsv),"Endpoint detail CSV failed");
+    QFile detailFile(detailCsv),fullFile(fullCsv);
+    check(detailFile.open(QIODevice::ReadOnly) && fullFile.open(QIODevice::ReadOnly) &&
+          detailFile.readAll()==fullFile.readAll(),"Plot focus changed numerical CSV");
+    detailY->setChecked(false);
+    check(paintedAxes(ildPlot,0)==endpointFull,"Full Y toggle did not restore range");
+    ildStart->setValue(.02);
+    ild->runButton()->click();drain(manager.scheduler());
+    check(ild->status()==S::Valid,"Manual endpoint exclusion band failed");
+    const auto endpointNarrow=paintedAxes(ildPlot,0);
+    checkBand(endpointNarrow,20e6,20e9);
+    check(endpointNarrow[3].toDouble()<5,"Manual Y range retained prior endpoint");
+    ildStart->setValue(0);
+    ild->runButton()->click();drain(manager.scheduler());
+    check(ild->status()==S::Valid && paintedAxes(ildPlot,0)==endpointFull,
+          "Manual endpoint full-band restore failed");
+    // 012_06: real 4-port Touchstone, two mapped channels, separate NEXT/FEXT
+    // paths -> generic NRZ ICN worker -> GUI -> CSV/PNG -> stale protection.
+    const auto icnPath=si::pathFromUtf8(
+      (ildDir.path()+QStringLiteral("/icn.s4p")).toStdString());
+    {
+      std::ofstream out(icnPath);
+      out<<std::setprecision(17)<<"# GHz S RI R 50\n";
+      for(int f=0;f<=8;++f) {
+        out<<f;
+        for(int responsePort=0;responsePort<4;++responsePort)
+          for(int sourcePort=0;sourcePort<4;++sourcePort) {
+            double value=0;
+            if(responsePort==0 && sourcePort==2) value=0.04;
+            if(responsePort==1 && sourcePort==2) value=0.08;
+            if(responsePort==1 && sourcePort==3) value=0.12;
+            if(responsePort==0 && sourcePort==3) value=0.16;
+            if(sourcePort/2==responsePort/2 && sourcePort!=responsePort) value=0.85;
+            out<<" "<<value<<" 0";
+          }
+        out<<"\n";
+      }
+    }
+    auto icnCache=si::Cache::open(icnPath,
+       si::pathFromUtf8((ildDir.path()+QStringLiteral("/icn-cache")).toStdString()),
+       nullptr,true);
+    si::Channel icnVictim;
+    icnVictim.id="victim";icnVictim.name="Victim";icnVictim.nearP=0;icnVictim.farP=1;
+    si::Channel icnAggressor;
+    icnAggressor.id="aggressor";icnAggressor.name="Aggressor";
+    icnAggressor.nearP=2;icnAggressor.farP=3;
+    AnalysisContext icnContext;
+    icnContext.activeSource=0;
+    SourceItem icnSource;
+    icnSource.revision=QStringLiteral("ICN s4p fixture");
+    icnSource.sha256=QString::fromStdString(icnCache->meta().sha256);
+    icnSource.mappingDigest=QStringLiteral("icn-physical-map");
+    icnSource.mappingConfirmed=true;
+    icnSource.channels={QStringLiteral("Victim"),QStringLiteral("Aggressor")};
+    icnSource.channelIds={QStringLiteral("victim"),QStringLiteral("aggressor")};
+    icnContext.sources.append(icnSource);
+    manager.setIcnSourceProvider([icnCache,icnVictim,icnAggressor](int idx)
+        ->std::optional<IldSourceInput> {
+      if(idx!=0) return std::nullopt;
+      return IldSourceInput{icnCache,{icnVictim,icnAggressor},
+         "ICN s4p fixture",icnCache->meta().sha256,1,1};
+    });
+    manager.setContext(icnContext);
+    auto *icn=manager.openWindow(Feature::Icn);
+    check(manager.action(Feature::Icn)->isEnabled() && icn->runButton()->isEnabled(),
+          "ICN menu/run unavailable with verified source provider");
+    auto *items=icn->findChild<QListWidget *>(QStringLiteral("icnAggressorList"));
+    check(items && items->count()==2,"Expected NEXT and FEXT aggressor choices");
+    auto *icnAuto=icn->findChild<QPushButton *>(QStringLiteral("analysisAuto"));
+    check(icnAuto && icnAuto->isEnabled(),"ICN auto action missing");
+    icnAuto->click();drain(manager.scheduler());
+    check(icn->status()==S::Valid || icn->status()==S::Warning,"ICN automatic mapped paths failed");
+    const QString autoIcnPath=ildDir.filePath(QStringLiteral("icn-auto.csv"));
+    check(icn->saveIcnCsv(autoIcnPath),"ICN auto CSV failed");
+    QFile autoIcnFile(autoIcnPath);
+    check(autoIcnFile.open(QIODevice::ReadOnly) && autoIcnFile.readAll().contains("# analysis_mode,AUTO"),
+          "ICN auto provenance absent");
+    items->item(0)->setCheckState(Qt::Checked);
+    items->item(1)->setCheckState(Qt::Checked);
+    auto *rss=icn->findChild<QCheckBox *>(QStringLiteral("icnIndependentAssumption"));
+    check(rss && rss->isChecked() && rss->text().contains("assumed"),"Default exploratory RSS assumption must be visible");
+    icn->runButton()->click();drain(manager.scheduler());
+    check(icn->status()==S::Valid || icn->status()==S::Warning,"Default multi-path ICN failed");
+    rss->setChecked(false);
+    icn->runButton()->click();
+    check(icn->status()==S::NotEvaluated,"Disabling RSS must still block multiple paths");
+    rss->setChecked(true);
+    auto *scroll=icn->findChild<QScrollArea *>(QStringLiteral("analysisPageScroll"));
+    auto *toggle=icn->findChild<QToolButton *>(QStringLiteral("analysisSettingsToggle"));
+    check(scroll && toggle,"Scrollable/collapsible analysis layout missing");
+    icn->resize(640,480);QCoreApplication::processEvents();
+    check(icn->height()<=480 && icn->width()<=640,"ICN small-window size constrained by contents");
+    toggle->setChecked(false);QCoreApplication::processEvents();
+    check(icn->findChild<QScrollArea *>(QStringLiteral("analysisSettingsScroll"))->isHidden(),"Collapse settings failed");
+    toggle->setChecked(true);
+    auto *icnView=icn->findChild<QComboBox *>(QStringLiteral("icnPlotView"));
+    check(icnView && icnView->currentIndex()==3,"Default compact cumulative plot missing");
+    icnView->setCurrentIndex(0);
+    icnView->setCurrentIndex(3);
+    icn->runButton()->click();
+    drain(manager.scheduler());
+    check(icn->status()==S::Valid || icn->status()==S::Warning,
+          "Real ICN did not produce qualified result");
+    check(icn->findChild<QWidget *>(QStringLiteral("icnResultGraph"))!=nullptr,
+          "Actual ICN result graph missing");
+    checkCompactLayout(icn);
+    auto *icnStart=icn->findChild<QDoubleSpinBox *>("icnStartGhz");
+    auto *icnStop=icn->findChild<QDoubleSpinBox *>("icnStopGhz");
+    auto *icnPlot=icn->findChild<QWidget *>("icnResultGraph");
+    check(icnStart && icnStop && icnPlot,"Missing ICN manual scale controls");
+    const auto icnFull=paintedAxes(icnPlot,2);
+    checkBand(icnFull,0,8e9);
+    icnStart->setValue(1);icnStop->setValue(4);
+    icn->runButton()->click();drain(manager.scheduler());
+    check(icn->status()==S::Valid || icn->status()==S::Warning,"ICN manual band analysis failed");
+    const auto icnNarrow=paintedAxes(icnPlot,2);
+    checkBand(icnNarrow,1e9,4e9);
+    check(icnNarrow[2].toDouble()==0 && icnNarrow[3].toDouble()<icnFull[3].toDouble(),
+          "ICN cumulative RMS Y range did not decrease with narrower band");
+    icnStart->setValue(0);icnStop->setValue(30);
+    icn->runButton()->click();drain(manager.scheduler());
+    check(icn->status()==S::Valid || icn->status()==S::Warning,"ICN original manual settings restore failed");
+    check(paintedAxes(icnPlot,2)==icnFull,"ICN full manual axes restore failed");
+    auto *icnCsv=icn->findChild<QPushButton *>(QStringLiteral("analysisCsv"));
+    auto *icnPng=icn->findChild<QPushButton *>(QStringLiteral("analysisPng"));
+    check(icnCsv && icnCsv->isEnabled() && icnPng && icnPng->isEnabled(),
+          "ICN CSV/PNG exports unavailable");
+    const QString icnCsvPath=ildDir.filePath(QStringLiteral("icn-result.csv"));
+    const QString icnPngPath=ildDir.filePath(QStringLiteral("icn-result.png"));
+    check(icn->saveIcnCsv(icnCsvPath) && icn->saveIcnPng(icnPngPath),
+          "Real ICN file export failed");
+    QFile output(icnCsvPath);
+    check(output.open(QIODevice::ReadOnly),"ICN CSV readback failed");
+    const QByteArray content=output.readAll();
+    check(content.contains("# total_rms_mV,") &&
+          content.contains("# path_0_type,NEXT") &&
+          content.contains("# path_1_type,FEXT") &&
+          content.contains("Total_Cumulative_RMS_mV") &&
+          content.count('\n')>=25,"ICN CSV columns or provenances missing");
+    check(content.contains("# correlation_assumption,independent_path_rss") &&
+          content.contains("# symbol_rate_baud,4000000000") &&
+          content.contains("# requested_stop_hz,30000000000") &&
+          content.contains("# actual_stop_hz,8000000000") &&
+          content.contains("# band_limited,true"),"ICN reproducibility metadata missing");
+    auto verifyIcnRows=[&](QByteArray bytes,double next,double fext) {
+      bytes.replace("\r\n","\n");
+      const auto offset=bytes.indexOf("Frequency_GHz,NEXT_Power_dB");
+      check(offset>=0,"ICN numeric CSV header");
+      const auto rows=bytes.mid(offset).split('\n');
+      check(rows.size()==11 && rows.back().isEmpty(),"ICN exact CSV row count");
+      double integral=0,previous=0;
+      const double pi=std::acos(-1.);
+      for(int i=0;i<=8;++i) {
+        const auto fields=rows[i+1].split(',');
+        check(fields.size()==12,"ICN CSV numeric columns");
+        double v[12]{};
+        for(int k=0;k<12;++k) {bool ok=false;v[k]=fields[k].toDouble(&ok);
+          check(ok&&std::isfinite(v[k]),"ICN finite CSV value");}
+        const double f=i*1e9,x=pi*f/4e9;
+        const double sinc=i?std::sin(x)/x:1;
+        const double edge=2*pi*f*30e-12/2.5631031310892007;
+        const double density=.32/4e9*sinc*sinc*std::exp(-edge*edge)/(1+std::pow(f/10e9,2));
+        if(i)integral+=(previous+density)*.5e9;
+        previous=density;
+        check(std::abs(v[0]-i)<1e-10 &&
+          std::abs(v[1]-20*std::log10(next))<1e-9 &&
+          std::abs(v[2]-20*std::log10(fext))<1e-9 &&
+          std::abs(v[3]-density*next*next)<1e-22 &&
+          std::abs(v[4]-density*fext*fext)<1e-22 &&
+          std::abs(v[5]-1000*next*std::sqrt(integral))<1e-8 &&
+          std::abs(v[6]-1000*fext*std::sqrt(integral))<1e-8 &&
+          std::abs(v[7]-1000*std::hypot(next,fext)*std::sqrt(integral))<1e-8 &&
+          std::abs(v[8]-v[3])<1e-22 && std::abs(v[9]-v[5])<1e-8 &&
+          std::abs(v[10]-v[4])<1e-22 && std::abs(v[11]-v[6])<1e-8,
+          "ICN independent directional CSV oracle");
+      }
+    };
+    check(content.contains("# victim_id,\"victim\"") && content.contains("# direction,\"forward\""),"ICN forward provenance");
+    verifyIcnRows(content,.04,.08);
+    auto *icnDir=icn->findChild<QComboBox *>(QStringLiteral("analysisDirection"));
+    check(icnDir,"ICN direction control missing");
+    icnDir->setCurrentIndex(1);
+    check(icn->status()==S::Stale && !icnCsv->isEnabled() && !icnPng->isEnabled(),"ICN direction invalidation");
+    icn->runButton()->click();drain(manager.scheduler());
+    check(icn->status()==S::Warning,"ICN reverse band warning");
+    const auto revPath=ildDir.filePath(QStringLiteral("icn-reverse.csv"));
+    check(icn->saveIcnCsv(revPath),"ICN reverse export");
+    QFile icnRev(revPath);check(icnRev.open(QIODevice::ReadOnly),"ICN reverse readback");
+    const auto revContent=icnRev.readAll();
+    check(revContent.contains("# direction,\"reverse\""),"ICN reverse provenance");
+    verifyIcnRows(revContent,.12,.16);
+    auto *icnVpp=icn->findChild<QDoubleSpinBox *>(QStringLiteral("icnTxVpp"));
+    check(icnVpp,"ICN Vpp control missing");
+    icnVpp->setValue(0);icn->runButton()->click();drain(manager.scheduler());
+    check(icn->status()==S::Error && !icnCsv->isEnabled() && !icnPng->isEnabled() &&
+          !icn->saveIcnCsv(ildDir.filePath("invalid-icn.csv")),"Invalid ICN Vpp exported");
+    icnVpp->setValue(800);icnDir->setCurrentIndex(0);
+    icn->runButton()->click();drain(manager.scheduler());
+    check(icn->status()==S::Warning,"ICN recovery failed");
+    QImage icnImage(icnPngPath);
+    check(!icnImage.isNull() && icnImage.width()>200 && icnImage.height()>200,
+          "ICN PNG not an actual rendered plot");
+    // Stale metadata and path selection must prevent all exports.
+    icnContext.sources[0].sha256=QStringLiteral("changed-icn-sha");
+    manager.setContext(icnContext);
+    check(icn->status()==S::Stale && !icnCsv->isEnabled() && !icnPng->isEnabled(),
+          "Stale ICN result remained exportable");
+    check(!icn->saveIcnCsv(ildDir.filePath(QStringLiteral("stale-icn.csv"))) &&
+          !icn->saveIcnPng(ildDir.filePath(QStringLiteral("stale-icn.png"))),
+          "Stale ICN export was accepted");
+
+    // 012_08: real SHA-qualified s2p -> SourceSnapshot -> phase-preserving
+    // single-ended Eye worker -> graphs + CSV/PNG; no fabricated PHY voltage.
+    numericContext.sources[0].sha256=QString::fromStdString(cache->meta().sha256);
+    manager.setEyeSourceProvider([cache,channel](int index)
+      -> std::optional<IldSourceInput> {
+      if(index!=0)return std::nullopt;
+      return IldSourceInput{cache,{channel},"ILD fixture revision",
+                            cache->meta().sha256,1,1};
+    });
+    manager.setContext(numericContext);
+    auto *eye=manager.openWindow(Feature::Eye);
+    check(manager.action(Feature::Eye)->isEnabled() &&
+          eye->runButton()->isEnabled(),"Verified Eye action unavailable");
+    auto *profile=eye->findChild<QComboBox *>(QStringLiteral("eyeProfile"));
+    auto *mode=eye->findChild<QComboBox *>(QStringLiteral("eyeMode"));
+    auto *baud=eye->findChild<QDoubleSpinBox *>(QStringLiteral("eyeBitRateGbps"));
+    auto *reference=eye->findChild<QDoubleSpinBox *>(QStringLiteral("eyeReferenceGhz"));
+    auto *cap=eye->findChild<QDoubleSpinBox *>(QStringLiteral("analysisStopFrequency"));
+    // Common stop-frequency spin gets an explicit ID in 012_08.
+    if(!cap)cap=eye->findChild<QDoubleSpinBox *>(QStringLiteral("eyeAnalysisCapGhz"));
+    check(profile && mode && baud && reference && cap,
+          "Eye profile/bitrate/reference/cap controls missing");
+    check(std::abs(baud->value()-4.5)<1e-9 &&
+          std::abs(reference->value()-2.25)<1e-9 &&
+          std::abs(cap->value()-10)<1e-9,
+          "MIPI 4.5/2.25/10 example defaults were not installed");
+    eye->runButton()->click();
+    check(eye->status()==S::NotEvaluated,
+          "MIPI preset without verified electrical inputs must fail closed");
+    auto *preview=eye->findChild<QPushButton *>(QStringLiteral("eyeAutoPreview"));
+    check(preview && preview->isEnabled(),"Auto Preview unavailable");
+    preview->click();drain(manager.scheduler());
+    check(eye->status()==S::Warning,"Auto Preview did not simulate verified DC source");
+    const auto previewCsv=ildDir.filePath(QStringLiteral("auto-preview-eye.csv"));
+    check(eye->saveEyeCsv(previewCsv),"Auto Preview CSV failed");
+    QFile previewData(previewCsv);
+    check(previewData.open(QIODevice::ReadOnly) && previewData.readAll().contains("# input_mode,AUTO_PREVIEW_ASSUMED"),"Assumptions missing from preview export");
+    profile->setCurrentIndex(8); // Custom: single-ended s2p fixture
+    mode->setCurrentIndex(1);
+    baud->setValue(4.5);
+    check(std::abs(reference->value()-2.25)<1e-9,
+          "Reference was not coupled to bit rate");
+    reference->setValue(1.5);
+    check(std::abs(baud->value()-3.0)<1e-9,
+          "Changing NRZ reference did not update bit rate");
+    baud->setValue(4.5);
+    cap->setValue(10);
+    const QStringList electricalNames={
+      QStringLiteral("eyeTxLowMv"),QStringLiteral("eyeTxHighMv"),
+      QStringLiteral("eyeTxSourceOhm"),QStringLiteral("eyeRxTerminationOhm"),
+      QStringLiteral("eyeRxThresholdMv"),QStringLiteral("eyeRxMinimumMv"),
+      QStringLiteral("eyeRxMaximumMv")};
+    const QStringList electricalValues={
+      QStringLiteral("0"),QStringLiteral("400"),
+      QStringLiteral("50"),QStringLiteral("50"),
+      QStringLiteral("180"),QStringLiteral("-500"),
+      QStringLiteral("1000")};
+    for(int i=0;i<electricalNames.size();++i) {
+      auto *field=eye->findChild<QLineEdit *>(electricalNames[i]);
+      check(field!=nullptr,"Missing Eye electrical field");
+      field->setText(electricalValues[i]);
+    }
+    // Wrong termination must not be converted silently into an Eye result.
+    auto *rxTerm=eye->findChild<QLineEdit *>(QStringLiteral("eyeRxTerminationOhm"));
+    rxTerm->setText(QStringLiteral("60"));
+    eye->runButton()->click();
+    drain(manager.scheduler());
+    check(eye->status()==S::Error && !eye->saveEyeCsv(
+        ildDir.filePath(QStringLiteral("bad-eye.csv"))),
+        "Mismatched impedance produced a usable simulated Eye");
+    rxTerm->setText(QStringLiteral("50"));
+    eye->runButton()->click();
+    drain(manager.scheduler());
+    check(eye->status()==S::Warning,
+          "Real single-ended s2p Eye must produce SIMULATED_ONLY WARNING");
+    auto *eyeGraph=eye->findChild<QWidget *>(QStringLiteral("eyeResultGraph"));
+    auto *metrics=eye->findChild<QLabel *>(QStringLiteral("eyeMetrics"));
+    check(eyeGraph && metrics &&
+          metrics->text().contains(QStringLiteral("Height")) &&
+          metrics->text().contains(QStringLiteral("Width")) &&
+          metrics->text().contains(QStringLiteral("Not Measured")),
+          "Eye numerical display and caution missing");
+    checkCompactLayout(eye);
+    auto *eyeView=eye->findChild<QComboBox *>("eyePlotView");
+    auto *txHigh=eye->findChild<QLineEdit *>("eyeTxHighMv");
+    check(eyeView && txHigh,"Missing Eye manual scale controls");
+    eyeView->setCurrentIndex(1);
+    const auto eyeFull=paintedAxes(eyeGraph,1);
+    baud->setValue(3.0);txHigh->setText("800");
+    eye->runButton()->click();drain(manager.scheduler());
+    check(eye->status()==S::Warning,"Eye manual rate/voltage analysis failed");
+    const auto eyeChanged=paintedAxes(eyeGraph,1);
+    check(eyeChanged[3].toDouble()>eyeFull[3].toDouble() &&
+          eyeChanged[3].toDouble()>=800,"Eye actual Y range did not reflect TX voltage change");
+    baud->setValue(4.5);txHigh->setText("400");
+    eye->runButton()->click();drain(manager.scheduler());
+    check(eye->status()==S::Warning,"Eye original manual settings restore failed");
+    check(paintedAxes(eyeGraph,1)==eyeFull,"Eye manual axes restore failed");
+    eyeView->setCurrentIndex(0);
+    const auto eyeOverlayAxes=paintedAxes(eyeGraph,0);
+    auto staticRenders=[&]{return eyeGraph->property("eyeStaticRenderCount").toULongLong();};
+    auto paintCount=[&]{return eyeGraph->property("eyePaintCount").toULongLong();};
+    const auto initialRenderCount=staticRenders();
+    check(initialRenderCount>0,"Eye backing layer was not built");
+    QElapsedTimer cursorTiming;cursorTiming.start();
+    for(int i=0;i<30;++i) {
+      const QPoint local(80+i*3,80);
+      const auto previousPaint=paintCount();
+      QMouseEvent move(QEvent::MouseMove,QPointF(local),
+          QPointF(eyeGraph->mapToGlobal(local)),Qt::NoButton,Qt::NoButton,Qt::NoModifier);
+      QCoreApplication::sendEvent(eyeGraph,&move);
+      check(pumpUntil([&]{return paintCount()>previousPaint;}),
+            "Eye cursor move did not paint");
+    }
+    check(staticRenders()==initialRenderCount,
+          "Eye cursor-only updates rebuilt the static waveform layer");
+    check(paintedAxes(eyeGraph,0)==eyeOverlayAxes,"Eye cursor move changed axes");
+    std::cout << "012_60 Eye cursor paints=30 static_rebuilds=0 elapsed_ms="
+              << cursorTiming.elapsed() << std::endl;
+    sendPlotWheel(eyeGraph,QPoint(0,30),QPoint());
+    check(pumpUntil([&]{return staticRenders()>initialRenderCount;}),
+          "Eye trackpad zoom did not rebuild backing layer");
+    const auto eyeZoom=paintedAxes(eyeGraph,0);
+    check(std::abs((eyeZoom[1].toDouble()-eyeZoom[0].toDouble())/2.0-
+                   std::pow(.8,.25))<1e-9,"Eye trackpad zoom span incorrect");
+    const auto zoomRenders=staticRenders();
+    eyeView->setCurrentIndex(1);
+    check(pumpUntil([&]{return staticRenders()>zoomRenders;}),
+          "Eye view change did not invalidate backing layer");
+    check(paintedAxes(eyeGraph,1)==eyeFull,"Eye time-view axes changed after cache invalidation");
+    eyeView->setCurrentIndex(0);
+    check(paintedAxes(eyeGraph,0)==eyeOverlayAxes,"Eye overlay axes not restored");
+    const auto beforePalette=staticRenders();
+    const QPalette originalPalette=eyeGraph->palette();
+    QPalette changedPalette=originalPalette;
+    changedPalette.setColor(QPalette::Base,QColor("#f5f6f7"));
+    eyeGraph->setPalette(changedPalette);
+    eyeGraph->update();
+    check(pumpUntil([&]{return staticRenders()>beforePalette;}),
+          "Eye palette change did not invalidate backing layer");
+    const auto afterPalette=staticRenders();
+    eyeGraph->setPalette(originalPalette);
+    eyeGraph->update();
+    check(pumpUntil([&]{return staticRenders()>afterPalette;}),
+          "Eye palette restore did not invalidate backing layer");
+    check(paintedAxes(eyeGraph,0)==eyeOverlayAxes,"Palette changed Eye numerical axes");
+    const auto originalWindowSize=eye->size();
+    const auto originalGraphSize=eyeGraph->size();
+    const auto beforeResize=staticRenders();
+    eye->resize(originalWindowSize.width()-32,originalWindowSize.height());
+    check(pumpUntil([&]{return eyeGraph->size()!=originalGraphSize &&
+                              staticRenders()>beforeResize;}),
+          "Eye resized plot did not rebuild backing layer");
+    check(paintedAxes(eyeGraph,0)==eyeOverlayAxes,"Resize changed Eye numerical axes");
+    eye->resize(originalWindowSize);
+    QCoreApplication::processEvents();
+    auto *eyeCsv=eye->findChild<QPushButton *>(QStringLiteral("analysisCsv"));
+    auto *eyePng=eye->findChild<QPushButton *>(QStringLiteral("analysisPng"));
+    check(eyeCsv && eyeCsv->isEnabled() && eyePng && eyePng->isEnabled(),
+          "Verified simulated Eye exports unavailable");
+    const QString eyeCsvPath=ildDir.filePath(QStringLiteral("eye-result.csv"));
+    const QString eyePngPath=ildDir.filePath(QStringLiteral("eye-result.png"));
+    check(eye->saveEyeCsv(eyeCsvPath) && eye->saveEyePng(eyePngPath),
+          "Eye CSV/PNG export failed");
+    QFile eyeRead(eyeCsvPath);
+    check(eyeRead.open(QIODevice::ReadOnly),"Eye CSV not readable");
+    const QByteArray eyeContent=eyeRead.readAll();
+    check(eyeContent.contains("# source_filename,") &&
+          eyeContent.contains("# source_sha256,") &&
+          eyeContent.contains("# eye_height_mv,") &&
+          eyeContent.contains("# reference_frequency_ghz,") &&
+          eyeContent.contains("Time_ps,TX_mV,RX_mV") &&
+          eyeContent.contains("Overlay_Index,Phase_UI,Received_mV") &&
+          eyeContent.contains("# frame_bits,256") &&
+          eyeContent.contains("# overlay_count,64") &&
+          eyeContent.contains("# direction,Forward") &&
+          eyeContent.contains("# sampling_phase_threshold_open,") &&
+          eyeContent.contains("SIMULATED_ONLY"),
+          "Eye CSV missing numerical/provenance data");
+    QImage eyeImage(eyePngPath);
+    check(!eyeImage.isNull() && eyeImage.width()>200 && eyeImage.height()>200,
+          "Eye PNG does not contain a real plot");
+    check(eyeImage.text(QStringLiteral("SourceSHA256")) ==
+          QString::fromStdString(cache->meta().sha256) &&
+          eyeImage.text(QStringLiteral("SettingsIdentity")).contains(QStringLiteral("EYE")) &&
+          eyeImage.text(QStringLiteral("Direction"))==QStringLiteral("Forward") &&
+          eyeImage.text(QStringLiteral("FrameBits"))==QStringLiteral("256") &&
+          eyeImage.text(QStringLiteral("SimulationStatus")).contains(QStringLiteral("SIMULATED_ONLY")),
+          "Eye PNG lost original source SHA, numerical settings or simulation disclaimer");
+    // Windows QIODevice::Text emits CRLF; validate numerical samples after
+    // normalizing line endings, not against a Unix-only byte sequence.
+    const QByteArray normalizedEye=QByteArray(eyeContent).replace("\r\n","\n");
+    const QByteArray header("Time_ps,TX_mV,RX_mV,Impulse_Unit,Unit_Pulse\n");
+    const qsizetype firstSampleAt=normalizedEye.indexOf(header);
+    check(firstSampleAt>=0 && normalizedEye.mid(firstSampleAt+header.size(),6).startsWith("0,400,"),
+          "PRBS7 default must start high in deterministic PRBS7 fixture");
+    auto *eyePattern=eye->findChild<QComboBox *>(QStringLiteral("eyePattern"));
+    check(eyePattern && eyePattern->currentIndex()==0 &&
+          eyePattern->currentData().toInt()==int(si::channel::EyePattern::Prbs7),
+          "GUI PRBS7 selection must bind PRBS7, not Alternating");
+    eyePattern->setCurrentIndex(1);
+    check(eyePattern->currentData().toInt()==int(si::channel::EyePattern::Alternating),
+          "GUI Alternating selection must bind Alternating, not PRBS7");
+    eye->runButton()->click();
+    drain(manager.scheduler());
+    check(eye->status()==S::Warning,
+          "Alternating Eye simulation did not produce a qualified warning");
+    const QString alternatingCsv=ildDir.filePath(QStringLiteral("eye-alternating.csv"));
+    check(eye->saveEyeCsv(alternatingCsv),"Alternating Eye CSV export failed");
+    QFile alternatingRead(alternatingCsv);
+    check(alternatingRead.open(QIODevice::ReadOnly),"Alternating Eye CSV cannot be read");
+    const QByteArray alternatingData=QByteArray(alternatingRead.readAll()).replace("\r\n","\n");
+    const qsizetype alternateFirst=alternatingData.indexOf(header);
+    check(alternateFirst>=0 &&
+          alternatingData.mid(alternateFirst+header.size(),5).startsWith("0,0,"),
+          "Alternating pattern must start low (different from PRBS7)");
+    // Keep a successful Alternating result active before source change;
+    // otherwise changing the pattern itself invalidates the result to NOT EVALUATED.
+    numericContext.sources[0].sha256=QStringLiteral("source-hash-changed");
+    manager.setContext(numericContext);
+    check(eye->status()==S::Stale && !eyeCsv->isEnabled() &&
+          !eyePng->isEnabled() &&
+          !eye->saveEyeCsv(ildDir.filePath(QStringLiteral("stale-eye.csv"))),
+          "STALE Eye remained exportable");
+
+    // Real MIPI-profile UI with four physical ports and a differential THRU.
+    // This is only an analytical s4p fixture, NOT a PHY-conformance oracle.
+    const auto diffPath=si::pathFromUtf8(
+      (ildDir.path()+QStringLiteral("/eye-diff.s4p")).toStdString());
+    {
+      std::ofstream out(diffPath);
+      out<<"# GHz S RI R 50\n";
+      for(int f=0;f<=12;++f) {
+        out<<f;
+        // Touchstone full matrix for N >= 3: response row, stimulus column.
+        // A reciprocal fixture would conceal a transposed file.
+        for(int responsePort=0;responsePort<4;++responsePort)
+          for(int sourcePort=0;sourcePort<4;++sourcePort) {
+            double v=0;
+            if((sourcePort==0&&responsePort==1) ||
+               (sourcePort==2&&responsePort==3))v=0.4;
+            if((sourcePort==0&&responsePort==3) ||
+               (sourcePort==2&&responsePort==1))v=-0.4;
+            if((sourcePort==1&&responsePort==0) ||
+               (sourcePort==3&&responsePort==2))v=0.25;
+            if((sourcePort==1&&responsePort==2) ||
+               (sourcePort==3&&responsePort==0))v=-0.25;
+            out<<" "<<v<<" 0";
+          }
+        out<<"\n";
+      }
+    }
+    auto diffCache=si::Cache::open(diffPath,
+      si::pathFromUtf8((ildDir.path()+QStringLiteral("/eye-diff-cache")).toStdString()),
+      nullptr,true);
+    si::Channel diffLane;
+    diffLane.id="lane0";diffLane.name="Differential Lane 0";
+    diffLane.nearP=0;diffLane.nearN=2;diffLane.farP=1;diffLane.farN=3;
+    AnalysisContext diffContext;
+    diffContext.activeSource=0;
+    SourceItem diffSource;
+    diffSource.revision=QStringLiteral("D-PHY fixture revision");
+    diffSource.sha256=QString::fromStdString(diffCache->meta().sha256);
+    diffSource.mappingDigest=QStringLiteral("differential-physical-map");
+    diffSource.mappingConfirmed=true;
+    diffSource.channels={QStringLiteral("Differential Lane 0")};
+    diffSource.channelIds={QStringLiteral("lane0")};
+    diffContext.sources.append(diffSource);
+    manager.setEyeSourceProvider([diffCache,diffLane](int index)
+        ->std::optional<IldSourceInput> {
+      if(index!=0)return std::nullopt;
+      return IldSourceInput{diffCache,{diffLane},"D-PHY fixture revision",
+                            diffCache->meta().sha256,1,1};
+    });
+    manager.setContext(diffContext);
+    manager.setIldSourceProvider([diffCache,diffLane](int index)
+        ->std::optional<IldSourceInput> {
+      if(index!=0)return std::nullopt;
+      return IldSourceInput{diffCache,{diffLane},"D-PHY fixture revision",
+                            diffCache->meta().sha256,1,1};
+    });
+    ildModel->setCurrentIndex(0);
+    auto *ildDirection=ild->findChild<QComboBox *>(QStringLiteral("analysisDirection"));
+    check(ildDirection,"ILD direction control missing");
+    for(int reverse=0;reverse<=1;++reverse) {
+      ildDirection->setCurrentIndex(reverse);
+      ild->runButton()->click();drain(manager.scheduler());
+      check(ild->status()==S::Valid,"Differential ILD failed");
+      const auto name=ildDir.filePath(QStringLiteral("ild-diff-%1.csv").arg(reverse));
+      check(ild->saveIldCsv(name),"Differential ILD export failed");
+      QFile data(name);check(data.open(QIODevice::ReadOnly),"Differential ILD readback failed");
+      auto bytes=QByteArray(data.readAll()).replace("\r\n","\n");
+      check(bytes.contains(reverse?"Sdd12":"Sdd21"),"Differential ILD direction mismatch");
+      const auto at=bytes.indexOf(ildHeader);
+      check(at>=0,"Differential ILD header missing");
+      const auto rows=bytes.mid(at+ildHeader.size()).split('\n');
+      check(rows.size()==14,"Differential ILD row count");
+      for(int i=0;i<=12;++i) {
+        auto fields=rows[i].split(',');check(fields.size()==4,"Differential ILD columns");
+        bool ok=false;const double loss=fields[1].toDouble(&ok);
+        check(ok&&std::abs(loss+20*std::log10(reverse?0.5:0.8))<1e-8,"Differential ILD loss oracle");
+      }
+    }
+    profile->setCurrentIndex(0);
+    check(mode->currentIndex()==2 && std::abs(baud->value()-4.5)<1e-9 &&
+          std::abs(reference->value()-2.25)<1e-9 &&
+          std::abs(cap->value()-10)<1e-9,
+          "MIPI differential 4.5/2.25/10 GUI preset changed");
+    const QStringList diffElectrical={
+      QStringLiteral("-200"),QStringLiteral("200"),
+      QStringLiteral("100"),QStringLiteral("100"),
+      QStringLiteral("0"),QStringLiteral("-500"),
+      QStringLiteral("500")};
+    for(int i=0;i<electricalNames.size();++i) {
+      auto *field=eye->findChild<QLineEdit *>(electricalNames[i]);
+      field->setText(diffElectrical[i]);
+    }
+    eye->runButton()->click();
+    drain(manager.scheduler());
+    check(eye->status()==S::Warning,
+          "MIPI labeled, physically differential s4p did not simulate");
+    const QString diffCsvPath=ildDir.filePath(QStringLiteral("eye-diff-result.csv"));
+    check(eye->saveEyeCsv(diffCsvPath),"Differential Eye CSV export failed");
+    QFile diffRead(diffCsvPath);
+    check(diffRead.open(QIODevice::ReadOnly),"forward differential Eye readback");
+    const auto forwardEyeData=diffRead.readAll();
+    check(forwardEyeData.contains("Sdd21"),"Differential Eye did not preserve Sdd21 mode provenance");
+    auto eyeHeightFromCsv=[](const QByteArray &data) {
+      const QByteArray key("# eye_height_mv,");
+      const auto at=data.indexOf(key);
+      if(at<0)throw std::runtime_error("missing eye height");
+      bool ok=false;
+      const auto val=data.mid(at+key.size()).split('\n').front().trimmed().toDouble(&ok);
+      if(!ok || !std::isfinite(val))throw std::runtime_error("invalid eye height");
+      return val;
+    };
+    auto *eyeDirection=eye->findChild<QComboBox *>(QStringLiteral("analysisDirection"));
+    check(eyeDirection,"Eye direction control missing");
+    eyeDirection->setCurrentIndex(1);
+    check(eye->status()==S::Stale && !eyeCsv->isEnabled() && !eyePng->isEnabled(),
+          "Eye direction did not invalidate exports");
+    eye->runButton()->click();drain(manager.scheduler());
+    check(eye->status()==S::Warning,"reverse differential Eye failed");
+    const auto reverseEyePath=ildDir.filePath(QStringLiteral("eye-diff-reverse.csv"));
+    check(eye->saveEyeCsv(reverseEyePath),"reverse Eye export failed");
+    QFile reverseEyeRead(reverseEyePath);
+    check(reverseEyeRead.open(QIODevice::ReadOnly),"reverse Eye readback");
+    const auto reverseEyeData=reverseEyeRead.readAll();
+    check(reverseEyeData.contains("Sdd12") && reverseEyeData.contains("# direction,Reverse") &&
+          reverseEyeData.contains("# victim_id,\"lane0\""),"reverse Eye provenance");
+    const double forwardHeight=eyeHeightFromCsv(forwardEyeData);
+    const double reverseHeight=eyeHeightFromCsv(reverseEyeData);
+    check(forwardHeight>0 && std::abs(reverseHeight-forwardHeight*0.625)<1e-7,
+          "asymmetric nonadjacent Eye amplitude oracle");
+    // Requested upper cap cannot silently exceed the measured source.
+    cap->setValue(15);
+    eye->runButton()->click();
+    drain(manager.scheduler());
+    check(eye->status()==S::Error &&
+          !eye->saveEyeCsv(ildDir.filePath(QStringLiteral("unmeasured-cap.csv"))),
+          "Unmeasured Eye analysis cap did not fail closed");
+    cap->setValue(10);
+
+    // 012_52: real no-DC Touchstone -> verified mapped source -> preview/manual,
+    // explicit modal cancellation and acceptance, blocked results never export.
+    auto setLowSource=[&](double start) {
+      const QString key=QString::number(start,'f',0);
+      const auto path=si::pathFromUtf8(ildDir.filePath("dc-"+key+".s2p").toStdString());
+      {
+        std::ofstream out(path);out<<std::setprecision(17)<<"# Hz S RI R 50\n";
+        for(double f:{start,2*start,3*start})
+          out<<f<<" 0 0 0.5 0 0.5 0 0 0\n";
+        for(int i=1;i<=16;++i)
+          out<<i*1e9<<" 0 0 0.5 0 0.5 0 0 0\n";
+      }
+      auto low=si::Cache::open(path,
+        si::pathFromUtf8(ildDir.filePath("dc-cache-"+key).toStdString()),nullptr,true);
+      auto ctx=numericContext;
+      ctx.sources[0].sha256=QString::fromStdString(low->meta().sha256);
+      ctx.sources[0].revision="DC fixture "+key;
+      const auto revision=ctx.sources[0].revision.toStdString();
+      const IldSourceInput fixture{low,{channel},revision,low->meta().sha256,1,1};
+      manager.setEyeSourceProvider([fixture](int index) -> std::optional<IldSourceInput> {
+        return index==0 ? std::optional<IldSourceInput>{fixture} : std::optional<IldSourceInput>{};
+      });
+      manager.setContext(ctx);
+    };
+    setLowSource(1000);
+    preview->click();drain(manager.scheduler());
+    check(eye->status()==S::Warning && metrics->text().contains("EXTRAPOLATED DC"),
+          "1 kHz preview without DC must run automatically");
+    const auto lowCsv=ildDir.filePath("dc-1k.csv"),lowPng=ildDir.filePath("dc-1k.png");
+    check(eye->saveEyeCsv(lowCsv)&&eye->saveEyePng(lowPng),"conditioned exports");
+    QFile lowRead(lowCsv);check(lowRead.open(QIODevice::ReadOnly),"DC CSV read");
+    const auto lowBytes=lowRead.readAll();
+    check(lowBytes.contains("# effective_start_hz,1000") &&
+          lowBytes.contains("# dc_status,\"EXTRAPOLATED DC\"") &&
+          lowBytes.contains("# dc_acknowledged,false"),"DC CSV provenance");
+    const QImage lowImage(lowPng);
+    check(lowImage.text("DCStatus")=="EXTRAPOLATED DC" &&
+          lowImage.text("EffectiveStartHz")=="1000","DC PNG provenance");
+    // Custom profile intentionally clears rates/electrical fields; explicitly
+    // restore the manual NRZ settings rather than relying on the previous PHY.
+    profile->setCurrentIndex(8);mode->setCurrentIndex(1);
+    baud->setValue(4.5);reference->setValue(2.25);cap->setValue(10);
+    check(std::abs(baud->value()-4.5)<1e-9 && std::abs(reference->value()-2.25)<1e-9,
+          "explicit manual DC fixture rate");
+    for(int i=0;i<electricalNames.size();++i)
+      eye->findChild<QLineEdit *>(electricalNames[i])->setText(electricalValues[i]);
+    eye->runButton()->click();drain(manager.scheduler());
+    check(eye->status()==S::Warning && metrics->text().contains("EXTRAPOLATED DC"),
+          "manual Eye must use same DC policy");
+    setLowSource(10001);
+    for(bool accept:{false,true}) {
+      preview->click();
+      QPointer<QDialog> prompt;
+      check(pumpUntil([&] {
+        prompt=eye->findChild<QDialog *>(QStringLiteral("eyeDcConsentDialog"));
+        return prompt && prompt->isVisible();
+      }),"10 kHz+ preview must request consent within bounded time");
+      auto *buttons=prompt->findChild<QDialogButtonBox *>();
+      check(buttons,"DC consent buttons missing");
+      auto *button=buttons->button(accept?QDialogButtonBox::Ok:QDialogButtonBox::Cancel);
+      check(button,"DC consent action missing");
+      button->click();
+      check(pumpUntil([&] {
+        return eye->status()==(accept?S::Warning:S::Cancelled) && manager.scheduler().inFlight()==0;
+      }),"DC consent decision did not complete within bounded time");
+      check(pumpUntil([&]{
+        QCoreApplication::sendPostedEvents(nullptr,QEvent::DeferredDelete);
+        return prompt.isNull();
+      }),"DC consent dialog not retired");
+      if(accept) {
+        check(eye->status()==S::Warning && eye->saveEyeCsv(ildDir.filePath("dc-ack.csv")),
+              "accepted DC warning must run");
+        QFile accepted(ildDir.filePath("dc-ack.csv"));
+        check(accepted.open(QIODevice::ReadOnly)&&accepted.readAll().contains("# dc_acknowledged,true"),
+              "DC consent export provenance");
+      } else check(eye->status()==S::Cancelled && !eye->saveEyeCsv(ildDir.filePath("dc-cancel.csv")),
+                   "cancelled DC warning cannot export");
+    }
+    // Changing the immutable source while consent is pending must dismiss it;
+    // an old confirmation cannot launch analysis on the new source.
+    preview->click();
+    QPointer<QDialog> stalePrompt;
+    check(pumpUntil([&]{
+      stalePrompt=eye->findChild<QDialog *>(QStringLiteral("eyeDcConsentDialog"));
+      return stalePrompt && stalePrompt->isVisible();
+    }),"pending DC confirmation missing");
+    setLowSource(100000);
+    check(pumpUntil([&]{
+          QCoreApplication::sendPostedEvents(nullptr,QEvent::DeferredDelete);
+          return stalePrompt.isNull();
+        }) &&
+          !eye->saveEyeCsv(ildDir.filePath("dc-stale-consent.csv")),
+          "source change retained DC consent or allowed export");
+    preview->click();drain(manager.scheduler());
+    check(eye->status()==S::Error && !eye->saveEyeCsv(ildDir.filePath("dc-blocked.csv")) &&
+          !eye->saveEyePng(ildDir.filePath("dc-blocked.png")),"100 kHz must block preview and exports");
+    eye->runButton()->click();drain(manager.scheduler());
+    check(eye->status()==S::Error && !eye->saveEyeCsv(ildDir.filePath("dc-blocked-manual.csv")),
+          "100 kHz must block manual Eye");
+
+    manager.setEyeSourceProvider({});
+
+    manager.setIcnSourceProvider({});
+    manager.setIldSourceProvider({});
+    // Exercise repeated real window destruction/recreation and worker cleanup.
+    // This verifies object lifetimes, not process RSS or physical GPU memory.
+    manager.setContext(context());
+    QElapsedTimer lifecycle; lifecycle.start();
+    for(int cycle=0;cycle<3;++cycle) {
+      for(int i=0;i<releaseFeatureCount;++i) {
+        const auto feature=static_cast<Feature>(i);
+        auto *window=manager.openWindow(feature);
+        check(window && window->isVisible(),"Repeated feature window open failed");
+        check(window->startWork(slowWork(3)),"Repeated feature worker failed to start");
+        if(cycle==1) {
+          drain(manager.scheduler());
+          check(window->status()==S::Valid,"Repeated completed worker did not publish");
+        }
+        QPointer<AnalysisWindow> dying(window);
+        window->close();
+        check(pumpUntil([&]{
+          QCoreApplication::sendPostedEvents(nullptr,QEvent::DeferredDelete);
+          return dying.isNull();
+        }),"Repeated feature window retained deleted object");
+        drain(manager.scheduler());
+        check(manager.existingWindow(feature)==nullptr,"Repeated feature registry retained window");
+      }
+    }
+    std::cout << "012_61 feature_lifecycle_cycles=3 windows_closed="
+              << 3*releaseFeatureCount << " elapsed_ms=" << lifecycle.elapsed()
+              << " workers_remaining=" << manager.scheduler().inFlight() << std::endl;
+    std::cout << "012_04/012_05/012_06 QT GUI, ILD and ICN workflow PASS\n";
+    return 0;
+  } catch (const std::exception &error) {
+    std::cerr << "012_04 QT GUI/worker lifecycle FAIL: " << error.what() << '\n';
+    return 1;
+  }
+}

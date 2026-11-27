@@ -1,10 +1,10 @@
 # SParamView 사용자 설명서
 
-**적용 기준:** SParamView **v1.3.5 공식 릴리스**
+**적용 기준:** SParamView **v1.4.0 공식 릴리스**
 **지원 플랫폼:** Windows x64 / Windows ARM64 / macOS Apple Silicon (arm64)
-**문서 갱신:** **2026-11-14(KST)**. v1.3.5는 Mapping CSV 보안·스프레드시트 왕복 보존 v3 입출력, GUI 시작 예외 안내 및 실패 시 안전한 캐시 초기화 정리를 통합합니다. v1.3.3의 포트 번호 경계 검증과 선형 문자열 파싱을 반영합니다. v1.3.2 프로젝트 캐시 격리 및 타이틀바 파일명, v1.3.1 다중 프로세스 캐시 안전성, v1.3.0 Touchstone 입력·포트 매핑·Windows 배포 구조, v1.2.5 임시 캐시 정책을 반영합니다. 과거 릴리스 자산은 변경하지 않았습니다.
+**문서 갱신:** 2026-11-27 (KST). v1.4.0 신규 분석, 다국어 및 GUI 개선 반영.
 
-[English User Guide](USER_GUIDE_EN.md) | [한국어 README](../README_KO.md) | [v1.3.5 Release Notes](Release_1.3.5.md)
+[English User Guide](USER_GUIDE_EN.md) | [한국어 README](../README_KO.md) | [v1.4.0 Release Notes](Release_1.4.0.md)
 
 ---
 
@@ -98,7 +98,7 @@ v1.2.0의 기능별 소스 분할은 내부 코드 구조 변경입니다. 사�
 - **수치 데이터 형식:** Hz/kHz/MHz/GHz, RI/MA/DB, Full/Lower/Upper 행렬, 포트 기준 임피던스, 2포트 순서 및 Mixed-Mode 순서 중 구현된 S-파라미터 범위를 지원합니다. P/N 및 Near/Far의 물리적 연결은 원본과 비교해 확인해야 합니다.
 - **포트 이름:** `! Port 1 = J1-A1 NET_P` 및 제조사 확장 `! Port1_J1_A1::NET_P` 주석을 읽습니다. `!.DiffChannels`는 공식 Touchstone 키워드가 아닌 제조사 주석으로, `[Mixed-Mode Order]`와 구별합니다. 포트 인덱스·NET·컴포넌트/핀·극성이 불일치하면 자동 확정하지 않고 수동 확인을 요구합니다.
 - **캐시:** v1.3.0에서 캐시 메타데이터 형식을 변경하여 이전 버전의 빈 포트 이름이 재사용되지 않도록 했습니다. 종료 시 임시 캐시를 안전하게 정리하는 v1.2.5 정책은 유지합니다.
-- **Windows 압축 배포본:** 최상위 EXE는 `SParamView.exe` 하나이며 Qt와 필수 MSVC DLL은 실행파일 옆에 둡니다. CLI는 `tools/si_cli.exe`, 테스트 실행파일은 `tests/si_*.exe`로 분리하고 `Run_Windows_Verification.cmd`는 새 위치를 사용합니다.
+- **Windows 압축 배포본:** 최상위 EXE는 `SParamView.exe` 하나이며 Qt와 필수 MSVC DLL은 실행파일 옆에 둡니다. CLI는 `tools/si_cli.exe`에 유지합니다. v1.4.0 후보부터 테스트 실행파일(`tests/si_*.exe`)과 `Run_Windows_Verification.cmd`는 별도 전체 QA ZIP에 포함하며 일반 사용자 ZIP에는 포함하지 않습니다.
 
 규격 출처: [IBIS Touchstone v2.1 공식 문서](https://ibis.org/touchstone_ver2.1/touchstone_ver2_1.pdf). [v1.3.0 CI 검증](https://github.com/july-rust/SParamView-Public/actions/runs/40807027224).
 
@@ -110,15 +110,15 @@ GitHub Releases에서 사용 중인 시스템에 맞는 패키지를 선택합�
 
 | 시스템 | 권장 패키지 |
 |---|---|
-| Windows x64 | `SParamView_Windows_x64_v1.3.5.zip` |
-| Windows ARM64 | `SParamView_Windows_ARM64_v1.3.5.zip` |
-| macOS Apple Silicon | `SParamView_macOS_AppleSilicon_arm64_v1.3.5.dmg` 또는 `.zip` |
+| Windows x64 | `SParamView_Windows_x64_v1.4.0.zip` |
+| Windows ARM64 | `SParamView_Windows_ARM64_v1.4.0.zip` |
+| macOS Apple Silicon | `SParamView_macOS_AppleSilicon_arm64_v1.4.0.dmg` 또는 `.zip` |
 
 릴리스에는 SHA-256 확인용 파일도 함께 제공됩니다. 다운로드 무결성을 확인하려면 Windows PowerShell에서 `Get-FileHash <파일명> -Algorithm SHA256`, macOS Terminal에서 `shasum -a 256 <파일명>`을 실행한 뒤 릴리스의 `.sha256` 값과 비교할 수 있습니다.
 
 ### 2.2 Windows
 
-ZIP 파일의 압축을 해제한 뒤 최상위 `SParamView.exe`를 실행합니다. CLI와 테스트 EXE는 각각 `tools/` 및 `tests/`에 있습니다. 운영체제의 평판 또는 보안 경고가 표시될 수 있으므로, 다운로드 위치와 파일의 SHA-256을 확인한 뒤 조직의 보안 정책에 따라 실행 여부를 결정하십시오.
+ZIP 파일의 압축을 해제한 뒤 최상위 `SParamView.exe`를 실행합니다. CLI는 `tools/`에 있습니다. v1.4.0 후보의 테스트 EXE와 검증 명령은 별도 전체 QA ZIP에 포함됩니다. 운영체제의 평판 또는 보안 경고가 표시될 수 있으므로, 다운로드 위치와 파일의 SHA-256을 확인한 뒤 조직의 보안 정책에 따라 실행 여부를 결정하십시오.
 
 ### 2.3 macOS Apple Silicon
 
@@ -590,7 +590,7 @@ SParamView 소스는 MIT License로 배포됩니다. Third-party component와 fo
 
 ## 22. 문서 검증 근거
 
-v1.2.1에서 도입된 과거 기능은 [v1.2.1 릴리스 노트](Release_1.2.1.md)와 다음 소스 자료를 참고했습니다. 현재 버전은 [v1.3.5 릴리스 노트](Release_1.3.5.md), [임시 캐시 정리](Temporary_Cache_Cleanup.md), [변경 이력](Revision_History.md) 및 [v1.3.5 소스](https://github.com/july-rust/SParamView-Public/tree/v1.3.5)를 참고하십시오. 이전 v1.2.4a 검증 기록은 [이전 릴리스 노트](Release_1.2.4a.md)에 보존되어 있습니다.
+v1.2.1에서 도입된 과거 기능은 [v1.2.1 릴리스 노트](Release_1.2.1.md)와 다음 소스 자료를 참고했습니다. 현재 버전은 [v1.4.0 릴리스 노트](Release_1.4.0.md), [임시 캐시 정리](Temporary_Cache_Cleanup.md), [변경 이력](Revision_History.md) 및 [v1.4.0 소스](https://github.com/july-rust/SParamView-Public/tree/v1.4.0)를 참고하십시오. 이전 v1.2.4a 검증 기록은 [이전 릴리스 노트](Release_1.2.4a.md)에 보존되어 있습니다.
 
 - [TDR 초기 축 범위 및 자동 스케일](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/src/plot.cpp)
 - [그래프 조작 및 초기 화면 복귀](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/src/navigation.cpp)
@@ -603,4 +603,20 @@ v1.2.1에서 도입된 과거 기능은 [v1.2.1 릴리스 노트](Release_1.2.1.
 
 ### 문서 버전
 
-이 설명서는 **SParamView v1.3.5 정식 릴리스**를 기준으로 **2026-11-14(KST)** 갱신했습니다. 수록 이미지는 [출처가 확인된 v1.2.1 검증 화면](images/README.md)으로 v1.3.2에서 촬영하지 않았습니다. 이미 게시된 v1.3.0 태그와 릴리스 첨부 문서는 변경하지 않습니다.
+이 설명서는 v1.4.0 (2026-11-27 KST) 기준입니다. 기존 이미지는 v1.2.1 역사적 검증 화면입니다.
+
+
+
+
+## 23. v1.4.0 주요 기능과 사용법
+
+- Analysis 메뉴에서 ILD, Generic ICN, Eye Diagram 독립 창을 실행합니다. 매핑된 피해 채널과 경로를 선택하고 Auto Analysis/Auto Preview로 초기 조건을 설정하거나 Run Manual로 실제 조건을 입력합니다. 적용 조건, 품질 경고를 확인하고 CSV/PNG를 내보냅니다.
+- ILD는 측정 삽입 손실·적합 곡선·편차를 표시합니다. ICN은 매핑된 NEXT/FEXT 경로, 신호/필터 및 독립 경로 RSS 가정에 따른 누화 적분입니다. Eye Diagram은 대역 제한 NRZ 시뮬레이션이며 측정 BER이 아닙니다. 자동 설정은 실제 PHY 설정의 보증이 아닌 참고용 가정입니다.
+- Eye Diagram의 DC 누락 시 시작 주파수 10 kHz 이하는 주파수 기준 확인 없이, 10 kHz 초과~100 kHz 미만은 확인 후 실행하며 100 kHz 이상은 차단합니다. 다른 품질 조건은 계속 적용합니다. AC-like 단일 Pole 외삽은 실제 토폴로지나 장시간 패턴을 보증하지 않습니다.
+- Language 메뉴에서 English/Korean/Japanese를 재시작 없이 전환합니다. New는 미저장 변경을 확인하고 작업 공간을 초기화합니다. 복수 Touchstone 파일은 개별 매핑과 순차 처리, 마지막 폴더 및 메인 창 상태 복원을 지원합니다. 분석 창은 화면에 적응하며 설명은 스크롤하고 그래프 영역을 유지합니다. 테이블·Overlay·렌더링을 최적화했습니다.
+- 기본 Limit: RL -10 dB, IL -3 dB, NEXT/FEXT -20 dB, TDR -10%; 기본 체크 해제. 규격이 아닌 변경 가능한 예시입니다.
+- Windows 사용자 ZIP과 검증용 전체 QA ZIP을 분리했습니다.
+
+**적용 범위:** 엔지니어링 참고용입니다. COM은 개발 보류되어 메뉴에 없으며 IEEE/SNIA/MIPI 적합성, 측정 BER, 모든 물리 장치/HiDPI 검증을 보증하지 않습니다.
+
+[Release notes](Release_1.4.0.md) · [ILD](Channel_Analysis_ILD_012_05.md) · [ICN](Channel_Analysis_ICN_012_06.md) · [Eye Diagram](Channel_Analysis_Eye_012_07.md) · [AC/Auto](qualification/012_54_AC_Auto_Analysis.md).

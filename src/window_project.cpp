@@ -1,3 +1,64 @@
+void MainWindow::newWorkspace() {
+  if (busy) return;
+  // Refuse to retire a directory that no longer belongs to this session.
+  const QFileInfo current(workspaceCache->path());
+  const auto session = QDir(cacheSession.path()).canonicalPath();
+  if (session.isEmpty() || !current.isDir() || current.isSymLink() ||
+      !current.fileName().startsWith("workspace-") ||
+      current.canonicalFilePath() != QDir(session).filePath(current.fileName())) {
+    error("Cannot verify current workspace cache ownership.");
+    return;
+  }
+  if (!confirmProjectTransition()) return;
+  auto newWorkspaceDir = std::make_shared<QTemporaryDir>(
+      QDir(cacheSession.path()).filePath("workspace-XXXXXX"));
+  if (!newWorkspaceDir->isValid()) {
+    error("Cannot create new private workspace cache.");
+    return;
+  }
+  QScopedValueRollback<bool> restoring(restoringProject, true);
+  // Cancel and invalidate callbacks before releasing any source handles.
+  if (analysisWindows) analysisWindows->setContext({});
+  ++viewGeneration;
+  pendingView.reset();
+  if (viewControl) viewControl->cancelled = true;
+  viewPool.waitForDone();
+  viewFuture = QFuture<void>{};
+  plot->snapshot.curves.clear();
+  results.clear();
+  lastJobs.clear();
+  lastRevisions.clear();
+  revisions.clear();
+  auto retiredNewWorkspace = std::move(workspaceCache);
+  workspaceCache = std::move(newWorkspaceDir);
+  projectName = "Untitled";
+  projectPath.clear();
+  settings = si::Settings{};
+  settings.tdrStopSeconds = 3e-9;
+  lastSettings = settings;
+  { QSignalBlocker blocker(revisionBox); revisionBox->clear(); }
+  search->clear();
+  selectionInfo->clear();
+  compareTable->clear();
+  compareTable->setRowCount(0);
+  compareTable->setColumnCount(0);
+  rebuildChannels();
+  applySettings();
+  setDirectionMode(0);
+  showMetric(si::Metric::RL);
+  updateActiveTouchstoneTitle();
+  refreshResults();
+  refreshPlot();
+  refreshAnalysisContext();
+  dirty = false;
+  // Retire only the old owned workspace. The analysis manager waits for
+  // outstanding worker handles before removing it (especially on Windows).
+  if (analysisWindows) analysisWindows->retireWorkspace(std::move(retiredNewWorkspace));
+  else if (!retiredNewWorkspace->remove())
+    qWarning() << "SParamView: retired workspace cleanup deferred";
+  sparamview::ui_language::message(notice,"New workspace ready. Previous workspace cache retired; cleanup may be deferred until worker handles are released.");
+}
+
 void MainWindow::saveProject(bool as) {
   if (busy || revisions.empty())
     return;
@@ -7,8 +68,8 @@ void MainWindow::saveProject(bool as) {
     if (path.isEmpty() || as)
       path =
           withExtension(QFileDialog::getSaveFileName(
-                            this, "Save Project", projectName + ".siproject",
-                            "SI Project (*.siproject)"),
+                            this, sparamview::ui_language::textFor(this, "Save Project"), sparamview::preferences::saveSuggestion(projectName + ".siproject"),
+                            sparamview::ui_language::textFor(this, "SI Project (*.siproject)")),
                         ".siproject");
     if (path.isEmpty())
       return;
@@ -47,25 +108,27 @@ void MainWindow::saveProject(bool as) {
         {"revisions", sources},
         {"ui", QJsonObject{{"revision", revisionBox->currentIndex()},
                            {"selected", selected},
-                           {"group", groupBox->currentText()},
+                           {"group", groupBox->currentIndex()<=0 ? QString("All groups") : groupBox->currentText()},
                            {"search", search->text()},
-                           {"aggressor", aggressorBox->currentText()},
+                           {"aggressor", aggressorBox->currentIndex()<=0 ? QString("AUTO (same group)") : aggressorBox->currentText()},
                            {"metric", int(displayed)},
                            {"directionMode", directionMode},
                            {"geometry",
                             QString::fromLatin1(saveGeometry().toBase64())}}}};
+    const auto projectJsonBytes = QJsonDocument(obj).toJson();
     QSaveFile file(path);
     if (!file.open(QIODevice::WriteOnly) ||
-        file.write(QJsonDocument(obj).toJson()) < 0 || !file.commit())
+        file.write(projectJsonBytes) != projectJsonBytes.size() || !file.commit())
       throw si::Error("Project save failed");
     projectPath = path;
+    sparamview::preferences::rememberFile(path);
     dirty = false;
-    notice->setText("Project saved: " + QFileInfo(path).fileName());
+    sparamview::ui_language::message(notice,"Project saved: %1",{QFileInfo(path).fileName()});
   } catch (const std::exception &e) {
     error(qs(e.what()));
   }
 }
-void MainWindow::loadProject(QString path) {
+void MainWindow::loadProject(QString path, bool rememberDirectory) {
   if (busy)
     return;
   try {
@@ -91,8 +154,8 @@ void MainWindow::loadProject(QString path) {
         source = r["absoluteSource"].toString();
       if (!QFileInfo::exists(source)) {
         source = QFileDialog::getOpenFileName(
-            this, "Locate Source File: " + r["name"].toString(), {},
-            "Touchstone (*.s*p *.ts)");
+            this, sparamview::ui_language::textFor(this, "Locate Source File") + ": " + r["name"].toString(), sparamview::preferences::workingDirectory(),
+            sparamview::ui_language::textFor(this, "Touchstone (*.s*p *.ts)"));
         if (source.isEmpty())
           return;
       }
@@ -152,8 +215,10 @@ void MainWindow::loadProject(QString path) {
                                    "Saved SHA-256 matches fully verified current source";
           }
         },
-        [this, staged, loaded, settingsLoaded, path, obj] {
+        [this, staged, loaded, settingsLoaded, path, obj, rememberDirectory] {
           QScopedValueRollback<bool> restoring(restoringProject,true);
+          // Cancel channel jobs before releasing or replacing source caches.
+          if (analysisWindows) analysisWindows->setContext({});
           // The viewport worker can still hold Jobs into the previous cache.
           // Wait for cancellation before dropping those handles on Windows.
           if (viewControl) viewControl->cancelled = true;
@@ -176,7 +241,9 @@ void MainWindow::loadProject(QString path) {
           plot->resetView();
           // Only remove an owned workspace directory; never delete an
           // active parallel process's session or a user-managed source.
-          if (previousWorkspace && !previousWorkspace->remove())
+          if (analysisWindows)
+            analysisWindows->retireWorkspace(std::move(previousWorkspace));
+          else if (previousWorkspace && !previousWorkspace->remove())
             qWarning() << "SParamView: retired workspace cache cleanup deferred";
 
           projectName = obj["name"].toString("Untitled");
@@ -196,9 +263,11 @@ void MainWindow::loadProject(QString path) {
           rebuildChannels();
           applySettings();
           setDirectionMode(ui.contains("directionMode") ? std::clamp(ui["directionMode"].toInt(),0,2) : (settings.reverse?1:0));
-          groupBox->setCurrentText(ui["group"].toString("All groups"));
+          const auto group=ui["group"].toString("All groups");
+          groupBox->setCurrentIndex(group=="All groups"?0:std::max(0,groupBox->findText(group)));
           search->setText(ui["search"].toString());
-          aggressorBox->setCurrentText(ui["aggressor"].toString("AUTO (same group)"));
+          const auto aggressor=ui["aggressor"].toString("AUTO (same group)");
+          aggressorBox->setCurrentIndex(aggressor=="AUTO (same group)"?0:std::max(0,aggressorBox->findText(aggressor)));
           auto selected = ui["selected"].toArray();
           for (int i = 0; i < channels->count(); ++i)
             channels->item(i)->setCheckState(
@@ -213,7 +282,9 @@ void MainWindow::loadProject(QString path) {
           refreshResults();
           refreshPlot();
           dirty = false;
-          notice->setText("Project restored. Reconfirm mapping for revisions whose source files have changed.");
+          refreshAnalysisContext();
+          sparamview::ui_language::message(notice,"Project restored. Reconfirm mapping for revisions whose source files have changed.");
+          if (rememberDirectory) sparamview::preferences::rememberFile(path);
         });
   } catch (const std::exception &e) {
     error(qs(e.what()));
@@ -225,10 +296,10 @@ void MainWindow::preset(bool save) {
       syncSettings();
     QString path =
         save ? withExtension(QFileDialog::getSaveFileName(
-                                 this, "Save Limit Preset", "SI_Rule.json",
+                                 this, sparamview::ui_language::textFor(this, "Save Limit Preset"), sparamview::preferences::saveSuggestion("SI_Rule.json"),
                                  "JSON (*.json)"),
                              ".json")
-             : QFileDialog::getOpenFileName(this, "Load Limit Preset", {},
+             : QFileDialog::getOpenFileName(this, sparamview::ui_language::textFor(this, "Load Limit Preset"), sparamview::preferences::workingDirectory(),
                                             "JSON (*.json)");
     if (path.isEmpty())
       return;
@@ -258,6 +329,7 @@ void MainWindow::preset(bool save) {
       applySettings();
       dirty = true;
     }
+    sparamview::preferences::rememberFile(path);
   } catch (const std::exception &e) {
     error(qs(e.what()));
   }
@@ -276,8 +348,8 @@ void MainWindow::frequencyLimit() {
     lines << num(f * 1e-9, 6) + ", " + num(v, 3);
   bool ok;
   auto text = QInputDialog::getMultiLineText(
-      this, "Frequency Limit: " + qs(si::name(displayed)),
-      "Enter GHz, dB on each line. Clear the text to restore a constant limit.\nExample: 1, -10\nValues outside the defined range are N/A; limits are not extrapolated.",
+      this, sparamview::ui_language::textFor(this, "Frequency Limit") + ": " + qs(si::name(displayed)),
+      sparamview::ui_language::textFor(this, "Enter GHz, dB on each line. Clear the text to restore a constant limit.\nExample: 1, -10\nValues outside the defined range are N/A; limits are not extrapolated."),
       lines.join('\n'), &ok);
   if (!ok)
     return;
@@ -298,7 +370,7 @@ void MainWindow::frequencyLimit() {
     revised.validate();
     *limit = revised;
     dirty = true;
-    notice->setText("Frequency limits saved. Enable the corresponding limit checkbox and rerun analysis.");
+    sparamview::ui_language::message(notice,"Frequency limits saved. Enable the corresponding limit checkbox and rerun analysis.");
   } catch (const std::exception &e) {
     error(qs(e.what()));
   }

@@ -16,7 +16,7 @@
 namespace si {
 using Complex = std::complex<double>;
 namespace fs = std::filesystem;
-inline constexpr const char *version = "1.3.5";
+inline constexpr const char *version = "1.4.0";
 inline constexpr double NaN = std::numeric_limits<double>::quiet_NaN();
 struct Error : std::runtime_error {
   using std::runtime_error::runtime_error;
@@ -100,7 +100,8 @@ struct Settings {
   int markers = 3;
   double prominence = 0.15;
   std::vector<double> manualMarkersHz;
-  Limit rl, il, next, fext;
+  Limit rl{false, -10, {}}, il{false, -3, {}},
+      next{false, -20, {}}, fext{false, -20, {}};
   double targetOhm =
       0; // 0: automatic 50 SE / 100 differential, NEVER changes reference
   bool tdrLimitEnabled = false;

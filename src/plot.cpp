@@ -1,3 +1,4 @@
+#include "ui_language.hpp"
 #include "app.hpp"
 #include <cmath>
 #include <set>
@@ -150,17 +151,20 @@ std::pair<double, double> graphYRange(const PlotSnapshot &s) {
   ymax += pad;
   return {ymin, ymax};
 }
+static QString plotText(const PlotSnapshot &s,const QString &source) {
+  return sparamview::ui_language::menuText(source,sparamview::ui_language::fromCode(s.displayLanguage));
+}
 QString graphParameterLabel(const PlotSnapshot &s) {
   if (s.metric == si::Metric::TDR)
-    return s.settings.tdrReflection ? "Reflection coefficient ρ [1]" : "Impedance [Ω]";
+    return s.settings.tdrReflection ? plotText(s,"Reflection coefficient ρ [1]") : plotText(s,"Impedance [Ω]");
   std::set<QString> parameters;
   for (const auto &curve : s.curves) {
     if (curve.parameter.empty())
       continue;
     if (s.metric == si::Metric::NEXT || s.metric == si::Metric::FEXT)
       parameters.insert(curve.parameter.starts_with("Sdd")
-                            ? "Sdd[response, stimulus] [dB]"
-                            : "S[response, stimulus] [dB]");
+                            ? plotText(s,"Sdd[response, stimulus] [dB]")
+                            : plotText(s,"S[response, stimulus] [dB]"));
     else
       parameters.insert(qs(curve.parameter) + " [dB]");
   }
@@ -171,12 +175,17 @@ QString graphParameterLabel(const PlotSnapshot &s) {
     if (s.metric == si::Metric::IL)
       return s.settings.reverse ? "S12 [dB] / Sdd12 [dB]"
                                 : "S21 [dB] / Sdd21 [dB]";
-    return "S / Sdd[response, stimulus] [dB]";
+    return plotText(s,"S / Sdd[response, stimulus] [dB]");
   }
   QStringList labels;
   for (const auto &parameter : parameters)
     labels << parameter;
   return labels.join(" / ");
+}
+QString graphTitleLabel(const PlotSnapshot &s) {
+  return plotText(s, qs(si::name(s.metric))) + "  ·  " +
+         graphParameterLabel(s) +
+         (s.heatmap ? "  /  " + plotText(s,"Heatmap") : QString());
 }
 QString graphQualityLabel(const PlotSnapshot &s) {
   if (s.metric != si::Metric::TDR)
@@ -185,7 +194,7 @@ QString graphQualityLabel(const PlotSnapshot &s) {
     return std::count_if(s.curves.begin(), s.curves.end(),
                          [&](const auto &c) { return c.quality == quality; });
   };
-  return QString("TDR quality: GOOD %1  /  LIMITED %2  /  UNSUITABLE %3")
+  return plotText(s,"TDR quality: GOOD %1  /  LIMITED %2  /  UNSUITABLE %3")
       .arg(count("GOOD"))
       .arg(count("LIMITED"))
       .arg(count("UNSUITABLE"));
@@ -326,9 +335,7 @@ void paintGraph(QPainter &p, QRectF r, const PlotSnapshot &s, bool interactive) 
   p.setRenderHint(QPainter::Antialiasing);
   p.fillRect(r, Qt::white);
   const bool compactHeader = r.height() < 240;
-  const QString title = qs(si::name(s.metric)) + "  ·  " +
-                        graphParameterLabel(s) +
-                        (s.heatmap ? "  /  Heatmap" : "");
+  const QString title = graphTitleLabel(s);
   QFont titleFont(plotFontFamily, 17, QFont::DemiBold);
   while (QFontMetricsF(titleFont).horizontalAdvance(title) > r.width() - 44 &&
          titleFont.pointSizeF() > 9)
@@ -338,9 +345,9 @@ void paintGraph(QPainter &p, QRectF r, const PlotSnapshot &s, bool interactive) 
   p.drawText(r.adjusted(24, 14, -20, 0), Qt::AlignTop, title);
   p.setFont(QFont(plotFontFamily, 9));
   p.setPen(QColor("#64758b"));
-  const QString context = QString::number(s.curves.size()) + " traces  •  " +
-                          (s.bothDirections ? QString("Both directions")
-                                            : qs(si::metricDirection(s.metric, s.settings.reverse)).replace(" -> ", " → "));
+  const QString context = plotText(s,"%1 traces").arg(s.curves.size()) + "  •  " +
+                          (s.bothDirections ? plotText(s,"Both directions")
+                                            : plotText(s,qs(si::metricDirection(s.metric, s.settings.reverse))).replace(" -> ", " → "));
   const double projectWidth = std::max(
       0., r.width() - 54 - QFontMetricsF(p.font()).horizontalAdvance(context));
   const QString project = QFontMetricsF(p.font()).elidedText(
@@ -353,7 +360,7 @@ void paintGraph(QPainter &p, QRectF r, const PlotSnapshot &s, bool interactive) 
   if (s.curves.empty()) {
     p.setFont(QFont(plotFontFamily, 13));
     p.drawText(r, Qt::AlignCenter,
-               "Open Touchstone → Select channels → QUICK ANALYSIS");
+               plotText(s,"Open Touchstone → Select channels → QUICK ANALYSIS"));
     p.restore();
     return;
   }
@@ -365,14 +372,14 @@ void paintGraph(QPainter &p, QRectF r, const PlotSnapshot &s, bool interactive) 
     p.setFont(QFont(plotFontFamily, 12));
     p.drawText(r.adjusted(40, 110, -40, -35),
                Qt::AlignCenter | Qt::TextWordWrap,
-               "Quick TDR unavailable · UNSUITABLE\n\nThe current input data and transform settings cannot produce a Quick TDR waveform.\nDo not use this result for impedance evaluation.\n\n" +
-                   qs(s.curves.front().note));
+               plotText(s,"Quick TDR unavailable · UNSUITABLE\n\nThe current input data and transform settings cannot produce a Quick TDR waveform.\nDo not use this result for impedance evaluation.\n\n") +
+                   sparamview::ui_language::diagnosticText(qs(s.curves.front().note),sparamview::ui_language::fromCode(s.displayLanguage)));
     p.restore();
     return;
   }
   auto [lo, hi] = graphXRange(s);
   double scale = s.metric == si::Metric::TDR ? 1e9 : 1e-9;
-  QString unit = s.metric == si::Metric::TDR ? "Time [ns]" : "Frequency [GHz]";
+  QString unit = s.metric == si::Metric::TDR ? plotText(s,"Time [ns]") : plotText(s,"Frequency [GHz]");
   auto box = graphArea(r, s);
   auto px = [&](double x) {
     return box.left() + (x - lo) / (hi - lo) * box.width();
@@ -380,24 +387,24 @@ void paintGraph(QPainter &p, QRectF r, const PlotSnapshot &s, bool interactive) 
   p.setFont(QFont(plotFontFamily, 9));
   p.drawText(
       QRectF(r.left() + 24, r.top() + (compactHeader ? 47 : 69), r.width() - 48, 20), Qt::AlignLeft,
-      QString("Analysis: %1 – %2 %3  |  Limit: %4")
+      plotText(s,"Analysis: %1 – %2 %3  |  Limit: %4")
           .arg(num(s.curves.front().start * scale))
           .arg(num(s.curves.front().stop * scale))
           .arg(s.metric == si::Metric::TDR ? "ns" : "GHz")
           .arg(s.metric == si::Metric::TDR
                    ? (s.settings.tdrLimitEnabled && !s.settings.tdrReflection
-                          ? "Target ± " + num(s.settings.tolerancePercent, 1) +
+                          ? plotText(s,"Target ± ") + num(s.settings.tolerancePercent, 1) +
                                 "%"
-                          : "Off / N/A")
+                          : plotText(s,"Off / N/A"))
                    : (s.settings.limit(s.metric).enabled
                           ? (s.settings.limit(s.metric).points.empty()
-                                 ? (s.metric == si::Metric::IL ? "value ≥ "
-                                                               : "value ≤ ") +
+                                 ? (s.metric == si::Metric::IL ? plotText(s,"value ≥ ")
+                                                               : plotText(s,"value ≤ ")) +
                                        num(s.settings.limit(s.metric).constant,
                                            2) +
                                        " dB"
-                                 : "Frequency mask")
-                          : "Off / N/A")));
+                                 : plotText(s,"Frequency mask"))
+                          : plotText(s,"Off / N/A"))));
   if (s.heatmap && s.metric != si::Metric::TDR) {
     double mn = std::numeric_limits<double>::infinity(), mx = -mn;
     for (auto &c : s.curves)
@@ -455,8 +462,8 @@ void paintGraph(QPainter &p, QRectF r, const PlotSnapshot &s, bool interactive) 
     p.setPen(QColor("#64758b"));
     p.drawText(QRectF(box.left(), box.bottom() + 38, box.width(), 20),
                Qt::AlignCenter,
-               s.margin ? "Worst margin per cell • Red = NG • Gray = N/A"
-                        : "Worst value per cell • Teal = better • Red = worse");
+               s.margin ? plotText(s,"Worst margin per cell • Red = NG • Gray = N/A")
+                        : plotText(s,"Worst value per cell • Teal = better • Red = worse"));
   } else {
     auto [ymin, ymax] = graphYRange(s);
     const auto &limit = s.settings.limit(s.metric);
@@ -555,7 +562,7 @@ void paintGraph(QPainter &p, QRectF r, const PlotSnapshot &s, bool interactive) 
         if ((s.curves.size() <= 4 && marker.global) ||
             (marker.manual && s.curves.size() <= 2)) {
           p.setFont(QFont(plotFontFamily, 8, QFont::DemiBold));
-          QString label = (marker.manual ? "M " : "Worst ") + num(marker.y, 2);
+          QString label = (marker.manual ? QString("M ") : plotText(s,"Worst")+" ") + num(marker.y, 2);
           double left =
               std::clamp(point.x() + 7, box.left() + 2, box.right() - 90);
           p.drawText(
@@ -586,8 +593,7 @@ void paintGraph(QPainter &p, QRectF r, const PlotSnapshot &s, bool interactive) 
     }
     if (int(s.curves.size()) > maxLegend)
       p.drawText(QRectF(box.right() + 18, box.bottom() + 8, 195, 20),
-                 "+ " + QString::number(int(s.curves.size()) - maxLegend) +
-                     " traces; select result rows");
+                 plotText(s,"+ %1 traces; select result rows").arg(int(s.curves.size()) - maxLegend));
   }
   for (int i = 0; i <= 6; ++i) {
     double x = lo + (hi - lo) * i / 6.;
@@ -601,7 +607,7 @@ void paintGraph(QPainter &p, QRectF r, const PlotSnapshot &s, bool interactive) 
   p.setPen(QColor("#64758b"));
   p.drawText(QRectF(box.left(), box.bottom() + 32, box.width(), 22),
              Qt::AlignCenter,
-             unit + (s.heatmap ? "" : " • wheel: X zoom | Ctrl: Y | drag: pan | Shift+drag: box"));
+             QFontMetricsF(p.font()).elidedText(unit, Qt::ElideRight, box.width()));
   p.restore();
 }
 QImage graphImage(const PlotSnapshot &s, QSize size) {

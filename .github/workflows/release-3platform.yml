@@ -3,7 +3,7 @@ name: SParamView three-platform CI and release
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, integration/v1.4.0]
     paths:
       - 'CMakeLists.txt'
       - 'src/**'
@@ -12,9 +12,11 @@ on:
       - 'scripts/**'
       - 'assets/**'
       - 'docs/Release_*.md'
+      - 'docs/Development_Plan_012_v1.4.0.md'
+      - 'docs/Channel_Analysis_*.md'
       - '.github/workflows/release-3platform.yml'
   pull_request:
-    branches: [main]
+    branches: [main, integration/v1.4.0]
     paths:
       - 'CMakeLists.txt'
       - 'src/**'
@@ -23,6 +25,8 @@ on:
       - 'scripts/**'
       - 'assets/**'
       - 'docs/Release_*.md'
+      - 'docs/Development_Plan_012_v1.4.0.md'
+      - 'docs/Channel_Analysis_*.md'
       - '.github/workflows/release-3platform.yml'
 
 permissions:
@@ -134,7 +138,7 @@ jobs:
             build-core/Testing/Temporary/*.log
             build-san/Testing/Temporary/*.log
           if-no-files-found: error
-          retention-days: ${{ github.ref == 'refs/heads/main' && 14 || 1 }}
+          retention-days: 14
 
   windows:
     name: Windows ${{ matrix.arch }}
@@ -199,6 +203,16 @@ jobs:
             -Compiler MSVC `
             -Architecture x64
 
+      - name: Record x64 navigation performance evidence
+        if: matrix.arch == 'x64'
+        run: |
+          $bundle = Join-Path $PWD 'dist/SParamView-Windows-x64'
+          $env:PATH = $bundle + ';' + (Join-Path $bundle 'tests') + ';' + $env:PATH
+          $env:QT_PLUGIN_PATH = $bundle
+          $env:QT_QPA_PLATFORM = 'windows'
+          & "$bundle/tests/si_navigation_tests.exe" validation-windows-x64/navigation-native
+          if ($LASTEXITCODE -ne 0) { throw 'Native x64 navigation benchmark failed' }
+
       - name: Qualify isolated failures and native Windows dialogs
         if: matrix.arch == 'x64'
         run: |
@@ -232,6 +246,34 @@ jobs:
             -Architecture ARM64 `
             -SkipTests
 
+      - name: Record bundle build provenance
+        env:
+          SPARAMVIEW_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          @{version=$env:SPARAMVIEW_VERSION;commit=$env:GITHUB_SHA;platform='Windows ${{ matrix.arch }}';run_id=$env:GITHUB_RUN_ID} |
+            ConvertTo-Json | Set-Content -Encoding utf8 'dist/SParamView-Windows-${{ matrix.arch }}/build-provenance.json'
+
+      - name: Stage slim user ZIP and separate full QA ZIP
+        run: |
+          python scripts/publish_release.py --stage-windows 'dist/SParamView-Windows-${{ matrix.arch }}' 'candidate' '${{ needs.prepare.outputs.version }}' '${{ matrix.arch }}'
+          if ($LASTEXITCODE -ne 0) { throw 'Package staging failed' }
+          Copy-Item candidate/inventory.json '${{ matrix.validation_dir }}/package-inventory.json'
+
+      - name: Execute exact x64 user ZIP with native Windows GUI
+        if: matrix.arch == 'x64'
+        run: |
+          python scripts/publish_release.py --smoke-windows candidate '${{ needs.prepare.outputs.version }}' x64 '${{ matrix.validation_dir }}/user-package'
+          if ($LASTEXITCODE -ne 0) { throw 'User ZIP qualification failed' }
+
+      - name: Upload user and QA ZIP candidates
+        uses: actions/upload-artifact@v6
+        with:
+          name: SParamView-v${{ needs.prepare.outputs.version }}-Windows-${{ matrix.arch }}-candidate
+          path: candidate/
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+
       - name: Upload validation evidence
         if: always()
         uses: actions/upload-artifact@v6
@@ -239,15 +281,8 @@ jobs:
           name: SParamView-v${{ needs.prepare.outputs.version }}-${{ matrix.arch }}-validation
           path: ${{ matrix.validation_dir }}/
           if-no-files-found: ignore
-          retention-days: ${{ github.ref == 'refs/heads/main' && 7 || 1 }}
+          retention-days: 14
           compression-level: 9
-
-      - name: Record bundle build provenance
-        env:
-          SPARAMVIEW_VERSION: ${{ needs.prepare.outputs.version }}
-        run: |
-          @{version=$env:SPARAMVIEW_VERSION;commit=$env:GITHUB_SHA;platform='Windows ${{ matrix.arch }}';run_id=$env:GITHUB_RUN_ID} |
-            ConvertTo-Json | Set-Content -Encoding utf8 'dist/SParamView-Windows-${{ matrix.arch }}/build-provenance.json'
 
       - name: Upload runnable Windows bundle
         if: success()
@@ -256,7 +291,7 @@ jobs:
           name: SParamView-v${{ needs.prepare.outputs.version }}-Windows-${{ matrix.arch }}
           path: dist/SParamView-Windows-${{ matrix.arch }}/
           if-no-files-found: error
-          retention-days: ${{ github.ref == 'refs/heads/main' && 7 || 1 }}
+          retention-days: 14
           compression-level: 6
 
   windows-arm64-native:
@@ -300,7 +335,9 @@ jobs:
           $app = Join-Path $PWD 'bundle\SParamView.exe'
           if (-not (Test-Path $app)) { throw 'SParamView.exe missing from ARM64 bundle' }
           $v = (Get-Item $app).VersionInfo
-          $expected = '^(?:' + [regex]::Escape($env:SPARAMVIEW_VERSION) + '|1\.2\.4\.1)$'
+          $numeric = $env:SPARAMVIEW_VERSION -replace '[a-z]$',''
+          $revision = if ($env:SPARAMVIEW_VERSION -match 'a$') { '1' } else { '0' }
+          $expected = '^(?:' + [regex]::Escape($env:SPARAMVIEW_VERSION) + '|' + [regex]::Escape("$numeric.$revision") + ')$'
           if ($v.ProductVersion -notmatch $expected) { throw "ProductVersion mismatch: $($v.ProductVersion)" }
           if ($v.FileVersion -notmatch $expected) { throw "FileVersion mismatch: $($v.FileVersion)" }
           if ($v.LegalCopyright -ne 'Copyright © 2026 july') { throw "LegalCopyright mismatch: $($v.LegalCopyright)" }
@@ -334,6 +371,10 @@ jobs:
           foreach ($case in @('reuse','dirty','project_changed','single_review','mixed','transition','roundtrip','workspace_switch','cleanup')) {
             Invoke-Test -Name 'si_v124_gui_tests' -TestArgs @($case,(Join-Path $qa "v124-$case"))
           }
+          foreach ($name in @('si_ild_tests','si_icn_tests','si_eye_tests','si_channel_gui_tests','si_com_tests')) {
+            Invoke-Test -Name $name
+          }
+          Invoke-Test -Name 'si_channel_core_tests' -TestArgs @((Join-Path $qa 'channel-common'))
           Invoke-Test -Name 'si_v133_csv_tests' -TestArgs @((Join-Path $qa 'v133-csv'))
           Invoke-Test -Name 'si_direction_tests' -TestArgs @((Join-Path $qa 'direction'))
           Invoke-Test -Name 'si_golden_tests' -TestArgs @((Join-Path $qa 'golden'))
@@ -361,6 +402,15 @@ jobs:
           python tests/run_failure_qualification.py "$bundle/tests/si_failure_probe.exe" "$qa/failure-qualification" --platform windows
           if ($LASTEXITCODE -ne 0) { throw 'Native ARM64 failure qualification failed' }
 
+      - name: Execute exact ARM64 user ZIP with native Windows GUI
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download $env:GITHUB_RUN_ID --repo $env:GITHUB_REPOSITORY --name 'SParamView-v${{ needs.prepare.outputs.version }}-Windows-ARM64-candidate' --dir candidate
+          if ($LASTEXITCODE -ne 0) { throw 'ARM64 candidate download failed' }
+          python scripts/publish_release.py --smoke-windows candidate '${{ needs.prepare.outputs.version }}' ARM64 "$env:RUNNER_TEMP/native-arm64-v${{ needs.prepare.outputs.version }}/user-package"
+          if ($LASTEXITCODE -ne 0) { throw 'ARM64 user ZIP qualification failed' }
+
       - name: Upload native ARM64 validation evidence
         if: always()
         uses: actions/upload-artifact@v6
@@ -368,7 +418,7 @@ jobs:
           name: SParamView-v${{ needs.prepare.outputs.version }}-Native-Windows-ARM64-validation
           path: ${{ runner.temp }}/native-arm64-v${{ needs.prepare.outputs.version }}/
           if-no-files-found: warn
-          retention-days: ${{ github.ref == 'refs/heads/main' && 14 || 1 }}
+          retention-days: 14
           compression-level: 9
 
   macos-arm64:
@@ -449,11 +499,71 @@ jobs:
           # Run all macOS GUI checks with native Cocoa. Qt's minimal platform
           # cannot load application fonts or propagate window size hints and
           # logs unsupported-feature warnings instead of exercising them.
+          QT_QPA_PLATFORM=cocoa build-macos/si_channel_gui_tests
           QT_QPA_PLATFORM=cocoa build-macos/si_header_ui_tests
           QT_QPA_PLATFORM=cocoa build-macos/si_navigation_tests build-macos/navigation-test-macos
           QT_QPA_PLATFORM=cocoa build-macos/si_open_tests build-macos/open-test-macos fallback
           QT_QPA_PLATFORM=cocoa build-macos/si_workspace_tests examples/demo.siproject build-macos/workspace-test-macos 1440 900
           QT_QPA_PLATFORM=cocoa build-macos/si_open_tests build-macos/signal-type-test-macos signaltype
+
+      # One-time controlled comparison for 012_61: identical new test harness,
+      # same runner and Qt kit, reverting only the changed GUI implementation files
+      # in an isolated worktree. Never package or publish the baseline binary.
+      - name: Compare 012_60 and 012_61 GUI code on the same macOS runner
+        if: github.event_name == 'pull_request' && github.head_ref == 'work/012-61-application-gui-qualification'
+        timeout-minutes: 15
+        shell: bash
+        run: |
+          set -euo pipefail
+          baseline=1121066ce093940987584da213027422ddaf0289
+          git fetch --no-tags --depth=1 origin "$baseline"
+          temp="$(mktemp -d)"
+          trap 'git worktree remove --force "$temp/source" || true; rm -rf "$temp"' EXIT
+          git worktree add --detach "$temp/source" HEAD
+          for file in src/window_results.cpp src/window_plot_controller.cpp src/ui_language.hpp src/app.hpp; do
+            git show "$baseline:$file" > "$temp/source/$file"
+          done
+          cmake -S "$temp/source" -B "$temp/build" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="$QT_ROOT/lib/cmake" \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET="$MACOS_DEPLOYMENT_TARGET"
+          cmake --build "$temp/build" --target si_navigation_tests --parallel 3
+          # The full candidate build copies fonts through workspace-test targets.
+          # The isolated navigation-only target must use identical font assets.
+          test -s "$PWD/build-macos/fonts/NanumGothic-Regular.ttf"
+          mkdir -p "$temp/build/fonts"
+          cp -R "$PWD/build-macos/fonts/." "$temp/build/fonts/"
+          diff -qr "$PWD/build-macos/fonts" "$temp/build/fonts"
+          evidence="$PWD/build-macos/01261-paired"
+          mkdir -p "$evidence"
+          # Alternate order to reduce warm-up and run-order bias.
+          for round in 1 2 3; do
+            if [[ "$round" == 2 ]]; then variants="candidate baseline"; else variants="baseline candidate"; fi
+            for variant in $variants; do
+              if [[ "$variant" == baseline ]]; then exe="$temp/build/si_navigation_tests"; else exe="$PWD/build-macos/si_navigation_tests"; fi
+              QT_QPA_PLATFORM=cocoa "$exe" "$evidence/$variant-$round"
+            done
+          done
+          python3 - "$evidence" "$baseline" <<'PY'
+          import json, pathlib, statistics, sys
+          evidence=pathlib.Path(sys.argv[1])
+          result={"baseline_gui_source_commit":sys.argv[2],"comparison":"same runner, identical candidate harness; baseline differs only in four GUI implementation files"}
+          for variant in ("baseline","candidate"):
+              runs=[json.loads((evidence/f"{variant}-{i}"/"benchmark.json").read_text()) for i in (1,2,3)]
+              if not all(r["benchmark_font_registered"] and r["qt_platform"]=="cocoa" for r in runs):
+                  raise SystemExit(f"{variant}: font registration or Cocoa platform mismatch")
+              result[variant]={
+                  "font_registered":True,
+                  "changed_table_median_ms_by_run":[r["changed_result_table_refresh"]["median_ms"] for r in runs],
+                  "large_table_median_ms_by_run":[r["large_result_table_refresh"]["median_ms"] for r in runs],
+                  "large_table_median_of_medians_ms":statistics.median(r["large_result_table_refresh"]["median_ms"] for r in runs),
+                  "data_changed_signals_by_run":[r["large_result_table_data_changed_signals"] for r in runs],
+                  "cursor_30_moves_ms_by_run":[r["cursor_30_moves_ms"] for r in runs],
+              }
+          print(json.dumps(result,indent=2))
+          (evidence/"comparison.json").write_text(json.dumps(result,indent=2)+"\n")
+          PY
 
       - name: Qualify isolated failures and native Cocoa dialogs
         run: python3 tests/run_failure_qualification.py build-macos/si_failure_probe build-macos/failure-qualification --platform cocoa
@@ -477,6 +587,7 @@ jobs:
           mkdir -p "$app/Contents/MacOS/fonts" "$app/Contents/Resources"
           cp build-macos/SParamView "$app/Contents/MacOS/SParamView"
           cp -R assets/fonts/. "$app/Contents/MacOS/fonts/"
+          cp build-macos/fonts/NotoSansJP-Variable.ttf "$app/Contents/MacOS/fonts/"
 
           iconset="${RUNNER_TEMP}/SParamView.iconset"
           iconpng="${RUNNER_TEMP}/SParamView-icon.png"
@@ -497,6 +608,9 @@ jobs:
           test -s "$app/Contents/Resources/SParamView.icns"
           rm -rf "$iconset" "$iconpng"
 
+          numeric="${SPARAMVIEW_VERSION%[a-z]}"
+          revision=0
+          if [[ "$SPARAMVIEW_VERSION" == *a ]]; then revision=1; fi
           cat > "$app/Contents/Info.plist" <<PLIST
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -509,8 +623,8 @@ jobs:
             <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
             <key>CFBundleName</key><string>SParamView</string>
             <key>CFBundlePackageType</key><string>APPL</string>
-            <key>CFBundleShortVersionString</key><string>1.3.5</string>
-            <key>CFBundleVersion</key><string>1.3.5.0</string>
+            <key>CFBundleShortVersionString</key><string>${numeric}</string>
+            <key>CFBundleVersion</key><string>${numeric}.${revision}</string>
             <key>SParamViewDisplayVersion</key><string>${SPARAMVIEW_VERSION}</string>
             <key>LSMinimumSystemVersion</key><string>${MACOS_DEPLOYMENT_TARGET}</string>
             <key>NSHighResolutionCapable</key><true/>
@@ -553,8 +667,11 @@ jobs:
           import json, os, pathlib, plistlib
           app=pathlib.Path('package/SParamView.app/Contents')
           info=plistlib.loads((app/'Info.plist').read_bytes())
-          assert info['CFBundleShortVersionString']=='1.3.5'
-          assert info['CFBundleVersion']=='1.3.5.0'
+          import re
+          version=os.environ['SPARAMVIEW_VERSION']
+          numeric=re.sub(r'[a-z]$', '', version)
+          assert info['CFBundleShortVersionString']==numeric
+          assert info['CFBundleVersion']==numeric+('.1' if version.endswith('a') else '.0')
           assert info['SParamViewDisplayVersion']==os.environ['SPARAMVIEW_VERSION']
           (app/'Resources/build-provenance.json').write_text(json.dumps(dict(version=os.environ['SPARAMVIEW_VERSION'],commit=os.environ['GITHUB_SHA'],platform='macOS arm64',run_id=os.environ['GITHUB_RUN_ID'])))
           PYTHON
@@ -571,11 +688,10 @@ jobs:
         shell: bash
         env:
           QT_QPA_PLATFORM: cocoa
-          QT_QPA_PLATFORM_PLUGIN_PATH: ${{ env.QT_ROOT }}/plugins/platforms
         run: |
           set -euo pipefail
           mkdir -p package/selftest
-          package/SParamView.app/Contents/MacOS/SParamView --selftest examples package/selftest
+          env -u QT_PLUGIN_PATH -u QT_QPA_PLATFORM_PLUGIN_PATH -u DYLD_LIBRARY_PATH -u DYLD_FRAMEWORK_PATH -u DYLD_FALLBACK_LIBRARY_PATH -u DYLD_FALLBACK_FRAMEWORK_PATH PATH=/usr/bin:/bin:/usr/sbin:/sbin package/SParamView.app/Contents/MacOS/SParamView --selftest examples package/selftest
 
       - name: Include release documentation in macOS bundle
         run: |
@@ -584,20 +700,6 @@ jobs:
           cp docs/USER_GUIDE_*.md docs/Release_${{ needs.prepare.outputs.version }}.md package/SParamView.app/Contents/Resources/docs/
           codesign --force --deep --sign - package/SParamView.app
           codesign --verify --deep --strict package/SParamView.app
-
-      - name: Upload macOS test evidence
-        if: always()
-        uses: actions/upload-artifact@v6
-        with:
-          name: SParamView-v${{ needs.prepare.outputs.version }}-macOS-validation
-          path: |
-            build-macos/Testing/Temporary/*.log
-            build-macos/workspace-test-macos/*.json
-            build-macos/failure-qualification/
-            build-macos/calc/
-            build-macos/excel-environment.txt
-          if-no-files-found: error
-          retention-days: ${{ github.ref == 'refs/heads/main' && 14 || 1 }}
 
       - name: Package Apple Silicon ZIP and DMG
         env:
@@ -614,6 +716,61 @@ jobs:
           shasum -a 256 "$zipname" > "$zipname.sha256"
           shasum -a 256 "$dmgname" > "$dmgname.sha256"
 
+      - name: Verify extracted ZIP and mounted DMG without development Qt
+        shell: bash
+        env:
+          SPARAMVIEW_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          qa="$(mktemp -d)"
+          mount="$qa/mount"
+          mkdir -p "$mount" "$qa/extracted"
+          trap 'hdiutil detach "$mount" >/dev/null 2>&1 || true; rm -rf "$qa"' EXIT
+          zipname="SParamView_macOS_AppleSilicon_arm64_v${SPARAMVIEW_VERSION}.zip"
+          dmgname="SParamView_macOS_AppleSilicon_arm64_v${SPARAMVIEW_VERSION}.dmg"
+          shasum -a 256 -c "$zipname.sha256"
+          shasum -a 256 -c "$dmgname.sha256"
+          ditto -x -k "$zipname" "$qa/extracted"
+          hdiutil attach "$dmgname" -readonly -nobrowse -mountpoint "$mount"
+          evidence="$GITHUB_WORKSPACE/build-macos/package-qualification"
+          mkdir -p "$evidence"
+          cp "$zipname.sha256" "$dmgname.sha256" "$evidence/"
+          for location in "$qa/extracted" "$mount"; do
+            app="$location/SParamView.app"
+            codesign --verify --deep --strict "$app"
+            out="$(mktemp -d "$qa/selftest.XXXXXX")"
+            env -u QT_PLUGIN_PATH -u QT_QPA_PLATFORM_PLUGIN_PATH -u DYLD_LIBRARY_PATH -u DYLD_FRAMEWORK_PATH -u DYLD_FALLBACK_LIBRARY_PATH -u DYLD_FALLBACK_FRAMEWORK_PATH PATH=/usr/bin:/bin:/usr/sbin:/sbin QT_QPA_PLATFORM=cocoa "$app/Contents/MacOS/SParamView" --selftest "$GITHUB_WORKSPACE/examples" "$out" 2>&1 | tee "$evidence/$(basename "$location").log"
+            cp -R "$out" "$evidence/$(basename "$location")-selftest"
+          done
+          python3 - "$evidence" "$zipname" "$dmgname" <<'PYTHON'
+          import hashlib, json, os, pathlib, platform, sys
+          evidence=pathlib.Path(sys.argv[1])
+          packages={}
+          for name in sys.argv[2:]:
+              p=pathlib.Path(name)
+              packages[name]=dict(bytes=p.stat().st_size, sha256=hashlib.file_digest(p.open('rb'),'sha256').hexdigest())
+          (evidence/'mac-user-package-smoke.json').write_text(json.dumps(dict(commit=os.environ['GITHUB_SHA'],version=os.environ['SPARAMVIEW_VERSION'],machine=platform.machine(),packages=packages,zip_exit=0,dmg_exit=0),indent=2))
+          PYTHON
+
+
+      - name: Upload macOS test evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: SParamView-v${{ needs.prepare.outputs.version }}-macOS-validation
+          path: |
+            build-macos/Testing/Temporary/*.log
+            build-macos/workspace-test-macos/*.json
+            build-macos/navigation-test-macos/benchmark.json
+            build-macos/01261-paired/comparison.json
+            build-macos/01261-paired/*/benchmark.json
+            build-macos/failure-qualification/
+            build-macos/calc/
+            build-macos/excel-environment.txt
+            build-macos/package-qualification/
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Upload Apple Silicon package
         uses: actions/upload-artifact@v6
         with:
@@ -624,13 +781,22 @@ jobs:
             SParamView_macOS_AppleSilicon_arm64_v${{ needs.prepare.outputs.version }}.dmg
             SParamView_macOS_AppleSilicon_arm64_v${{ needs.prepare.outputs.version }}.dmg.sha256
           if-no-files-found: error
-          retention-days: ${{ github.ref == 'refs/heads/main' && 14 || 1 }}
+          retention-days: 14
           compression-level: 0
+
+  release-codeql:
+    name: Release CodeQL
+    if: github.ref == 'refs/heads/main' || github.base_ref == 'main'
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+    uses: ./.github/workflows/codeql-cpp.yml
 
   release:
     name: Publish three-platform release
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [prepare, windows, windows-arm64-native, macos-arm64]
+    needs: [prepare, quality, windows, windows-arm64-native, macos-arm64, release-codeql]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -655,12 +821,12 @@ jobs:
           run_id="$GITHUB_RUN_ID"
           repo="$GITHUB_REPOSITORY"
           version="$SPARAMVIEW_VERSION"
-          gh run download "$run_id" --repo "$repo" --name "SParamView-v${version}-Windows-x64" --dir package/windows-x64
-          gh run download "$run_id" --repo "$repo" --name "SParamView-v${version}-Windows-ARM64" --dir package/windows-arm64
+          gh run download "$run_id" --repo "$repo" --name "SParamView-v${version}-Windows-x64-candidate" --dir package/windows-x64
+          gh run download "$run_id" --repo "$repo" --name "SParamView-v${version}-Windows-ARM64-candidate" --dir package/windows-arm64
           gh run download "$run_id" --repo "$repo" --name "SParamView-v${version}-macOS-AppleSilicon-arm64" --dir package/macos
           gh run download "$run_id" --repo "$repo" --pattern "SParamView-v${version}-*-validation" --dir package/evidence
-          test -f package/windows-x64/build-provenance.json
-          test -f package/windows-arm64/build-provenance.json
+          test -f package/windows-x64/inventory.json
+          test -f package/windows-arm64/inventory.json
           test -f "package/macos/SParamView_macOS_AppleSilicon_arm64_v${version}.zip"
           test -d package/evidence
 

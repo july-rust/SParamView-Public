@@ -1,3 +1,4 @@
+#include "ui_language.hpp"
 #include "app.hpp"
 #include <QtEndian>
 #include <map>
@@ -227,6 +228,14 @@ void writeReport(const QString &path, const std::vector<si::Result> &results,
     if (QFileInfo(path).absoluteFilePath() ==
         QFileInfo(r.source).absoluteFilePath())
       throw si::Error("Original Touchstone is read-only");
+  const auto language=sparamview::ui_language::fromCode(options.displayLanguage);
+  auto displayText=[language](const QString &source){return sparamview::ui_language::menuText(source,language);};
+  auto displayHeaders=[language](const QVariantList &source) {
+    QVariantList translated;
+    for(const auto &item:source)
+      translated<<sparamview::ui_language::menuText(item.toString(),language);
+    return translated;
+  };
   Zip zip(path);
   QStringList sheetNames;
   int graphSheet = 0, imageCount = 0;
@@ -239,7 +248,7 @@ void writeReport(const QString &path, const std::vector<si::Result> &results,
   if (options.summary) {
     Sheet sheet(stagingDirectory);
     sheet.append(
-        {"Channel", "Revision", "RL", "IL", "NEXT", "FEXT", "TDR", "Overall"},
+        displayHeaders({"Channel", "Revision", "RL", "IL", "NEXT", "FEXT", "TDR", "Overall"}),
         true);
     std::map<std::pair<std::string, std::string>,
              std::map<si::Metric, std::vector<std::string>>>
@@ -271,13 +280,13 @@ void writeReport(const QString &path, const std::vector<si::Result> &results,
       if (rows.empty())
         continue;
       Sheet sheet(stagingDirectory);
-      sheet.append({"Channel", "Revision", "Metric", "Aggressor", "Worst value",
+      sheet.append(displayHeaders({"Channel", "Revision", "Metric", "Aggressor", "Worst value",
                     "Worst Frequency Hz / Time s", "Limit at worst margin",
                     "Worst margin", "Margin Frequency Hz / Time s", "Result",
                     "Direction", "Minimum", "Maximum", "Target ohm",
                     "Reference ohm", "TDR quality", "Note", "Min error %",
                     "Max error %", "Max directional delta dB",
-                    "Directional delta frequency Hz", "Termination", "Value unit"},
+                    "Directional delta frequency Hz", "Termination", "Value unit"}),
                    true);
       for (auto r : rows) {
         if (control)
@@ -311,30 +320,30 @@ void writeReport(const QString &path, const std::vector<si::Result> &results,
                                          .toJson(QJsonDocument::Compact))});
     config.append(
         {"TDR algorithm",
-         "Low-pass step; Kaiser beta 6 default; complex linear resampling; "
+         displayText("Low-pass step; Kaiser beta 6 default; complex linear resampling; "
          "automatic DC extrapolation; source Z0 retained. If the FFT grid loses "
          "response: direct nonuniform low-pass step with convergence and "
-         "source interpolation sensitivity checks (LIMITED)."});
+         "source interpolation sensitivity checks (LIMITED).")});
     config.append({"TDR validation",
-                   "Preview: synthetic/reference-library checks; "
-                   "PowerSI / VNA acceptance pending"});
-    config.append({"dB convention", "20*log10(abs(S)); RL/NEXT/FEXT pass value "
-                                    "<= limit; IL pass value >= limit"});
+                   displayText("Preview: synthetic/reference-library checks; "
+                   "PowerSI / VNA acceptance pending")});
+    config.append({"dB convention", displayText("20*log10(abs(S)); RL/NEXT/FEXT pass value "
+                                    "<= limit; IL pass value >= limit")});
     config.append(
         {"Crosstalk direction",
-         "Forward: NEXT Aggressor Near -> Victim Near; FEXT Aggressor Near -> "
-         "Victim Far. Reverse starts at Aggressor Far."});
+         displayText("Forward: NEXT Aggressor Near -> Victim Near; FEXT Aggressor Near -> "
+         "Victim Far. Reverse starts at Aggressor Far.")});
     config.append({"TDR quality meaning",
-                   "GOOD/LIMITED/UNSUITABLE describe transform suitability, "
-                   "not device compliance or guaranteed accuracy."});
+                   displayText("GOOD/LIMITED/UNSUITABLE describe transform suitability, "
+                   "not device compliance or guaranteed accuracy.")});
     config.append({"Delta convention",
-                   "Revision delta: candidate dB - baseline dB. Direction delta: "
-                   "absolute N->F versus F->N difference for RL/IL; diagnostic only."});
+                   displayText("Revision delta: candidate dB - baseline dB. Direction delta: "
+                   "absolute N->F versus F->N difference for RL/IL; diagnostic only.")});
     config.append(
         {"Raw trace data",
          options.raw
-             ? "Included in Raw_* sheets"
-             : "Excluded (default); selected traces can be exported as CSV"});
+             ? displayText("Included in Raw_* sheets")
+             : displayText("Excluded (default); selected traces can be exported as CSV")});
     for (auto &r : revisions) {
       auto &m = r.cache->meta();
       config.append({"Revision", r.name});
@@ -342,11 +351,11 @@ void writeReport(const QString &path, const std::vector<si::Result> &results,
       config.append({"Analysis completed UTC",r.analysisTime.isEmpty()?"Not recorded":r.analysisTime});
       config.append({"Signal Type",r.signalType});
       config.append({"Confidence",r.signalConfidence});
-      config.append({"Evidence",r.signalEvidence});
+      config.append({"Evidence",sparamview::ui_language::diagnosticText(r.signalEvidence,language)});
       config.append({"Mapping Source",r.mappingSource});
       config.append({"Mapping confirmed",r.confirmed?"Yes":"No"});
       config.append({"Source SHA-256 verification",r.sourceVerification});
-      config.append({"Source metadata scope","Immutable parsed-data snapshot used for calculation; current disk file is not re-read during export."});
+      config.append({"Source metadata scope",displayText("Immutable parsed-data snapshot used for calculation; current disk file is not re-read during export.")});
       config.append({"Snapshot source modified ticks",QString::number(m.modified)});
       config.append({"Source size bytes", QString::number(m.sourceSize)});
       config.append({"Source SHA-256", qs(m.sha256)});
@@ -362,7 +371,7 @@ void writeReport(const QString &path, const std::vector<si::Result> &results,
         config.append({"TDR " + qs(r.channel) + " / " + qs(r.revision),
                        qs(r.quality) + "; df=" + num(r.transformDf) +
                            " Hz; fmax=" + num(r.transformFmax) + " Hz; " +
-                           qs(r.note)});
+                           sparamview::ui_language::diagnosticText(qs(r.note),language)});
     addSheet("Configuration", config);
   }
   if (options.raw) {
@@ -422,13 +431,15 @@ void writeReport(const QString &path, const std::vector<si::Result> &results,
   if (options.graphs) {
     Sheet graph(stagingDirectory);
     graph.append(
-        {"Graphs",
-         "Current view followed by result graphs (up to 8 traces per image)"},
+        displayHeaders({"Graphs",
+         "Current view followed by result graphs (up to 8 traces per image)"}),
         true);
     auto emitGraph = [&](const PlotSnapshot &snapshot) {
       if (control)
         control->check();
-      auto image = graphImage(snapshot);
+      auto displaySnapshot=snapshot;
+      displaySnapshot.displayLanguage=options.displayLanguage;
+      auto image = graphImage(displaySnapshot);
       QByteArray png;
       QBuffer buffer(&png);
       buffer.open(QIODevice::WriteOnly);

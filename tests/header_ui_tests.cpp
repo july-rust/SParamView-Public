@@ -29,9 +29,8 @@ int main(int argc, char **argv) {
     return 3;
   }
 
-  auto *root = window.centralWidget() ? window.centralWidget()->layout() : nullptr;
-  auto *first = root && root->count() ? root->itemAt(0) : nullptr;
-  auto *banner = first ? dynamic_cast<QBoxLayout *>(first->layout()) : nullptr;
+  auto *contents = window.findChild<QWidget *>("workspaceHeaderContents");
+  auto *banner = contents ? qobject_cast<QBoxLayout *>(contents->layout()) : nullptr;
   if (!banner) {
     std::cerr << "Header layout is missing\n";
     return 4;
@@ -72,5 +71,29 @@ int main(int argc, char **argv) {
     }
   }
 
+  auto *analysisMenu = window.menuBar()->findChild<QMenu *>("channelAnalysisMenu");
+  if (!analysisMenu || analysisMenu->actions().size() != 3) {
+    std::cerr << "012_43: MainWindow must expose exactly three analysis actions\n";
+    return 10;
+  }
+  const QStringList expected = {QStringLiteral("analysisActionILD"),
+                                QStringLiteral("analysisActionICN"),
+                                QStringLiteral("analysisActionEye")};
+  QStringList actual;
+  for (const auto *action : analysisMenu->actions()) {
+    actual.append(action->objectName());
+    if (!action->isEnabled()) {
+      std::cerr << "012_43: release analysis action is disabled\n";
+      return 11;
+    }
+  }
+  actual.sort();
+  QStringList sortedExpected = expected;
+  sortedExpected.sort();
+  if (actual != sortedExpected ||
+      window.findChild<QAction *>(QStringLiteral("analysisActionCOM"))) {
+    std::cerr << "012_43: missing, duplicate or deferred analysis action exposed\n";
+    return 12;
+  }
   return 0;
 }

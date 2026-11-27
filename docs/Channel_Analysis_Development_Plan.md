@@ -1,11 +1,19 @@
+# v1.4.0 release closeout — 012_62 (2026-11-27 KST)
+
+The owner accepted the engineering-reference release scope after reporting smooth operation and requested official publication. ILD, Generic ICN, simulated Eye Diagram and legacy functions are included; COM remains deferred. Issues #118/#121 closed with residual limitations preserved. [Release notes](Release_1.4.0.md) are the authoritative current scope. The following text is historical planning/requirements evidence; earlier dates, pending flags, versions and gates describe their original stages, not current release status. Publication is conditional on final release CI and review.
+
+---
+
 # SParamView Channel Analysis Development Plan — v1.3.5 Baseline
 
-**Implementation work breakdown:** [012_01~012_14 complete v1.4.0 development, verification and release plan](Development_Plan_012_v1.4.0.md). This is the controlling numbered implementation checklist; the present page retains the feature/architecture overview.
+**Current execution work breakdown (2026-11-25 KST):** [active 012_43–012_52 plan](Development_Plan_012_v1.4.0.md). COM is DEFERRED / NOT_IEEE_COM; 012_42 remains REFERENCE BLOCKED. Earlier 012_01~012_14 numbering and the 2026-11-16 baseline are retained for historical traceability, **not as a second active release schedule**. This page retains the feature/architecture overview.
 
-**Updated:** 2026-11-15 (KST)  
-**Status:** PLANNED / **NOT IMPLEMENTED**  
+**Updated:** 2026-11-16 (KST)  
+**Status:** PARTIAL IMPLEMENTATION / ILD + ICN numerical & automated GUI scope, Eye numerical 012_07 COMPLETE; Eye GUI 012_08 COMPLETE (PR and post-merge CI success); COM deferred; final three-feature release qualification pending  
 **Frozen baseline:** Official **v1.3.5** tag, its release assets and numerical results remain unchanged.  
-**Target single integrated release:** **v1.4.0**, only after the independent ILD, ICN, Eye Diagram and COM analyzers **all** meet their defined release-scope acceptance gates. No intermediate public feature releases.
+**Verified stages:** [012_05 ILD](Channel_Analysis_ILD_012_05.md), [012_06 ICN](Channel_Analysis_ICN_012_06.md), [012_07 Eye numerical](Channel_Analysis_Eye_012_07.md) ([PR #45](https://github.com/july-rust/SParamView-Public/pull/45), [CI #43798693800](https://github.com/july-rust/SParamView-Public/actions/runs/43798693800)). Eye Qt independent GUI/source integration merged via [PR #47](https://github.com/july-rust/SParamView-Public/pull/47) (CI [#43811255898](https://github.com/july-rust/SParamView-Public/actions/runs/43811255898) SUCCESS). Post-merge integration CI [#43812686401](https://github.com/july-rust/SParamView-Public/actions/runs/43812686401) **SUCCESS**; 012_08 **100% COMPLETE** for its specified GUI/core integration scope. The prior COM qualification remains blocked and is deferred; release gates for ILD/ICN/Eye remain pending.
+
+**Target single integrated release:** **v1.4.0**, only after ILD, ICN and Eye Diagram **all** meet their defined release-scope acceptance gates; COM is excluded. No intermediate public feature releases.
 
 This plan supersedes the previous v1.3.3-baseline plan. Do not interpret a menu mock-up, commit, CI build or documentation as a completed feature or a published release.
 
@@ -18,13 +26,13 @@ Add a **top-level Analysis menu** beside the existing menus. Each enabled item o
 | Insertion Loss Deviation (ILD)… | ILD Window | Measured IL / fitted IL / ILD(f), deviation metrics |
 | Integrated Crosstalk Noise (ICN)… | ICN Window | Individual and combined aggressor noise, assumptions |
 | Eye Diagram… | Eye Diagram Window | Simulated eye and qualified eye-height/width metrics |
-| Channel Operating Margin (COM)… | COM Window | Profile-specific COM and diagnostics, when fully validated |
+| COM (deferred; no production menu or window) | None | Research code and evidence retained |
 
-- Keep the main RL / IL / NEXT / FEXT / Quick TDR workspace unchanged and usable; allow **all four different windows to remain open simultaneously**.
+- Keep the main RL / IL / NEXT / FEXT / Quick TDR workspace unchanged and usable; allow **all three release windows to remain open simultaneously**.
 - Reopening the same analysis type focuses its existing window (no accidental duplicates). Closing one window must never close the main application or unrelated analysis windows.
 - Each window owns its settings, source/revision/channel selection, Run/Cancel, progress, error/quality status, zoom/pan, plot, numeric results and export actions. Show the active source and mapping on screen.
 - Window behavior must be native and testable on **Windows x64, native Windows ARM64 and macOS Apple Silicon arm64**. Use Qt6 non-modal top-level widgets with safe lifetime-managed callbacks.
-- **Never enable a menu item that claims to calculate a metric before the metric's real calculation, inputs, quality checks and regression tests are ready.** During development the unavailable functions may be disabled, but **the official v1.4.0 release must have all four working** for their documented scope.
+- **Never enable a menu item that claims to calculate a metric before the metric's real calculation, inputs, quality checks and regression tests are ready.** During development the unavailable functions may be disabled, but **the official v1.4.0 release must have all three release analyzers working** for their documented scope.
 
 ## 2. v1.3.5 compatibility boundary
 
@@ -46,11 +54,11 @@ Source references: [v1.3.5 release notes](Release_1.3.5.md), [qualification scop
 | **B: ILD** | Fitted insertion-loss baseline, ILD(f) plot, RMS/max deviation and documented fitting conditions | Analytical/golden cases plus independent reference; no unsupported standards PASS |
 | **C: ICN** | Explicit victim/multi-aggressor NEXT/FEXT mapping; TX spectrum/RX filter profiles; power integration and contributions | Independent numeric oracle, polarity/direction and source-amplitude tests; no invented mV |
 | **D: Eye Diagram** | NRZ channel-simulated eye from complex S-parameters, UI, pulse response and PRBS settings; later jitter/noise/EQ/PAM4 only with verified models | Time/frequency transform checks, DC/spacing/bandwidth/causality warnings, known channels and eye opening tests |
-| **E: COM** | Separately versioned IEEE-profile engine, channel/package/TX/RX/EQ and noise/jitter inputs | Named IEEE edition/clause, reference implementation/oracle agreement, standard-specific PASS/FAIL evidence |
+| **E: COM (deferred research only)** | Separately versioned IEEE-profile engine, channel/package/TX/RX/EQ and noise/jitter inputs | Named IEEE edition/clause, reference implementation/oracle agreement, standard-specific PASS/FAIL evidence |
 
-**Development organization:** Complete the shared Stage A contracts first, then implement **B ILD / C ICN / D Eye Diagram / E COM in separate C++ modules, separate Qt windows and separately testable PRs**. They may be developed in parallel after stable interfaces are established; avoid concurrent edits to shared core files without coordination. Land reviewed and CI-qualified module PRs on a dedicated **v1.4.0 integration branch**; keep official `main` unchanged until the four engines, windows, and integration tests are complete. Then create **one final protected PR to `main`**, pass required CI and squash-merge according to repository rules. **Do not publish an intermediate release or v1.4.0 tag before all four are ready**. Each stage must include documentation, numerical tests and integration coverage.
+**Development organization:** Preserve the shared Stage A contracts and independent **B ILD / C ICN / D Eye Diagram** C++ modules, Qt windows and separately testable PRs. Stage E COM is deferred. They may be developed in parallel after stable interfaces are established; avoid concurrent edits to shared core files without coordination. Land reviewed and CI-qualified module PRs on a dedicated **v1.4.0 integration branch**; keep official `main` unchanged until the three release engines, windows, and integration tests are complete. Then create **one final protected PR to `main`**, pass required CI and squash-merge according to repository rules. **Do not publish an intermediate release or v1.4.0 tag before all three release analyzers are ready**. Each stage must include documentation, numerical tests and integration coverage.
 
-**Single-release policy:** Preserve immutable v1.3.5. **v1.4.0 ships all four analyzers simultaneously** (ILD, ICN, simulated NRZ Eye and IEEE-profile COM), with independently verified behavior and a clearly documented, bounded standards/profile scope for each. Scope deliberately excludes unverified optional variants: e.g. PAM4/IBIS-AMI eye, every IEEE COM clause or physical MIPI PHY compliance are **not** implied. If any one of the four defined release-scope analyzers fails numeric oracle, native GUI, safety, integration or packaging requirements, **hold v1.4.0** and continue fixing it rather than quietly omitting that analyzer or calling it PASS. Patch versions after v1.4.0 are for corrections; extensions require their own later validation.
+**Single-release policy:** Preserve immutable v1.3.5. **v1.4.0 ships three analyzers simultaneously** (ILD, ICN, simulated NRZ Eye; COM deferred), with independently verified behavior and a clearly documented, bounded standards/profile scope for each. Scope deliberately excludes unverified optional variants: e.g. PAM4/IBIS-AMI eye, every IEEE COM clause or physical MIPI PHY compliance are **not** implied. If any one of the three defined release-scope analyzers fails numeric oracle, native GUI, safety, integration or packaging requirements, **hold v1.4.0** and continue fixing it rather than quietly omitting that analyzer or calling it PASS. Patch versions after v1.4.0 are for corrections; extensions require their own later validation.
 
 ### Module and PR separation
 
@@ -63,7 +71,7 @@ Source references: [v1.3.5 release notes](Release_1.3.5.md), [qualification scop
 
 Module/file/class names are proposals, not files already implemented. Central menu/window registry, source snapshot, diagnostics and numerical transforms are **shared interfaces**; each module controls its own calculation code, settings, result type, rendering and tests. Do not fork parsers/caches or duplicate physical-port mapping implementations.
 
-**Integration gate:** After all independent module PRs pass on the integration branch, run a cross-module integration check that opens all four non-modal windows together and verifies no UI freeze, data cross-talk, stale callbacks, source revision confusion, unbounded memory/caches or regression in RL/IL/NEXT/FEXT/TDR. Finalize through a **single protected `main` PR** and then build/publish official v1.4.0 **once** from the fully qualified merged commit.
+**Integration gate:** After all independent module PRs pass on the integration branch, run a cross-module integration check that opens all three release non-modal windows together and verifies no UI freeze, data cross-talk, stale callbacks, source revision confusion, unbounded memory/caches or regression in RL/IL/NEXT/FEXT/TDR. Finalize through a **single protected `main` PR** and then build/publish official v1.4.0 **once** from the fully qualified merged commit.
 
 ## 4. Numerical definitions and limits
 
@@ -90,12 +98,14 @@ Record actual source hashes, trace/profile versions, GUI evidence/logs and exact
 
 ## 6. Suggested implementation boundaries
 
-- UI: extend `src/window_ui.cpp` with a top-level Analysis menu and a minimal window manager; add dedicated ILD/ICN/Eye/COM Qt window classes. Keep presentation separate from jobs/results.
+- UI: retain the top-level Analysis menu and window manager; expose only ILD/ICN/Eye release windows. COM is deferred. Keep presentation separate from jobs/results.
 - Core: add independent `channel_analysis` service contracts for frequency/time-domain transforms, noise integration and standard profiles, reusing `Cache::trace` and existing validated channel data where applicable.
 - Background workers: share only immutable input data; each window owns its cancellation generation and asynchronous completion safety.
 - Export: every result identifies file hash, channel/pins, input frequency span, assumptions, configuration, algorithm version and evaluation quality/status. Export errors cannot corrupt the original file.
 - Documentation: the present document is planning-only. Update existing release notes and EN/KO user instructions **at implementation time**. Do not rewrite historical v1.3.5 release contents or tagged assets.
 
-## 7. Immediate next development task
+## 7. Current next task (2026-11-23) and historical note
 
-**Implement and qualify Stage A shared contracts first, without release or placeholder calculations.** Its initial PR should introduce only non-modal window ownership, immutable channel snapshots, progress/cancellation, caching isolation and lifecycle/state tests, without changing legacy SI numerics. Next, develop all four standalone engines in separate PRs, integrate, run exact-commit cross-platform and numerical release gates, and publish **only one official v1.4.0 release** after every required function passes.
+**현행 실행 기준은 [012_43 COM 개발 동결 및 012_44~52 릴리스 계획](Development_Plan_012_v1.4.0.md)**이다. 기존 개발·검증 이력은 보존하며 COM 연구는 재개하지 않는다.
+
+**Historical (2026-11-16):** 아래 당시의 'Stage A부터 먼저 구현' 지시는 개발 초기 순서를 보여 주는 이력이며 **현재 미착수 작업이 아니다**. Stage A 및 ILD/ICN/Eye의 제한된 범위는 이미 구현·자동 검증되었고, IEEE 공식 COM 및 v1.4.0 릴리스는 미완이다.

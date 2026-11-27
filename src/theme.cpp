@@ -1,7 +1,110 @@
 #include "app.hpp"
+#include <QFontDatabase>
+#include <QFileDialog>
+#include <QToolButton>
+#include <QPainter>
+#include <QPainterPath>
+
+namespace {
+// QFileDialog creates fixed-size navigation buttons. The common button
+// padding would otherwise consume most of the icon's drawing rectangle.
+enum class FileNavGlyph { Back, Forward, Parent, NewFolder, List, Detail };
+
+QIcon fileNavigationIcon(FileNavGlyph glyph) {
+  QIcon icon;
+  // Generate matching logical-size images at multiple device pixel ratios,
+  // avoiding a dependency on tiny platform standard-icon pixmaps.
+  for (int ratio : {1,2,3}) {
+    for (auto mode : {QIcon::Normal,QIcon::Disabled}) {
+      QPixmap pixmap(24*ratio,24*ratio);
+      pixmap.setDevicePixelRatio(ratio);
+      pixmap.fill(Qt::transparent);
+      QPainter painter(&pixmap);
+      painter.setRenderHint(QPainter::Antialiasing);
+      const QColor ink(mode==QIcon::Disabled?"#8b9aab":"#20374f");
+      painter.setPen(QPen(ink,2.0,Qt::SolidLine,Qt::RoundCap,Qt::RoundJoin));
+      painter.setBrush(Qt::NoBrush);
+      auto line=[&](qreal x1,qreal y1,qreal x2,qreal y2) {
+        painter.drawLine(QPointF(x1,y1),QPointF(x2,y2));
+      };
+      switch(glyph) {
+      case FileNavGlyph::Back:
+        line(4,12,20,12); line(4,12,11,5); line(4,12,11,19); break;
+      case FileNavGlyph::Forward:
+        line(4,12,20,12); line(20,12,13,5); line(20,12,13,19); break;
+      case FileNavGlyph::Parent:
+        line(12,20,12,4); line(12,4,5,11); line(12,4,19,11); break;
+      case FileNavGlyph::NewFolder: {
+        QPainterPath folder;
+        folder.moveTo(3,7);folder.lineTo(3,4);folder.lineTo(10,4);
+        folder.lineTo(13,7);folder.lineTo(21,7);folder.lineTo(21,20);
+        folder.lineTo(3,20);folder.closeSubpath();
+        painter.drawPath(folder);
+        line(8,13,16,13);line(12,9,12,17);break;
+      }
+      case FileNavGlyph::List:
+        for(int y:{5,12,19}) {
+          painter.drawEllipse(QPointF(4,y),0.8,0.8);line(9,y,21,y);
+        }
+        break;
+      case FileNavGlyph::Detail:
+        painter.drawRect(QRectF(3,4,18,16));
+        line(3,9,21,9);line(3,14,21,14);line(13,9,13,20);break;
+      }
+      painter.end();
+      icon.addPixmap(pixmap,mode,QIcon::Off);
+      icon.addPixmap(pixmap,mode,QIcon::On);
+    }
+  }
+  return icon;
+}
+
+class FileDialogNavigationFilter final : public QObject {
+public:
+  explicit FileDialogNavigationFilter(QObject *parent):QObject(parent) {}
+protected:
+  bool eventFilter(QObject *object,QEvent *event) override {
+    // Scope the override to the standard Qt file picker, including save,
+    // multi-open and analysis exports. No navigation/selection changes.
+    if(event->type()==QEvent::Show) {
+      if(auto *dialog=qobject_cast<QFileDialog *>(object)) {
+        static constexpr struct {const char *name; FileNavGlyph glyph;} entries[]={
+          {"backButton",FileNavGlyph::Back},{"forwardButton",FileNavGlyph::Forward},
+          {"toParentButton",FileNavGlyph::Parent},{"newFolderButton",FileNavGlyph::NewFolder},
+          {"listModeButton",FileNavGlyph::List},{"detailModeButton",FileNavGlyph::Detail}};
+        for(const auto &entry:entries) {
+          if(auto *button=dialog->findChild<QToolButton *>(QString::fromLatin1(entry.name))) {
+            button->setFixedSize(34,34);
+            button->setIconSize(QSize(24,24));
+            button->setIcon(fileNavigationIcon(entry.glyph));
+          }
+        }
+      }
+    }
+    return QObject::eventFilter(object,event);
+  }
+};
+}
 void applyLightTheme(QApplication &app) {
   QLocale::setDefault(QLocale(QLocale::English, QLocale::UnitedStates));
   app.setStyle("Fusion");
+  const auto fontPath=QCoreApplication::applicationDirPath()+"/fonts/NotoSansJP-Variable.ttf";
+  const int jpFont=QFontDatabase::addApplicationFont(fontPath);
+  if(jpFont>=0) {
+    const auto families=QFontDatabase::applicationFontFamilies(jpFont);
+    if(!families.isEmpty()) {
+      app.setProperty("sparamview.japaneseFontFamily",families.front());
+#if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
+      for(auto script:{QChar::Script_Hiragana,QChar::Script_Katakana,QChar::Script_Han})
+        QFontDatabase::addApplicationFallbackFontFamily(script,families.front());
+#endif
+      QFont base=app.font();
+      auto fallback=base.families();
+      if(!fallback.contains(families.front()))fallback<<families.front();
+      base.setFamilies(fallback);
+      app.setFont(base);
+    }
+  }
   QPalette palette;
   for (auto group : {QPalette::Active, QPalette::Inactive, QPalette::Disabled}) {
     const bool disabled = group == QPalette::Disabled;
@@ -28,7 +131,7 @@ void applyLightTheme(QApplication &app) {
   // Preserve the Windows font policy, but use native system fonts on macOS
   // and Linux rather than forcing the Windows-only Segoe UI family.
 #ifdef Q_OS_WIN
-  const QString fontRule = QStringLiteral("font-family:'Segoe UI','Malgun Gothic','NanumGothic'; ");
+  const QString fontRule = QStringLiteral("font-family:'Segoe UI','Malgun Gothic','NanumGothic','Noto Sans JP'; ");
 #else
   const QString fontRule;
 #endif
@@ -43,6 +146,9 @@ QPushButton,QToolButton { background:#ffffff; color:#20374f; border:1px solid #b
 QPushButton:hover,QToolButton:hover { background:#e0f1f1; border-color:#006c70; }
 QPushButton:pressed,QToolButton:pressed,QToolButton:checked { background:#006c70; color:#ffffff; }
 QPushButton:disabled,QToolButton:disabled { background:#edf2f7; color:#526579; }
+/* QFileDialog navigation buttons have an independent compact content box. */
+QFileDialog QToolButton { padding:3px; }
+QFileDialog QToolButton:pressed,QFileDialog QToolButton:checked { background:#d4e9e9; color:#20374f; border-color:#006c70; }
 QPushButton#primary { background:#006c70; color:#ffffff; border:none; font-weight:600; padding:12px; }
 QLineEdit,QComboBox,QDoubleSpinBox,QSpinBox { background:#ffffff; color:#20374f; border:1px solid #b8c7d7; border-radius:4px; padding:5px; selection-background-color:#006c70; selection-color:#ffffff; }
 QAbstractItemView,QComboBox QAbstractItemView { background:#ffffff; alternate-background-color:#edf2f7; color:#20374f; selection-background-color:#006c70; selection-color:#ffffff; border:1px solid #b8c7d7; }
@@ -60,4 +166,8 @@ QProgressBar { border:0; background:#e2ebf3; height:8px; }
 QProgressBar::chunk { background:#006c70; }
 QToolTip { background:#ffffff; color:#20374f; border:1px solid #607286; padding:5px; }
 )" ).arg(fontRule));
+  if(!app.property("sparamview.fileDialogNavigationFilterInstalled").toBool()) {
+    app.installEventFilter(new FileDialogNavigationFilter(&app));
+    app.setProperty("sparamview.fileDialogNavigationFilterInstalled",true);
+  }
 }

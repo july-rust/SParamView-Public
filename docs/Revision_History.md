@@ -1,6 +1,17 @@
 # SParamView Revision History
 
-**Current official release: [v1.3.5](https://github.com/july-rust/SParamView-Public/releases/tag/v1.3.5)** — versioned Mapping CSV and fail-closed GUI/cache startup hardening, building on v1.3.3 Touchstone input validation; retains the v1.3.2 cache separation and filename display. This preserves v1.3.1 cross-process cache safety. The [v1.3.0 release](https://github.com/july-rust/SParamView-Public/releases/tag/v1.3.0) was published on 2026-10-29 11:43 KST and remains preserved.
+**Current official release: [v1.4.0](https://github.com/july-rust/SParamView-Public/releases/tag/v1.4.0)** — independent ILD, Generic ICN and simulated Eye Diagram; multilingual runtime UI, adaptive windows, workspace and package improvements. COM deferred. [Release notes](Release_1.4.0.md). Entries below are historical development snapshots.
+
+## v1.4.0 development / 012_08 (unreleased — Eye GUI stage COMPLETE)
+
+Added the proposed independent simulated Eye Qt window with SHA-verified complex Touchstone THROUGH extraction, coupled NRZ rate/reference and independent analysis cap, explicit TX/RX voltage and matched termination gates, PRBS7/alternating/custom patterns, 2-UI overlay and time-domain visualizations, sampling/height/width metrics, atomic CSV/PNG and async cancellation/STALE protections. **Not released or PHY certified.** PR #47 full CI #43811255898 succeeded, squash merge `17bcec47` landed on `integration/v1.4.0`, post-merge CI #43812686401 **SUCCESS**, physical 012_12 GUI and 012_14 release gates remain. [Detailed contract](Channel_Analysis_Eye_GUI_012_08.md).
+
+
+**Previous official release: [v1.3.5](https://github.com/july-rust/SParamView-Public/releases/tag/v1.3.5)** — versioned Mapping CSV and fail-closed GUI/cache startup hardening, building on v1.3.3 Touchstone input validation; retains the v1.3.2 cache separation and filename display. This preserves v1.3.1 cross-process cache safety. The [v1.3.0 release](https://github.com/july-rust/SParamView-Public/releases/tag/v1.3.0) was published on 2026-10-29 11:43 KST and remains preserved.
+
+**Unreleased v1.4.0 integration work (2026-11-16):** 012_05 generic ILD numerical engine, independent GUI plots, background SHA-qualified source calculation and CSV/PNG export **passed CI and squash-merged** in [PR #40](https://github.com/july-rust/SParamView-Public/pull/40) ([three-platform CI](https://github.com/july-rust/SParamView-Public/actions/runs/43766947020); integration SHA `90a59ada15a9c17aa787ffb317fcafefb4285c75`). This is *not* an official release, IEEE weighted FOM_ILD implementation or lab/PHY certification. [012_05 technical contract](Channel_Analysis_ILD_012_05.md). Existing official v1.3.5 assets remain unchanged.
+
+**Unreleased v1.4.0 integration work (2026-11-16, 012_06):** Generic multi-aggressor NEXT/FEXT ICN engine, independent Qt window and real CSV/PNG export **passed automated CI and squash-merged** in [PR #42](https://github.com/july-rust/SParamView-Public/pull/42), [CI 43775680490](https://github.com/july-rust/SParamView-Public/actions/runs/43775680490), integration SHA `1bcf54008d3031c5b8ef634e4d2bef1479eee96a`. Generic NRZ/explicit uncorrelated RSS only; **not** IEEE/SNIA/MIPI compliance or official v1.4.0 release. Physical GUI release gate remains 012_12. [Technical contract](Channel_Analysis_ICN_012_06.md).
 
 **Integration history:** [Stage 2 Mapping CSV safety (PR #25)](https://github.com/july-rust/SParamView-Public/pull/25) and [Stage 3 GUI/cache startup hardening (PR #27)](https://github.com/july-rust/SParamView-Public/pull/27) are integrated for v1.3.4. These changes are not part of the already-published v1.3.3 assets, which remain intact.
 
