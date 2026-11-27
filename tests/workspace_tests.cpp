@@ -552,6 +552,8 @@ struct WorkspaceProbe {
    check(initialCache!=otherCache,"Workspace caches not isolated");
    auto *newAction=w.findChild<QAction*>("newWorkspaceAction");
    check(newAction!=nullptr,"File/New action missing");
+   auto *exitAction=w.findChild<QAction*>("exitApplicationAction");
+   check(exitAction && exitAction->menuRole()==QAction::NoRole,"File/Exit action missing");
    w.loadProject(project,false); settle(w);
    check(!w.revisions.empty(),"Cannot load project for New test");
    w.run({si::Metric::RL}); settle(w);
@@ -559,6 +561,15 @@ struct WorkspaceProbe {
    const auto oldCache=w.workspaceCache->path();
    const auto oldCount=w.revisions.size();
    const auto oldResults=values(w);
+   using si::gui::Feature;
+   auto &windowManager=*w.analysisWindows;
+   auto *openIld=windowManager.openWindow(Feature::Ild);
+   auto *openIcn=windowManager.openWindow(Feature::Icn);
+   auto *openEye=windowManager.openWindow(Feature::Eye);
+   auto windowsPreserved=[&]{return windowManager.existingWindow(Feature::Ild)==openIld &&
+     windowManager.existingWindow(Feature::Icn)==openIcn && windowManager.existingWindow(Feature::Eye)==openEye &&
+     openIld->isVisible() && openIcn->isVisible() && openEye->isVisible();};
+   check(windowsPreserved(),"Cannot open all analysis windows for New test");
    w.dirty=true;
    QMessageBox::StandardButton choice=QMessageBox::Cancel;
    int prompts=0, warnings=0;
@@ -570,15 +581,18 @@ struct WorkspaceProbe {
        ++prompts; if(auto *button=box->button(choice))button->click();
      }else if(auto *ok=box->button(QMessageBox::Ok)){++warnings;ok->click();}
    });
+   answers.start(); exitAction->trigger(); answers.stop();
+   check(prompts==1 && w.isVisible() && w.dirty && windowsPreserved(),"Cancel Exit lost workspace or analysis windows");
+   prompts=0;
    answers.start(); newAction->trigger(); answers.stop();
    check(prompts==1 && w.dirty && w.workspaceCache->path()==oldCache &&
-         w.revisions.size()==oldCount && values(w)==oldResults && QDir(oldCache).exists(),
+         w.revisions.size()==oldCount && values(w)==oldResults && QDir(oldCache).exists() && windowsPreserved(),
          "Cancel New mutated workspace");
    // Explicit existing destination avoids native Save As automation.
    w.projectPath=root; choice=QMessageBox::Save; answers.start();
    newAction->trigger(); answers.stop();
    check(prompts==2 && warnings==1 && w.dirty && w.workspaceCache->path()==oldCache &&
-         w.revisions.size()==oldCount && values(w)==oldResults,"Failed save lost workspace");
+         w.revisions.size()==oldCount && values(w)==oldResults && windowsPreserved(),"Failed save lost workspace");
    const auto saved=QDir(root).filePath("saved.siproject");
    w.projectPath=saved; answers.start(); newAction->trigger(); answers.stop(); settle(w);
    check(prompts==3 && QFileInfo(saved).isFile() && !w.dirty && w.revisions.empty() &&
@@ -588,6 +602,8 @@ struct WorkspaceProbe {
          w.analysisWindows->context().sources.isEmpty() && w.projectPath.isEmpty() &&
          w.projectName=="Untitled" && !QDir(oldCache).exists() &&
          QDir(otherCache).exists(),"New/save/cache reset failed");
+   check(!windowManager.existingWindow(Feature::Ild) && !windowManager.existingWindow(Feature::Icn) &&
+         !windowManager.existingWindow(Feature::Eye),"Successful New retained analysis windows");
    check(w.limitValues[0]->value()==-10 && w.limitValues[1]->value()==-3 &&
          w.limitValues[2]->value()==-20 && w.limitValues[3]->value()==-20 &&
          !w.tdrLimit->isChecked(),"New changed default limit contract");
@@ -595,6 +611,16 @@ struct WorkspaceProbe {
    const auto secondCache=w.workspaceCache->path();
    newAction->trigger(); settle(w);
    check(!QDir(secondCache).exists() && QDir(otherCache).exists(),"Repeated New cleanup failed");
+   {
+     MainWindow exitWindow; exitWindow.show();
+     auto &exitManager=*exitWindow.analysisWindows;
+     for (auto feature : {Feature::Ild,Feature::Icn,Feature::Eye})
+       check(exitManager.openWindow(feature)!=nullptr,"Cannot open analysis window for Exit test");
+     exitWindow.findChild<QAction *>("exitApplicationAction")->trigger();
+     check(!exitWindow.isVisible() && !exitManager.existingWindow(Feature::Ild) &&
+           !exitManager.existingWindow(Feature::Icn) && !exitManager.existingWindow(Feature::Eye),
+           "Exit retained main or analysis windows");
+   }
 
    QStringList reviewed;
    int failures=0;
@@ -762,10 +788,13 @@ struct WorkspaceProbe {
    auto *icn=open(Feature::Icn);
    auto *eye=open(Feature::Eye);
    check(ild!=icn && ild!=eye && icn!=eye,"Analysis windows share identity");
+   QListWidget *items=nullptr;
+   QComboBox *profile=nullptr;
+   auto configure=[&] {
    auto *fit=ild->findChild<QComboBox*>("ildFitModel");
    auto *ildStop=ild->findChild<QDoubleSpinBox*>("ildStopGhz");
-   auto *items=icn->findChild<QListWidget*>("icnAggressorList");
-   auto *profile=eye->findChild<QComboBox*>("eyeProfile");
+   items=icn->findChild<QListWidget*>("icnAggressorList");
+   profile=eye->findChild<QComboBox*>("eyeProfile");
    auto *mode=eye->findChild<QComboBox*>("eyeMode");
    auto *baud=eye->findChild<QDoubleSpinBox*>("eyeBitRateGbps");
    auto *cap=eye->findChild<QDoubleSpinBox*>("eyeAnalysisCapGhz");
@@ -785,6 +814,8 @@ struct WorkspaceProbe {
      check(field!=nullptr,"Integrated Eye electrical control missing");
      field->setText(QString::fromLatin1(electrical[i]));
    }
+   };
+   configure();
    const std::vector<si::Metric> metrics{si::Metric::RL,si::Metric::IL,
      si::Metric::NEXT,si::Metric::FEXT,si::Metric::TDR};
    w.run(metrics);settle(w);
@@ -941,7 +972,9 @@ struct WorkspaceProbe {
    const auto retired=w.workspaceCache->path();
    w.newWorkspace();settle(w);
    check(unexpectedModal.isEmpty() && w.revisions.empty() &&
-         manager.scheduler().inFlight()>0 && QDir(retired).exists(),
+         manager.scheduler().inFlight()>0 && QDir(retired).exists() &&
+         !manager.existingWindow(Feature::Ild) && !manager.existingWindow(Feature::Icn) &&
+         !manager.existingWindow(Feature::Eye),
          "New removed cache before held source worker released");
    gate->release.store(true);drain();
    check(gate->readOk.load(),"Held worker could not read retired source");
@@ -950,9 +983,7 @@ struct WorkspaceProbe {
      QApplication::processEvents();QThread::msleep(10);
    }
    check(w.revisions.empty() && w.results.empty() && manager.context().sources.isEmpty() &&
-         !ild->saveIldCsv(forbidden) && !icn->saveIcnCsv(forbidden) &&
-         !eye->saveEyeCsv(forbidden) && !QFileInfo::exists(forbidden) &&
-         !QDir(retired).exists(),"New retained stale results or retired cache");
+         !QFileInfo::exists(forbidden) && !QDir(retired).exists(),"New retained stale results or retired cache");
    stage("012_49 project reload");
    w.loadProject(saved,false);settle(w);
    check(unexpectedModal.isEmpty(),"Unexpected modal during integration project reload");
@@ -961,6 +992,11 @@ struct WorkspaceProbe {
          manager.context().sources[1].mappingConfirmed,"Integrated project restore failed");
    w.run(metrics);settle(w);
    check(values(w)==legacy,"Legacy results changed after project roundtrip");
+   ild=open(Feature::Ild);icn=open(Feature::Icn);eye=open(Feature::Eye);
+   check(!ild->saveIldCsv(forbidden) && !icn->saveIcnCsv(forbidden) &&
+         !eye->saveEyeCsv(forbidden) && !QFileInfo::exists(forbidden),
+         "Reopened analysis window published stale results");
+   configure();
    exercise(1);
    check(unexpectedModal.isEmpty(),"Unexpected modal during integrated workflow");
    modalGuard.stop();
@@ -998,6 +1034,8 @@ struct WorkspaceProbe {
    const double limit=w.limitValues[0]->value();
    auto *newAction=w.findChild<QAction *>("newWorkspaceAction");
    check(newAction!=nullptr,"Missing New action");
+   auto *exitAction=w.findChild<QAction *>("exitApplicationAction");
+   check(exitAction!=nullptr,"Missing Exit action");
    const auto shortcut=newAction->shortcut();
    const int marker=w.markerBox->currentIndex(), performance=w.performanceBox->currentIndex();
    using si::gui::Feature;
@@ -1048,6 +1086,7 @@ struct WorkspaceProbe {
    auto verifyKorean=[&]{
     ko->trigger();verify(w,QString::fromUtf8("파일"),"Korean");
     check(newAction->text()==QString::fromUtf8("새로 만들기"),"Korean New action");
+    check(exitAction->text()==QString::fromUtf8("종료"),"Korean Exit action");
     check(w.tabs->tabText(0)==QString::fromUtf8("그래프"),"Korean plot tab");
     check(w.quickButton->text()==QString::fromUtf8("빠른 분석"),"Korean quick analysis button");
     check(manual->text()==QString::fromUtf8("수동 실행"),"Korean open Eye Run Manual");
@@ -1060,6 +1099,7 @@ struct WorkspaceProbe {
    auto verifyJapanese=[&]{
     ja->trigger();verify(w,QString::fromUtf8("ファイル"),"Japanese");
     check(newAction->text()==QString::fromUtf8("新規作成"),"Japanese New action");
+    check(exitAction->text()==QString::fromUtf8("終了"),"Japanese Exit action");
     check(w.tabs->tabText(0)==QString::fromUtf8("グラフ"),"Japanese plot tab");
     check(w.quickButton->text()==QString::fromUtf8("クイック解析"),"Japanese quick analysis button");
     check(manual->text()==QString::fromUtf8("手動実行"),"Japanese open Eye Run Manual");
@@ -1071,6 +1111,7 @@ struct WorkspaceProbe {
    auto verifyEnglish=[&]{
     en->trigger();verify(w,"File","English");
     check(newAction->text()=="New","English New action");
+    check(exitAction->text()=="Exit","English Exit action");
     checkGuides();
     fixedLabels("Source / Revision","Victim Channel","Cancel","Export CSV","Settings");
     check(QCoreApplication::translate("QPlatformTheme","Cancel")=="Cancel","English framework dialog translation");

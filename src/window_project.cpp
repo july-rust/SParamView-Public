@@ -18,7 +18,10 @@ void MainWindow::newWorkspace() {
   }
   QScopedValueRollback<bool> restoring(restoringProject, true);
   // Cancel and invalidate callbacks before releasing any source handles.
-  if (analysisWindows) analysisWindows->setContext({});
+  if (analysisWindows) {
+    analysisWindows->setContext({});
+    analysisWindows->closeAllWindows();
+  }
   ++viewGeneration;
   pendingView.reset();
   if (viewControl) viewControl->cancelled = true;

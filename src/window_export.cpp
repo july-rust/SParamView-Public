@@ -244,6 +244,10 @@ void MainWindow::closeEvent(QCloseEvent *e) {
     return;
   }
   if (!confirmProjectTransition()) {e->ignore();return;}
+  if (analysisWindows) {
+    analysisWindows->setContext({});
+    analysisWindows->closeAllWindows();
+  }
   saveStartupWindowState();
   saveWorkspaceLayout();
   e->accept();

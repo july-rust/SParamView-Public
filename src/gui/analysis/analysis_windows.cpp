@@ -2462,8 +2462,7 @@ AnalysisWindowManager::AnalysisWindowManager(QMainWindow *owner)
 AnalysisWindowManager::~AnalysisWindowManager() {
   scheduler_.invalidate();
   retirementPoll_.stop();
-  for (auto &window : windows_)
-    if (window) window->close();
+  closeAllWindows();
   // The scheduler member is destroyed (and its workers joined) before the
   // retained cache vector is destroyed; this ordering is intentional.
 }
@@ -2494,6 +2493,16 @@ void AnalysisWindowManager::setContext(AnalysisContext context) {
   scheduler_.invalidate();
   for (auto &window : windows_)
     if (window) window->setContext(context_);
+}
+void AnalysisWindowManager::closeAllWindows() {
+  for (auto &window : windows_) {
+    if (auto *current = window.data()) {
+      // WA_DeleteOnClose defers destruction. Detach the registry immediately
+      // so a subsequent open never reuses a retiring window.
+      window.clear();
+      current->close();
+    }
+  }
 }
 void AnalysisWindowManager::retireWorkspace(std::shared_ptr<QTemporaryDir> workspace) {
   if (!workspace) return;
@@ -2547,9 +2556,8 @@ AnalysisWindow *AnalysisWindowManager::openWindow(Feature feature) {
   window->setContext(context_);
   window->refreshLanguage(sparamview::ui_language::code(sparamview::ui_language::current(owner_)));
   windows_[index] = window;
-  connect(window, &QObject::destroyed, this, [this, index] {
-    windows_[index] = nullptr;
-  });
+  // QPointer clears itself on destruction. An old deferred deletion must
+  // not clear the registry entry for a replacement window.
   window->show();
   window->raise();
   window->activateWindow();
