@@ -20,6 +20,8 @@
 #include <QVariant>
 #include <QMouseEvent>
 #include <QWheelEvent>
+#include <QPalette>
+#include <QColor>
 #include <stdexcept>
 
 using namespace si::gui;
@@ -920,6 +922,30 @@ int main(int argc, char **argv) {
     check(paintedAxes(eyeGraph,1)==eyeFull,"Eye time-view axes changed after cache invalidation");
     eyeView->setCurrentIndex(0);
     check(paintedAxes(eyeGraph,0)==eyeOverlayAxes,"Eye overlay axes not restored");
+    const auto beforePalette=staticRenders();
+    const QPalette originalPalette=eyeGraph->palette();
+    QPalette changedPalette=originalPalette;
+    changedPalette.setColor(QPalette::Base,QColor("#f5f6f7"));
+    eyeGraph->setPalette(changedPalette);
+    eyeGraph->update();
+    check(pumpUntil([&]{return staticRenders()>beforePalette;}),
+          "Eye palette change did not invalidate backing layer");
+    const auto afterPalette=staticRenders();
+    eyeGraph->setPalette(originalPalette);
+    eyeGraph->update();
+    check(pumpUntil([&]{return staticRenders()>afterPalette;}),
+          "Eye palette restore did not invalidate backing layer");
+    check(paintedAxes(eyeGraph,0)==eyeOverlayAxes,"Palette changed Eye numerical axes");
+    const auto originalWindowSize=eye->size();
+    const auto originalGraphSize=eyeGraph->size();
+    const auto beforeResize=staticRenders();
+    eye->resize(originalWindowSize.width()-32,originalWindowSize.height());
+    check(pumpUntil([&]{return eyeGraph->size()!=originalGraphSize &&
+                              staticRenders()>beforeResize;}),
+          "Eye resized plot did not rebuild backing layer");
+    check(paintedAxes(eyeGraph,0)==eyeOverlayAxes,"Resize changed Eye numerical axes");
+    eye->resize(originalWindowSize);
+    QCoreApplication::processEvents();
     auto *eyeCsv=eye->findChild<QPushButton *>(QStringLiteral("analysisCsv"));
     auto *eyePng=eye->findChild<QPushButton *>(QStringLiteral("analysisPng"));
     check(eyeCsv && eyeCsv->isEnabled() && eyePng && eyePng->isEnabled(),
