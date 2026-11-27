@@ -28,8 +28,8 @@ void MainWindow::refreshPlot(bool selectedOnly) {
           singleTarget = r.targetOhm;
       }
     }
-    if (selectedOnly && !rows.empty()) {
-      const auto &firstSelected = results[resultRows.at(size_t(rows.front().row()))];
+    if (selectedOnly && !rows.empty() && size_t(rows.front().row()) < resultRows.size()) {
+      const auto &firstSelected = results[resultRows[size_t(rows.front().row())]];
       if (firstSelected.metric == si::Metric::TDR)
         tdrMode = differentialTdrResult(firstSelected) ? 1 : 0;
     }
@@ -62,16 +62,20 @@ void MainWindow::refreshPlot(bool selectedOnly) {
   std::vector<si::Result> curves;
   if (selectedOnly && !rows.empty()) {
     for (auto row : rows) {
+      if (curves.size() == 64) break;
       if (size_t(row.row()) >= resultRows.size()) continue;
       const auto &r = results[resultRows[size_t(row.row())]];
-      if (r.metric == displayed && visibleRevision(r) && visibleDirection(r) && matchesTdrView(r) && curves.size() < 64)
+      if (r.metric == displayed && visibleRevision(r) && visibleDirection(r) && matchesTdrView(r))
         curves.push_back(r);
     }
   }
-  if (curves.empty())
-    for (auto &r : results)
-      if (r.metric == displayed && visibleRevision(r) && visibleDirection(r) && matchesTdrView(r) && curves.size() < 64)
+  if (curves.empty()) {
+    for (const auto &r : results) {
+      if (curves.size() == 64) break;
+      if (r.metric == displayed && visibleRevision(r) && visibleDirection(r) && matchesTdrView(r))
         curves.push_back(r);
+    }
+  }
 
   { QSignalBlocker block(metricView); metricView->setCurrentIndex(int(displayed)); }
   const bool resetTdrView =

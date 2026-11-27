@@ -18,6 +18,7 @@
 #include <QFileDialog>
 #include <QRegularExpression>
 #include <QSet>
+#include <QHash>
 #include <QStatusBar>
 #include <QDialogButtonBox>
 #include <QPushButton>
@@ -1010,10 +1011,22 @@ inline const auto &catalogEntries() {
 }
 inline QString menuText(const QString &source, Language value) {
   if (value == Language::English) return source;
-  for (const auto &entry : catalogEntries())
-    if (source == QString::fromUtf8(entry.en))
-      return QString::fromUtf8(value == Language::Korean ? entry.ko : entry.ja);
-  return source;
+  // Decode the immutable UTF-8 catalog once rather than scanning and decoding
+  // every key for each cell, tooltip, paint label or native dialog translation.
+  struct LocalizedText { QString korean, japanese; };
+  static const auto translationIndex=[] {
+    QHash<QString, LocalizedText> index;
+    for (const auto &entry : catalogEntries()) {
+      const auto key=QString::fromUtf8(entry.en);
+      // Keep the old first-match behavior even if a duplicate is introduced.
+      if(!index.contains(key))
+        index.insert(key,LocalizedText{QString::fromUtf8(entry.ko),QString::fromUtf8(entry.ja)});
+    }
+    return index;
+  }();
+  const auto found=translationIndex.constFind(source);
+  if(found==translationIndex.cend()) return source;
+  return value==Language::Korean ? found->korean : found->japanese;
 }
 // Localize Qt-owned controls without changing QLocale or requiring network resources.
 class FrameworkTranslator final : public QTranslator {

@@ -203,6 +203,16 @@ jobs:
             -Compiler MSVC `
             -Architecture x64
 
+      - name: Record x64 navigation performance evidence
+        if: matrix.arch == 'x64'
+        run: |
+          $bundle = Join-Path $PWD 'dist/SParamView-Windows-x64'
+          $env:PATH = $bundle + ';' + (Join-Path $bundle 'tests') + ';' + $env:PATH
+          $env:QT_PLUGIN_PATH = $bundle
+          $env:QT_QPA_PLATFORM = 'windows'
+          & "$bundle/tests/si_navigation_tests.exe" validation-windows-x64/navigation-native
+          if ($LASTEXITCODE -ne 0) { throw 'Native x64 navigation benchmark failed' }
+
       - name: Qualify isolated failures and native Windows dialogs
         if: matrix.arch == 'x64'
         run: |
@@ -496,6 +506,65 @@ jobs:
           QT_QPA_PLATFORM=cocoa build-macos/si_workspace_tests examples/demo.siproject build-macos/workspace-test-macos 1440 900
           QT_QPA_PLATFORM=cocoa build-macos/si_open_tests build-macos/signal-type-test-macos signaltype
 
+      # One-time controlled comparison for 012_61: identical new test harness,
+      # same runner and Qt kit, reverting only the changed GUI implementation files
+      # in an isolated worktree. Never package or publish the baseline binary.
+      - name: Compare 012_60 and 012_61 GUI code on the same macOS runner
+        if: github.event_name == 'pull_request' && github.head_ref == 'work/012-61-application-gui-qualification'
+        timeout-minutes: 15
+        shell: bash
+        run: |
+          set -euo pipefail
+          baseline=1121066ce093940987584da213027422ddaf0289
+          git fetch --no-tags --depth=1 origin "$baseline"
+          temp="$(mktemp -d)"
+          trap 'git worktree remove --force "$temp/source" || true; rm -rf "$temp"' EXIT
+          git worktree add --detach "$temp/source" HEAD
+          for file in src/window_results.cpp src/window_plot_controller.cpp src/ui_language.hpp src/app.hpp; do
+            git show "$baseline:$file" > "$temp/source/$file"
+          done
+          cmake -S "$temp/source" -B "$temp/build" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="$QT_ROOT/lib/cmake" \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET="$MACOS_DEPLOYMENT_TARGET"
+          cmake --build "$temp/build" --target si_navigation_tests --parallel 3
+          # The full candidate build copies fonts through workspace-test targets.
+          # The isolated navigation-only target must use identical font assets.
+          test -s "$PWD/build-macos/fonts/NanumGothic-Regular.ttf"
+          mkdir -p "$temp/build/fonts"
+          cp -R "$PWD/build-macos/fonts/." "$temp/build/fonts/"
+          diff -qr "$PWD/build-macos/fonts" "$temp/build/fonts"
+          evidence="$PWD/build-macos/01261-paired"
+          mkdir -p "$evidence"
+          # Alternate order to reduce warm-up and run-order bias.
+          for round in 1 2 3; do
+            if [[ "$round" == 2 ]]; then variants="candidate baseline"; else variants="baseline candidate"; fi
+            for variant in $variants; do
+              if [[ "$variant" == baseline ]]; then exe="$temp/build/si_navigation_tests"; else exe="$PWD/build-macos/si_navigation_tests"; fi
+              QT_QPA_PLATFORM=cocoa "$exe" "$evidence/$variant-$round"
+            done
+          done
+          python3 - "$evidence" "$baseline" <<'PY'
+          import json, pathlib, statistics, sys
+          evidence=pathlib.Path(sys.argv[1])
+          result={"baseline_gui_source_commit":sys.argv[2],"comparison":"same runner, identical candidate harness; baseline differs only in four GUI implementation files"}
+          for variant in ("baseline","candidate"):
+              runs=[json.loads((evidence/f"{variant}-{i}"/"benchmark.json").read_text()) for i in (1,2,3)]
+              if not all(r["benchmark_font_registered"] and r["qt_platform"]=="cocoa" for r in runs):
+                  raise SystemExit(f"{variant}: font registration or Cocoa platform mismatch")
+              result[variant]={
+                  "font_registered":True,
+                  "changed_table_median_ms_by_run":[r["changed_result_table_refresh"]["median_ms"] for r in runs],
+                  "large_table_median_ms_by_run":[r["large_result_table_refresh"]["median_ms"] for r in runs],
+                  "large_table_median_of_medians_ms":statistics.median(r["large_result_table_refresh"]["median_ms"] for r in runs),
+                  "data_changed_signals_by_run":[r["large_result_table_data_changed_signals"] for r in runs],
+                  "cursor_30_moves_ms_by_run":[r["cursor_30_moves_ms"] for r in runs],
+              }
+          print(json.dumps(result,indent=2))
+          (evidence/"comparison.json").write_text(json.dumps(result,indent=2)+"\n")
+          PY
+
       - name: Qualify isolated failures and native Cocoa dialogs
         run: python3 tests/run_failure_qualification.py build-macos/si_failure_probe build-macos/failure-qualification --platform cocoa
 
@@ -692,6 +761,9 @@ jobs:
           path: |
             build-macos/Testing/Temporary/*.log
             build-macos/workspace-test-macos/*.json
+            build-macos/navigation-test-macos/benchmark.json
+            build-macos/01261-paired/comparison.json
+            build-macos/01261-paired/*/benchmark.json
             build-macos/failure-qualification/
             build-macos/calc/
             build-macos/excel-environment.txt

@@ -151,6 +151,7 @@ private:
   std::vector<si::Result> results;
   std::vector<si::Job> lastJobs;
   std::vector<size_t> resultRows;
+  bool resultColumnSizingDirty = true; // language/header changes invalidate content widths
   si::Settings settings, lastSettings;
   QString projectName = "Untitled", projectPath;
   bool busy = false, dirty = false, restoringProject = false;

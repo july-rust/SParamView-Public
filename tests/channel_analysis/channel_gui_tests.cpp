@@ -1264,6 +1264,33 @@ int main(int argc, char **argv) {
 
     manager.setIcnSourceProvider({});
     manager.setIldSourceProvider({});
+    // Exercise repeated real window destruction/recreation and worker cleanup.
+    // This verifies object lifetimes, not process RSS or physical GPU memory.
+    manager.setContext(context());
+    QElapsedTimer lifecycle; lifecycle.start();
+    for(int cycle=0;cycle<3;++cycle) {
+      for(int i=0;i<releaseFeatureCount;++i) {
+        const auto feature=static_cast<Feature>(i);
+        auto *window=manager.openWindow(feature);
+        check(window && window->isVisible(),"Repeated feature window open failed");
+        check(window->startWork(slowWork(3)),"Repeated feature worker failed to start");
+        if(cycle==1) {
+          drain(manager.scheduler());
+          check(window->status()==S::Valid,"Repeated completed worker did not publish");
+        }
+        QPointer<AnalysisWindow> dying(window);
+        window->close();
+        check(pumpUntil([&]{
+          QCoreApplication::sendPostedEvents(nullptr,QEvent::DeferredDelete);
+          return dying.isNull();
+        }),"Repeated feature window retained deleted object");
+        drain(manager.scheduler());
+        check(manager.existingWindow(feature)==nullptr,"Repeated feature registry retained window");
+      }
+    }
+    std::cout << "012_61 feature_lifecycle_cycles=3 windows_closed="
+              << 3*releaseFeatureCount << " elapsed_ms=" << lifecycle.elapsed()
+              << " workers_remaining=" << manager.scheduler().inFlight() << std::endl;
     std::cout << "012_04/012_05/012_06 QT GUI, ILD and ICN workflow PASS\n";
     return 0;
   } catch (const std::exception &error) {
