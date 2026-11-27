@@ -883,11 +883,17 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
   guideScroll->setWidgetResizable(true);
   auto *guidePage=new QWidget;
   auto *guideLayout=new QVBoxLayout(guidePage);
-  guideLayout->setContentsMargins(6,4,6,4);
+  guideLayout->setContentsMargins(10,8,10,8);
   guideLayout->addWidget(guide);
   guideLayout->addStretch();
   guideScroll->setWidget(guidePage);
   detailsTabs->addTab(guideScroll,QStringLiteral("How to read"));
+  // Keep the result view compact, but give the interpretation its own
+  // larger scrollable reading area without increasing the window minimum.
+  connect(detailsTabs,&QTabWidget::currentChanged,detailsTabs,[detailsTabs](int tabIndex){
+    detailsTabs->setMaximumHeight(tabIndex==1?220:124);
+    detailsTabs->updateGeometry();
+  });
   statusLabel_ = new QLabel;
   statusLabel_->setObjectName(QStringLiteral("analysisStatus"));
   statusLabel_->setWordWrap(true);
