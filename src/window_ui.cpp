@@ -260,6 +260,11 @@ public:
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     auto *content = new QWidget;
     content->setObjectName(name + "Contents");
+    // Use compact padding without shrinking the font or the clickable text.
+    // This also offsets the scrollbar height in short desktop work areas.
+    content->setStyleSheet(
+        "QPushButton,QToolButton { padding:3px 6px; }"
+        "QComboBox,QDoubleSpinBox,QSpinBox,QLineEdit { padding:2px 4px; }");
     row->setContentsMargins(0, 0, 0, 0);
     content->setLayout(row);
     setWidget(content);
@@ -455,8 +460,8 @@ MainWindow::MainWindow() {
   body = new QWidget;
   setCentralWidget(body);
   auto root = new QVBoxLayout(body);
-  root->setContentsMargins(12, 10, 12, 8);
-  root->setSpacing(8);
+  root->setContentsMargins(12, 6, 12, 6);
+  root->setSpacing(4);
   auto banner = new QHBoxLayout;
   banner->setSpacing(8);
   auto brand = new QLabel(
@@ -556,8 +561,8 @@ MainWindow::MainWindow() {
   split->addWidget(channelContainer);
   auto content = new QWidget;
   auto right = new QVBoxLayout(content);
-  right->setContentsMargins(12, 8, 8, 8);
-  right->setSpacing(10);
+  right->setContentsMargins(12, 4, 8, 4);
+  right->setSpacing(4);
   auto workspaceBar = new QHBoxLayout;
   workspaceBar->setSpacing(5);
   int viewIndex = 0;
@@ -681,10 +686,11 @@ MainWindow::MainWindow() {
   });
   tabs = new QTabWidget;
   tabs->setObjectName("analysisTabs");
+  tabs->setStyleSheet("QTabBar::tab { padding:5px 12px; }");
   auto plotPage = new QWidget;
   auto pv = new QVBoxLayout(plotPage);
-  pv->setContentsMargins(10, 8, 10, 8);
-  pv->setSpacing(8);
+  pv->setContentsMargins(10, 4, 10, 4);
+  pv->setSpacing(4);
   auto graphOptions = new QHBoxLayout;
   graphOptions->setSpacing(6);
   metricView = new QComboBox;
@@ -718,7 +724,7 @@ MainWindow::MainWindow() {
   plot = new PlotWidget;
   pv->addWidget(plot, 1);
   auto readout = new QLabel("Wheel: X zoom · Ctrl+wheel: Y zoom · Drag: pan · Shift+drag: box zoom");
-  readout->setMinimumHeight(22);
+  readout->setMinimumHeight(18);
   readout->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
   readout->setWordWrap(true);
   pv->addWidget(readout);
@@ -745,8 +751,8 @@ MainWindow::MainWindow() {
   resultsPanel = new QWidget;
   resultsPanel->setObjectName("resultsPanel");
   auto resultLayout = new QVBoxLayout(resultsPanel);
-  resultLayout->setContentsMargins(10, 8, 10, 8);
-  resultLayout->setSpacing(8);
+  resultLayout->setContentsMargins(10, 4, 10, 4);
+  resultLayout->setSpacing(4);
   auto resultBar = new QHBoxLayout;
   resultBar->setSpacing(8);
   summary = new QLabel("No limits configured → N/A");
@@ -777,7 +783,7 @@ MainWindow::MainWindow() {
   table->setEditTriggers(QAbstractItemView::NoEditTriggers);
   table->verticalHeader()->hide();
   table->horizontalHeader()->setStretchLastSection(true);
-  table->setMinimumHeight(100);
+  table->setMinimumHeight(84);
   table->setAlternatingRowColors(true);
   resultLayout->addWidget(table, 1);
   analysisSplit->addWidget(resultsPanel);
@@ -789,7 +795,7 @@ MainWindow::MainWindow() {
   analysisSplit->setSizes({560, 260});
   notice = new QLabel("Open file → Confirm mapping → Select channels → QUICK ANALYSIS. Pass/fail evaluation requires user-defined limits.");
   notice->setWordWrap(true);
-  notice->setStyleSheet("color:#64758b;padding:4px 8px");
+  notice->setStyleSheet("color:#64758b;padding:2px 8px");
   root->addWidget(notice);
   progress = new QProgressBar;
   progress->setMaximumWidth(180);
