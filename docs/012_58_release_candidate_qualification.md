@@ -18,3 +18,10 @@ Status: partial candidate; not RELEASE READY. Baseline integration commit d98bd7
 - Physical Windows x64/ARM64/macOS Apple Silicon display and actual high-DPI tests remain NOT VERIFIED. Horizontal scrolling is a fallback, not a claim that every control is simultaneously visible.
 - Representative original S36P files are present in the existing project Library; raw-byte materialization returned no authorized path for either. Do not publish or duplicate user measurements. Previous 012_54 numerical evidence is not a substitute for testing the final packaged binary with these inputs.
 - Final merged-commit packaged-binary validation, complete dynamic localization inventory, and remaining #121 gate review are open. Do not close #121, tag, publish, change main, or mark 100% COMPLETE based only on CI.
+
+
+## Follow-up: exact first candidate CI and vertical compact layout
+- Head cee50661d06514d0d97890fad9e1d60174091f6d: CodeQL 45913526013 passed; CI 45913525972 failed. Version and core quality gates (including sanitizers) passed; Windows ARM64 cross-build passed; Windows x64 and macOS GUI failed at new compact size assertion. Windows x64 88/89 tests passed. Native ARM64 packaged gate and publication skipped.
+- Both GUI logs show minimum width 661 and actual width 984 in Korean, versus baseline native ARM64 minimum width 1220. Baseline min height 707; new height exceeded target 688 but first candidate logs did not emit exact height. Do not claim compact layout pass.
+- Compact strip button padding, workspace margins/spacing, tab padding, result table minimum and readout height reduced; plot minimum size and font retained. Expanded two-dimensional diagnostics and control geometry on failure, require positive plot area, retain 984x688 assertion.
+- New exact head requires CI and review. Physical display/High DPI, private original S36P and complete runtime inventory still unverified. Keep #121 open and do not publish.
