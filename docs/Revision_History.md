@@ -1,6 +1,12 @@
 # SParamView Revision History
 
-**Current official release: [v1.4.0](https://github.com/july-rust/SParamView-Public/releases/tag/v1.4.0)** — independent ILD, Generic ICN and simulated Eye Diagram; multilingual runtime UI, adaptive windows, workspace and package improvements. COM deferred. [Release notes](Release_1.4.0.md). Entries below are historical development snapshots.
+**Current official release: [v1.4.1](https://github.com/july-rust/SParamView-Public/releases/tag/v1.4.1)** — window geometry and File/New/Exit maintenance. [Release notes](Release_1.4.1.md).
+
+## v1.4.1 maintenance
+
+- **v1.4.1:** File > New closes ILD, ICN and Eye Diagram only after confirmation; Cancel or a failed save preserves the workspace. File > Exit uses the normal save/cleanup path. Window geometry is fitted to the active monitor's logical work area, with scrollable custom dialog bodies and fixed confirmation buttons. Qt file dialogs are used consistently across platforms.
+
+Previous release [v1.4.0](https://github.com/july-rust/SParamView-Public/releases/tag/v1.4.0) remains unchanged. [Historical notes](Release_1.4.0.md).
 
 ## v1.4.0 development / 012_08 (unreleased — Eye GUI stage COMPLETE)
 

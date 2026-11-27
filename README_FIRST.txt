@@ -1,7 +1,7 @@
-SParamView v1.4.0
+SParamView v1.4.1
 =================
 
-SParamView v1.4.0 is a reference tool for calculating and visualizing Touchstone S-parameter data. Supported S-parameter file versions: Touchstone 1.0/1.1/2.0/2.1. Y/Z/H/G are not automatically converted to S parameters.
+SParamView v1.4.1 is a reference tool for calculating and visualizing Touchstone S-parameter data. Supported S-parameter file versions: Touchstone 1.0/1.1/2.0/2.1. Y/Z/H/G are not automatically converted to S parameters.
 
 IMPORTANT NOTICE
 ----------------
@@ -20,6 +20,8 @@ Hover over the Revision selector for its full source path. Open Project rotates 
 the previous project cache/plot/comparison state after successful import; Open Touchstone
 continues to append revisions for comparison.
 
+New in v1.4.1: File/New closes analysis windows; File/Exit; shared monitor work-area geometry and scrollable dialogs.
+
 New in v1.4.0: ILD, Generic ICN, simulated NRZ Eye Diagram; Auto/Manual settings; English/Korean/Japanese runtime language switching; adaptive GUI. COM deferred. Engineering reference only, not compliance or measured BER.
 
 Windows ZIP layout:
@@ -28,7 +30,7 @@ Windows ZIP layout:
 - The separate Windows QA ZIP contains tests/ and Run_Windows_Verification.cmd for optional full validation.
 - The user ZIP retains the application, optional CLI, runtime, examples, documentation and license.
 
-Official release: https://github.com/july-rust/SParamView-Public/releases/tag/v1.4.0
+Official release: https://github.com/july-rust/SParamView-Public/releases/tag/v1.4.1
 
 Supported release targets:
 - Windows x64
@@ -38,7 +40,7 @@ Supported release targets:
 Documentation:
 - README_EN.md
 - README_KO.md
-- docs/Release_1.4.0.md
+- docs/Release_1.4.1.md
 
 License: MIT
 Contact: sparamview@gmail.com
