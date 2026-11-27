@@ -52,6 +52,21 @@ static QJsonArray cacheInputTimings() {
   }
   return report;
 }
+// Exhaustive parity against the original catalog and unknown-key fallback.
+static void checkCatalogLookupParity() {
+  using namespace sparamview::ui_language;
+  for(const auto &entry:catalogEntries()) {
+    const auto key=QString::fromUtf8(entry.en);
+    if(menuText(key,Language::English)!=key ||
+       menuText(key,Language::Korean)!=QString::fromUtf8(entry.ko) ||
+       menuText(key,Language::Japanese)!=QString::fromUtf8(entry.ja))
+      throw si::Error("Translation index changed catalog contents");
+  }
+  const auto unknown=QStringLiteral("__01261_unknown_catalog_key__");
+  for(const auto language:{Language::English,Language::Korean,Language::Japanese})
+    if(menuText(unknown,language)!=unknown || !menuText(QString(),language).isEmpty())
+      throw si::Error("Translation index changed unknown-key fallback");
+}
 struct NavigationProbe {
  static bool running(MainWindow &windowUnderTest) {
 #ifdef SI_NEW_NAVIGATION
@@ -61,8 +76,8 @@ struct NavigationProbe {
 #endif
  }
  static void settle(MainWindow &windowUnderTest) {
-  QElapsedTimer t;t.start();
-  while(running(windowUnderTest)) {QCoreApplication::processEvents(QEventLoop::AllEvents,10);QThread::msleep(1);if(t.elapsed()>120000)throw si::Error("View timeout");}
+  QElapsedTimer benchmarkClock;benchmarkClock.start();
+  while(running(windowUnderTest)) {QCoreApplication::processEvents(QEventLoop::AllEvents,10);QThread::msleep(1);if(benchmarkClock.elapsed()>120000)throw si::Error("View timeout");}
   QCoreApplication::processEvents();
  }
  static QJsonObject run(MainWindow &windowUnderTest,QString folder) {
@@ -81,18 +96,18 @@ struct NavigationProbe {
   windowUnderTest.revisionBox->clear();
   for(int i=0;i<32;++i){Revision r;r.name=QString("Rev %1").arg(i);r.cache=cache;r.source=qs(si::utf8(file));r.channels={ch};r.confirmed=true;windowUnderTest.revisions.push_back(r);windowUnderTest.revisionBox->addItem(r.name);}
   windowUnderTest.rebuildChannels();windowUnderTest.settings.tdrStopSeconds=180e-9;windowUnderTest.settings.tdrTerminations={si::Termination::Reference,si::Termination::Resistor,si::Termination::Split,si::Termination::Open,si::Termination::Short};windowUnderTest.applySettings();
-  QElapsedTimer t;t.start();windowUnderTest.run({si::Metric::TDR});settle(windowUnderTest);
-  QJsonObject result{{"analysis_ms",t.nsecsElapsed()/1e6},{"results",int(windowUnderTest.results.size())},{"overlays",int(windowUnderTest.plot->snapshot.curves.size())},
+  QElapsedTimer benchmarkClock;benchmarkClock.start();windowUnderTest.run({si::Metric::TDR});settle(windowUnderTest);
+  QJsonObject result{{"analysis_ms",benchmarkClock.nsecsElapsed()/1e6},{"results",int(windowUnderTest.results.size())},{"overlays",int(windowUnderTest.plot->snapshot.curves.size())},
                      {"cache_open_ms",cacheOpenMs},{"fixture_ports",4},{"fixture_frequency_points",8193},{"fixture_revisions",32}};
   // Measure result table rebuild with a stable, already-computed data set.
   std::vector<double> tableTimes;
   windowUnderTest.refreshResults();
-  for(int i=0;i<10;++i){t.restart();windowUnderTest.refreshResults();QCoreApplication::processEvents();tableTimes.push_back(t.nsecsElapsed()/1e6);}
+  for(int i=0;i<10;++i){benchmarkClock.restart();windowUnderTest.refreshResults();QCoreApplication::processEvents();tableTimes.push_back(benchmarkClock.nsecsElapsed()/1e6);}
   result["result_table_refresh"]=timingSummary(tableTimes);
   auto original=windowUnderTest.results;bool disabled=false;QJsonArray zooms;
   QElapsedTimer heartbeatClock;heartbeatClock.start();qint64 last=0,maximumHeartbeatGap=0;QTimer beat;
   QObject::connect(&beat,&QTimer::timeout,[&]{auto now=heartbeatClock.elapsed();maximumHeartbeatGap=std::max(maximumHeartbeatGap,now-last);last=now;});beat.start(5);
-  for(int i=0;i<3;++i){double l=(i+1)*2e-9,r=l+120e-9;t.restart();windowUnderTest.plot->setView(l,r,80,120);windowUnderTest.zoom(l,r);disabled|=!windowUnderTest.plot->isEnabled();settle(windowUnderTest);zooms.append(t.nsecsElapsed()/1e6);}
+  for(int i=0;i<3;++i){double l=(i+1)*2e-9,r=l+120e-9;benchmarkClock.restart();windowUnderTest.plot->setView(l,r,80,120);windowUnderTest.zoom(l,r);disabled|=!windowUnderTest.plot->isEnabled();settle(windowUnderTest);zooms.append(benchmarkClock.nsecsElapsed()/1e6);}
   double l=0,r=0;
   for(int i=0;i<100;++i){l=i*.01e-9;r=l+100e-9;windowUnderTest.plot->setView(l,r,85,115);windowUnderTest.zoom(l,r);}
   settle(windowUnderTest);maximumHeartbeatGap=std::max(maximumHeartbeatGap,heartbeatClock.elapsed()-last);beat.stop();result["zoom_ms"]=zooms;result["disabled_during_zoom"]=disabled;result["heartbeat_max_gap_ms"]=double(maximumHeartbeatGap);
@@ -117,9 +132,9 @@ struct NavigationProbe {
   auto renders=windowUnderTest.plot->graphRenderCount();
 #endif
   std::vector<double> cursorTimes;QElapsedTimer sample;
-  t.restart();
+  benchmarkClock.restart();
   for(int i=0;i<30;++i){sample.start();auto p=graphArea(windowUnderTest.plot->rect(),windowUnderTest.plot->snapshot).center()+QPointF(i,0);QMouseEvent e(QEvent::MouseMove,p,p,Qt::NoButton,Qt::NoButton,Qt::NoModifier);QApplication::sendEvent(windowUnderTest.plot,&e);windowUnderTest.plot->repaint();cursorTimes.push_back(sample.nsecsElapsed()/1e6);}
-  result["cursor_30_moves_ms"]=t.nsecsElapsed()/1e6;
+  result["cursor_30_moves_ms"]=benchmarkClock.nsecsElapsed()/1e6;
   result["cursor_move_and_paint"]=timingSummary(cursorTimes);
 #ifdef SI_NEW_NAVIGATION
   result["cursor_graph_renders"]=int(windowUnderTest.plot->graphRenderCount()-renders);
@@ -167,7 +182,7 @@ struct NavigationProbe {
     auto *action=windowUnderTest.findChild<QAction *>(QString("uiLanguage_")+lang);
     if(!action)throw si::Error("Missing language action in large-table test");
     action->trigger();settle(windowUnderTest);
-    for(int i=0;i<3;++i){measuring=true;t.restart();windowUnderTest.refreshResults();QCoreApplication::processEvents();largeTableTimes.push_back(t.nsecsElapsed()/1e6);measuring=false;}
+    for(int i=0;i<3;++i){measuring=true;benchmarkClock.restart();windowUnderTest.refreshResults();QCoreApplication::processEvents();largeTableTimes.push_back(benchmarkClock.nsecsElapsed()/1e6);measuring=false;}
     const auto language=sparamview::ui_language::current(&windowUnderTest);
     tableOk=tableOk&&windowUnderTest.table->rowCount()==1000&&windowUnderTest.resultRows.size()==1000;
     for(int row=0;tableOk&&row<windowUnderTest.table->rowCount();++row){
@@ -181,6 +196,17 @@ struct NavigationProbe {
     }
     localeSamples.append(QString::fromLatin1(lang));
   }
+  // Ensure width invalidation handles longer text and later shrinking,
+  // without capping or approximating the content scan.
+  const int shortChannelWidth=windowUnderTest.table->columnWidth(0);
+  for(auto &r:windowUnderTest.results) r.channel=std::string(48,'W');
+  windowUnderTest.refreshResults();QCoreApplication::processEvents();
+  const int longChannelWidth=windowUnderTest.table->columnWidth(0);
+  for(auto &r:windowUnderTest.results) r.channel=r.channelId;
+  windowUnderTest.refreshResults();QCoreApplication::processEvents();
+  const int restoredChannelWidth=windowUnderTest.table->columnWidth(0);
+  tableOk=tableOk&&longChannelWidth>shortChannelWidth&&restoredChannelWidth==shortChannelWidth;
+  result["column_width_invalidation_preserved"]=longChannelWidth>shortChannelWidth&&restoredChannelWidth==shortChannelWidth;
   // Change every row twice: NG colors must appear and then disappear,
   // with changed values/tooltips and no stale result left in the table.
   std::vector<double> changedTableTimes;
@@ -189,8 +215,8 @@ struct NavigationProbe {
     for(auto &r:windowUnderTest.results) {
       r.status=status;r.worst=failed?87.25:100.5;r.note=failed?"changed-failure-note":"changed-pass-note";
     }
-    t.restart();windowUnderTest.refreshResults();QCoreApplication::processEvents();
-    changedTableTimes.push_back(t.nsecsElapsed()/1e6);
+    benchmarkClock.restart();windowUnderTest.refreshResults();QCoreApplication::processEvents();
+    changedTableTimes.push_back(benchmarkClock.nsecsElapsed()/1e6);
     for(int row=0;tableOk&&row<windowUnderTest.table->rowCount();++row) {
       const auto &r=windowUnderTest.results[windowUnderTest.resultRows[size_t(row)]];
       const auto *statusCell=windowUnderTest.table->item(row,9),*valueCell=windowUnderTest.table->item(row,4);
@@ -218,7 +244,7 @@ struct NavigationProbe {
  }
 };
 int main(int argc,char **argv){QApplication app(argc,argv);applyLightTheme(app);const int registeredFont=QFontDatabase::addApplicationFont(QCoreApplication::applicationDirPath()+"/fonts/NanumGothic-Regular.ttf");QFont::insertSubstitution("Segoe UI","NanumGothic");
- try{checkSettingsParsing();QElapsedTimer windowTimer;windowTimer.start();MainWindow windowUnderTest;windowUnderTest.resize(1440,960);windowUnderTest.show();app.processEvents();const double windowShowMs=windowTimer.nsecsElapsed()/1e6;QString dir=argc>1?QString::fromLocal8Bit(argv[1]):"navigation-test";auto r=NavigationProbe::run(windowUnderTest,dir);r["settings_validation"]=true;r["window_construct_and_show_ms"]=windowShowMs;r["qt_platform"]=QGuiApplication::platformName();r["benchmark_font_registered"]=registeredFont>=0;QFile json(dir+"/benchmark.json");if(!json.open(QIODevice::WriteOnly))throw si::Error("Benchmark output failed");json.write(QJsonDocument(r).toJson());std::cout<<QJsonDocument(r).toJson().constData();
+ try{checkSettingsParsing();checkCatalogLookupParity();QElapsedTimer windowTimer;windowTimer.start();MainWindow mainWindow;mainWindow.resize(1440,960);mainWindow.show();app.processEvents();const double windowShowMs=windowTimer.nsecsElapsed()/1e6;QString dir=argc>1?QString::fromLocal8Bit(argv[1]):"navigation-test";auto r=NavigationProbe::run(mainWindow,dir);r["settings_validation"]=true;r["catalog_lookup_parity"]=true;r["window_construct_and_show_ms"]=windowShowMs;r["qt_platform"]=QGuiApplication::platformName();r["benchmark_font_registered"]=registeredFont>=0;QFile json(dir+"/benchmark.json");if(!json.open(QIODevice::WriteOnly))throw si::Error("Benchmark output failed");json.write(QJsonDocument(r).toJson());std::cout<<QJsonDocument(r).toJson().constData();
 #ifdef SI_NEW_NAVIGATION
  if(r["disabled_during_zoom"].toBool()||!r["latest_range_retained"].toBool()||!r["y_range_retained"].toBool()||!r["selection_preserved"].toBool()||!r["selected_overlay_bounded"].toBool()||r["cursor_graph_renders"].toInt()!=0||!r["statistics_unchanged"].toBool()||!r["trackpad_fractional_zoom"].toBool()||!r["overlay_cap_order_preserved"].toBool()||!r["large_result_table_presentation_preserved"].toBool())return 1;
 #endif
