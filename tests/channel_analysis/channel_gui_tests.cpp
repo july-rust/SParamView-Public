@@ -17,6 +17,7 @@
 #include <QTemporaryDir>
 #include <QFile>
 #include <QImage>
+#include <QVariant>
 #include <stdexcept>
 
 using namespace si::gui;
@@ -34,6 +35,22 @@ bool pumpUntil(const std::function<bool()> &predicate, int timeoutMs = 6000) {
   }
   QCoreApplication::processEvents();
   return predicate();
+}
+// Wait for the normal event loop to paint the new data; grab() would
+// itself force painting and can mask a native window update regression.
+QVariantList paintedAxes(QWidget *plot,int panel) {
+  const QByteArray key=QByteArray("paintedAxes")+QByteArray::number(panel);
+  check(pumpUntil([&]{return plot->property(key.constData()).toList().size()==4;}),
+        "Analysis result did not reach normal paint event");
+  const auto axes=plot->property(key.constData()).toList();
+  for(const auto &v:axes) check(std::isfinite(v.toDouble()),"Nonfinite painted axis");
+  check(axes[1].toDouble()>axes[0].toDouble() &&
+        axes[3].toDouble()>axes[2].toDouble(),"Degenerate painted axis");
+  return axes;
+}
+void checkBand(const QVariantList &axes,double start,double stop) {
+  check(std::abs(axes[0].toDouble()-start)<1 &&
+        std::abs(axes[1].toDouble()-stop)<1,"Painted frequency range is stale");
 }
 AnalysisContext context(const QString &sha = QStringLiteral("fixture-sha-256"),
                         bool confirmed = true) {
@@ -383,13 +400,24 @@ int main(int argc, char **argv) {
     auto *ildStop=ild->findChild<QDoubleSpinBox *>("ildStopGhz");
     auto *ildPlot=ild->findChild<QWidget *>("ildResultGraph");
     check(ildStart && ildStop && ildPlot,"Missing ILD manual scale controls");
-    const auto ildFull=ildPlot->grab().toImage();
+    const auto ildFullAxes=paintedAxes(ildPlot,0);
+    checkBand(ildFullAxes,0,16e9);
     ildStart->setValue(4);ildStop->setValue(12);
     ild->runButton()->click();drain(manager.scheduler());
-    check(ild->status()==S::Valid && ildPlot->grab().toImage()!=ildFull,"ILD manual band change did not redraw plot");
+    check(ild->status()==S::Valid,"ILD manual band analysis failed");
+    const auto ildNarrow=paintedAxes(ildPlot,0);
+    checkBand(ildNarrow,4e9,12e9);
+    // Independent analytical fixture: loss=1.5+2sqrt(x)+3x+0.25x².
+    const double expectedLow=1.5+2*std::sqrt(.25)+3*.25+.25*.25*.25;
+    const double expectedHigh=1.5+2*std::sqrt(.75)+3*.75+.25*.75*.75;
+    const double padding=std::max(.05,(expectedHigh-expectedLow)*.08);
+    check(std::abs(ildNarrow[2].toDouble()-(expectedLow-padding))<1e-7 &&
+          std::abs(ildNarrow[3].toDouble()-(expectedHigh+padding))<1e-7,
+          "ILD actual painted Y range does not match independent oracle");
     ildStart->setValue(0);ildStop->setValue(30);
     ild->runButton()->click();drain(manager.scheduler());
     check(ild->status()==S::Valid,"ILD original manual settings restore failed");
+    check(paintedAxes(ildPlot,0)==ildFullAxes,"ILD full manual axis restore failed");
     auto *csv=ild->findChild<QPushButton *>(QStringLiteral("analysisCsv"));
     auto *png=ild->findChild<QPushButton *>(QStringLiteral("analysisPng"));
     check(csv && csv->isEnabled() && png && png->isEnabled(),
@@ -504,22 +532,32 @@ int main(int argc, char **argv) {
     ildStart->setValue(0);ildStop->setValue(30);
     ild->runButton()->click();drain(manager.scheduler());
     check(ild->status()==S::Valid,"Manual isolated-endpoint ILD analysis failed");
-    auto *fullY=ild->findChild<QCheckBox *>("ildFullYRange");
-    check(fullY && !fullY->isChecked(),"ILD default detail control missing");
-    const auto endpointDetail=ildPlot->grab().toImage();
-    const auto detailCsv=ildDir.filePath("endpoint-detail.csv");
-    check(ild->saveIldCsv(detailCsv),"Endpoint detail CSV failed");
-    fullY->setChecked(true);
-    QCoreApplication::processEvents();
-    check(ildPlot->grab().toImage()!=endpointDetail,"Full Y toggle did not restore endpoint scale");
+    auto *detailY=ild->findChild<QCheckBox *>("ildDetailYRange");
+    check(detailY && !detailY->isChecked(),"ILD full range must be default on every OS");
+    const auto endpointFull=paintedAxes(ildPlot,0);
+    check(endpointFull[3].toDouble()>25.5,"Full range excluded endpoint");
     const auto fullCsv=ildDir.filePath("endpoint-full.csv");
     check(ild->saveIldCsv(fullCsv),"Endpoint full CSV failed");
+    detailY->setChecked(true);
+    const auto endpointDetail=paintedAxes(ildPlot,0);
+    check(endpointDetail[3].toDouble()<5,"Detail range did not focus isolated endpoint");
+    const auto detailCsv=ildDir.filePath("endpoint-detail.csv");
+    check(ild->saveIldCsv(detailCsv),"Endpoint detail CSV failed");
     QFile detailFile(detailCsv),fullFile(fullCsv);
     check(detailFile.open(QIODevice::ReadOnly) && fullFile.open(QIODevice::ReadOnly) &&
           detailFile.readAll()==fullFile.readAll(),"Plot focus changed numerical CSV");
-    fullY->setChecked(false);
-    QCoreApplication::processEvents();
-    check(ildPlot->grab().toImage()==endpointDetail,"Detail Y toggle did not restore view");
+    detailY->setChecked(false);
+    check(paintedAxes(ildPlot,0)==endpointFull,"Full Y toggle did not restore range");
+    ildStart->setValue(.02);
+    ild->runButton()->click();drain(manager.scheduler());
+    check(ild->status()==S::Valid,"Manual endpoint exclusion band failed");
+    const auto endpointNarrow=paintedAxes(ildPlot,0);
+    checkBand(endpointNarrow,20e6,20e9);
+    check(endpointNarrow[3].toDouble()<5,"Manual Y range retained prior endpoint");
+    ildStart->setValue(0);
+    ild->runButton()->click();drain(manager.scheduler());
+    check(ild->status()==S::Valid && paintedAxes(ildPlot,0)==endpointFull,
+          "Manual endpoint full-band restore failed");
     // 012_06: real 4-port Touchstone, two mapped channels, separate NEXT/FEXT
     // paths -> generic NRZ ICN worker -> GUI -> CSV/PNG -> stale protection.
     const auto icnPath=si::pathFromUtf8(
@@ -614,14 +652,19 @@ int main(int argc, char **argv) {
     auto *icnStop=icn->findChild<QDoubleSpinBox *>("icnStopGhz");
     auto *icnPlot=icn->findChild<QWidget *>("icnResultGraph");
     check(icnStart && icnStop && icnPlot,"Missing ICN manual scale controls");
-    const auto icnFull=icnPlot->grab().toImage();
+    const auto icnFull=paintedAxes(icnPlot,2);
+    checkBand(icnFull,0,8e9);
     icnStart->setValue(1);icnStop->setValue(4);
     icn->runButton()->click();drain(manager.scheduler());
-    check((icn->status()==S::Valid || icn->status()==S::Warning) &&
-          icnPlot->grab().toImage()!=icnFull,"ICN manual band change did not redraw plot");
+    check(icn->status()==S::Valid || icn->status()==S::Warning,"ICN manual band analysis failed");
+    const auto icnNarrow=paintedAxes(icnPlot,2);
+    checkBand(icnNarrow,1e9,4e9);
+    check(icnNarrow[2].toDouble()==0 && icnNarrow[3].toDouble()<icnFull[3].toDouble(),
+          "ICN cumulative RMS Y range did not decrease with narrower band");
     icnStart->setValue(0);icnStop->setValue(30);
     icn->runButton()->click();drain(manager.scheduler());
     check(icn->status()==S::Valid || icn->status()==S::Warning,"ICN original manual settings restore failed");
+    check(paintedAxes(icnPlot,2)==icnFull,"ICN full manual axes restore failed");
     auto *icnCsv=icn->findChild<QPushButton *>(QStringLiteral("analysisCsv"));
     auto *icnPng=icn->findChild<QPushButton *>(QStringLiteral("analysisPng"));
     check(icnCsv && icnCsv->isEnabled() && icnPng && icnPng->isEnabled(),
@@ -797,13 +840,17 @@ int main(int argc, char **argv) {
     auto *txHigh=eye->findChild<QLineEdit *>("eyeTxHighMv");
     check(eyeView && txHigh,"Missing Eye manual scale controls");
     eyeView->setCurrentIndex(1);
-    const auto eyeFull=eyeGraph->grab().toImage();
+    const auto eyeFull=paintedAxes(eyeGraph,1);
     baud->setValue(3.0);txHigh->setText("800");
     eye->runButton()->click();drain(manager.scheduler());
-    check(eye->status()==S::Warning && eyeGraph->grab().toImage()!=eyeFull,"Eye manual rate/voltage change did not redraw plot");
+    check(eye->status()==S::Warning,"Eye manual rate/voltage analysis failed");
+    const auto eyeChanged=paintedAxes(eyeGraph,1);
+    check(eyeChanged[3].toDouble()>eyeFull[3].toDouble() &&
+          eyeChanged[3].toDouble()>=800,"Eye actual Y range did not reflect TX voltage change");
     baud->setValue(4.5);txHigh->setText("400");
     eye->runButton()->click();drain(manager.scheduler());
     check(eye->status()==S::Warning,"Eye original manual settings restore failed");
+    check(paintedAxes(eyeGraph,1)==eyeFull,"Eye manual axes restore failed");
     eyeView->setCurrentIndex(0);
     auto *eyeCsv=eye->findChild<QPushButton *>(QStringLiteral("analysisCsv"));
     auto *eyePng=eye->findChild<QPushButton *>(QStringLiteral("analysisPng"));
