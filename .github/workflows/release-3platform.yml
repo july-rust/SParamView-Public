@@ -507,7 +507,7 @@ jobs:
           QT_QPA_PLATFORM=cocoa build-macos/si_open_tests build-macos/signal-type-test-macos signaltype
 
       # One-time controlled comparison for 012_61: identical new test harness,
-      # same runner and Qt kit, reverting only the two changed GUI source files
+      # same runner and Qt kit, reverting only the changed GUI implementation files
       # in an isolated worktree. Never package or publish the baseline binary.
       - name: Compare 012_60 and 012_61 GUI code on the same macOS runner
         if: github.event_name == 'pull_request' && github.head_ref == 'work/012-61-application-gui-qualification'
@@ -520,7 +520,7 @@ jobs:
           temp="$(mktemp -d)"
           trap 'git worktree remove --force "$temp/source" || true; rm -rf "$temp"' EXIT
           git worktree add --detach "$temp/source" HEAD
-          for file in src/window_results.cpp src/window_plot_controller.cpp; do
+          for file in src/window_results.cpp src/window_plot_controller.cpp src/ui_language.hpp src/app.hpp; do
             git show "$baseline:$file" > "$temp/source/$file"
           done
           cmake -S "$temp/source" -B "$temp/build" \
@@ -548,7 +548,7 @@ jobs:
           python3 - "$evidence" "$baseline" <<'PY'
           import json, pathlib, statistics, sys
           evidence=pathlib.Path(sys.argv[1])
-          result={"baseline_gui_source_commit":sys.argv[2],"comparison":"same runner, identical candidate harness; baseline differs only in two GUI source files"}
+          result={"baseline_gui_source_commit":sys.argv[2],"comparison":"same runner, identical candidate harness; baseline differs only in four GUI implementation files"}
           for variant in ("baseline","candidate"):
               runs=[json.loads((evidence/f"{variant}-{i}"/"benchmark.json").read_text()) for i in (1,2,3)]
               if not all(r["benchmark_font_registered"] and r["qt_platform"]=="cocoa" for r in runs):
