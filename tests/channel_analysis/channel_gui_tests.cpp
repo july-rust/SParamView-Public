@@ -164,6 +164,7 @@ void checkCompactLayout(AnalysisWindow *window) {
 
 int main(int argc, char **argv) {
   QApplication app(argc, argv);
+  std::cout << "Analysis GUI platform: " << QGuiApplication::platformName().toStdString() << std::endl;
   try {
   // Numeric display bounds are independent of the analysis engine and mode.
   using si::gui::detail::PlotBounds;
@@ -227,6 +228,15 @@ int main(int argc, char **argv) {
       check(windows[i]->runButton() && !windows[i]->runButton()->isEnabled(),
             "An unfinished numerical engine must not run");
       check(manager.openWindow(feature) == windows[i], "Duplicate analysis window created");
+      QCoreApplication::processEvents();
+      if(QGuiApplication::screens().size()==1) {
+        const QRect work=windows[i]->screen()->availableGeometry();
+        const QSize preferred(std::max(640,qRound(work.width()*.75)),
+                              std::max(480,qRound(work.height()*.75)));
+        const QSize expected=preferred.boundedTo(QSize(std::max(300,work.width()-40),
+                                                      std::max(240,work.height()-80)));
+        check(windows[i]->size()==expected,"Initial analysis size must follow logical screen work area");
+      }
       checkCompactLayout(windows[i]);
       auto *sourceCombo=windows[i]->findChild<QComboBox *>(QStringLiteral("analysisSource"));
       auto *victimCombo=windows[i]->findChild<QComboBox *>(QStringLiteral("analysisVictim"));
