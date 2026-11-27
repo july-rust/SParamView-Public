@@ -97,6 +97,22 @@ void checkCompactLayout(AnalysisWindow *window) {
     if(size.width()==984)
       check(plot->verticalScrollBar()->maximum()==0,
             "Default analysis plot must fit in the reference compact client area");
+    details->setCurrentIndex(0);
+    QCoreApplication::processEvents();
+    const QSize plotBefore=plot->viewport()->size();
+    const int detailsBefore=details->height();
+    details->setCurrentIndex(1);
+    QCoreApplication::processEvents();
+    auto *guide=window->findChild<QScrollArea *>("analysisGuideScroll");
+    check(guide && guide->isVisibleTo(window) &&
+          guide->verticalScrollBar()->maximum()>0,
+          "Long interpretation must remain scrollable");
+    guide->verticalScrollBar()->setValue(guide->verticalScrollBar()->maximum());
+    check(plot->viewport()->size()==plotBefore && details->height()==detailsBefore,
+          "Interpretation tab must not shrink plot viewport");
+    details->setCurrentIndex(0);
+    QCoreApplication::processEvents();
+    check(plot->viewport()->size()==plotBefore,"Returning to result tab resized plot");
     if(window->feature()==Feature::Eye) {
       auto *tabs=window->findChild<QTabWidget *>(QStringLiteral("eyeManualSettingsTabs"));
       check(tabs && tabs->count()==3,"Eye manual settings must be grouped");
@@ -145,6 +161,19 @@ int main(int argc, char **argv) {
     check(deviation.pad(0.08,true,false,0.05) && deviation.low<0 && deviation.high>=0.05,"ILD residual axis lacks meaningful zero-reference scale");
     PlotBounds invalid;invalid.include(std::numeric_limits<double>::quiet_NaN());
     check(!invalid.pad(0.08),"Nonfinite plot data accepted");
+    PlotBounds endpoint,interior,focused;
+    interior.include(-0.2);interior.include(0.3);
+    endpoint=interior;endpoint.include(23.9259);
+    check(si::gui::detail::firstSampleFocus(endpoint,interior,1e6,20e9,true,focused) &&
+          focused.low< -0.2 && focused.high>0.3 && focused.high<1,
+          "Isolated first-frequency peak flattens detail axis");
+    check(!si::gui::detail::firstSampleFocus(endpoint,interior,1e9,20e9,true,focused),
+          "Wide low-frequency interval must not be focused away");
+    check(!si::gui::detail::firstSampleFocus(interior,interior,1e6,20e9,true,focused),
+          "Normal data must retain full autoscaling");
+    PlotBounds interiorPeak=interior;interiorPeak.include(22);
+    check(!si::gui::detail::firstSampleFocus(endpoint,interiorPeak,1e6,20e9,true,focused),
+          "Broad/second peak must remain in displayed bounds");
   }
     QMainWindow main;
     AnalysisWindowManager manager(&main);
@@ -450,6 +479,47 @@ int main(int argc, char **argv) {
     check(!ild->saveIldCsv(ildDir.filePath(QStringLiteral("stale.csv"))) &&
           !ild->saveIldPng(ildDir.filePath(QStringLiteral("stale.png"))),
           "STALE result was exported as current");
+    // Reproduce a narrow low-frequency endpoint peak without customer data.
+    const auto endpointPath=si::pathFromUtf8(ildDir.filePath("endpoint.s2p").toStdString());
+    {
+      std::ofstream out(endpointPath);
+      out<<std::setprecision(17)<<"# GHz S RI R 50\n";
+      for(int i=0;i<=1000;++i) {
+        const double f=i==0?1e-6:i*0.02;
+        const double loss=i==0?25.5:1.5+0.5*std::sqrt(f/20)+f/20;
+        const double v=std::pow(10.,-loss/20.);
+        out<<f<<" 0 0 "<<v<<" 0 "<<v<<" 0 0 0\n";
+      }
+    }
+    auto endpointCache=si::Cache::open(endpointPath,
+      si::pathFromUtf8(ildDir.filePath("endpoint-cache").toStdString()),nullptr,true);
+    numericContext.sources[0].sha256=QString::fromStdString(endpointCache->meta().sha256);
+    manager.setIldSourceProvider([endpointCache,channel](int index)->std::optional<IldSourceInput>{
+      if(index!=0)return std::nullopt;
+      return IldSourceInput{endpointCache,{channel},"ILD fixture revision",
+                            endpointCache->meta().sha256,1,1};
+    });
+    manager.setContext(numericContext);
+    ildModel->setCurrentIndex(1);
+    ildStart->setValue(0);ildStop->setValue(30);
+    ild->runButton()->click();drain(manager.scheduler());
+    check(ild->status()==S::Valid,"Manual isolated-endpoint ILD analysis failed");
+    auto *fullY=ild->findChild<QCheckBox *>("ildFullYRange");
+    check(fullY && !fullY->isChecked(),"ILD default detail control missing");
+    const auto endpointDetail=ildPlot->grab().toImage();
+    const auto detailCsv=ildDir.filePath("endpoint-detail.csv");
+    check(ild->saveIldCsv(detailCsv),"Endpoint detail CSV failed");
+    fullY->setChecked(true);
+    QCoreApplication::processEvents();
+    check(ildPlot->grab().toImage()!=endpointDetail,"Full Y toggle did not restore endpoint scale");
+    const auto fullCsv=ildDir.filePath("endpoint-full.csv");
+    check(ild->saveIldCsv(fullCsv),"Endpoint full CSV failed");
+    QFile detailFile(detailCsv),fullFile(fullCsv);
+    check(detailFile.open(QIODevice::ReadOnly) && fullFile.open(QIODevice::ReadOnly) &&
+          detailFile.readAll()==fullFile.readAll(),"Plot focus changed numerical CSV");
+    fullY->setChecked(false);
+    QCoreApplication::processEvents();
+    check(ildPlot->grab().toImage()==endpointDetail,"Detail Y toggle did not restore view");
     // 012_06: real 4-port Touchstone, two mapped channels, separate NEXT/FEXT
     // paths -> generic NRZ ICN worker -> GUI -> CSV/PNG -> stale protection.
     const auto icnPath=si::pathFromUtf8(
