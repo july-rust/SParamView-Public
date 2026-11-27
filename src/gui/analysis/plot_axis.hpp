@@ -16,15 +16,15 @@ struct PlotBounds {
     }
   }
   bool valid() const { return std::isfinite(low)&&std::isfinite(high)&&high>=low; }
-  bool pad(double fraction,bool zeroBaseline=false,bool nonnegative=false) {
+  bool pad(double fraction,bool zeroBaseline=false,bool nonnegative=false,double minimumPadding=0.0) {
     if(!valid()) return false;
     if(zeroBaseline) include(0);
     const double span=high-low;
     const double magnitude=std::max(std::abs(low),std::abs(high));
     // A constant or all-zero series needs a finite drawable interval.
     // Relative padding otherwise keeps even very small PSD/RMS data visible.
-    const double extra=span>0 ? span*fraction :
-        magnitude>0 ? magnitude*fraction : 1e-12;
+    const double extra=std::max(minimumPadding,span>0 ? span*fraction :
+        magnitude>0 ? magnitude*fraction : 1e-12);
     const double nextLow=low-extra, nextHigh=high+extra;
     if(!std::isfinite(nextLow)||!std::isfinite(nextHigh)) return false;
     low=nonnegative ? std::max(0.0,nextLow) : nextLow;
