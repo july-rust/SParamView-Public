@@ -164,6 +164,15 @@ protected:
     const double f0 = viewFrom_, f1 = viewTo_;
     if (!(f1 > f0)) return;
     const int padX = 70, right = 22;
+    // Find the visible band once and share its bracketing samples across panels.
+    const auto first=std::lower_bound(d.frequencyHz.begin(),d.frequencyHz.end(),f0);
+    const auto last=std::upper_bound(d.frequencyHz.begin(),d.frequencyHz.end(),f1);
+    const auto beginIndex=first==d.frequencyHz.begin()?size_t(0):size_t(first-d.frequencyHz.begin()-1);
+    const auto endIndex=std::min(d.frequencyHz.size(),size_t(last-d.frequencyHz.begin())+1);
+    if(endIndex<=beginIndex) return;
+    const qulonglong visibleSamples=endIndex-beginIndex;
+    if(property("ildVisibleSampleCount").toULongLong()!=visibleSamples)
+      setProperty("ildVisibleSampleCount",visibleSamples);
     for (int panel=0;panel<2;++panel) {
       QRectF area(padX, 24 + panel*(height()-35)/2,
                   std::max(50,width()-padX-right),
@@ -171,11 +180,6 @@ protected:
       const auto &y0 = panel==0 ? d.insertionLossDb : d.deviationDb;
       detail::PlotBounds bounds;
       // ILD deviation needs its zero reference; raw/fitted IL does not.
-      // Include the samples bracketing the current visible frequency band.
-      const auto first=std::lower_bound(d.frequencyHz.begin(),d.frequencyHz.end(),f0);
-      const auto last=std::upper_bound(d.frequencyHz.begin(),d.frequencyHz.end(),f1);
-      const auto beginIndex=first==d.frequencyHz.begin()?size_t(0):size_t(first-d.frequencyHz.begin()-1);
-      const auto endIndex=std::min(d.frequencyHz.size(),size_t(last-d.frequencyHz.begin())+1);
       for(size_t sampleIndex=beginIndex;sampleIndex<endIndex;++sampleIndex) {
         bounds.include(y0[sampleIndex]);
         if(panel==0) bounds.include(d.fittedLossDb[sampleIndex]);
