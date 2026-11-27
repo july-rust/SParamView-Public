@@ -551,7 +551,11 @@ jobs:
           result={"baseline_gui_source_commit":sys.argv[2],"comparison":"same runner, identical candidate harness; baseline differs only in two GUI source files"}
           for variant in ("baseline","candidate"):
               runs=[json.loads((evidence/f"{variant}-{i}"/"benchmark.json").read_text()) for i in (1,2,3)]
+              if not all(r["benchmark_font_registered"] and r["qt_platform"]=="cocoa" for r in runs):
+                  raise SystemExit(f"{variant}: font registration or Cocoa platform mismatch")
               result[variant]={
+                  "font_registered":True,
+                  "changed_table_median_ms_by_run":[r["changed_result_table_refresh"]["median_ms"] for r in runs],
                   "large_table_median_ms_by_run":[r["large_result_table_refresh"]["median_ms"] for r in runs],
                   "large_table_median_of_medians_ms":statistics.median(r["large_result_table_refresh"]["median_ms"] for r in runs),
                   "data_changed_signals_by_run":[r["large_result_table_data_changed_signals"] for r in runs],
