@@ -758,7 +758,12 @@ struct WorkspaceProbe {
    stage("012_49 second revision analysis");
    exercise(1);
    check(values(w)==legacy,"Revision analysis altered legacy result set");
-   // Existing immutable results and canonical CSV must survive language switches.
+   // Start from English, then cover every ordered pair with loaded results and
+   // all three feature windows still open. CSV bytes must remain canonical.
+   auto *englishParityAction=w.findChild<QAction *>("uiLanguage_en");
+   check(englishParityAction!=nullptr,"Missing English parity action");
+   englishParityAction->trigger();
+   check(englishParityAction->isChecked(),"English parity setup failed");
    const QString parityPrefix=QDir(fixture.path()).filePath("rev1-");
    const auto ildBefore=read(parityPrefix+"ild.csv"),icnBefore=read(parityPrefix+"icn.csv"),eyeBefore=read(parityPrefix+"eye.csv");
    const auto statusBefore=eye->status();
@@ -767,10 +772,12 @@ struct WorkspaceProbe {
    check(w.table->rowCount()>0 && w.table->item(0,0),"Result tooltip fixture missing");
    w.table->selectRow(0);
    const auto selectionBefore=w.table->selectionModel()->selectedRows();
-   for(const auto *lang:{"ko","ja","en"}) {
+   // en->ko->ja->en->ja->ko->en covers all six ordered transitions.
+   for(const auto *lang:{"ko","ja","en","ja","ko","en"}) {
      auto *action=w.findChild<QAction *>(QString("uiLanguage_")+lang);
      check(action!=nullptr,"Missing parity language action");
      action->trigger();
+     check(action->isChecked(),"Parity language action not selected");
      const auto language=sparamview::ui_language::fromCode(QString::fromLatin1(lang));
      check(w.resultRows==rowOrderBefore && w.table->selectionModel()->selectedRows()==selectionBefore,"Language switch changed result row order or selection");
      for(int row=0;row<w.table->rowCount();++row) {
@@ -950,7 +957,9 @@ struct WorkspaceProbe {
      check(count>0,"Japanese glyph layout was empty");
    };
    glyphs();
-   for(int i=0;i<100;++i) {
+   // Retain the 100 cycles / 300 switches, alternating the order so both
+   // directions are exercised without increasing the stress-test budget.
+   auto verifyKorean=[&]{
     ko->trigger();verify(w,QString::fromUtf8("파일"),"Korean");
     check(newAction->text()==QString::fromUtf8("새로 만들기"),"Korean New action");
     check(w.tabs->tabText(0)==QString::fromUtf8("그래프"),"Korean plot tab");
@@ -959,6 +968,8 @@ struct WorkspaceProbe {
     check(direction->itemText(1)==QString::fromUtf8("역방향"),"Korean open Eye direction");
     fixedLabels(QString::fromUtf8("원본 / 리비전"),QString::fromUtf8("피간섭 채널"),QString::fromUtf8("취소"),QString::fromUtf8("CSV 내보내기"),QString::fromUtf8("설정"));
     check(QCoreApplication::translate("QPlatformTheme","Cancel")==QString::fromUtf8("취소"),"Korean framework dialog translation");
+   };
+   auto verifyJapanese=[&]{
     ja->trigger();verify(w,QString::fromUtf8("ファイル"),"Japanese");
     check(newAction->text()==QString::fromUtf8("新規作成"),"Japanese New action");
     check(w.tabs->tabText(0)==QString::fromUtf8("グラフ"),"Japanese plot tab");
@@ -967,11 +978,18 @@ struct WorkspaceProbe {
     check(direction->itemText(1)==QString::fromUtf8("逆方向"),"Japanese open Eye direction");
     fixedLabels(QString::fromUtf8("ソース / リビジョン"),QString::fromUtf8("ビクティムチャネル"),QString::fromUtf8("キャンセル"),QString::fromUtf8("CSVエクスポート"),QString::fromUtf8("設定"));
     check(QCoreApplication::translate("QPlatformTheme","Cancel")==QString::fromUtf8("キャンセル"),"Japanese framework dialog translation");
+   };
+   auto verifyEnglish=[&]{
     en->trigger();verify(w,"File","English");
     check(newAction->text()=="New","English New action");
     fixedLabels("Source / Revision","Victim Channel","Cancel","Export CSV","Settings");
     check(QCoreApplication::translate("QPlatformTheme","Cancel")=="Cancel","English framework dialog translation");
     check(manual->text()=="Run Manual" && direction->currentIndex()==1 && eye->status()==originalStatus && w.analysisWindows->context().generation==generation,"Language changed analysis state");
+   };
+   for(int cycleIndex=0;cycleIndex<100;++cycleIndex) {
+    if (cycleIndex%2==0) { verifyKorean();verifyJapanese(); }
+    else { verifyJapanese();verifyKorean(); }
+    verifyEnglish();
    }
    check(QLocale().name()==before && w.limitValues[0]->value()==limit &&
          newAction->shortcut()==shortcut && !w.dirty &&
