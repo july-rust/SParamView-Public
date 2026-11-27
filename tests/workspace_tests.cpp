@@ -24,7 +24,12 @@ static void localizationCatalogQualification() {
     check(placeholders(en)==placeholders(ko) && placeholders(en)==placeholders(ja),"Localization placeholder mismatch");
     check(menuText(en,Language::Korean)==ko && menuText(en,Language::Japanese)==ja,"Localization lookup mismatch");
   }
-  check(keys.size()>=932,"Localization catalog unexpectedly reduced");
+  check(keys.size()>=935,"Localization catalog unexpectedly reduced");
+  for (auto language : {Language::Korean,Language::Japanese}) {
+    for (const auto *source : {"Legacy Confirmed Mapping","PowerSI .DiffChannels / P/N Review","Mixed-Mode / P/N Review"})
+      check(menuText(QString::fromUtf8(source),language)!=QString::fromUtf8(source),
+            "Mapping provenance was not localized");
+  }
   for (auto language : {Language::English,Language::Korean,Language::Japanese}) {
     check(menuText("Touchstone (*.s*p *.ts)",language).endsWith(" (*.s*p *.ts)"),
           "Localized Touchstone filter changed file patterns");
