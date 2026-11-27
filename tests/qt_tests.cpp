@@ -162,6 +162,20 @@ int main(int argc, char **argv) {
                "Empty graph retains actual S parameter convention");
       }
     }
+    snapshot.metric = si::Metric::RL;
+    snapshot.settings.reverse = false;
+    snapshot.curves.clear();
+    for (const auto &languageCase : {
+           std::pair<QString, QString>{"en", "Return Loss"},
+           std::pair<QString, QString>{"ko", QString::fromUtf8("반사 손실")},
+           std::pair<QString, QString>{"ja", QString::fromUtf8("反射損失")}}) {
+      snapshot.displayLanguage = languageCase.first;
+      const auto localizedTitle = graphTitleLabel(snapshot);
+      expect(localizedTitle.startsWith(languageCase.second + "  ·  ") &&
+             localizedTitle.contains("Sdd11 [dB]"),
+             "Localized plot title preserves S-parameter identifier");
+    }
+    snapshot.displayLanguage = "en";
     snapshot.metric = si::Metric::TDR;
     si::Result good, limited, unsuitable;
     good.quality = "GOOD";
