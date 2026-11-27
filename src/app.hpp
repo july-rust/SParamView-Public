@@ -52,6 +52,7 @@ QRectF graphArea(QRectF, const PlotSnapshot &);
 std::pair<double, double> graphXRange(const PlotSnapshot &);
 std::pair<double, double> graphYRange(const PlotSnapshot &);
 QString graphParameterLabel(const PlotSnapshot &);
+QString graphTitleLabel(const PlotSnapshot &);
 QString graphQualityLabel(const PlotSnapshot &);
 void paintGraph(QPainter &, QRectF, const PlotSnapshot &, bool interactive = false);
 QPolygonF simplifyGraphLine(const QPolygonF &, double tolerance);
