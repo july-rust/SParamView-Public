@@ -15,6 +15,8 @@
 #include <QWindow>
 #include <QShowEvent>
 #include <QVariant>
+#include <QPixmap>
+#include <QtMath>
 #include <exception>
 #include <stdexcept>
 #include <utility>
@@ -64,6 +66,13 @@ void clearPaintedAxes(QWidget *widget) {
     widget->setProperty(key.constData(),QVariant());
   }
 }
+// Trackpads can deliver pixel-only wheel events. Preserve one 120-unit
+// mouse notch while applying smaller, continuous zoom steps on trackpads.
+double plotZoomSteps(const QWheelEvent &event) {
+  const double delta=event.pixelDelta().isNull()
+      ? event.angleDelta().y() : event.pixelDelta().y();
+  return std::clamp(delta/120.0,-4.0,4.0);
+}
 class IldPlotWidget final : public QWidget {
 public:
   explicit IldPlotWidget(QWidget *parent = nullptr) : QWidget(parent) {
@@ -88,10 +97,11 @@ public:
   }
 protected:
   void wheelEvent(QWheelEvent *e) override {
-    if(!data_ || viewTo_<=viewFrom_ || !e->angleDelta().y()) return;
+    const double steps=plotZoomSteps(*e);
+    if(!data_ || viewTo_<=viewFrom_ || steps==0) { QWidget::wheelEvent(e);return; }
     const double full0=data_->frequencyHz.front(), full1=data_->frequencyHz.back();
     const double fullSpan=full1-full0, span=viewTo_-viewFrom_;
-    const double newSpan=std::clamp(span*(e->angleDelta().y()>0?0.8:1.25),
+    const double newSpan=std::clamp(span*std::pow(0.8,steps),
       fullSpan/4096.0,fullSpan);
     const double portion=std::clamp((e->position().x()-70.0)/
                                    std::max(1.0,double(width()-92)),0.0,1.0);
@@ -151,7 +161,6 @@ protected:
       return;
     }
     const auto &d = *data_;
-    const int n = int(d.frequencyHz.size());
     const double f0 = viewFrom_, f1 = viewTo_;
     if (!(f1 > f0)) return;
     const int padX = 70, right = 22;
@@ -203,25 +212,27 @@ protected:
         QString::number(f1/1e9,'g',5)+QStringLiteral(" GHz"));
       p.save(); p.setClipRect(area);
       auto drawSeries=[&](const std::vector<double> &data,QColor color) {
-        const int stride=std::max(1,n/4000);
+        const size_t stride=std::max<size_t>(1,(endIndex-beginIndex)/4000);
         QPainterPath path;
         bool first = true;
-        auto vertex=[&](int i) {
-          double x=area.left()+(d.frequencyHz[size_t(i)]-f0)/(f1-f0)*area.width();
-          double y=area.bottom()-(data[size_t(i)]-low)/(high-low)*area.height();
+        auto vertex=[&](size_t i) {
+          double x=area.left()+(d.frequencyHz[i]-f0)/(f1-f0)*area.width();
+          double y=area.bottom()-(data[i]-low)/(high-low)*area.height();
           if(first){path.moveTo(x,y);first=false;} else path.lineTo(x,y);
         };
-        // Every group emits its extrema, avoiding loss of narrow peaks.
-        for(int i=0;i<n;i+=stride) {
-          int end=std::min(n,i+stride),mini=i,maxi=i;
-          for(int j=i+1;j<end;++j) {
-            if(data[size_t(j)]<data[size_t(mini)])mini=j;
-            if(data[size_t(j)]>data[size_t(maxi)])maxi=j;
+        // Scan only visible samples and the two bracketing neighbours.
+        // Every group emits its extrema in original time/frequency order.
+        vertex(beginIndex);
+        for(size_t i=beginIndex;i<endIndex;i+=stride) {
+          size_t end=std::min(endIndex,i+stride),mini=i,maxi=i;
+          for(size_t j=i+1;j<end;++j) {
+            if(data[j]<data[mini])mini=j;
+            if(data[j]>data[maxi])maxi=j;
           }
           if(mini<=maxi) { vertex(mini);if(mini!=maxi)vertex(maxi); }
           else {vertex(maxi);vertex(mini);}
         }
-        if((n-1)%stride)vertex(n-1);
+        vertex(endIndex-1);
         p.setPen(QPen(color,1.7)); p.drawPath(path);
       };
       if(panel==1) {
@@ -392,15 +403,17 @@ public:
   }
   void setData(std::shared_ptr<const si::channel::EyeData> data, double thresholdV) {
     data_=std::move(data); thresholdV_=thresholdV;
+    staticLayer_=QPixmap();
     clearPaintedAxes(this);
     dragging_=false; zoom_=1; shift_=0; cursor_=-1; update();
   }
-  void setView(int view) { view_=std::clamp(view,0,2); clearPaintedAxes(this); dragging_=false; zoom_=1;shift_=0;update(); }
+  void setView(int view) { view_=std::clamp(view,0,2); staticLayer_=QPixmap(); clearPaintedAxes(this); dragging_=false; zoom_=1;shift_=0;cursor_=-1;update(); }
 protected:
   void wheelEvent(QWheelEvent *e) override {
-    if(!data_ || !e->angleDelta().y()) { QWidget::wheelEvent(e);return; }
+    const double steps=plotZoomSteps(*e);
+    if(!data_ || steps==0) { QWidget::wheelEvent(e);return; }
     const double before=zoom_;
-    zoom_=std::clamp(zoom_*(e->angleDelta().y()>0?1.25:0.8),1.0,32.0);
+    zoom_=std::clamp(zoom_*std::pow(1.25,steps),1.0,32.0);
     const double portion=std::clamp((e->position().x()-75)/std::max(1.,double(width()-100)),0.,1.);
     shift_=std::clamp(shift_+portion*(1/before-1/zoom_),0.,1.-1/zoom_);
     update();e->accept();
@@ -435,6 +448,50 @@ protected:
   void leaveEvent(QEvent *e) override { cursor_=-1;update();QWidget::leaveEvent(e); }
   void paintEvent(QPaintEvent *) override {
     QPainter p(this);
+    // One bounded, per-widget backing layer. Cursor-only paints reuse it;
+    // zoom, pan, data, size, DPR, palette, font and language changes rebuild.
+    const qreal dpr=devicePixelRatioF();
+    const QSize pixels(qCeil(width()*dpr),qCeil(height()*dpr));
+    const QString language=sparamview::ui_language::code(sparamview::ui_language::current(this));
+    const bool cacheable=data_ && !pixels.isEmpty() &&
+        qint64(pixels.width())*pixels.height()<=16*1024*1024;
+    if(cacheable) {
+      if(staticLayer_.isNull() || staticLayer_.size()!=pixels ||
+         staticLayer_.devicePixelRatio()!=dpr || cachedLogicalSize_!=size() ||
+         cachedZoom_!=zoom_ || cachedShift_!=shift_ ||
+         cachedPalette_!=palette().cacheKey() || cachedFont_!=p.font() ||
+         cachedLanguage_!=language) {
+        staticLayer_=QPixmap(pixels);
+        if(!staticLayer_.isNull()) {
+          staticLayer_.setDevicePixelRatio(dpr);
+          staticLayer_.fill(palette().base().color());
+          QPainter layerPainter(&staticLayer_);
+          layerPainter.setFont(p.font());
+          drawStaticPlot(layerPainter);
+          cachedLogicalSize_=size();cachedZoom_=zoom_;cachedShift_=shift_;
+          cachedPalette_=palette().cacheKey();cachedFont_=p.font();
+          cachedLanguage_=language;
+          setProperty("eyeStaticRenderCount",++staticRenderCount_);
+        }
+      }
+      if(!staticLayer_.isNull()) p.drawPixmap(QPointF(0,0),staticLayer_);
+      else drawStaticPlot(p);
+    } else {
+      staticLayer_=QPixmap();
+      drawStaticPlot(p);
+    }
+    if(data_ && cursor_>=0) {
+      const QRectF area(75,37,std::max(50,width()-100),std::max(50,height()-89));
+      p.save();p.setClipRect(area);
+      p.setPen(QPen(palette().text().color(),1,Qt::DotLine));
+      const double xx=area.left()+cursor_*area.width();
+      p.drawLine(QPointF(xx,area.top()),QPointF(xx,area.bottom()));
+      p.restore();
+    }
+    setProperty("eyePaintCount",++paintCount_);
+  }
+private:
+  void drawStaticPlot(QPainter &p) {
     p.fillRect(rect(),palette().base());
     p.setRenderHint(QPainter::Antialiasing);
     p.setPen(palette().text().color());
@@ -522,14 +579,15 @@ protected:
       series(d.impulse.values,d.timeStepSeconds*1e12,1,QColor("#246cad"));
       series(d.unitPulse.values,d.timeStepSeconds*1e12,1,QColor("#d47a24"));
     }
-    if(cursor_>=0) {
-      p.setPen(QPen(palette().text().color(),1,Qt::DotLine));
-      const double xx=area.left()+cursor_*area.width();
-      p.drawLine(QPointF(xx,area.top()),QPointF(xx,area.bottom()));
-    }
     p.restore();
   }
-private:
+  QPixmap staticLayer_;
+  QSize cachedLogicalSize_;
+  double cachedZoom_=0,cachedShift_=0;
+  qint64 cachedPalette_=0;
+  QFont cachedFont_;
+  QString cachedLanguage_;
+  quint64 staticRenderCount_=0,paintCount_=0;
   std::shared_ptr<const si::channel::EyeData> data_;
   double thresholdV_=0,zoom_=1,shift_=0,cursor_=-1,lastX_=0;
   int view_=0;
