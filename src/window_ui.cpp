@@ -258,17 +258,17 @@ public:
     setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    auto *content = new QWidget;
-    content->setObjectName(name + "Contents");
+    auto *stripContentWidget = new QWidget;
+    stripContentWidget->setObjectName(name + "Contents");
     // Use compact padding without shrinking the font or the clickable text.
     // This also offsets the scrollbar height in short desktop work areas.
-    content->setStyleSheet(
+    stripContentWidget->setStyleSheet(
         "QPushButton,QToolButton { padding:3px 6px; }"
         "QComboBox,QDoubleSpinBox,QSpinBox,QLineEdit { padding:2px 4px; }");
     row->setContentsMargins(0, 0, 0, 0);
-    content->setLayout(row);
-    setWidget(content);
-    content->installEventFilter(this);
+    stripContentWidget->setLayout(row);
+    setWidget(stripContentWidget);
+    stripContentWidget->installEventFilter(this);
   }
   QSize sizeHint() const override {
     if (!widget()) return QSize(0, 0);
@@ -297,15 +297,15 @@ void MainWindow::installHeaderProjectButtons() {
   if (findChild<QPushButton *>("headerOpenProjectButton"))
     return;
   auto *contents = findChild<QWidget *>("workspaceHeaderContents");
-  auto *banner = contents ? qobject_cast<QBoxLayout *>(contents->layout()) : nullptr;
-  if (!banner)
+  auto *headerButtonLayout = contents ? qobject_cast<QBoxLayout *>(contents->layout()) : nullptr;
+  if (!headerButtonLayout)
     return;
-  int insertAt = banner->count();
-  for (int i = 0; i < banner->count(); ++i) {
-    auto *item = banner->itemAt(i);
+  int insertAt = headerButtonLayout->count();
+  for (int headerIndex = 0; headerIndex < headerButtonLayout->count(); ++headerIndex) {
+    auto *item = headerButtonLayout->itemAt(headerIndex);
     auto *existing = item ? qobject_cast<QPushButton *>(item->widget()) : nullptr;
     if (existing && existing->text().contains("Open Touchstone")) {
-      insertAt = i + 1;
+      insertAt = headerIndex + 1;
       break;
     }
   }
@@ -318,13 +318,13 @@ void MainWindow::installHeaderProjectButtons() {
     if (!path.isEmpty())
       loadProject(path);
   });
-  auto *saveProjectButton = new QPushButton("Save Project");
-  saveProjectButton->setObjectName("headerSaveProjectButton");
-  saveProjectButton->setToolTip("Save the current SParamView project");
-  connect(saveProjectButton, &QPushButton::clicked, this,
+  auto *headerSaveActionButton = new QPushButton("Save Project");
+  headerSaveActionButton->setObjectName("headerSaveProjectButton");
+  headerSaveActionButton->setToolTip("Save the current SParamView project");
+  connect(headerSaveActionButton, &QPushButton::clicked, this,
           [this] { saveProject(); });
-  banner->insertWidget(insertAt, openProject);
-  banner->insertWidget(insertAt + 1, saveProjectButton);
+  headerButtonLayout->insertWidget(insertAt, openProject);
+  headerButtonLayout->insertWidget(insertAt + 1, headerSaveActionButton);
 }
 
 MainWindow::MainWindow() {
@@ -688,9 +688,9 @@ MainWindow::MainWindow() {
   tabs->setObjectName("analysisTabs");
   tabs->setStyleSheet("QTabBar::tab { padding:5px 12px; }");
   auto plotPage = new QWidget;
-  auto pv = new QVBoxLayout(plotPage);
-  pv->setContentsMargins(10, 4, 10, 4);
-  pv->setSpacing(4);
+  auto plotPageLayout = new QVBoxLayout(plotPage);
+  plotPageLayout->setContentsMargins(10, 4, 10, 4);
+  plotPageLayout->setSpacing(4);
   auto graphOptions = new QHBoxLayout;
   graphOptions->setSpacing(6);
   metricView = new QComboBox;
@@ -720,14 +720,14 @@ MainWindow::MainWindow() {
   button("Previous View", graphOptions, [this] { plot->previousView(); });
   button("Axis Limits", graphOptions, [this] { plot->editAxes(); });
   button("Fit All", graphOptions, [this] { plot->fitView(); });
-  pv->addWidget(new WorkspaceControlStrip(graphOptions, "workspaceGraphControls"));
+  plotPageLayout->addWidget(new WorkspaceControlStrip(graphOptions, "workspaceGraphControls"));
   plot = new PlotWidget;
-  pv->addWidget(plot, 1);
+  plotPageLayout->addWidget(plot, 1);
   auto readout = new QLabel("Wheel: X zoom · Ctrl+wheel: Y zoom · Drag: pan · Shift+drag: box zoom");
   readout->setMinimumHeight(18);
   readout->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
   readout->setWordWrap(true);
-  pv->addWidget(readout);
+  plotPageLayout->addWidget(readout);
   plot->cursorChanged = [readout](const QString &text) {
     readout->setText(text.isEmpty() ? sparamview::ui_language::textFor(readout, "Wheel: X zoom · Ctrl+wheel: Y zoom · Drag: pan · Shift+drag: box zoom") : text);
   };
