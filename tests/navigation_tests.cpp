@@ -3,6 +3,8 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <QWheelEvent>
+#include <cmath>
 struct NavigationProbe {
  static bool running(MainWindow &w) {
 #ifdef SI_NEW_NAVIGATION
@@ -41,6 +43,20 @@ struct NavigationProbe {
   settle(w);beat.stop();result["zoom_ms"]=zooms;result["disabled_during_zoom"]=disabled;result["heartbeat_max_gap_ms"]=double(gap);
   result["latest_range_retained"]=w.plot->snapshot.viewStart==l&&w.plot->snapshot.viewStop==r;
   result["y_range_retained"]=w.plot->snapshot.viewBottom==85&&w.plot->snapshot.viewTop==115;
+#ifdef SI_NEW_NAVIGATION
+  const auto center=graphArea(w.plot->rect(),w.plot->snapshot).center();
+  QWheelEvent pixelWheel(center,QPointF(w.plot->mapToGlobal(center.toPoint())),
+       QPoint(0,30),QPoint(),Qt::NoButton,Qt::NoModifier,Qt::ScrollUpdate,false);
+  QApplication::sendEvent(w.plot,&pixelWheel);
+  const double pixelSpan=w.plot->snapshot.viewStop-w.plot->snapshot.viewStart;
+  QWheelEvent angleWheel(center,QPointF(w.plot->mapToGlobal(center.toPoint())),
+       QPoint(),QPoint(0,120),Qt::NoButton,Qt::NoModifier,Qt::ScrollUpdate,false);
+  QApplication::sendEvent(w.plot,&angleWheel);
+  const double mouseSpan=w.plot->snapshot.viewStop-w.plot->snapshot.viewStart;
+  result["trackpad_fractional_zoom"]=std::abs(pixelSpan/(r-l)-std::pow(.8,.25))<1e-9 &&
+      std::abs(mouseSpan/pixelSpan-.8)<1e-9 &&
+      w.plot->snapshot.viewBottom==85&&w.plot->snapshot.viewTop==115;
+#endif
   w.plot->resetView();w.plot->repaint();
 #ifdef SI_NEW_NAVIGATION
   auto renders=w.plot->graphRenderCount();
@@ -65,6 +81,6 @@ struct NavigationProbe {
 int main(int argc,char **argv){QApplication app(argc,argv);applyLightTheme(app);QFontDatabase::addApplicationFont(QCoreApplication::applicationDirPath()+"/fonts/NanumGothic-Regular.ttf");QFont::insertSubstitution("Segoe UI","NanumGothic");
  try{checkSettingsParsing();MainWindow w;w.resize(1440,960);w.show();app.processEvents();QString dir=argc>1?QString::fromLocal8Bit(argv[1]):"navigation-test";auto r=NavigationProbe::run(w,dir);r["settings_validation"]=true;QFile json(dir+"/benchmark.json");if(!json.open(QIODevice::WriteOnly))throw si::Error("Benchmark output failed");json.write(QJsonDocument(r).toJson());std::cout<<QJsonDocument(r).toJson().constData();
 #ifdef SI_NEW_NAVIGATION
- if(r["disabled_during_zoom"].toBool()||!r["latest_range_retained"].toBool()||!r["y_range_retained"].toBool()||!r["selection_preserved"].toBool()||!r["selected_overlay_bounded"].toBool()||r["cursor_graph_renders"].toInt()!=0||!r["statistics_unchanged"].toBool())return 1;
+ if(r["disabled_during_zoom"].toBool()||!r["latest_range_retained"].toBool()||!r["y_range_retained"].toBool()||!r["selection_preserved"].toBool()||!r["selected_overlay_bounded"].toBool()||r["cursor_graph_renders"].toInt()!=0||!r["statistics_unchanged"].toBool()||!r["trackpad_fractional_zoom"].toBool())return 1;
 #endif
  return 0;}catch(const std::exception&e){std::cerr<<e.what()<<'\n';return 1;}}
