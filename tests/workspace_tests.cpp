@@ -2,9 +2,88 @@
 #include "../src/ui_language.hpp"
 #include <QTextLayout>
 #include <QGlyphRun>
+#include <QTemporaryDir>
+#include <QFileDialog>
+#include <QToolButton>
 #include <iostream>
 void applyCompactAnalysisSettings(MainWindow &window);
 static void check(bool ok, const char *message) { if (!ok) throw si::Error(message); }
+static void fileDialogNavigationQualification(const QString &out) {
+  using namespace sparamview::ui_language;
+  QTemporaryDir fixture;
+  check(fixture.isValid(),"File dialog fixture directory unavailable");
+  QDir root(fixture.path());
+  check(root.mkdir("child"),"File dialog child fixture creation failed");
+  const QString child=root.filePath("child");
+  const QStringList names={"backButton","forwardButton","toParentButton",
+                           "newFolderButton","listModeButton","detailModeButton"};
+  for(auto language:{Language::English,Language::Korean,Language::Japanese}) {
+    setFrameworkLanguage(language);
+    for(auto acceptMode:{QFileDialog::AcceptOpen,QFileDialog::AcceptSave}) {
+      QFileDialog dialog(nullptr,menuText("Select Touchstone Files",language),child);
+      dialog.setOption(QFileDialog::DontUseNativeDialog);
+      dialog.setAcceptMode(acceptMode);
+      dialog.setFileMode(acceptMode==QFileDialog::AcceptOpen?
+                         QFileDialog::ExistingFiles:QFileDialog::AnyFile);
+      dialog.setNameFilter(menuText("Touchstone (*.s*p *.ts)",language));
+      dialog.resize(680,480);
+      dialog.show();
+      QApplication::processEvents();
+      check(dialog.width()<=984 && dialog.height()<=688,"File dialog exceeds compact work area");
+      QHash<QString,QToolButton *> controls;
+      for(const auto &name:names) {
+        auto *tool=dialog.findChild<QToolButton *>(name);
+        check(tool && tool->isVisible(),"File navigation button missing");
+        check(tool->size()==QSize(34,34) && tool->iconSize()==QSize(24,24),
+              "File navigation icon or button size wrong");
+        check(!tool->toolTip().isEmpty(),"File navigation tooltip missing");
+        check(dialog.rect().contains(QRect(tool->mapTo(&dialog,QPoint(0,0)),tool->size())),
+              "File navigation button clipped");
+        for(auto mode:{QIcon::Normal,QIcon::Disabled}) {
+          const auto bitmap=tool->icon().pixmap(QSize(24,24),2.0,mode,QIcon::Off);
+          check(!bitmap.isNull() && bitmap.deviceIndependentSize()==QSizeF(24,24),
+                "File navigation icon lacks high-DPI logical size");
+          const auto pixels=bitmap.toImage();
+          QRect ink;
+          for(int y=0;y<pixels.height();++y)for(int x=0;x<pixels.width();++x)
+            if(pixels.pixelColor(x,y).alpha()>128)ink=ink.united(QRect(x,y,1,1));
+          check(ink.width()>=bitmap.devicePixelRatio()*12 &&
+                ink.height()>=bitmap.devicePixelRatio()*12,
+                "File navigation glyph drawn too small");
+        }
+        controls.insert(name,tool);
+      }
+      controls["listModeButton"]->click();
+      check(dialog.viewMode()==QFileDialog::List,"List navigation action changed");
+      controls["detailModeButton"]->click();
+      check(dialog.viewMode()==QFileDialog::Detail,"Detail navigation action changed");
+      check(dialog.directory().absolutePath()==QDir(child).absolutePath(),
+            "File dialog initial directory changed");
+      check(controls["toParentButton"]->isEnabled(),"Parent navigation disabled");
+      controls["toParentButton"]->click();
+      QApplication::processEvents();
+      check(dialog.directory().absolutePath()==root.absolutePath(),"Parent navigation action failed");
+      check(controls["backButton"]->isEnabled(),"Back navigation disabled");
+      controls["backButton"]->click();
+      QApplication::processEvents();
+      check(dialog.directory().absolutePath()==QDir(child).absolutePath(),"Back navigation action failed");
+      check(controls["forwardButton"]->isEnabled(),"Forward navigation disabled");
+      controls["forwardButton"]->click();
+      QApplication::processEvents();
+      check(dialog.directory().absolutePath()==root.absolutePath(),"Forward navigation action failed");
+      const auto file=QDir(out).filePath(QString("FileDialog_%1_%2.png")
+                      .arg(code(language),acceptMode==QFileDialog::AcceptOpen?"open":"save"));
+      check(dialog.grab().save(file),"File dialog screenshot failed");
+      dialog.reject();
+    }
+  }
+  setFrameworkLanguage(Language::English);
+  // Normal workspace tool buttons must not inherit file dialog geometry.
+  QToolButton ordinary;
+  ordinary.show();QApplication::processEvents();
+  check(ordinary.iconSize()!=QSize(24,24) || ordinary.size()!=QSize(34,34),
+        "File dialog override leaked to ordinary toolbar");
+}
 static void localizationCatalogQualification() {
   using namespace sparamview::ui_language;
   QSet<QString> keys;
@@ -1102,6 +1181,7 @@ int main(int argc,char**argv){
  try{
   QSize size(argc>3?QString::fromLocal8Bit(argv[3]).toInt():1440,argc>4?QString::fromLocal8Bit(argv[4]).toInt():980);
   localizationCatalogQualification();
+  fileDialogNavigationQualification(out);
   WorkspaceProbe::languageMenuQualification();
   WorkspaceProbe::preferencesQualification(out);
   WorkspaceProbe::fileWorkflowQualification(QString::fromLocal8Bit(argv[1]),out);
@@ -1110,6 +1190,6 @@ int main(int argc,char**argv){
   WorkspaceProbe::stage("construct MainWindow");
   {MainWindow w;WorkspaceProbe::stage("MainWindow constructed");applyCompactAnalysisSettings(w);w.installHeaderProjectButtons();result=WorkspaceProbe::run(w,QString::fromLocal8Bit(argv[1]),out,size);}
   {MainWindow w;WorkspaceProbe::persistence(w);}
-  result["preferences_restored"]=true;result["012_47_preferences_qualified"]=true;result["012_48_file_workflow_qualified"]=true;result["012_49_integration_qualified"]=true;QFile f(out+"/Workspace.json");check(f.open(QIODevice::WriteOnly),"Cannot save QA");f.write(QJsonDocument(result).toJson());std::cout<<QJsonDocument(result).toJson().constData();return 0;
+  result["file_dialog_navigation_qualified"]=true;result["preferences_restored"]=true;result["012_47_preferences_qualified"]=true;result["012_48_file_workflow_qualified"]=true;result["012_49_integration_qualified"]=true;QFile f(out+"/Workspace.json");check(f.open(QIODevice::WriteOnly),"Cannot save QA");f.write(QJsonDocument(result).toJson());std::cout<<QJsonDocument(result).toJson().constData();return 0;
  }catch(const std::exception&e){std::cerr<<e.what()<<'\n';return 1;}
 }
