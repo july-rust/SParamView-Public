@@ -18,6 +18,8 @@
 #include <QFile>
 #include <QImage>
 #include <QVariant>
+#include <QMouseEvent>
+#include <QWheelEvent>
 #include <stdexcept>
 
 using namespace si::gui;
@@ -47,6 +49,13 @@ QVariantList paintedAxes(QWidget *plot,int panel) {
   check(axes[1].toDouble()>axes[0].toDouble() &&
         axes[3].toDouble()>axes[2].toDouble(),"Degenerate painted axis");
   return axes;
+}
+void sendPlotWheel(QWidget *plot,QPoint pixels,QPoint angles) {
+  const QPoint center=plot->rect().center();
+  QWheelEvent event(QPointF(center),QPointF(plot->mapToGlobal(center)),
+                    pixels,angles,Qt::NoButton,Qt::NoModifier,
+                    Qt::ScrollUpdate,false);
+  QCoreApplication::sendEvent(plot,&event);
 }
 void checkBand(const QVariantList &axes,double start,double stop) {
   check(std::abs(axes[0].toDouble()-start)<1 &&
@@ -428,6 +437,22 @@ int main(int argc, char **argv) {
     ild->runButton()->click();drain(manager.scheduler());
     check(ild->status()==S::Valid,"ILD original manual settings restore failed");
     check(paintedAxes(ildPlot,0)==ildFullAxes,"ILD full manual axis restore failed");
+    // Pixel-only wheel input (trackpad), followed by ordinary mouse-wheel input.
+    sendPlotWheel(ildPlot,QPoint(0,30),QPoint());
+    check(pumpUntil([&]{return ildPlot->property("paintedAxes0").toList()!=ildFullAxes;}),
+          "ILD pixel-only trackpad input did not zoom");
+    const auto ildPixelZoom=paintedAxes(ildPlot,0);
+    const double pixelSpan=ildPixelZoom[1].toDouble()-ildPixelZoom[0].toDouble();
+    check(std::abs(pixelSpan/16e9-std::pow(.8,.25))<1e-9,
+          "ILD trackpad zoom must be fractional, not a full mouse notch");
+    sendPlotWheel(ildPlot,QPoint(),QPoint(0,120));
+    check(pumpUntil([&]{return ildPlot->property("paintedAxes0").toList()!=ildPixelZoom;}),
+          "ILD mouse wheel did not zoom");
+    const auto ildWheelZoom=paintedAxes(ildPlot,0);
+    check(std::abs((ildWheelZoom[1].toDouble()-ildWheelZoom[0].toDouble())/pixelSpan-.8)<1e-9,
+          "ILD conventional one-notch wheel zoom changed");
+    ild->runButton()->click();drain(manager.scheduler());
+    check(paintedAxes(ildPlot,0)==ildFullAxes,"ILD manual rerun must reset zoom");
     auto *csv=ild->findChild<QPushButton *>(QStringLiteral("analysisCsv"));
     auto *png=ild->findChild<QPushButton *>(QStringLiteral("analysisPng"));
     check(csv && csv->isEnabled() && png && png->isEnabled(),
@@ -862,6 +887,39 @@ int main(int argc, char **argv) {
     check(eye->status()==S::Warning,"Eye original manual settings restore failed");
     check(paintedAxes(eyeGraph,1)==eyeFull,"Eye manual axes restore failed");
     eyeView->setCurrentIndex(0);
+    const auto eyeOverlayAxes=paintedAxes(eyeGraph,0);
+    auto staticRenders=[&]{return eyeGraph->property("eyeStaticRenderCount").toULongLong();};
+    auto paintCount=[&]{return eyeGraph->property("eyePaintCount").toULongLong();};
+    const auto initialRenderCount=staticRenders();
+    check(initialRenderCount>0,"Eye backing layer was not built");
+    QElapsedTimer cursorTiming;cursorTiming.start();
+    for(int i=0;i<30;++i) {
+      const QPoint local(80+i*3,80);
+      const auto previousPaint=paintCount();
+      QMouseEvent move(QEvent::MouseMove,QPointF(local),
+          QPointF(eyeGraph->mapToGlobal(local)),Qt::NoButton,Qt::NoButton,Qt::NoModifier);
+      QCoreApplication::sendEvent(eyeGraph,&move);
+      check(pumpUntil([&]{return paintCount()>previousPaint;}),
+            "Eye cursor move did not paint");
+    }
+    check(staticRenders()==initialRenderCount,
+          "Eye cursor-only updates rebuilt the static waveform layer");
+    check(paintedAxes(eyeGraph,0)==eyeOverlayAxes,"Eye cursor move changed axes");
+    std::cout << "012_60 Eye cursor paints=30 static_rebuilds=0 elapsed_ms="
+              << cursorTiming.elapsed() << std::endl;
+    sendPlotWheel(eyeGraph,QPoint(0,30),QPoint());
+    check(pumpUntil([&]{return staticRenders()>initialRenderCount;}),
+          "Eye trackpad zoom did not rebuild backing layer");
+    const auto eyeZoom=paintedAxes(eyeGraph,0);
+    check(std::abs((eyeZoom[1].toDouble()-eyeZoom[0].toDouble())/2.0-
+                   std::pow(.8,.25))<1e-9,"Eye trackpad zoom span incorrect");
+    const auto zoomRenders=staticRenders();
+    eyeView->setCurrentIndex(1);
+    check(pumpUntil([&]{return staticRenders()>zoomRenders;}),
+          "Eye view change did not invalidate backing layer");
+    check(paintedAxes(eyeGraph,1)==eyeFull,"Eye time-view axes changed after cache invalidation");
+    eyeView->setCurrentIndex(0);
+    check(paintedAxes(eyeGraph,0)==eyeOverlayAxes,"Eye overlay axes not restored");
     auto *eyeCsv=eye->findChild<QPushButton *>(QStringLiteral("analysisCsv"));
     auto *eyePng=eye->findChild<QPushButton *>(QStringLiteral("analysisPng"));
     check(eyeCsv && eyeCsv->isEnabled() && eyePng && eyePng->isEnabled(),
