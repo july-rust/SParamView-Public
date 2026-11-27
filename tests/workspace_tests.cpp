@@ -1,4 +1,5 @@
 #include <QScreen>
+#include "../src/gui/window_geometry.hpp"
 #include "app.hpp"
 #include "../src/ui_language.hpp"
 #include <QTextLayout>
@@ -1195,6 +1196,19 @@ struct WorkspaceProbe {
    const QSize frame(client.width()+16,client.height()+40);
    const QRect bounds(centeredDialogFrame(frame,area),frame);
    check(area.adjusted(8,8,-8,-8).contains(bounds),"Import dialog logical work area/frame contract");
+  }
+  {
+   QDialog dialog;dialog.setObjectName("genericGeometryProbe");
+   auto *outer=new QVBoxLayout(&dialog);
+   auto *body=sparamview::geometry::scrollColumn(outer);
+   auto *label=new QLabel(QString(4000,QLatin1Char('x')));label->setWordWrap(true);body->addWidget(label);
+   auto *footer=new QDialogButtonBox(QDialogButtonBox::Ok|QDialogButtonBox::Cancel);outer->addWidget(footer);
+   sparamview::geometry::prepareDialog(dialog,QSize(8000,6000));
+   dialog.show();QApplication::processEvents();
+   check(dialog.screen() && dialog.screen()->availableGeometry().contains(dialog.frameGeometry()) &&
+         dialog.rect().contains(QRect(footer->mapTo(&dialog,QPoint(0,0)),footer->size())),
+         "Shared dialog geometry or fixed footer escaped screen");
+   dialog.close();
   }
   const auto centered=centeredNormalGeometry(QSize(900,500),monitor);
   check(centered==QRect(-1090,120,900,500),"Negative screen center");

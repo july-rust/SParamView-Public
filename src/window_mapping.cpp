@@ -1,78 +1,18 @@
-#include <QScreen>
-#include <QShowEvent>
-#include <QTimer>
+#include "gui/window_geometry.hpp"
 
-// Use logical work-area coordinates, not physical display resolution.
-// Both import dialogs share this policy, including native frame decorations.
 class ImportMappingDialog final : public QDialog {
 public:
   ImportMappingDialog(QWidget *owner, QSize preferred)
       : QDialog(owner), preferred_(preferred) {}
-
   int execBounded() {
-    auto *target = parentWidget() ? parentWidget()->screen() : screen();
-    if (!target) target = QGuiApplication::primaryScreen();
-    if (target) {
-      winId(); // Create the native window before selecting its monitor.
-      if (windowHandle() && windowHandle()->screen() != target)
-        windowHandle()->setScreen(target);
-      const QRect initial = sparamview::preferences::centeredNormalGeometry(
-          preferred_, target->availableGeometry());
-      if (initial.isValid()) {
-        const auto area = target->availableGeometry();
-        setMaximumSize(qMax(1, area.width() - 32), qMax(1, area.height() - 64));
-        resize(initial.size());
-        move(initial.topLeft());
-      }
-    }
+    sparamview::geometry::prepareDialog(*this,preferred_);
     return exec();
   }
-
-protected:
-  void showEvent(QShowEvent *event) override {
-    QDialog::showEvent(event);
-    fitNativeFrame();
-    // Windows may finalize frame margins and DPI after the first show.
-    QTimer::singleShot(0, this, [this] {
-      if (isVisible()) fitNativeFrame();
-    });
-  }
-
 private:
-  void fitNativeFrame() {
-    auto *target = parentWidget() ? parentWidget()->screen() : screen();
-    if (!target) target = QGuiApplication::primaryScreen();
-    if (!target) return;
-    const QRect area = target->availableGeometry();
-    if (!area.isValid()) return;
-    const auto margins = windowHandle() ? windowHandle()->frameMargins() : QMargins{};
-    const auto targetSize = sparamview::preferences::boundedDialogClientSize(
-        size(), area, margins);
-    const auto cap = sparamview::preferences::boundedDialogClientSize(
-        area.size(), area, margins);
-    setMaximumSize(cap);
-    resize(targetSize);
-    const QSize frameSize(qMax(frameGeometry().width(), width() + qMax(0, margins.left()) + qMax(0, margins.right())),
-                          qMax(frameGeometry().height(), height() + qMax(0, margins.top()) + qMax(0, margins.bottom())));
-    move(sparamview::preferences::centeredDialogFrame(frameSize, area));
-  }
-
   QSize preferred_;
 };
-
-// The footer stays fixed; long evidence or port labels scroll inside the
-// dialog rather than forcing its native window outside the work area.
 static QVBoxLayout *importDialogBody(QVBoxLayout *outer) {
-  auto *scroll = new QScrollArea;
-  scroll->setObjectName("importDialogScroll");
-  scroll->setWidgetResizable(true);
-  scroll->setFrameShape(QFrame::NoFrame);
-  auto *content = new QWidget;
-  auto *body = new QVBoxLayout(content);
-  body->setContentsMargins(0, 0, 0, 0);
-  scroll->setWidget(content);
-  outer->addWidget(scroll, 1);
-  return body;
+  return sparamview::geometry::scrollColumn(outer,QStringLiteral("importDialogScroll"));
 }
 
 static QString mixedDescriptorType(const si::Metadata &meta) {
@@ -486,8 +426,9 @@ void MainWindow::applySettings() {
 void MainWindow::chooseTerminations() {
   if(busy)return;
   try{syncSettings();}catch(const std::exception &e){error(qs(e.what()));return;}
-  QDialog dialog(this);dialog.setWindowTitle(sparamview::ui_language::textFor(this, "TDR Options"));
-  auto layout=new QVBoxLayout(&dialog);
+  ImportMappingDialog dialog(this,QSize(600,460));dialog.setObjectName("tdrOptionsDialog");dialog.setWindowTitle(sparamview::ui_language::textFor(this, "TDR Options"));
+  auto *outer=new QVBoxLayout(&dialog);
+  auto *layout=sparamview::geometry::scrollColumn(outer);
   layout->addWidget(new QLabel(sparamview::ui_language::textFor(this, "Select multiple conditions to overlay TDR traces.\nForward: terminate Far / Reverse: terminate Near\nAll other physical ports are matched to their source reference impedances.")));
   QCheckBox *choices[5];
   QStringList labels{"Reference: matched to source reference impedance",
@@ -501,14 +442,14 @@ void MainWindow::chooseTerminations() {
   }
   layout->addWidget(new QLabel(sparamview::ui_language::textFor(this, "The two SE 50 Ω options are equivalent and are calculated once.\nReflection coefficient ρ is recommended for open circuits. These are ideal resistive/open/short conditions.")));
   auto reflection = new QCheckBox(sparamview::ui_language::textFor(this, "Show Reflection Coefficient ρ")); reflection->setChecked(settings.tdrReflection); reflection->setToolTip(sparamview::ui_language::textFor(this, "Useful for open/short comparisons. Impedance tolerance limits do not apply to ρ.")); layout->addWidget(reflection);
-  auto buttons=new QDialogButtonBox(QDialogButtonBox::Ok|QDialogButtonBox::Cancel);layout->addWidget(buttons);
+  auto buttons=new QDialogButtonBox(QDialogButtonBox::Ok|QDialogButtonBox::Cancel);outer->addWidget(buttons);
   sparamview::ui_language::localizeButtons(buttons,this);
   connect(buttons,&QDialogButtonBox::rejected,&dialog,&QDialog::reject);
   connect(buttons,&QDialogButtonBox::accepted,&dialog,[&]{
     bool any=false;for(auto c:choices)any|=c->isChecked();
     if(!any){QMessageBox::information(&dialog,sparamview::ui_language::textFor(this, "Select Terminations"),sparamview::ui_language::textFor(this, "Select at least one termination condition."));return;}dialog.accept();
   });
-  if(dialog.exec()!=QDialog::Accepted)return;
+  if(dialog.execBounded()!=QDialog::Accepted)return;
   settings.tdrTerminations.clear();
   for(int i=0;i<5;++i)if(choices[i]->isChecked())settings.tdrTerminations.push_back(si::Termination(i));
   settings.tdrReflection = reflection->isChecked(); tdrReflection->setChecked(settings.tdrReflection);
