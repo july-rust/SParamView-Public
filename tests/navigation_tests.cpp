@@ -160,21 +160,22 @@ struct NavigationProbe {
   // localization, including tooltip on every cell, with no canonical mutation.
   w.results.clear();
   for(int i=0;i<1000;++i){auto r=prototype;r.channel=r.channelId="table-"+std::to_string(i);w.results.push_back(std::move(r));}
-  std::vector<double> largeTableTimes;int notifications=0;
-  auto signal=QObject::connect(w.table->model(),&QAbstractItemModel::dataChanged,&w,[&]{++notifications;});
+  std::vector<double> largeTableTimes;int notifications=0;bool measuring=false;
+  auto signal=QObject::connect(w.table->model(),&QAbstractItemModel::dataChanged,&w,[&]{if(measuring)++notifications;});
   bool tableOk=true;QJsonArray localeSamples;
   for(const auto *lang:{"ko","ja","en"}){
     auto *action=w.findChild<QAction *>(QString("uiLanguage_")+lang);
     if(!action)throw si::Error("Missing language action in large-table test");
     action->trigger();settle(w);
-    for(int i=0;i<3;++i){t.restart();w.refreshResults();QCoreApplication::processEvents();largeTableTimes.push_back(t.nsecsElapsed()/1e6);}
+    for(int i=0;i<3;++i){measuring=true;t.restart();w.refreshResults();QCoreApplication::processEvents();largeTableTimes.push_back(t.nsecsElapsed()/1e6);measuring=false;}
     const auto language=sparamview::ui_language::current(&w);
     tableOk=tableOk&&w.table->rowCount()==1000&&w.resultRows.size()==1000;
     for(int row=0;tableOk&&row<w.table->rowCount();++row){
       const auto &r=w.results[w.resultRows[size_t(row)]];
       const auto expected=sparamview::ui_language::menuText(qs(si::name(r.metric)),language);
       const auto marker=sparamview::ui_language::menuText("Worst margin at ",language);
-      tableOk=w.table->item(row,0)->text()==qs(r.channel)&&w.table->item(row,2)->text()==expected;
+      const auto *channelItem=w.table->item(row,0),*metricItem=w.table->item(row,2);
+      tableOk=channelItem&&metricItem&&channelItem->text()==qs(r.channel)&&metricItem->text()==expected;
       for(int col=0;tableOk&&col<w.table->columnCount();++col)
         tableOk=w.table->item(row,col)&&w.table->item(row,col)->toolTip().contains(marker);
     }
