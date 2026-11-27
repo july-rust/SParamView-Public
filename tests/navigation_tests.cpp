@@ -7,6 +7,7 @@
 #include <cmath>
 #include <algorithm>
 #include <vector>
+#include <QTemporaryDir>
 // Report descriptive timings; shared CI runners are not real-time systems.
 static QJsonObject timingSummary(std::vector<double> values) {
   std::sort(values.begin(),values.end());
@@ -14,6 +15,41 @@ static QJsonObject timingSummary(std::vector<double> values) {
   const size_t n=values.size();
   return {{"samples",int(n)},{"median_ms",(values[(n-1)/2]+values[n/2])/2.0},
           {"p95_ms",values[size_t(std::ceil(.95*n))-1]},{"max_ms",values.back()}};
+}
+// Independent synthetic files: no customer data or shared revision cache.
+static QJsonArray cacheInputTimings() {
+  QTemporaryDir dir;
+  if(!dir.isValid()) throw si::Error("Cannot create benchmark directory");
+  QJsonArray report;
+  for(int ports : {2,4,12,36}) {
+    const int points=ports<=4?8193:1025;
+    const auto source=fp(dir.filePath(QString("synthetic.s%1p").arg(ports)));
+    const auto cacheDir=fp(dir.filePath(QString("cache-%1").arg(ports)));
+    std::ofstream out(source);
+    out<<"# Hz S RI R 50\n";
+    for(int i=0;i<points;++i){
+      out<<static_cast<long long>(i)*1000000;
+      for(int row=0;row<ports;++row)
+        for(int col=0;col<ports;++col)
+          out<<(row==col?" .1 0":(row^1)==col?" .6 0":" 0 0");
+      out<<'\n';
+    }
+    out.close();
+    if(!out) throw si::Error("Synthetic benchmark fixture write failed");
+    QElapsedTimer timer;timer.start();
+    auto cold=si::Cache::open(source,cacheDir);
+    const double coldMs=timer.nsecsElapsed()/1e6;
+    timer.restart();
+    auto warm=si::Cache::open(source,cacheDir);
+    const double warmMs=timer.nsecsElapsed()/1e6;
+    if(cold->reused()||!warm->reused()||cold->meta().ports!=static_cast<unsigned>(ports)||
+       cold->meta().points!=static_cast<unsigned>(points)||cold->frequencies()!=warm->frequencies())
+      throw si::Error("Synthetic benchmark cache roundtrip failed");
+    report.append(QJsonObject{{"ports",ports},{"points",points},
+      {"source_bytes",double(si::fs::file_size(source))},{"empty_cache_open_ms",coldMs},
+      {"reused_cache_open_ms",warmMs}});
+  }
+  return report;
 }
 struct NavigationProbe {
  static bool running(MainWindow &w) {
@@ -95,12 +131,39 @@ struct NavigationProbe {
 #endif
   bool intact=original.size()==w.results.size();
   for(size_t i=0;i<original.size();++i)intact&=original[i].worst==w.results[i].worst&&original[i].worstX==w.results[i].worstX&&original[i].status==w.results[i].status;
-  result["statistics_unchanged"]=intact;w.grab().save(folder+"/Navigation.png");w.dirty=false;return result;
+  result["statistics_unchanged"]=intact;w.grab().save(folder+"/Navigation.png");
+#ifdef SI_NEW_NAVIGATION
+  // Exercise the actual 64-curve boundary independently of the original
+  // fixture, which has only five eligible termination curves per revision.
+  if(w.plot->snapshot.curves.empty()) throw si::Error("Missing overlay prototype");
+  auto prototype=w.plot->snapshot.curves.front();
+  prototype.plotX={0,1e-9};prototype.plotY={100,100};prototype.plotComplete=true;
+  auto saved=std::move(w.results);
+  w.results.clear();
+  for(int i=0;i<70;++i){
+    auto r=prototype;r.channel=r.channelId="overlay-"+std::to_string(i);
+    w.results.push_back(std::move(r));
+  }
+  w.refreshResults();w.refreshPlot();settle(w);
+  bool boundary=w.plot->snapshot.curves.size()==64;
+  for(size_t i=0;boundary&&i<64;++i)
+    boundary=w.plot->snapshot.curves[i].channelId==w.results[i].channelId;
+  w.table->selectAll();w.refreshPlot(true);settle(w);
+  const auto selected=w.table->selectionModel()->selectedRows();
+  boundary=boundary&&selected.size()==70&&w.plot->snapshot.curves.size()==64;
+  for(size_t i=0;boundary&&i<64;++i)
+    boundary=w.plot->snapshot.curves[i].channelId==
+      w.results[w.resultRows[size_t(selected[int(i)].row())]].channelId;
+  result["overlay_cap_order_preserved"]=boundary;
+  w.results=std::move(saved);w.refreshResults();w.refreshPlot();settle(w);
+#endif
+  result["independent_cache_inputs"]=cacheInputTimings();
+  w.dirty=false;return result;
  }
 };
 int main(int argc,char **argv){QApplication app(argc,argv);applyLightTheme(app);QFontDatabase::addApplicationFont(QCoreApplication::applicationDirPath()+"/fonts/NanumGothic-Regular.ttf");QFont::insertSubstitution("Segoe UI","NanumGothic");
  try{checkSettingsParsing();QElapsedTimer windowTimer;windowTimer.start();MainWindow w;w.resize(1440,960);w.show();app.processEvents();const double windowShowMs=windowTimer.nsecsElapsed()/1e6;QString dir=argc>1?QString::fromLocal8Bit(argv[1]):"navigation-test";auto r=NavigationProbe::run(w,dir);r["settings_validation"]=true;r["window_construct_and_show_ms"]=windowShowMs;r["qt_platform"]=QGuiApplication::platformName();QFile json(dir+"/benchmark.json");if(!json.open(QIODevice::WriteOnly))throw si::Error("Benchmark output failed");json.write(QJsonDocument(r).toJson());std::cout<<QJsonDocument(r).toJson().constData();
 #ifdef SI_NEW_NAVIGATION
- if(r["disabled_during_zoom"].toBool()||!r["latest_range_retained"].toBool()||!r["y_range_retained"].toBool()||!r["selection_preserved"].toBool()||!r["selected_overlay_bounded"].toBool()||r["cursor_graph_renders"].toInt()!=0||!r["statistics_unchanged"].toBool()||!r["trackpad_fractional_zoom"].toBool())return 1;
+ if(r["disabled_during_zoom"].toBool()||!r["latest_range_retained"].toBool()||!r["y_range_retained"].toBool()||!r["selection_preserved"].toBool()||!r["selected_overlay_bounded"].toBool()||r["cursor_graph_renders"].toInt()!=0||!r["statistics_unchanged"].toBool()||!r["trackpad_fractional_zoom"].toBool()||!r["overlay_cap_order_preserved"].toBool())return 1;
 #endif
  return 0;}catch(const std::exception&e){std::cerr<<e.what()<<'\n';return 1;}}
