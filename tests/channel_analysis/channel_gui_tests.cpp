@@ -131,6 +131,7 @@ void checkCompactLayout(AnalysisWindow *window) {
 
 int main(int argc, char **argv) {
   QApplication app(argc, argv);
+  try {
   // Numeric display bounds are independent of the analysis engine and mode.
   using si::gui::detail::PlotBounds;
   {
@@ -145,7 +146,6 @@ int main(int argc, char **argv) {
     PlotBounds invalid;invalid.include(std::numeric_limits<double>::quiet_NaN());
     check(!invalid.pad(0.08),"Nonfinite plot data accepted");
   }
-  try {
     QMainWindow main;
     AnalysisWindowManager manager(&main);
     manager.installMenu();
@@ -434,8 +434,6 @@ int main(int argc, char **argv) {
             std::abs(fit-expected)<1e-8&&std::abs(residual)<1e-8,"Reverse ILD independent oracle");
     }
     // Invalid unmeasured band must not publish or export previous data.
-    auto *ildStart=ild->findChild<QDoubleSpinBox *>(QStringLiteral("ildStartGhz"));
-    auto *ildStop=ild->findChild<QDoubleSpinBox *>(QStringLiteral("ildStopGhz"));
     check(ildStart&&ildStop,"ILD range controls missing");
     ildStart->setValue(20);ildStop->setValue(30);
     ild->runButton()->click();drain(manager.scheduler());
