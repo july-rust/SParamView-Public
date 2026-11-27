@@ -1,5 +1,6 @@
 // 012_04: event-loop and worker lifecycle tests (no numerical engine needed).
 #include "gui/analysis/analysis_windows.hpp"
+#include "../../src/gui/analysis/plot_axis.hpp"
 #include <QApplication>
 #include <QCoreApplication>
 #include <QElapsedTimer>
@@ -130,6 +131,20 @@ void checkCompactLayout(AnalysisWindow *window) {
 
 int main(int argc, char **argv) {
   QApplication app(argc, argv);
+  // Numeric display bounds are independent of the analysis engine and mode.
+  using si::gui::detail::PlotBounds;
+  {
+    PlotBounds negativeDb;negativeDb.include(-80);negativeDb.include(-75);
+    check(negativeDb.pad(0.08,false,false,0.05) && negativeDb.low<-80 && negativeDb.high>-75 && negativeDb.high<0,"dB axis incorrectly includes zero");
+    PlotBounds tiny; tiny.include(0);tiny.include(1e-8);
+    check(tiny.pad(0.08,true,true) && tiny.low==0 && tiny.high>1e-8 && tiny.high<2e-8,"Tiny linear ICN axis flattened by absolute padding");
+    PlotBounds zero;zero.include(0);
+    check(zero.pad(0.08,true,true) && zero.low==0 && zero.high>0,"Zero-only data axis degenerate");
+    PlotBounds deviation;deviation.include(1e-13);
+    check(deviation.pad(0.08,true,false,0.05) && deviation.low<0 && deviation.high>=0.05,"ILD residual axis lacks meaningful zero-reference scale");
+    PlotBounds invalid;invalid.include(std::numeric_limits<double>::quiet_NaN());
+    check(!invalid.pad(0.08),"Nonfinite plot data accepted");
+  }
   try {
     QMainWindow main;
     AnalysisWindowManager manager(&main);
@@ -335,6 +350,17 @@ int main(int argc, char **argv) {
     check(ild->findChild<QWidget *>(QStringLiteral("ildResultGraph"))!=nullptr,
           "Actual ILD graph widget missing");
     checkCompactLayout(ild);
+    auto *ildStart=ild->findChild<QDoubleSpinBox *>("ildStartGhz");
+    auto *ildStop=ild->findChild<QDoubleSpinBox *>("ildStopGhz");
+    auto *ildPlot=ild->findChild<QWidget *>("ildResultGraph");
+    check(ildStart && ildStop && ildPlot,"Missing ILD manual scale controls");
+    const auto ildFull=ildPlot->grab().toImage();
+    ildStart->setValue(4);ildStop->setValue(12);
+    ild->runButton()->click();drain(manager.scheduler());
+    check(ild->status()==S::Valid && ildPlot->grab().toImage()!=ildFull,"ILD manual band change did not redraw plot");
+    ildStart->setValue(0);ildStop->setValue(30);
+    ild->runButton()->click();drain(manager.scheduler());
+    check(ild->status()==S::Valid,"ILD original manual settings restore failed");
     auto *csv=ild->findChild<QPushButton *>(QStringLiteral("analysisCsv"));
     auto *png=ild->findChild<QPushButton *>(QStringLiteral("analysisPng"));
     check(csv && csv->isEnabled() && png && png->isEnabled(),
@@ -516,6 +542,18 @@ int main(int argc, char **argv) {
     check(icn->findChild<QWidget *>(QStringLiteral("icnResultGraph"))!=nullptr,
           "Actual ICN result graph missing");
     checkCompactLayout(icn);
+    auto *icnStart=icn->findChild<QDoubleSpinBox *>("icnStartGhz");
+    auto *icnStop=icn->findChild<QDoubleSpinBox *>("icnStopGhz");
+    auto *icnPlot=icn->findChild<QWidget *>("icnResultGraph");
+    check(icnStart && icnStop && icnPlot,"Missing ICN manual scale controls");
+    const auto icnFull=icnPlot->grab().toImage();
+    icnStart->setValue(1);icnStop->setValue(4);
+    icn->runButton()->click();drain(manager.scheduler());
+    check((icn->status()==S::Valid || icn->status()==S::Warning) &&
+          icnPlot->grab().toImage()!=icnFull,"ICN manual band change did not redraw plot");
+    icnStart->setValue(0);icnStop->setValue(30);
+    icn->runButton()->click();drain(manager.scheduler());
+    check(icn->status()==S::Valid || icn->status()==S::Warning,"ICN original manual settings restore failed");
     auto *icnCsv=icn->findChild<QPushButton *>(QStringLiteral("analysisCsv"));
     auto *icnPng=icn->findChild<QPushButton *>(QStringLiteral("analysisPng"));
     check(icnCsv && icnCsv->isEnabled() && icnPng && icnPng->isEnabled(),
@@ -687,6 +725,18 @@ int main(int argc, char **argv) {
           metrics->text().contains(QStringLiteral("Not Measured")),
           "Eye numerical display and caution missing");
     checkCompactLayout(eye);
+    auto *eyeView=eye->findChild<QComboBox *>("eyePlotView");
+    auto *txHigh=eye->findChild<QLineEdit *>("eyeTxHighMv");
+    check(eyeView && txHigh,"Missing Eye manual scale controls");
+    eyeView->setCurrentIndex(1);
+    const auto eyeFull=eyeGraph->grab().toImage();
+    baud->setValue(3.0);txHigh->setText("800");
+    eye->runButton()->click();drain(manager.scheduler());
+    check(eye->status()==S::Warning && eyeGraph->grab().toImage()!=eyeFull,"Eye manual rate/voltage change did not redraw plot");
+    baud->setValue(4.5);txHigh->setText("400");
+    eye->runButton()->click();drain(manager.scheduler());
+    check(eye->status()==S::Warning,"Eye original manual settings restore failed");
+    eyeView->setCurrentIndex(0);
     auto *eyeCsv=eye->findChild<QPushButton *>(QStringLiteral("analysisCsv"));
     auto *eyePng=eye->findChild<QPushButton *>(QStringLiteral("analysisPng"));
     check(eyeCsv && eyeCsv->isEnabled() && eyePng && eyePng->isEnabled(),
