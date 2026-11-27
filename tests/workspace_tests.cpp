@@ -1,3 +1,4 @@
+#include <QScreen>
 #include "app.hpp"
 #include "../src/ui_language.hpp"
 #include <QTextLayout>
@@ -542,7 +543,7 @@ struct WorkspaceProbe {
      for(int i=0;i<16;++i) touchstone+=".1 0 ";
      touchstone+="\n";
    }
-   const auto a=fixture("first.s4p",touchstone), b=fixture("skip.s4p",touchstone),
+   const auto a=fixture("first_very_long_touchstone_filename_for_import_dialog_geometry_regression_012.s4p",touchstone), b=fixture("skip.s4p",touchstone),
               c=fixture("last.s4p",touchstone), invalid=fixture("bad.s4p","invalid\n");
    const auto se=fixture("mixed-size.s2p","# GHz S RI R 50\n1 .1 0 .8 0 .7 0 .2 0\n2 .1 0 .8 0 .7 0 .2 0\n");
    MainWindow w, other;
@@ -625,6 +626,8 @@ struct WorkspaceProbe {
    QStringList reviewed;
    int failures=0;
    bool cancelEveryMapping=false;
+   bool importGeometryOk=true;
+   int boundedDialogs=0;
    QTimer mapping; mapping.setInterval(10);
    QObject::connect(&mapping,&QTimer::timeout,&w,[&]{
      auto *d=qobject_cast<QDialog*>(QApplication::activeModalWidget());
@@ -632,6 +635,15 @@ struct WorkspaceProbe {
      if(auto *box=qobject_cast<QMessageBox*>(d)){
        if(auto *ok=box->button(QMessageBox::Ok)){++failures;ok->click();}
        return;
+     }
+     if(d->objectName()=="signalTypeDetectionDialog" || d->objectName()=="channelMappingDialog") {
+       auto *screen=w.screen();
+       auto *scroll=d->findChild<QScrollArea*>("importDialogScroll");
+       auto *footer=d->findChild<QDialogButtonBox*>();
+       importGeometryOk &= screen && screen->availableGeometry().contains(d->frameGeometry()) &&
+         scroll && scroll->isVisible() && footer && footer->isVisible() &&
+         d->rect().contains(QRect(footer->mapTo(d,QPoint(0,0)),footer->size()));
+       ++boundedDialogs;
      }
      if(d->objectName()=="signalTypeDetectionDialog"){
        auto *selector=d->findChild<QComboBox*>("signalTypeSelector");
@@ -658,6 +670,7 @@ struct WorkspaceProbe {
      }
    });
    mapping.start();w.openPaths({a,b,invalid,c,se});settle(w);mapping.stop();
+   check(importGeometryOk && boundedDialogs>=4,"Import dialog frame or footer escaped screen work area");
    check(reviewed.size()==4 && reviewed[0].contains("first") && reviewed[1].contains("skip") &&
          reviewed[2].contains("last") && reviewed[3].contains("mixed-size") && failures==1,
          "Per-file mapping order/cancel/failure not respected");
@@ -674,6 +687,7 @@ struct WorkspaceProbe {
    const auto beforeDirectory=sparamview::preferences::workingDirectory();
    cancelEveryMapping=true;reviewed.clear();
    mapping.start();w.openPaths({a,c});settle(w);mapping.stop();
+   check(importGeometryOk,"Repeated import dialog escaped screen work area");
    check(reviewed.size()==2 && w.revisions.size()==beforeCancelledBatch &&
          sparamview::preferences::workingDirectory()==beforeDirectory,
          "All-cancelled batch registered a revision or changed preferences");
@@ -1175,6 +1189,13 @@ struct WorkspaceProbe {
   {auto p=store(); p.setValue("workspace/v1/lastDirectory",42);p.sync();}
   check(usableDirectory(workingDirectory()),"Corrupt directory fallback");
   const QRect monitor(-1280, 20, 1280, 700);
+  const QMargins nativeFrame(8,32,8,8);
+  for(const auto &area:{QRect(0,0,1024,728),QRect(-1024,-200,820,570),QRect(1920,40,680,420)}) {
+   const auto client=boundedDialogClientSize(QSize(980,620),area,nativeFrame);
+   const QSize frame(client.width()+16,client.height()+40);
+   const QRect bounds(centeredDialogFrame(frame,area),frame);
+   check(area.adjusted(8,8,-8,-8).contains(bounds),"Import dialog logical work area/frame contract");
+  }
   const auto centered=centeredNormalGeometry(QSize(900,500),monitor);
   check(centered==QRect(-1090,120,900,500),"Negative screen center");
   const auto clipped=centeredNormalGeometry(QSize(8000,4000),monitor);

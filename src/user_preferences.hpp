@@ -4,6 +4,7 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QMetaType>
+#include <QMargins>
 #include <QRect>
 #include <QSettings>
 #include <QStandardPaths>
@@ -92,5 +93,16 @@ inline QRect centeredNormalGeometry(QSize desired, const QRect &area) {
   // Center using nonnegative extent differences instead.
   return QRect(QPoint(area.x() + (area.width() - size.width()) / 2,
                       area.y() + (area.height() - size.height()) / 2), size);
+}
+// Fit the client area with room for native non-client margins and an
+// eight-logical-pixel safety inset on every edge.
+inline QSize boundedDialogClientSize(QSize desired, const QRect &area, const QMargins &frame) {
+  const QSize cap(qMax(1, area.width() - qMax(0,frame.left()) - qMax(0,frame.right()) - 16),
+                  qMax(1, area.height() - qMax(0,frame.top()) - qMax(0,frame.bottom()) - 16));
+  return desired.expandedTo(QSize(1,1)).boundedTo(cap);
+}
+inline QPoint centeredDialogFrame(QSize frame, const QRect &area) {
+  return QPoint(area.x() + qMax(0, (area.width()-frame.width())/2),
+                area.y() + qMax(0, (area.height()-frame.height())/2));
 }
 } // namespace sparamview::preferences
