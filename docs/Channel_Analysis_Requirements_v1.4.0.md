@@ -1,3 +1,9 @@
+# v1.4.0 release closeout — 012_62 (2026-11-27 KST)
+
+The owner accepted the engineering-reference release scope after reporting smooth operation and requested official publication. ILD, Generic ICN, simulated Eye Diagram and legacy functions are included; COM remains deferred. Issues #118/#121 closed with residual limitations preserved. [Release notes](Release_1.4.0.md) are the authoritative current scope. The following text is historical planning/requirements evidence; earlier dates, pending flags, versions and gates describe their original stages, not current release status. Publication is conditional on final release CI and review.
+
+---
+
 # SParamView v1.4.0 — Channel Analysis 요구사항·인터페이스 계약 (012_01)
 
 **상태:** REQUIREMENTS LOCKED (설계 기준). **구현:** 012_03 공통 Core·012_04 독립 창 틀·012_05 ILD·012_06 ICN·**012_07 Eye 수치 엔진 COMPLETE**; 012_08 Eye GUI COMPLETE (PR #47 및 병합 후 CI #43812686401 SUCCESS)·012_09 이후 COM/통합/릴리스는 미완료. **출시 기준:** immutable v1.3.5

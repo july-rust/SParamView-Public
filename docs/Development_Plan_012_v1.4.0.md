@@ -1,3 +1,9 @@
+# v1.4.0 release closeout — 012_62 (2026-11-27 KST)
+
+The owner accepted the engineering-reference release scope after reporting smooth operation and requested official publication. ILD, Generic ICN, simulated Eye Diagram and legacy functions are included; COM remains deferred. Issues #118/#121 closed with residual limitations preserved. [Release notes](Release_1.4.0.md) are the authoritative current scope. The following text is historical planning/requirements evidence; earlier dates, pending flags, versions and gates describe their original stages, not current release status. Publication is conditional on final release CI and review.
+
+---
+
 # 012_43 — Release scope stabilization (2026-11-25 KST)
 
 **Current authoritative scope:** v1.4.0 includes ILD, Generic ICN, Simulated Channel Eye and existing RL/IL/NEXT/FEXT/TDR, pending final qualification. COM is **DEFERRED / NOT_IEEE_COM**; 012_42 remains **REFERENCE BLOCKED**. The COM code, tests, oracles and historical records are preserved. No additional COM development or reference qualification is required for v1.4.0. Production COM menu and manager entry are disabled; no COM result or compliance claim may be exposed. No new COM feature, release or main merge in 012_43.

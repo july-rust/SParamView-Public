@@ -1,3 +1,9 @@
+# v1.4.0 release closeout — 012_62 (2026-11-27 KST)
+
+The owner accepted the engineering-reference release scope after reporting smooth operation and requested official publication. ILD, Generic ICN, simulated Eye Diagram and legacy functions are included; COM remains deferred. Issues #118/#121 closed with residual limitations preserved. [Release notes](Release_1.4.0.md) are the authoritative current scope. The following text is historical planning/requirements evidence; earlier dates, pending flags, versions and gates describe their original stages, not current release status. Publication is conditional on final release CI and review.
+
+---
+
 # SParamView Channel Analysis Development Plan — v1.3.5 Baseline
 
 **Current execution work breakdown (2026-11-25 KST):** [active 012_43–012_52 plan](Development_Plan_012_v1.4.0.md). COM is DEFERRED / NOT_IEEE_COM; 012_42 remains REFERENCE BLOCKED. Earlier 012_01~012_14 numbering and the 2026-11-16 baseline are retained for historical traceability, **not as a second active release schedule**. This page retains the feature/architecture overview.

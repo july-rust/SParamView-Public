@@ -1,10 +1,10 @@
 # SParamView 사용자 설명서
 
-**적용 기준:** SParamView **v1.3.5 공식 릴리스**
+**적용 기준:** SParamView **v1.4.0 공식 릴리스**
 **지원 플랫폼:** Windows x64 / Windows ARM64 / macOS Apple Silicon (arm64)
-**문서 갱신:** **2026-11-14(KST)**. v1.3.5는 Mapping CSV 보안·스프레드시트 왕복 보존 v3 입출력, GUI 시작 예외 안내 및 실패 시 안전한 캐시 초기화 정리를 통합합니다. v1.3.3의 포트 번호 경계 검증과 선형 문자열 파싱을 반영합니다. v1.3.2 프로젝트 캐시 격리 및 타이틀바 파일명, v1.3.1 다중 프로세스 캐시 안전성, v1.3.0 Touchstone 입력·포트 매핑·Windows 배포 구조, v1.2.5 임시 캐시 정책을 반영합니다. 과거 릴리스 자산은 변경하지 않았습니다.
+**문서 갱신:** 2026-11-27 (KST). v1.4.0 신규 분석, 다국어 및 GUI 개선 반영.
 
-[English User Guide](USER_GUIDE_EN.md) | [한국어 README](../README_KO.md) | [v1.3.5 Release Notes](Release_1.3.5.md)
+[English User Guide](USER_GUIDE_EN.md) | [한국어 README](../README_KO.md) | [v1.4.0 Release Notes](Release_1.4.0.md)
 
 ---
 
@@ -110,9 +110,9 @@ GitHub Releases에서 사용 중인 시스템에 맞는 패키지를 선택합�
 
 | 시스템 | 권장 패키지 |
 |---|---|
-| Windows x64 | `SParamView_Windows_x64_v1.3.5.zip` |
-| Windows ARM64 | `SParamView_Windows_ARM64_v1.3.5.zip` |
-| macOS Apple Silicon | `SParamView_macOS_AppleSilicon_arm64_v1.3.5.dmg` 또는 `.zip` |
+| Windows x64 | `SParamView_Windows_x64_v1.4.0.zip` |
+| Windows ARM64 | `SParamView_Windows_ARM64_v1.4.0.zip` |
+| macOS Apple Silicon | `SParamView_macOS_AppleSilicon_arm64_v1.4.0.dmg` 또는 `.zip` |
 
 릴리스에는 SHA-256 확인용 파일도 함께 제공됩니다. 다운로드 무결성을 확인하려면 Windows PowerShell에서 `Get-FileHash <파일명> -Algorithm SHA256`, macOS Terminal에서 `shasum -a 256 <파일명>`을 실행한 뒤 릴리스의 `.sha256` 값과 비교할 수 있습니다.
 
@@ -590,7 +590,7 @@ SParamView 소스는 MIT License로 배포됩니다. Third-party component와 fo
 
 ## 22. 문서 검증 근거
 
-v1.2.1에서 도입된 과거 기능은 [v1.2.1 릴리스 노트](Release_1.2.1.md)와 다음 소스 자료를 참고했습니다. 현재 버전은 [v1.3.5 릴리스 노트](Release_1.3.5.md), [임시 캐시 정리](Temporary_Cache_Cleanup.md), [변경 이력](Revision_History.md) 및 [v1.3.5 소스](https://github.com/july-rust/SParamView-Public/tree/v1.3.5)를 참고하십시오. 이전 v1.2.4a 검증 기록은 [이전 릴리스 노트](Release_1.2.4a.md)에 보존되어 있습니다.
+v1.2.1에서 도입된 과거 기능은 [v1.2.1 릴리스 노트](Release_1.2.1.md)와 다음 소스 자료를 참고했습니다. 현재 버전은 [v1.4.0 릴리스 노트](Release_1.4.0.md), [임시 캐시 정리](Temporary_Cache_Cleanup.md), [변경 이력](Revision_History.md) 및 [v1.4.0 소스](https://github.com/july-rust/SParamView-Public/tree/v1.4.0)를 참고하십시오. 이전 v1.2.4a 검증 기록은 [이전 릴리스 노트](Release_1.2.4a.md)에 보존되어 있습니다.
 
 - [TDR 초기 축 범위 및 자동 스케일](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/src/plot.cpp)
 - [그래프 조작 및 초기 화면 복귀](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/src/navigation.cpp)
@@ -603,45 +603,20 @@ v1.2.1에서 도입된 과거 기능은 [v1.2.1 릴리스 노트](Release_1.2.1.
 
 ### 문서 버전
 
-이 설명서는 **SParamView v1.3.5 정식 릴리스**를 기준으로 **2026-11-14(KST)** 갱신했습니다. 수록 이미지는 [출처가 확인된 v1.2.1 검증 화면](images/README.md)으로 v1.3.2에서 촬영하지 않았습니다. 이미 게시된 v1.3.0 태그와 릴리스 첨부 문서는 변경하지 않습니다.
+이 설명서는 v1.4.0 (2026-11-27 KST) 기준입니다. 기존 이미지는 v1.2.1 역사적 검증 화면입니다.
 
 
 
-## 개발 중인 v1.4.0 — 독립 ILD 창 (정식 v1.3.5 미포함)
 
-> 아래 설명은 v1.4.0 통합 브랜치의 **012_05 개발 기능**에만 적용합니다. 공식 배포 버전은 여전히 v1.3.5입니다. 최종 배포와 모든 대상 플랫폼 검증은 012_14 전까지 완료로 간주하지 않습니다.
+## 23. v1.4.0 주요 기능과 사용법
 
-**Analysis → ILD**에서 별도 창을 열고 원본 Revision, 확정 채널, Forward/Reverse, 주파수 범위, 피팅 방식을 지정합니다. **Run**은 읽기 전용 SourceSnapshot에 대한 SHA-256 재검증 후 비동기 계산을 실행합니다.
+- Analysis 메뉴에서 ILD, Generic ICN, Eye Diagram 독립 창을 실행합니다. 매핑된 피해 채널과 경로를 선택하고 Auto Analysis/Auto Preview로 초기 조건을 설정하거나 Run Manual로 실제 조건을 입력합니다. 적용 조건, 품질 경고를 확인하고 CSV/PNG를 내보냅니다.
+- ILD는 측정 삽입 손실·적합 곡선·편차를 표시합니다. ICN은 매핑된 NEXT/FEXT 경로, 신호/필터 및 독립 경로 RSS 가정에 따른 누화 적분입니다. Eye Diagram은 대역 제한 NRZ 시뮬레이션이며 측정 BER이 아닙니다. 자동 설정은 실제 PHY 설정의 보증이 아닌 참고용 가정입니다.
+- Eye Diagram의 DC 누락 시 시작 주파수 10 kHz 이하는 주파수 기준 확인 없이, 10 kHz 초과~100 kHz 미만은 확인 후 실행하며 100 kHz 이상은 차단합니다. 다른 품질 조건은 계속 적용합니다. AC-like 단일 Pole 외삽은 실제 토폴로지나 장시간 패턴을 보증하지 않습니다.
+- Language 메뉴에서 English/Korean/Japanese를 재시작 없이 전환합니다. New는 미저장 변경을 확인하고 작업 공간을 초기화합니다. 복수 Touchstone 파일은 개별 매핑과 순차 처리, 마지막 폴더 및 메인 창 상태 복원을 지원합니다. 분석 창은 화면에 적응하며 설명은 스크롤하고 그래프 영역을 유지합니다. 테이블·Overlay·렌더링을 최적화했습니다.
+- 기본 Limit: RL -10 dB, IL -3 dB, NEXT/FEXT -20 dB, TDR -10%; 기본 체크 해제. 규격이 아닌 변경 가능한 예시입니다.
+- Windows 사용자 ZIP과 검증용 전체 QA ZIP을 분리했습니다.
 
-- 그래프 1: 양의 Insertion Loss \(-20\log_{10}|S21|\)와 피팅 IL
-- 그래프 2: 부호 있는 **ILD(f) = IL(f) − IL_fit(f)**
-- 결과: 주파수별 ILD, RMS, Peak Absolute ILD 및 위치
-- 피팅 모델: Linear / Root+Linear / Root+Linear+Quadratic; **f/F** 정규화, F는 실제 피팅 범위의 최고 측정 주파수
-- 출력: 실제 계산값의 CSV와 그래프 PNG
-- 프로젝트·매핑·설정 변경 후 기존 결과는 **STALE**이 되며 다시 계산해야 합니다.
+**적용 범위:** 엔지니어링 참고용입니다. COM은 개발 보류되어 메뉴에 없으며 IEEE/SNIA/MIPI 적합성, 측정 BER, 모든 물리 장치/HiDPI 검증을 보증하지 않습니다.
 
-**규격 주의:** 범용 피팅의 RMS 및 Peak는 IEEE의 가중 FOM_ILD, PHY 합격 기준 또는 MIPI D-PHY 적합성 판정이 아닙니다. 입력 자료가 잘못되었거나 표본이 부족하면 계산을 거부합니다. 자세한 수치 정의와 제약은 [012_05 ILD 구현 계약](Channel_Analysis_ILD_012_05.md)을 확인하십시오.
-
----
-
-## 개발 중 v1.4.0 — ICN 독립 분석 창 (012_06, 공식 v1.3.5 미포함)
-
-[PR #42](https://github.com/july-rust/SParamView-Public/pull/42)에서 구현·세 플랫폼 자동화 CI 검증 후 통합 브랜치에 병합되었습니다. **Analysis → ICN** 메뉴를 선택하면 별도의 비모달 창이 열립니다. Touchstone 리비전과 Victim 채널을 선택하고, NEXT/FEXT 누화원 경로를 체크박스로 여러 개 선택합니다. 심볼 속도(GBd), TX 차동 또는 단일 종단 피크투피크 진폭(mVpp), 10~90% 상승시간(ps), RX -3 dB 대역폭(GHz), 적분 주파수를 실제 조건에 맞게 설정하고 Run을 실행합니다. 초깃값은 실제 장비에서 읽어온 값이 아닌 **예시 설정값**입니다.
-
-그래프는 NEXT/FEXT 파워 합계, TX/RX 가중 PSD, NEXT/FEXT 누적 RMS 잡음량을 보여줍니다. CSV에는 원본 SHA, 리비전, 매핑, 계산 모델, 누화원별 기여도와 주파수별 원시 값이 저장되며 PNG에는 실제 계산 그래프가 저장됩니다. DC 누락 또는 측정 대역 초과는 **BAND LIMITED**로 표시하고 외삽을 하지 않습니다. 입력·매핑·원본이 바뀌면 이전 결과는 STALE로 무효화됩니다.
-
-**주의:** 이 수치는 비상관 누화원을 가정한 범용 IID NRZ 모델이며 **IEEE 802.3 ICN, SNIA ccICN, COM, MIPI PHY 합격 판정이 아닙니다.** [012_06 수치 계약](Channel_Analysis_ICN_012_06.md)을 참조하십시오. 최종 물리 GUI 검증은 012_12, 공식 v1.4.0 릴리스는 012_14입니다.
-
-
-## 개발 중 — 012_08 Simulated Channel Eye (v1.4.0 통합 브랜치 전용)
-
-> 이 내용은 정식 v1.3.5에 포함되지 않습니다. [012_08 PR #47](https://github.com/july-rust/SParamView-Public/pull/47)의 구현과 필수 PR CI가 통과하여 `integration/v1.4.0`에 병합됐습니다. 병합 후 통합 CI #43812686401까지 성공하여 **012_08 개발 단계가 완료**됐습니다. 다만 012_12 물리 Windows/macOS GUI 인수와 최종 v1.4.0 출시는 별도 검증입니다.
-
-1. 확정된 Touchstone 원본과 물리 포트 매핑을 연 뒤 **Analysis → Eye Diagram**을 선택합니다. 독립 창이 열립니다.
-2. 프로파일을 지정합니다. MIPI D-PHY v2.1 HS 예시의 **4.5 Gbps, 기준 2.25 GHz, 분석 상한 10 GHz**는 주파수 설정만 제공합니다. 기준 주파수를 바꾸면 비트율도 연동됩니다. 분석 상한은 독립적으로 조정됩니다.
-3. 신호 모드(S21/S12 또는 차동 Sdd21/Sdd12), TX 입사 Low/High 전압(mV), TX 소스·RX 종단(Ω), RX Threshold 및 허용 입력 전압 범위(mV)를 **직접 입력**합니다. 실제 TX 핀 전압과 S-파라미터 기준면의 입사파 전압을 구분하십시오. 검증되지 않은 표준 전압이나 종단값은 자동 입력되지 않습니다.
-4. PRBS7, 교대 패턴 또는 0/1 커스텀 패턴을 선택합니다. 필요한 경우 FFT 길이, UI당 샘플을 조정합니다.
-5. **Run**을 실행하면 실제 파일 SHA 및 포트 매핑을 다시 검증하고, 비동기 계산을 수행합니다. Eye Overlay, TX/RX 파형, Impulse/Unit Pulse 뷰로 전환해 확인합니다. 그래프 휠 확대, 드래그 이동, 더블클릭 초기화 및 커서를 지원합니다.
-6. Eye Height(mV), Width(ps/UI), 샘플링 위상, 전압 최소·최대, 지연시간을 확인합니다. **Export CSV/PNG**는 현재 유효한 결과에서만 가능합니다.
-
-**해석 제한:** 결과는 *Simulated Channel Eye — Not Measured / Not PHY Compliance*로 표시됩니다. 실제 오실로스코프 Eye, BER, MIPI/DDR/LVDS/SLVS PHY 합격 판정이 아닙니다. DC 실측점, 선택한 상한까지의 원본 주파수 커버리지, 정합 임피던스 및 RX 입력 범위가 충족되지 않으면 결과가 거부됩니다. 입력/매핑 변경 시 STALE로 무효화됩니다. [상세 GUI·계산 계약](Channel_Analysis_Eye_GUI_012_08.md).
+[Release notes](Release_1.4.0.md) · [ILD](Channel_Analysis_ILD_012_05.md) · [ICN](Channel_Analysis_ICN_012_06.md) · [Eye Diagram](Channel_Analysis_Eye_012_07.md) · [AC/Auto](qualification/012_54_AC_Auto_Analysis.md).

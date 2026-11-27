@@ -784,10 +784,19 @@ jobs:
           retention-days: 14
           compression-level: 0
 
+  release-codeql:
+    name: Release CodeQL
+    if: github.ref == 'refs/heads/main' || github.base_ref == 'main'
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+    uses: ./.github/workflows/codeql-cpp.yml
+
   release:
     name: Publish three-platform release
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [prepare, windows, windows-arm64-native, macos-arm64]
+    needs: [prepare, quality, windows, windows-arm64-native, macos-arm64, release-codeql]
     runs-on: ubuntu-latest
     permissions:
       contents: write

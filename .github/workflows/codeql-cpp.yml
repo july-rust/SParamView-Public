@@ -1,9 +1,10 @@
-# Independent CodeQL analysis for integration/v1.4.0 only.
+# Independent CodeQL analysis for integration and reusable release gate.
 # main already has a separate CodeQL Advanced workflow for C/C++, Python, Actions.
 # No product source or existing three-platform build/test CI is modified.
 name: CodeQL integration security and quality
 
 on:
+  workflow_call:
   push:
     branches:
       - integration/v1.4.0

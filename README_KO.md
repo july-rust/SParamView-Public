@@ -1,4 +1,4 @@
-# SParamView v1.3.5
+# SParamView v1.4.0
 
 SParamView는 Touchstone S-parameter 데이터를 열고 채널 기준으로 분석하는 C++20 / Qt 6 데스크톱 프로그램입니다.
 
@@ -22,14 +22,23 @@ Quick TDR은 제한된 주파수 대역을 이용한 추정값이며 계측기 T
 - [한국어 사용자 설명서](docs/USER_GUIDE_KO.md)
 - [English User Guide](docs/USER_GUIDE_EN.md)
 - [전체 변경 이력](docs/Revision_History.md)
-- [개발 예정: 상단 메뉴에서 별도 창으로 실행하는 ILD·ICN·COM·Eye Diagram](docs/Channel_Analysis_Development_Plan.md)
-- [v1.4.0 전체 개발 계획 — 012_01~012_14](docs/Development_Plan_012_v1.4.0.md)
+- [개발 이력 (COM 보류)](docs/Channel_Analysis_Development_Plan.md)
+- [v1.4.0 개발 이력 및 012_62 마무리](docs/Development_Plan_012_v1.4.0.md)
 
-**개발 중 v1.4.0 (012_06):** 별도 ICN 창에서 다중 NEXT/FEXT 누화 경로와 NRZ 송신·수신 필터 조건으로 대역 제한 Generic ICN을 계산하는 기능을 [PR #42](https://github.com/july-rust/SParamView-Public/pull/42)에서 자동화 CI를 통과하여 통합 브랜치에 병합되었습니다. 공식 v1.3.5에는 없으며 IEEE/SNIA/MIPI 규격 적합성 판정이 아닙니다. [계산·검증 계약](docs/Channel_Analysis_ICN_012_06.md).
+### v1.4.0 주요 기능과 사용법
 
-## 공식 최신 릴리스 — v1.3.5
+- Analysis 메뉴에서 ILD, Generic ICN, Eye Diagram 독립 창을 실행합니다. 매핑된 피해 채널과 경로를 선택하고 Auto Analysis/Auto Preview로 초기 조건을 설정하거나 Run Manual로 실제 조건을 입력합니다. 적용 조건, 품질 경고를 확인하고 CSV/PNG를 내보냅니다.
+- ILD는 측정 삽입 손실·적합 곡선·편차를 표시합니다. ICN은 매핑된 NEXT/FEXT 경로, 신호/필터 및 독립 경로 RSS 가정에 따른 누화 적분입니다. Eye Diagram은 대역 제한 NRZ 시뮬레이션이며 측정 BER이 아닙니다. 자동 설정은 실제 PHY 설정의 보증이 아닌 참고용 가정입니다.
+- Eye Diagram의 DC 누락 시 시작 주파수 10 kHz 이하는 주파수 기준 확인 없이, 10 kHz 초과~100 kHz 미만은 확인 후 실행하며 100 kHz 이상은 차단합니다. 다른 품질 조건은 계속 적용합니다. AC-like 단일 Pole 외삽은 실제 토폴로지나 장시간 패턴을 보증하지 않습니다.
+- Language 메뉴에서 English/Korean/Japanese를 재시작 없이 전환합니다. New는 미저장 변경을 확인하고 작업 공간을 초기화합니다. 복수 Touchstone 파일은 개별 매핑과 순차 처리, 마지막 폴더 및 메인 창 상태 복원을 지원합니다. 분석 창은 화면에 적응하며 설명은 스크롤하고 그래프 영역을 유지합니다. 테이블·Overlay·렌더링을 최적화했습니다.
+- 기본 Limit: RL -10 dB, IL -3 dB, NEXT/FEXT -20 dB, TDR -10%; 기본 체크 해제. 규격이 아닌 변경 가능한 예시입니다.
+- Windows 사용자 ZIP과 검증용 전체 QA ZIP을 분리했습니다.
 
-[**v1.3.5 다운로드**](https://github.com/july-rust/SParamView-Public/releases/tag/v1.3.5) · [릴리스 노트](docs/Release_1.3.5.md) · [공식 CI](https://github.com/july-rust/SParamView-Public/actions)
+**적용 범위:** 엔지니어링 참고용입니다. COM은 개발 보류되어 메뉴에 없으며 IEEE/SNIA/MIPI 적합성, 측정 BER, 모든 물리 장치/HiDPI 검증을 보증하지 않습니다.
+
+## 공식 최신 릴리스 — v1.4.0
+
+[**v1.4.0 다운로드**](https://github.com/july-rust/SParamView-Public/releases/tag/v1.4.0) · [릴리스 노트](docs/Release_1.4.0.md) · [공식 CI](https://github.com/july-rust/SParamView-Public/actions)
 
 - **v1.3.5:** Mapping CSV v3로 스프레드시트 재저장 시 텍스트 손실을 수정하고 가져오기 성공 안내를 갱신합니다. 별도 프로세스의 시작 오류·치명적 종료·캐시 복구 및 네이티브 GUI 시험을 추가했습니다. v1.3.4의 시작·캐시 보호는 유지합니다.
 - **v1.3.3:** PowerSI 포트 인덱스와 Mixed-Mode 포트 번호를 엄격히 정수 검증하고, Touchstone 포트명과 채널 레이블의 정규식 기반 처리를 선형 파싱으로 변경했습니다. 기존 정상 포트명과 차동 매핑 정책을 유지합니다.
@@ -38,7 +47,7 @@ Quick TDR은 제한된 주파수 대역을 이용한 추정값이며 계측기 T
 - **v1.3.0:** Touchstone **1.0/1.1**(암시적 버전) 및 **2.0/2.1**(`[Version]` 선언) **S-파라미터** 입력을 지원합니다. `1.9`는 공식 Touchstone 버전이 아닙니다.
 - 제조사 확장 `! PortN_COMPONENT_PIN::NET`에서 물리 포트 이름을 인식하며, `!.DiffChannels` 포트 인덱스·NET·물리 핀·P/N 극성을 대조합니다.
 - 이전 파서에서 잘못 생성된 포트 이름 캐시의 재사용을 막습니다.
-- Windows 배포본 최상위에는 **`SParamView.exe`만 EXE**로 남기고 필수 Qt·런타임 DLL은 그대로 둡니다. CLI는 `tools/si_cli.exe`에 유지하며 v1.4.0 후보의 보조 테스트 EXE와 검증 명령은 별도 전체 QA ZIP으로 분리합니다.
+- Windows 배포본 최상위에는 **`SParamView.exe`만 EXE**로 남기고 필수 Qt·런타임 DLL은 그대로 둡니다. CLI는 `tools/si_cli.exe`에 유지하며 v1.4.0의 보조 테스트 EXE와 검증 명령은 별도 전체 QA ZIP으로 분리합니다.
 - Y/Z/H/G 네트워크 파라미터는 S-파라미터로 잘못 해석하지 않고 **미지원 형식**으로 거부합니다.
 
 ## 이전 기록 — v1.2.5 주요 변경사항

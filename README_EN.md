@@ -1,4 +1,4 @@
-# SParamView v1.3.5
+# SParamView v1.4.0
 
 SParamView is a desktop application for Touchstone-based S-parameter analysis and visualization.
 
@@ -20,17 +20,26 @@ SParamView is a desktop application for Touchstone-based S-parameter analysis an
 
 Quick TDR is a band-limited estimate affected by frequency span, spacing, extrapolation, windowing, and termination. It should not be interpreted as an instrument-equivalent measurement.
 
-**Unreleased v1.4.0 development (012_06):** Exploratory Generic ICN (multi-aggressor NEXT/FEXT integration with explicit NRZ TX/RX model and independent Qt analysis window) passed three-platform automated CI and was merged to the unreleased integration branch in [PR #42](https://github.com/july-rust/SParamView-Public/pull/42). It is **not in v1.3.5** and is **not IEEE/SNIA/MIPI conformance**. [Numerical/GUI contract](docs/Channel_Analysis_ICN_012_06.md).
+### What's new in v1.4.0
+
+- Independent ILD, Generic ICN and simulated NRZ Eye Diagram analysis windows. Select the mapped victim/path; use Auto Analysis/Auto Preview for initial conditions or Run Manual for known conditions. Review assumptions, warnings, and quality status; export CSV/PNG.
+- ILD displays measured/fitted insertion loss and deviation. ICN integrates mapped NEXT/FEXT paths with explicit signal/filter and independent-path RSS assumptions. Eye Diagram is a band-limited simulation, not measured BER. Auto settings are engineering assumptions, not inferred PHY settings.
+- Eye Diagram checks DC quality. For missing DC, start frequency up to 10 kHz has no frequency-based confirmation, above 10 kHz and below 100 kHz requires confirmation, and at or above 100 kHz is blocked; other quality checks still apply. Conditional AC-like one-pole extrapolation does not establish physical topology or long-pattern accuracy.
+- Runtime English/Korean/Japanese language switching; Language menu stays in English. New resets the workspace after unsaved-change confirmation; multiple Touchstone files are processed sequentially with individual mapping. Last directory and main-window state are remembered. Analysis windows adapt to the display; guidance scrolls independently of plots. Table refresh, overlay and rendering are optimized.
+- Default limits: RL -10 dB, IL -3 dB, NEXT/FEXT -20 dB, TDR -10%; checks initially off. These are configurable examples, not standards.
+- Windows user ZIP excludes optional test executables and verification launcher; separate QA ZIP supports validation.
+
+**Scope:** engineering-reference calculations only. COM is deferred and has no production menu. No IEEE/SNIA/MIPI compliance, measured BER or exhaustive physical-platform/HiDPI certification is claimed.
 
 ## User guide
 
 - [English User Guide](docs/USER_GUIDE_EN.md)
 - [한국어 사용자 설명서](docs/USER_GUIDE_KO.md)
-- [Future development plan (not yet implemented): independent ILD / ICN / COM / Eye Diagram windows](docs/Channel_Analysis_Development_Plan.md)
+- [Historical development plan (COM deferred)](docs/Channel_Analysis_Development_Plan.md)
 
-## Current release — v1.3.5
+## Current release — v1.4.0
 
-**[Official release and downloads](https://github.com/july-rust/SParamView-Public/releases/tag/v1.3.5)** · [v1.3.5 release notes](docs/Release_1.3.5.md) · [release CI](https://github.com/july-rust/SParamView-Public/actions)
+**[Official release and downloads](https://github.com/july-rust/SParamView-Public/releases/tag/v1.4.0)** · [v1.4.0 release notes](docs/Release_1.4.0.md) · [release CI](https://github.com/july-rust/SParamView-Public/actions)
 
 - **v1.3.5:** Mapping CSV v3 preserves text through the qualified spreadsheet round trips; successful import refreshes guidance. Adds isolated crash/recovery and native GUI tests. v1.3.4 introduced the retained startup/cache guards.
 - **v1.3.3:** Strict integer parsing for PowerSI hints and mixed-mode port descriptors; linear-time Touchstone comment/label parsing without regular-expression recursion. Existing valid labels and differential pairing rules are retained.
@@ -39,7 +48,7 @@ Quick TDR is a band-limited estimate affected by frequency span, spacing, extrap
 - **v1.3.0:** Import Touchstone **1.0/1.1** (implicit version) and **2.0/2.1** (explicit `[Version]`) **S-parameter** files, with RI/MA/DB, standard frequency units, and supported matrix layouts.
 - Recognize `! PortN_COMPONENT_PIN::NET` vendor comments as physical port labels; validate `!.DiffChannels` endpoint/NET/P-N mapping against physical ports instead of guessing polarity.
 - Re-import with new cache schema so previously missing physical labels are not reused.
-- Windows: keep only `SParamView.exe` in the package root, with required Qt/runtime DLLs alongside it. Keep CLI at `tools/si_cli.exe`; v1.4.0 candidates separate test executables and the verification launcher into an optional full QA ZIP.
+- Windows: keep only `SParamView.exe` in the package root, with required Qt/runtime DLLs alongside it. Keep CLI at `tools/si_cli.exe`; v1.4.0 separates test executables and the verification launcher into an optional full QA ZIP.
 - Y/Z/H/G Touchstone network matrices are **not** accepted as S-parameter input. Touchstone `1.9` is not a defined official version.
 
 ## Earlier release — v1.2.5
@@ -59,7 +68,7 @@ Quick TDR is a band-limited estimate affected by frequency span, spacing, extrap
 
 The previous [v1.2.4a published artifacts](https://github.com/july-rust/SParamView-Public/releases/tag/v1.2.4a) remain unchanged. On 2026-10-13, a separate documentation and CI maintenance pass verified zero warning messages across the six required validation gates, native Windows ARM64 mapping fallback 10/10 passes, and native Cocoa macOS GUI tests. These changes do not replace the tagged binaries. See [Revision History](docs/Revision_History.md) and [CI evidence](https://github.com/july-rust/SParamView-Public/actions/runs/38383938009).
 
-See [Release_1.3.5.md](docs/Release_1.3.5.md) for the current release, and [Release_1.3.0.md](docs/Release_1.3.0.md) for its Touchstone predecessor and [Release_1.2.5.md](docs/Release_1.2.5.md) / [Release_1.2.4a.md](docs/Release_1.2.4a.md) for historical details. Earlier changes: [v1.1.6](docs/Release_1.1.6.md), [v1.1.7](docs/Release_1.1.7.md), [v1.2.0](docs/Release_1.2.0.md).
+See [Release_1.4.0.md](docs/Release_1.4.0.md) for the current release, and [Release_1.3.0.md](docs/Release_1.3.0.md) for its Touchstone predecessor and [Release_1.2.5.md](docs/Release_1.2.5.md) / [Release_1.2.4a.md](docs/Release_1.2.4a.md) for historical details. Earlier changes: [v1.1.6](docs/Release_1.1.6.md), [v1.1.7](docs/Release_1.1.7.md), [v1.2.0](docs/Release_1.2.0.md).
 
 ## Build
 SParamView uses C++20, CMake, and Qt 6.8.3 (Core, Gui, Widgets, Concurrent).

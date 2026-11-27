@@ -384,7 +384,9 @@ def main():
                                'Excel desktop round-trip UNVERIFIED: execution environment unavailable',
                                'Windows/macOS Calc interactive import/save dialogs UNVERIFIED; see per-platform results for API round-trip',
                                'Injected bad_alloc is not real OOM; arbitrary callback exceptions are not exhaustively verified',
-                               'Automated GUI tests do not establish physical display or instrument acceptance'])
+                               'Automated GUI tests do not establish physical display or instrument acceptance',
+                               'COM deferred; generic ILD/ICN and simulated NRZ Eye are engineering references, not compliance or measured BER',
+                               'Private S36P final-package workflows, exhaustive HiDPI, long-duration memory and runtime localization inventory not certified'])
     status_path = output/f'SParamView_v{version}_Release_Status_FINAL.json'
     status_path.write_text(json.dumps(status, indent=2)+'\n', encoding='utf-8')
     for path in list(output.iterdir()):

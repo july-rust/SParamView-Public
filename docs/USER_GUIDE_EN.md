@@ -1,10 +1,10 @@
 # SParamView User Guide
 
-**Applies to:** SParamView **v1.3.5 official release**
+**Applies to:** SParamView **v1.4.0 official release**
 **Supported platforms:** Windows x64 / Windows ARM64 / macOS Apple Silicon (arm64)
-**Documentation updated:** **2026-11-14 (KST)**. v1.3.5 integrates Mapping CSV formula-safety, lossless versioned import, guarded GUI startup and fail-closed cache construction; v1.3.3 hardens malformed numeric port declarations and uses linear input parsing while preserving valid legacy label conventions. Covers v1.3.2 project switching and title bar, v1.3.1 multi-process cache safety, v1.3.0 Touchstone/port-label compatibility, Windows package layout, and the v1.2.5 cache policy. Historical release assets are unchanged.
+**Documentation updated:** 2026-11-27 (KST). Includes new analyzers, localization and GUI improvements.
 
-[한국어 사용자 설명서](USER_GUIDE_KO.md) | [English README](../README_EN.md) | [v1.3.5 Release Notes](Release_1.3.5.md)
+[한국어 사용자 설명서](USER_GUIDE_KO.md) | [English README](../README_EN.md) | [v1.4.0 Release Notes](Release_1.4.0.md)
 
 ---
 
@@ -110,9 +110,9 @@ Download the package that matches your system from GitHub Releases.
 
 | System | Recommended package |
 |---|---|
-| Windows x64 | `SParamView_Windows_x64_v1.3.5.zip` |
-| Windows ARM64 | `SParamView_Windows_ARM64_v1.3.5.zip` |
-| macOS Apple Silicon | `SParamView_macOS_AppleSilicon_arm64_v1.3.5.dmg` or `.zip` |
+| Windows x64 | `SParamView_Windows_x64_v1.4.0.zip` |
+| Windows ARM64 | `SParamView_Windows_ARM64_v1.4.0.zip` |
+| macOS Apple Silicon | `SParamView_macOS_AppleSilicon_arm64_v1.4.0.dmg` or `.zip` |
 
 SHA-256 files are also provided with the release. To verify download integrity, run `Get-FileHash <filename> -Algorithm SHA256` in Windows PowerShell or `shasum -a 256 <filename>` in macOS Terminal, then compare the result with the corresponding `.sha256` file.
 
@@ -588,7 +588,7 @@ Contact: **sparamview@gmail.com**
 
 ## 22. Documentation verification sources
 
-Historical v1.2.1 feature changes are supported by the [v1.2.1 release notes](Release_1.2.1.md) and the source links below. For the current release, see the [v1.3.5 release notes](Release_1.3.5.md), [temporary-cache policy](Temporary_Cache_Cleanup.md), [revision history](Revision_History.md), and [tagged source](https://github.com/july-rust/SParamView-Public/tree/v1.3.5). Previous v1.2.4a validation is retained in the [historical release notes](Release_1.2.4a.md).
+Historical v1.2.1 feature changes are supported by the [v1.2.1 release notes](Release_1.2.1.md) and the source links below. For the current release, see the [v1.4.0 release notes](Release_1.4.0.md), [temporary-cache policy](Temporary_Cache_Cleanup.md), [revision history](Revision_History.md), and [tagged source](https://github.com/july-rust/SParamView-Public/tree/v1.4.0). Previous v1.2.4a validation is retained in the [historical release notes](Release_1.2.4a.md).
 
 - [Initial TDR axes and automatic scaling](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/src/plot.cpp)
 - [Plot interaction and viewport restoration](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/src/navigation.cpp)
@@ -601,37 +601,20 @@ Historical v1.2.1 feature changes are supported by the [v1.2.1 release notes](Re
 
 ### Document Version
 
-This guide was updated on **2026-11-14 (KST)** for the **SParamView v1.3.5 official release**. The embedded screenshots remain **historical v1.2.1 validation captures** (see [images/README.md](images/README.md)); no v1.3.2 screenshots are claimed. The published v1.3.0 tag and attached guide assets remain immutable.
+This guide applies to v1.4.0 (2026-11-27 KST); embedded screenshots are historical v1.2.1 captures.
 
 
 
-## In-development v1.4.0 — independent ILD window (not in official v1.3.5)
 
-> Applies only to the 012_05 feature on the v1.4.0 integration branch. The official release remains v1.3.5; native GUI/release qualification is not claimed before 012_14.
+## 23. What's new in v1.4.0
 
-Open **Analysis → ILD** as a separate top-level window. Select a confirmed source revision, channel, forward/reverse direction, measured frequency range, and one of the available fit models. **Run** re-verifies the original SHA-256 in a background worker. The first plot shows positive IL \(-20\log_{10}|S21|\) with fitted IL; the second shows signed **ILD(f) = IL − fitted IL**. RMS and peak absolute residual are displayed. CSV exports numeric frequency, original/fitted IL, ILD, fit coefficients, actual range and provenance; PNG exports the real plot. Source, mapping or configuration changes invalidate previous output as **STALE**.
+- Independent ILD, Generic ICN and simulated NRZ Eye Diagram analysis windows. Select the mapped victim/path; use Auto Analysis/Auto Preview for initial conditions or Run Manual for known conditions. Review assumptions, warnings, and quality status; export CSV/PNG.
+- ILD displays measured/fitted insertion loss and deviation. ICN integrates mapped NEXT/FEXT paths with explicit signal/filter and independent-path RSS assumptions. Eye Diagram is a band-limited simulation, not measured BER. Auto settings are engineering assumptions, not inferred PHY settings.
+- Eye Diagram checks DC quality. For missing DC, start frequency up to 10 kHz has no frequency-based confirmation, above 10 kHz and below 100 kHz requires confirmation, and at or above 100 kHz is blocked; other quality checks still apply. Conditional AC-like one-pole extrapolation does not establish physical topology or long-pattern accuracy.
+- Runtime English/Korean/Japanese language switching; Language menu stays in English. New resets the workspace after unsaved-change confirmation; multiple Touchstone files are processed sequentially with individual mapping. Last directory and main-window state are remembered. Analysis windows adapt to the display; guidance scrolls independently of plots. Table refresh, overlay and rendering are optimized.
+- Default limits: RL -10 dB, IL -3 dB, NEXT/FEXT -20 dB, TDR -10%; checks initially off. These are configurable examples, not standards.
+- Windows user ZIP excludes optional test executables and verification launcher; separate QA ZIP supports validation.
 
-Generic sample RMS and peak residual are **not** an IEEE weighted FOM_ILD or an IEEE/MIPI PHY PASS/FAIL declaration. Invalid or insufficient inputs fail closed. See [ILD implementation and qualification contract](Channel_Analysis_ILD_012_05.md).
+**Scope:** engineering-reference calculations only. COM is deferred and has no production menu. No IEEE/SNIA/MIPI compliance, measured BER or exhaustive physical-platform/HiDPI certification is claimed.
 
----
-
-## In-development v1.4.0 — independent Generic ICN (012_06, not v1.3.5)
-
-Implemented and automated-CI-verified (still unreleased) in [PR #42](https://github.com/july-rust/SParamView-Public/pull/42). Open **Analysis → ICN** in a separate nonmodal window (only available after the engine is registered). Select a source revision, victim channel and one or more NEXT/FEXT aggressor paths with checkboxes. Enter symbol rate (GBd), TX voltage (mV **peak-to-peak**), Gaussian 10–90% rise time (ps), RX 3 dB bandwidth (GHz) and integration range (GHz); then Run. Initial numerical controls are **illustrative values, never automatically inferred from your transmitter**.
-
-The window displays summed NEXT/FEXT transfer power, weighted noise PSD and cumulative NEXT/FEXT RMS with a total RMS summary. CSV saves source SHA, reference mapping, model, individual aggressor contributions and full per-frequency numerical data; PNG saves the actual rendered graph. The program rejects invalid/missing TX voltage and stale exports. If measured frequency limits omit DC or a requested band, results are marked **BAND LIMITED**; no missing spectrum is invented.
-
-This is an **exploratory IID NRZ, uncorrelated-aggressor calculation**, NOT IEEE 802.3 ICN, SNIA ccICN, COM, lab-measured noise or PHY PASS/FAIL. See [ICN 012_06 contract](Channel_Analysis_ICN_012_06.md). Physical Windows/macOS GUI acceptance is scheduled for 012_12, and official v1.4.0 release for 012_14.
-
-
-## Development branch only — 012_08 Simulated Channel Eye (planned v1.4.0)
-
-> This feature is **not** in the official v1.3.5 release. Implementation and qualified PR CI passed; [PR #47](https://github.com/july-rust/SParamView-Public/pull/47) was squash-merged into `integration/v1.4.0`. Post-merge integration CI [#43812686401](https://github.com/july-rust/SParamView-Public/actions/runs/43812686401) succeeded, completing the 012_08 simulated Eye GUI stage. The physical 012_12 GUI and official release remain separate acceptance gates.
-
-Open a SHA-qualified Touchstone revision with confirmed physical channel mapping; select **Analysis → Eye Diagram** to open a separate non-modal window. Choose a profile: MIPI D-PHY v2.1 HS provides an illustrative **4.5 Gb/s per lane / 2.25 GHz coupled NRZ reference / independently adjustable 10 GHz analysis cap**. DDR2/3/4/5, LVDS, SLVS, SLVS-EC and Custom require explicit rate, cap and electrical conditions. Switching profiles clears physical electrical fields.
-
-Choose confirmed S21/S12 or Sdd21/Sdd12 mode, a PRBS7/alternating/custom bit pattern, radix-2 FFT and samples/UI. **Enter all TX incident low/high voltages (mV), matched TX source/RX load impedances (ohm), RX decision threshold and linear RX input range (mV)**. These are voltages **at the S-parameter reference plane**, not automatically inferred driver VOD or PHY-specific thresholds. No fabricated PHY presets.
-
-Use **Run** for the asynchronous, phase-preserving periodic NRZ simulation; **Cancel** safely invalidates the running work. Inspect the 2-UI overlay with sampling/threshold guides, time-domain TX/RX waveform, and impulse/unit-pulse view; mouse-wheel zoom, drag-pan, hover coordinates and double-click reset are supported. Eye height (mV), width (ps/UI), phase/delay and high/low extrema are numeric outputs. CSV/PNG include source provenance and measured data from the same modeled result; STALE/invalid exports are prohibited.
-
-**Not a measured eye, statistical BER, physical receiver model, or MIPI/DDR/LVDS/SLVS PHY compliance.** Measured DC and actual Touchstone coverage through the requested cap are mandatory; unqualified terminations and receiver-range violations fail closed. Refer to the [012_08 GUI contract](Channel_Analysis_Eye_GUI_012_08.md); physical Windows/macOS acceptance is still the later 012_12 gate.
+[Release notes](Release_1.4.0.md) · [ILD](Channel_Analysis_ILD_012_05.md) · [ICN](Channel_Analysis_ICN_012_06.md) · [Eye Diagram](Channel_Analysis_Eye_012_07.md) · [AC/Auto](qualification/012_54_AC_Auto_Analysis.md).
