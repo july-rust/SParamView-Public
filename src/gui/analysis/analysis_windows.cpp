@@ -14,6 +14,7 @@
 #include <QCursor>
 #include <QWindow>
 #include <QShowEvent>
+#include <QVariant>
 #include <exception>
 #include <stdexcept>
 #include <utility>
@@ -48,6 +49,21 @@ QString statusName(si::channel::Status status) {
   return QStringLiteral("ERROR");
 }
 
+// Actual axis values used by paintEvent, in Hz (ILD/ICN) or UI/ps (Eye).
+// Expose these for native event-loop regression tests without forcing a paint.
+void recordPaintedAxes(QWidget *widget, int panel, double x0, double x1,
+                       double y0, double y1) {
+  const QByteArray key=QByteArray("paintedAxes")+QByteArray::number(panel);
+  const QVariantList axes{x0,x1,y0,y1};
+  if(widget->property(key.constData()).toList()!=axes)
+    widget->setProperty(key.constData(),axes);
+}
+void clearPaintedAxes(QWidget *widget) {
+  for(int i=0;i<3;++i) {
+    const QByteArray key=QByteArray("paintedAxes")+QByteArray::number(i);
+    widget->setProperty(key.constData(),QVariant());
+  }
+}
 class IldPlotWidget final : public QWidget {
 public:
   explicit IldPlotWidget(QWidget *parent = nullptr) : QWidget(parent) {
@@ -55,12 +71,14 @@ public:
     setMinimumHeight(260);
     setMouseTracking(true);
   }
-  void setFullYRange(bool enabled) {
-    fullYRange_=enabled;
+  void setDetailYRange(bool enabled) {
+    detailYRange_=enabled;
+    clearPaintedAxes(this);
     update();
   }
   void setData(std::shared_ptr<const si::channel::IldData> data) {
     data_ = std::move(data);
+    clearPaintedAxes(this);
     dragging_=false;
     if(data_ && data_->frequencyHz.size()>1) {
       viewFrom_=data_->frequencyHz.front();
@@ -155,7 +173,7 @@ protected:
       }
       detail::PlotBounds focused;
       bool detailView=false;
-      if(!fullYRange_ && beginIndex==0 && endIndex>=4 &&
+      if(detailYRange_ && beginIndex==0 && endIndex>=4 &&
          f0==d.frequencyHz.front()) {
         detail::PlotBounds interior;
         for(size_t j=1;j<endIndex;++j) {
@@ -168,6 +186,7 @@ protected:
       if(detailView) bounds=focused;
       else if(!bounds.pad(0.08,panel==1,false,0.05)) continue;
       const double low=bounds.low,high=bounds.high;
+      recordPaintedAxes(this,panel,f0,f1,low,high);
       p.setPen(QPen(palette().mid().color(),1));
       p.drawRect(area);
       p.setPen(palette().text().color());
@@ -244,7 +263,7 @@ protected:
     }
   }
 private:
-  bool fullYRange_=false;
+  bool detailYRange_=false;
   std::shared_ptr<const si::channel::IldData> data_;
   double viewFrom_=0,viewTo_=0,lastX_=0;
   bool dragging_=false;
@@ -258,10 +277,12 @@ public:
   }
   void setData(std::shared_ptr<const si::channel::IcnData> data) {
     data_=std::move(data);
+    clearPaintedAxes(this);
     update();
   }
   void setPanel(int selection) {
     panel_=std::clamp(selection,0,3);
+    clearPaintedAxes(this);
     setMinimumHeight(panel_==0?410:245);
     updateGeometry();
     update();
@@ -305,6 +326,7 @@ protected:
       // Linear PSD/RMS are nonnegative; dB power is not forced toward 0 dB.
       if(!bounds.pad(0.08,panel!=0,panel!=0,panel==0?0.05:0.0)) continue;
       const double low=bounds.low,high=bounds.high;
+      recordPaintedAxes(this,panel,f0,f1,low,high);
       p.setPen(QPen(palette().mid().color(),1));
       p.drawRect(area);
       p.setPen(palette().text().color());
@@ -370,9 +392,10 @@ public:
   }
   void setData(std::shared_ptr<const si::channel::EyeData> data, double thresholdV) {
     data_=std::move(data); thresholdV_=thresholdV;
-    zoom_=1; shift_=0; cursor_=-1; update();
+    clearPaintedAxes(this);
+    dragging_=false; zoom_=1; shift_=0; cursor_=-1; update();
   }
-  void setView(int view) { view_=std::clamp(view,0,2); zoom_=1;shift_=0;update(); }
+  void setView(int view) { view_=std::clamp(view,0,2); clearPaintedAxes(this); dragging_=false; zoom_=1;shift_=0;update(); }
 protected:
   void wheelEvent(QWheelEvent *e) override {
     if(!data_ || !e->angleDelta().y()) { QWidget::wheelEvent(e);return; }
@@ -446,6 +469,7 @@ protected:
     const double fullX=view_==0?2.0 : (d.timeSeconds.empty()?0:d.timeSeconds.back()*1e12);
     const double x0=fullX*shift_, x1=fullX*(shift_+1/zoom_);
     if(x1<=x0) return;
+    recordPaintedAxes(this,view_,x0,x1,low,high);
     auto xp=[&](double x){return area.left()+(x-x0)/(x1-x0)*area.width();};
     auto yp=[&](double y){return area.bottom()-(y-low)/(high-low)*area.height();};
     p.drawText(QRectF(area.left(),area.bottom()+5,area.width(),20),Qt::AlignLeft,
@@ -942,11 +966,11 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     graphPlaceholder_->hide();
     auto *ildPlot=new IldPlotWidget(this);
     ildGraph_=ildPlot;
-    auto *fullY=new QCheckBox(QStringLiteral("Full Y range"));
-    fullY->setObjectName(QStringLiteral("ildFullYRange"));
-    fullY->setToolTip(QStringLiteral("Show every Y value, including the first frequency point."));
-    heading->insertWidget(1,fullY);
-    connect(fullY,&QCheckBox::toggled,ildPlot,&IldPlotWidget::setFullYRange);
+    auto *detailY=new QCheckBox(QStringLiteral("Detail Y range"));
+    detailY->setObjectName(QStringLiteral("ildDetailYRange"));
+    detailY->setToolTip(QStringLiteral("Optional detail view for an isolated first frequency point; unchecked shows full range."));
+    heading->insertWidget(1,detailY);
+    connect(detailY,&QCheckBox::toggled,ildPlot,&IldPlotWidget::setDetailYRange);
     plotLayout->addWidget(ildGraph_,1);
   } else if(feature_==Feature::Icn) {
     graphPlaceholder_->hide();
