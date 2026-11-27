@@ -92,13 +92,15 @@ struct WorkspaceProbe {
     if (!v) return;
     std::cerr << " [" << name
               << ":hint=" << v->minimumSizeHint().width()
-              << ",min=" << v->minimumWidth()
-              << ",size=" << v->width() << "]";
+              << "x" << v->minimumSizeHint().height()
+              << ",min=" << v->minimumWidth() << "x" << v->minimumHeight()
+              << ",size=" << v->width() << "x" << v->height() << "]";
   };
   auto layout = [](const char *name,QLayout *v) {
     if (!v) return;
     std::cerr << " [" << name << ":min=" << v->minimumSize().width()
-              << ",hint=" << v->sizeHint().width() << "]";
+              << "x" << v->minimumSize().height()
+              << ",hint=" << v->sizeHint().width() << "x" << v->sizeHint().height() << "]";
   };
   auto *left=w.horizontalSplit->widget(0);
   auto *right=w.horizontalSplit->widget(1);
@@ -182,6 +184,8 @@ struct WorkspaceProbe {
    widthDiagnostics(w,code);
    check(w.width()<=target.width() && w.height()<=target.height(),
          "Localized main window exceeds compact work area");
+   const auto graph=graphArea(w.plot->rect(),w.plot->snapshot);
+   check(graph.width()>0 && graph.height()>0,"Compact main workspace lost plot area");
    for (const auto *name : {"workspaceHeader","workspaceToolbar","workspaceGraphControls","workspaceResultControls"}) {
     auto *strip=w.findChild<QScrollArea *>(name);
     check(strip && strip->widget() && strip->isVisible(),"Compact control strip missing");
@@ -194,6 +198,14 @@ struct WorkspaceProbe {
      strip->ensureWidgetVisible(control,0,0);
      QApplication::processEvents();
      const QRect bounds(control->mapTo(strip->viewport(),QPoint(0,0)),control->size());
+     if (!strip->viewport()->rect().adjusted(-1,-1,1,1).contains(bounds))
+       std::cerr << "COMPACT CONTROL: " << name << " "
+                 << control->metaObject()->className() << " "
+                 << control->objectName().toStdString()
+                 << " bounds=" << bounds.x() << "," << bounds.y()
+                 << " " << bounds.width() << "x" << bounds.height()
+                 << " viewport=" << strip->viewport()->width() << "x"
+                 << strip->viewport()->height() << std::endl;
      check(strip->viewport()->rect().adjusted(-1,-1,1,1).contains(bounds),
            "Compact workspace control cannot be reached by scrolling");
     }
