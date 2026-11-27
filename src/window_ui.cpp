@@ -245,6 +245,88 @@ protected:
   }
 };
 
+// Keep a control row's natural layout, but allow horizontal navigation on
+// narrow screens instead of forcing the entire main window wider than the
+// available desktop. Reserve one scrollbar extent so translated text and
+// native scrollbar styles cannot clip the controls vertically.
+class WorkspaceControlStrip final : public QScrollArea {
+public:
+  WorkspaceControlStrip(QHBoxLayout *row, const QString &name) {
+    setObjectName(name);
+    setFrameShape(QFrame::NoFrame);
+    setWidgetResizable(true);
+    setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    auto *stripContentWidget = new QWidget;
+    stripContentWidget->setObjectName(name + "Contents");
+    // Use compact padding without shrinking the font or the clickable text.
+    // This also offsets the scrollbar height in short desktop work areas.
+    stripContentWidget->setStyleSheet(
+        "QPushButton,QToolButton { padding:3px 6px; }"
+        "QComboBox,QDoubleSpinBox,QSpinBox,QLineEdit { padding:2px 4px; }");
+    row->setContentsMargins(0, 0, 0, 0);
+    stripContentWidget->setLayout(row);
+    setWidget(stripContentWidget);
+    stripContentWidget->installEventFilter(this);
+  }
+  QSize sizeHint() const override {
+    if (!widget()) return QSize(0, 0);
+    const auto natural = widget()->sizeHint();
+    return QSize(natural.width(), rowHeight());
+  }
+  QSize minimumSizeHint() const override { return QSize(0, rowHeight()); }
+protected:
+  bool eventFilter(QObject *watched, QEvent *event) override {
+    if (watched == widget() && event->type() == QEvent::LayoutRequest)
+      updateGeometry();
+    return QScrollArea::eventFilter(watched, event);
+  }
+private:
+  int rowHeight() const {
+    if (!widget()) return 0;
+    return std::max(widget()->sizeHint().height(), widget()->minimumSizeHint().height())
+        + style()->pixelMetric(QStyle::PM_ScrollBarExtent, nullptr, this)
+        + 2 * frameWidth();
+  }
+};
+
+void MainWindow::installHeaderProjectButtons() {
+  if (!centralWidget() || !centralWidget()->layout())
+    return;
+  if (findChild<QPushButton *>("headerOpenProjectButton"))
+    return;
+  auto *contents = findChild<QWidget *>("workspaceHeaderContents");
+  auto *headerButtonLayout = contents ? qobject_cast<QBoxLayout *>(contents->layout()) : nullptr;
+  if (!headerButtonLayout)
+    return;
+  int insertAt = headerButtonLayout->count();
+  for (int headerIndex = 0; headerIndex < headerButtonLayout->count(); ++headerIndex) {
+    auto *item = headerButtonLayout->itemAt(headerIndex);
+    auto *existing = item ? qobject_cast<QPushButton *>(item->widget()) : nullptr;
+    if (existing && existing->text().contains("Open Touchstone")) {
+      insertAt = headerIndex + 1;
+      break;
+    }
+  }
+  auto *openProject = new QPushButton("Open Project");
+  openProject->setObjectName("headerOpenProjectButton");
+  openProject->setToolTip("Open an SParamView project (.siproject)");
+  connect(openProject, &QPushButton::clicked, this, [this] {
+    const auto path = QFileDialog::getOpenFileName(
+        this, sparamview::ui_language::textFor(this, "Project"), sparamview::preferences::workingDirectory(), sparamview::ui_language::textFor(this, "SI Project (*.siproject)"));
+    if (!path.isEmpty())
+      loadProject(path);
+  });
+  auto *headerSaveActionButton = new QPushButton("Save Project");
+  headerSaveActionButton->setObjectName("headerSaveProjectButton");
+  headerSaveActionButton->setToolTip("Save the current SParamView project");
+  connect(headerSaveActionButton, &QPushButton::clicked, this,
+          [this] { saveProject(); });
+  headerButtonLayout->insertWidget(insertAt, openProject);
+  headerButtonLayout->insertWidget(insertAt + 1, headerSaveActionButton);
+}
+
 MainWindow::MainWindow() {
   workspaceCache = std::make_shared<QTemporaryDir>(
       QDir(cacheSession.path()).filePath("workspace-XXXXXX"));
@@ -267,11 +349,11 @@ MainWindow::MainWindow() {
       [this] {
         openPaths(QFileDialog::getOpenFileNames(
             this, sparamview::ui_language::textFor(this, "Select Touchstone Files"), sparamview::preferences::workingDirectory(),
-            "Touchstone (*.s*p *.ts);;All files (*)"));
+            sparamview::ui_language::textFor(this, "Touchstone (*.s*p *.ts)") + ";;" + sparamview::ui_language::textFor(this, "All files (*)")));
       });
   file->addAction("Open Project...", this, [this] {
     auto p = QFileDialog::getOpenFileName(this, sparamview::ui_language::textFor(this, "Project"), sparamview::preferences::workingDirectory(),
-                                          "SI Project (*.siproject)");
+                                          sparamview::ui_language::textFor(this, "SI Project (*.siproject)"));
     if (!p.isEmpty())
       loadProject(p);
   });
@@ -362,17 +444,24 @@ MainWindow::MainWindow() {
         [this] { sparamview::ui_language::message(notice,"Source SHA-256 verified"); });
   });
   menuBar()->addAction("About", this, [this] {
+#if defined(Q_OS_WIN)
+    const QString buildPlatform = "Windows";
+#elif defined(Q_OS_MACOS)
+    const QString buildPlatform = "macOS";
+#else
+    const QString buildPlatform = QSysInfo::productType();
+#endif
     QMessageBox::information(
         this, sparamview::ui_language::textFor(this, "About SParamView"),
-        sparamview::ui_language::textFor(this,"SParamView\nVersion %1\nBuild: Windows %2\n\nCopyright © 2026 july\nsparamview@gmail.com\nLicensed under the MIT License\n\nC++20 / Qt 6\nProcessing is local. Original Touchstone files are not modified.")
+        sparamview::ui_language::textFor(this,"SParamView\nVersion %1\nBuild: %2\n\nCopyright © 2026 july\nsparamview@gmail.com\nLicensed under the MIT License\n\nC++20 / Qt 6\nProcessing is local. Original Touchstone files are not modified.")
             .arg(si::version)
-            .arg(QString::fromLatin1(architectureName())));
+            .arg(buildPlatform + " " + QString::fromLatin1(architectureName())));
   });
   body = new QWidget;
   setCentralWidget(body);
   auto root = new QVBoxLayout(body);
-  root->setContentsMargins(12, 10, 12, 8);
-  root->setSpacing(8);
+  root->setContentsMargins(12, 6, 12, 6);
+  root->setSpacing(4);
   auto banner = new QHBoxLayout;
   banner->setSpacing(8);
   auto brand = new QLabel(
@@ -383,11 +472,11 @@ MainWindow::MainWindow() {
   banner->addStretch();
   button("+ Open Touchstone", banner, [this] {
     openPaths(QFileDialog::getOpenFileNames(
-        this, "Touchstone", sparamview::preferences::workingDirectory(), "Touchstone (*.s*p *.ts);;All files (*)"));
+        this, sparamview::ui_language::textFor(this, "Select Touchstone Files"), sparamview::preferences::workingDirectory(), sparamview::ui_language::textFor(this, "Touchstone (*.s*p *.ts)") + ";;" + sparamview::ui_language::textFor(this, "All files (*)")));
   });
   button("Open Sample", banner, [this] { loadDemo(); });
   button("Export XLSX", banner, [this] { exportXlsx(); });
-  root->addLayout(banner);
+  root->addWidget(new WorkspaceControlStrip(banner, "workspaceHeader"));
   auto split = horizontalSplit = new QSplitter;
   split->setObjectName("workspaceHorizontalSplit");
   split->setHandleWidth(8);
@@ -472,8 +561,8 @@ MainWindow::MainWindow() {
   split->addWidget(channelContainer);
   auto content = new QWidget;
   auto right = new QVBoxLayout(content);
-  right->setContentsMargins(12, 8, 8, 8);
-  right->setSpacing(10);
+  right->setContentsMargins(12, 4, 8, 4);
+  right->setSpacing(4);
   auto workspaceBar = new QHBoxLayout;
   workspaceBar->setSpacing(5);
   int viewIndex = 0;
@@ -502,7 +591,7 @@ MainWindow::MainWindow() {
     if (action == fullscreenAction) { tool->setText("⛶"); tool->setToolTip("Full Screen (F11)"); }
     workspaceBar->addWidget(tool);
   }
-  right->addLayout(workspaceBar);
+  right->addWidget(new WorkspaceControlStrip(workspaceBar, "workspaceToolbar"));
   auto settingsScroll = new QScrollArea;
   settingsPanel = settingsScroll; settingsScroll->setObjectName("analysisSettingsPanel"); settingsScroll->setWidgetResizable(true); settingsScroll->setFrameShape(QFrame::NoFrame); settingsScroll->setMinimumHeight(44); settingsScroll->setMaximumHeight(74);
   auto settingsContent = new QWidget; settingsScroll->setWidget(settingsContent);
@@ -597,10 +686,11 @@ MainWindow::MainWindow() {
   });
   tabs = new QTabWidget;
   tabs->setObjectName("analysisTabs");
+  tabs->setStyleSheet("QTabBar::tab { padding:5px 12px; }");
   auto plotPage = new QWidget;
-  auto pv = new QVBoxLayout(plotPage);
-  pv->setContentsMargins(10, 8, 10, 8);
-  pv->setSpacing(8);
+  auto plotPageLayout = new QVBoxLayout(plotPage);
+  plotPageLayout->setContentsMargins(10, 4, 10, 4);
+  plotPageLayout->setSpacing(4);
   auto graphOptions = new QHBoxLayout;
   graphOptions->setSpacing(6);
   metricView = new QComboBox;
@@ -630,14 +720,14 @@ MainWindow::MainWindow() {
   button("Previous View", graphOptions, [this] { plot->previousView(); });
   button("Axis Limits", graphOptions, [this] { plot->editAxes(); });
   button("Fit All", graphOptions, [this] { plot->fitView(); });
-  pv->addLayout(graphOptions);
+  plotPageLayout->addWidget(new WorkspaceControlStrip(graphOptions, "workspaceGraphControls"));
   plot = new PlotWidget;
-  pv->addWidget(plot, 1);
+  plotPageLayout->addWidget(plot, 1);
   auto readout = new QLabel("Wheel: X zoom · Ctrl+wheel: Y zoom · Drag: pan · Shift+drag: box zoom");
-  readout->setMinimumHeight(22);
+  readout->setMinimumHeight(18);
   readout->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
   readout->setWordWrap(true);
-  pv->addWidget(readout);
+  plotPageLayout->addWidget(readout);
   plot->cursorChanged = [readout](const QString &text) {
     readout->setText(text.isEmpty() ? sparamview::ui_language::textFor(readout, "Wheel: X zoom · Ctrl+wheel: Y zoom · Drag: pan · Shift+drag: box zoom") : text);
   };
@@ -661,8 +751,8 @@ MainWindow::MainWindow() {
   resultsPanel = new QWidget;
   resultsPanel->setObjectName("resultsPanel");
   auto resultLayout = new QVBoxLayout(resultsPanel);
-  resultLayout->setContentsMargins(10, 8, 10, 8);
-  resultLayout->setSpacing(8);
+  resultLayout->setContentsMargins(10, 4, 10, 4);
+  resultLayout->setSpacing(4);
   auto resultBar = new QHBoxLayout;
   resultBar->setSpacing(8);
   summary = new QLabel("No limits configured → N/A");
@@ -680,7 +770,7 @@ MainWindow::MainWindow() {
   rankBox->addItems({"Worst Margin", "Worst Value", "Channel", "Result"});
   resultBar->addWidget(rankBox);
   button("Compare Revisions", resultBar, [this] { compareRevisions(); });
-  resultLayout->addLayout(resultBar);
+  resultLayout->addWidget(new WorkspaceControlStrip(resultBar, "workspaceResultControls"));
   table = new QTableWidget;
   table->setObjectName("analysisResults");
   table->setColumnCount(13);
@@ -693,7 +783,7 @@ MainWindow::MainWindow() {
   table->setEditTriggers(QAbstractItemView::NoEditTriggers);
   table->verticalHeader()->hide();
   table->horizontalHeader()->setStretchLastSection(true);
-  table->setMinimumHeight(100);
+  table->setMinimumHeight(84);
   table->setAlternatingRowColors(true);
   resultLayout->addWidget(table, 1);
   analysisSplit->addWidget(resultsPanel);
@@ -705,7 +795,7 @@ MainWindow::MainWindow() {
   analysisSplit->setSizes({560, 260});
   notice = new QLabel("Open file → Confirm mapping → Select channels → QUICK ANALYSIS. Pass/fail evaluation requires user-defined limits.");
   notice->setWordWrap(true);
-  notice->setStyleSheet("color:#64758b;padding:4px 8px");
+  notice->setStyleSheet("color:#64758b;padding:2px 8px");
   root->addWidget(notice);
   progress = new QProgressBar;
   progress->setMaximumWidth(180);

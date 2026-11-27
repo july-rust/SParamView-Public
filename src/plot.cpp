@@ -182,6 +182,11 @@ QString graphParameterLabel(const PlotSnapshot &s) {
     labels << parameter;
   return labels.join(" / ");
 }
+QString graphTitleLabel(const PlotSnapshot &s) {
+  return plotText(s, qs(si::name(s.metric))) + "  ·  " +
+         graphParameterLabel(s) +
+         (s.heatmap ? "  /  " + plotText(s,"Heatmap") : QString());
+}
 QString graphQualityLabel(const PlotSnapshot &s) {
   if (s.metric != si::Metric::TDR)
     return {};
@@ -330,9 +335,7 @@ void paintGraph(QPainter &p, QRectF r, const PlotSnapshot &s, bool interactive) 
   p.setRenderHint(QPainter::Antialiasing);
   p.fillRect(r, Qt::white);
   const bool compactHeader = r.height() < 240;
-  const QString title = qs(si::name(s.metric)) + "  ·  " +
-                        graphParameterLabel(s) +
-                        (s.heatmap ? "  /  " + plotText(s,"Heatmap") : QString());
+  const QString title = graphTitleLabel(s);
   QFont titleFont(plotFontFamily, 17, QFont::DemiBold);
   while (QFontMetricsF(titleFont).horizontalAdvance(title) > r.width() - 44 &&
          titleFont.pointSizeF() > 9)
@@ -344,7 +347,7 @@ void paintGraph(QPainter &p, QRectF r, const PlotSnapshot &s, bool interactive) 
   p.setPen(QColor("#64758b"));
   const QString context = plotText(s,"%1 traces").arg(s.curves.size()) + "  •  " +
                           (s.bothDirections ? plotText(s,"Both directions")
-                                            : qs(si::metricDirection(s.metric, s.settings.reverse)).replace(" -> ", " → "));
+                                            : plotText(s,qs(si::metricDirection(s.metric, s.settings.reverse))).replace(" -> ", " → "));
   const double projectWidth = std::max(
       0., r.width() - 54 - QFontMetricsF(p.font()).horizontalAdvance(context));
   const QString project = QFontMetricsF(p.font()).elidedText(
@@ -604,7 +607,7 @@ void paintGraph(QPainter &p, QRectF r, const PlotSnapshot &s, bool interactive) 
   p.setPen(QColor("#64758b"));
   p.drawText(QRectF(box.left(), box.bottom() + 32, box.width(), 22),
              Qt::AlignCenter,
-             unit + (s.heatmap ? "" : plotText(s," • wheel: X zoom | Ctrl: Y | drag: pan | Shift+drag: box")));
+             QFontMetricsF(p.font()).elidedText(unit, Qt::ElideRight, box.width()));
   p.restore();
 }
 QImage graphImage(const PlotSnapshot &s, QSize size) {

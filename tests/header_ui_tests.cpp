@@ -29,9 +29,8 @@ int main(int argc, char **argv) {
     return 3;
   }
 
-  auto *root = window.centralWidget() ? window.centralWidget()->layout() : nullptr;
-  auto *first = root && root->count() ? root->itemAt(0) : nullptr;
-  auto *banner = first ? dynamic_cast<QBoxLayout *>(first->layout()) : nullptr;
+  auto *contents = window.findChild<QWidget *>("workspaceHeaderContents");
+  auto *banner = contents ? qobject_cast<QBoxLayout *>(contents->layout()) : nullptr;
   if (!banner) {
     std::cerr << "Header layout is missing\n";
     return 4;
