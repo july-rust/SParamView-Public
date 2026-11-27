@@ -439,6 +439,8 @@ int main(int argc, char **argv) {
     ild->runButton()->click();drain(manager.scheduler());
     check(ild->status()==S::Valid,"ILD original manual settings restore failed");
     check(paintedAxes(ildPlot,0)==ildFullAxes,"ILD full manual axis restore failed");
+    const auto fullDrawSamples=ildPlot->property("ildVisibleSampleCount").toULongLong();
+    check(fullDrawSamples>4,"ILD full-band draw sample count missing");
     // Pixel-only wheel input (trackpad), followed by ordinary mouse-wheel input.
     sendPlotWheel(ildPlot,QPoint(0,30),QPoint());
     check(pumpUntil([&]{return ildPlot->property("paintedAxes0").toList()!=ildFullAxes;}),
@@ -453,6 +455,11 @@ int main(int argc, char **argv) {
     const auto ildWheelZoom=paintedAxes(ildPlot,0);
     check(std::abs((ildWheelZoom[1].toDouble()-ildWheelZoom[0].toDouble())/pixelSpan-.8)<1e-9,
           "ILD conventional one-notch wheel zoom changed");
+    const auto zoomDrawSamples=ildPlot->property("ildVisibleSampleCount").toULongLong();
+    check(zoomDrawSamples>=2 && zoomDrawSamples<fullDrawSamples,
+          "ILD zoom did not restrict draw sample work");
+    std::cout << "012_60 ILD full_samples=" << fullDrawSamples
+              << " zoom_samples=" << zoomDrawSamples << std::endl;
     ild->runButton()->click();drain(manager.scheduler());
     check(paintedAxes(ildPlot,0)==ildFullAxes,"ILD manual rerun must reset zoom");
     auto *csv=ild->findChild<QPushButton *>(QStringLiteral("analysisCsv"));
