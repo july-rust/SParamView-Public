@@ -489,6 +489,7 @@ jobs:
           # Run all macOS GUI checks with native Cocoa. Qt's minimal platform
           # cannot load application fonts or propagate window size hints and
           # logs unsupported-feature warnings instead of exercising them.
+          QT_QPA_PLATFORM=cocoa build-macos/si_channel_gui_tests
           QT_QPA_PLATFORM=cocoa build-macos/si_header_ui_tests
           QT_QPA_PLATFORM=cocoa build-macos/si_navigation_tests build-macos/navigation-test-macos
           QT_QPA_PLATFORM=cocoa build-macos/si_open_tests build-macos/open-test-macos fallback

@@ -17,6 +17,7 @@
 #include <QTemporaryDir>
 #include <QFile>
 #include <QImage>
+#include <QVariant>
 #include <stdexcept>
 
 using namespace si::gui;
@@ -34,6 +35,22 @@ bool pumpUntil(const std::function<bool()> &predicate, int timeoutMs = 6000) {
   }
   QCoreApplication::processEvents();
   return predicate();
+}
+// Wait for the normal event loop to paint the new data; grab() would
+// itself force painting and can mask a native window update regression.
+QVariantList paintedAxes(QWidget *plot,int panel) {
+  const QByteArray key=QByteArray("paintedAxes")+QByteArray::number(panel);
+  check(pumpUntil([&]{return plot->property(key.constData()).toList().size()==4;}),
+        "Analysis result did not reach normal paint event");
+  const auto axes=plot->property(key.constData()).toList();
+  for(const auto &v:axes) check(std::isfinite(v.toDouble()),"Nonfinite painted axis");
+  check(axes[1].toDouble()>axes[0].toDouble() &&
+        axes[3].toDouble()>axes[2].toDouble(),"Degenerate painted axis");
+  return axes;
+}
+void checkBand(const QVariantList &axes,double start,double stop) {
+  check(std::abs(axes[0].toDouble()-start)<1 &&
+        std::abs(axes[1].toDouble()-stop)<1,"Painted frequency range is stale");
 }
 AnalysisContext context(const QString &sha = QStringLiteral("fixture-sha-256"),
                         bool confirmed = true) {
@@ -97,6 +114,22 @@ void checkCompactLayout(AnalysisWindow *window) {
     if(size.width()==984)
       check(plot->verticalScrollBar()->maximum()==0,
             "Default analysis plot must fit in the reference compact client area");
+    details->setCurrentIndex(0);
+    QCoreApplication::processEvents();
+    const QSize plotBefore=plot->viewport()->size();
+    const int detailsBefore=details->height();
+    details->setCurrentIndex(1);
+    QCoreApplication::processEvents();
+    auto *guide=window->findChild<QScrollArea *>("analysisGuideScroll");
+    check(guide && guide->isVisibleTo(window) &&
+          guide->verticalScrollBar()->maximum()>0,
+          "Long interpretation must remain scrollable");
+    guide->verticalScrollBar()->setValue(guide->verticalScrollBar()->maximum());
+    check(plot->viewport()->size()==plotBefore && details->height()==detailsBefore,
+          "Interpretation tab must not shrink plot viewport");
+    details->setCurrentIndex(0);
+    QCoreApplication::processEvents();
+    check(plot->viewport()->size()==plotBefore,"Returning to result tab resized plot");
     if(window->feature()==Feature::Eye) {
       auto *tabs=window->findChild<QTabWidget *>(QStringLiteral("eyeManualSettingsTabs"));
       check(tabs && tabs->count()==3,"Eye manual settings must be grouped");
@@ -131,6 +164,7 @@ void checkCompactLayout(AnalysisWindow *window) {
 
 int main(int argc, char **argv) {
   QApplication app(argc, argv);
+  std::cout << "Analysis GUI platform: " << QGuiApplication::platformName().toStdString() << std::endl;
   try {
   // Numeric display bounds are independent of the analysis engine and mode.
   using si::gui::detail::PlotBounds;
@@ -145,6 +179,19 @@ int main(int argc, char **argv) {
     check(deviation.pad(0.08,true,false,0.05) && deviation.low<0 && deviation.high>=0.05,"ILD residual axis lacks meaningful zero-reference scale");
     PlotBounds invalid;invalid.include(std::numeric_limits<double>::quiet_NaN());
     check(!invalid.pad(0.08),"Nonfinite plot data accepted");
+    PlotBounds endpoint,interior,focused;
+    interior.include(-0.2);interior.include(0.3);
+    endpoint=interior;endpoint.include(23.9259);
+    check(si::gui::detail::firstSampleFocus(endpoint,interior,1e6,20e9,true,focused) &&
+          focused.low< -0.2 && focused.high>0.3 && focused.high<1,
+          "Isolated first-frequency peak flattens detail axis");
+    check(!si::gui::detail::firstSampleFocus(endpoint,interior,1e9,20e9,true,focused),
+          "Wide low-frequency interval must not be focused away");
+    check(!si::gui::detail::firstSampleFocus(interior,interior,1e6,20e9,true,focused),
+          "Normal data must retain full autoscaling");
+    PlotBounds interiorPeak=interior;interiorPeak.include(22);
+    check(!si::gui::detail::firstSampleFocus(endpoint,interiorPeak,1e6,20e9,true,focused),
+          "Broad/second peak must remain in displayed bounds");
   }
     QMainWindow main;
     AnalysisWindowManager manager(&main);
@@ -181,6 +228,15 @@ int main(int argc, char **argv) {
       check(windows[i]->runButton() && !windows[i]->runButton()->isEnabled(),
             "An unfinished numerical engine must not run");
       check(manager.openWindow(feature) == windows[i], "Duplicate analysis window created");
+      QCoreApplication::processEvents();
+      if(QGuiApplication::screens().size()==1) {
+        const QRect work=windows[i]->screen()->availableGeometry();
+        const QSize preferred(std::max(640,qRound(work.width()*.75)),
+                              std::max(480,qRound(work.height()*.75)));
+        const QSize expected=preferred.boundedTo(QSize(std::max(300,work.width()-40),
+                                                      std::max(240,work.height()-80)));
+        check(windows[i]->size()==expected,"Initial analysis size must follow logical screen work area");
+      }
       checkCompactLayout(windows[i]);
       auto *sourceCombo=windows[i]->findChild<QComboBox *>(QStringLiteral("analysisSource"));
       auto *victimCombo=windows[i]->findChild<QComboBox *>(QStringLiteral("analysisVictim"));
@@ -354,13 +410,24 @@ int main(int argc, char **argv) {
     auto *ildStop=ild->findChild<QDoubleSpinBox *>("ildStopGhz");
     auto *ildPlot=ild->findChild<QWidget *>("ildResultGraph");
     check(ildStart && ildStop && ildPlot,"Missing ILD manual scale controls");
-    const auto ildFull=ildPlot->grab().toImage();
+    const auto ildFullAxes=paintedAxes(ildPlot,0);
+    checkBand(ildFullAxes,0,16e9);
     ildStart->setValue(4);ildStop->setValue(12);
     ild->runButton()->click();drain(manager.scheduler());
-    check(ild->status()==S::Valid && ildPlot->grab().toImage()!=ildFull,"ILD manual band change did not redraw plot");
+    check(ild->status()==S::Valid,"ILD manual band analysis failed");
+    const auto ildNarrow=paintedAxes(ildPlot,0);
+    checkBand(ildNarrow,4e9,12e9);
+    // Independent analytical fixture: loss=1.5+2sqrt(x)+3x+0.25x².
+    const double expectedLow=1.5+2*std::sqrt(.25)+3*.25+.25*.25*.25;
+    const double expectedHigh=1.5+2*std::sqrt(.75)+3*.75+.25*.75*.75;
+    const double padding=std::max(.05,(expectedHigh-expectedLow)*.08);
+    check(std::abs(ildNarrow[2].toDouble()-(expectedLow-padding))<1e-7 &&
+          std::abs(ildNarrow[3].toDouble()-(expectedHigh+padding))<1e-7,
+          "ILD actual painted Y range does not match independent oracle");
     ildStart->setValue(0);ildStop->setValue(30);
     ild->runButton()->click();drain(manager.scheduler());
     check(ild->status()==S::Valid,"ILD original manual settings restore failed");
+    check(paintedAxes(ildPlot,0)==ildFullAxes,"ILD full manual axis restore failed");
     auto *csv=ild->findChild<QPushButton *>(QStringLiteral("analysisCsv"));
     auto *png=ild->findChild<QPushButton *>(QStringLiteral("analysisPng"));
     check(csv && csv->isEnabled() && png && png->isEnabled(),
@@ -450,6 +517,57 @@ int main(int argc, char **argv) {
     check(!ild->saveIldCsv(ildDir.filePath(QStringLiteral("stale.csv"))) &&
           !ild->saveIldPng(ildDir.filePath(QStringLiteral("stale.png"))),
           "STALE result was exported as current");
+    // Reproduce a narrow low-frequency endpoint peak without customer data.
+    const auto endpointPath=si::pathFromUtf8(ildDir.filePath("endpoint.s2p").toStdString());
+    {
+      std::ofstream out(endpointPath);
+      out<<std::setprecision(17)<<"# GHz S RI R 50\n";
+      for(int i=0;i<=1000;++i) {
+        const double f=i==0?1e-6:i*0.02;
+        const double loss=i==0?25.5:1.5+0.5*std::sqrt(f/20)+f/20;
+        const double v=std::pow(10.,-loss/20.);
+        out<<f<<" 0 0 "<<v<<" 0 "<<v<<" 0 0 0\n";
+      }
+    }
+    auto endpointCache=si::Cache::open(endpointPath,
+      si::pathFromUtf8(ildDir.filePath("endpoint-cache").toStdString()),nullptr,true);
+    numericContext.sources[0].sha256=QString::fromStdString(endpointCache->meta().sha256);
+    manager.setIldSourceProvider([endpointCache,channel](int index)->std::optional<IldSourceInput>{
+      if(index!=0)return std::nullopt;
+      return IldSourceInput{endpointCache,{channel},"ILD fixture revision",
+                            endpointCache->meta().sha256,1,1};
+    });
+    manager.setContext(numericContext);
+    ildModel->setCurrentIndex(1);
+    ildStart->setValue(0);ildStop->setValue(30);
+    ild->runButton()->click();drain(manager.scheduler());
+    check(ild->status()==S::Valid,"Manual isolated-endpoint ILD analysis failed");
+    auto *detailY=ild->findChild<QCheckBox *>("ildDetailYRange");
+    check(detailY && !detailY->isChecked(),"ILD full range must be default on every OS");
+    const auto endpointFull=paintedAxes(ildPlot,0);
+    check(endpointFull[3].toDouble()>25.5,"Full range excluded endpoint");
+    const auto fullCsv=ildDir.filePath("endpoint-full.csv");
+    check(ild->saveIldCsv(fullCsv),"Endpoint full CSV failed");
+    detailY->setChecked(true);
+    const auto endpointDetail=paintedAxes(ildPlot,0);
+    check(endpointDetail[3].toDouble()<5,"Detail range did not focus isolated endpoint");
+    const auto detailCsv=ildDir.filePath("endpoint-detail.csv");
+    check(ild->saveIldCsv(detailCsv),"Endpoint detail CSV failed");
+    QFile detailFile(detailCsv),fullFile(fullCsv);
+    check(detailFile.open(QIODevice::ReadOnly) && fullFile.open(QIODevice::ReadOnly) &&
+          detailFile.readAll()==fullFile.readAll(),"Plot focus changed numerical CSV");
+    detailY->setChecked(false);
+    check(paintedAxes(ildPlot,0)==endpointFull,"Full Y toggle did not restore range");
+    ildStart->setValue(.02);
+    ild->runButton()->click();drain(manager.scheduler());
+    check(ild->status()==S::Valid,"Manual endpoint exclusion band failed");
+    const auto endpointNarrow=paintedAxes(ildPlot,0);
+    checkBand(endpointNarrow,20e6,20e9);
+    check(endpointNarrow[3].toDouble()<5,"Manual Y range retained prior endpoint");
+    ildStart->setValue(0);
+    ild->runButton()->click();drain(manager.scheduler());
+    check(ild->status()==S::Valid && paintedAxes(ildPlot,0)==endpointFull,
+          "Manual endpoint full-band restore failed");
     // 012_06: real 4-port Touchstone, two mapped channels, separate NEXT/FEXT
     // paths -> generic NRZ ICN worker -> GUI -> CSV/PNG -> stale protection.
     const auto icnPath=si::pathFromUtf8(
@@ -544,14 +662,19 @@ int main(int argc, char **argv) {
     auto *icnStop=icn->findChild<QDoubleSpinBox *>("icnStopGhz");
     auto *icnPlot=icn->findChild<QWidget *>("icnResultGraph");
     check(icnStart && icnStop && icnPlot,"Missing ICN manual scale controls");
-    const auto icnFull=icnPlot->grab().toImage();
+    const auto icnFull=paintedAxes(icnPlot,2);
+    checkBand(icnFull,0,8e9);
     icnStart->setValue(1);icnStop->setValue(4);
     icn->runButton()->click();drain(manager.scheduler());
-    check((icn->status()==S::Valid || icn->status()==S::Warning) &&
-          icnPlot->grab().toImage()!=icnFull,"ICN manual band change did not redraw plot");
+    check(icn->status()==S::Valid || icn->status()==S::Warning,"ICN manual band analysis failed");
+    const auto icnNarrow=paintedAxes(icnPlot,2);
+    checkBand(icnNarrow,1e9,4e9);
+    check(icnNarrow[2].toDouble()==0 && icnNarrow[3].toDouble()<icnFull[3].toDouble(),
+          "ICN cumulative RMS Y range did not decrease with narrower band");
     icnStart->setValue(0);icnStop->setValue(30);
     icn->runButton()->click();drain(manager.scheduler());
     check(icn->status()==S::Valid || icn->status()==S::Warning,"ICN original manual settings restore failed");
+    check(paintedAxes(icnPlot,2)==icnFull,"ICN full manual axes restore failed");
     auto *icnCsv=icn->findChild<QPushButton *>(QStringLiteral("analysisCsv"));
     auto *icnPng=icn->findChild<QPushButton *>(QStringLiteral("analysisPng"));
     check(icnCsv && icnCsv->isEnabled() && icnPng && icnPng->isEnabled(),
@@ -727,13 +850,17 @@ int main(int argc, char **argv) {
     auto *txHigh=eye->findChild<QLineEdit *>("eyeTxHighMv");
     check(eyeView && txHigh,"Missing Eye manual scale controls");
     eyeView->setCurrentIndex(1);
-    const auto eyeFull=eyeGraph->grab().toImage();
+    const auto eyeFull=paintedAxes(eyeGraph,1);
     baud->setValue(3.0);txHigh->setText("800");
     eye->runButton()->click();drain(manager.scheduler());
-    check(eye->status()==S::Warning && eyeGraph->grab().toImage()!=eyeFull,"Eye manual rate/voltage change did not redraw plot");
+    check(eye->status()==S::Warning,"Eye manual rate/voltage analysis failed");
+    const auto eyeChanged=paintedAxes(eyeGraph,1);
+    check(eyeChanged[3].toDouble()>eyeFull[3].toDouble() &&
+          eyeChanged[3].toDouble()>=800,"Eye actual Y range did not reflect TX voltage change");
     baud->setValue(4.5);txHigh->setText("400");
     eye->runButton()->click();drain(manager.scheduler());
     check(eye->status()==S::Warning,"Eye original manual settings restore failed");
+    check(paintedAxes(eyeGraph,1)==eyeFull,"Eye manual axes restore failed");
     eyeView->setCurrentIndex(0);
     auto *eyeCsv=eye->findChild<QPushButton *>(QStringLiteral("analysisCsv"));
     auto *eyePng=eye->findChild<QPushButton *>(QStringLiteral("analysisPng"));

@@ -14,6 +14,7 @@
 #include <QCursor>
 #include <QWindow>
 #include <QShowEvent>
+#include <QVariant>
 #include <exception>
 #include <stdexcept>
 #include <utility>
@@ -48,6 +49,21 @@ QString statusName(si::channel::Status status) {
   return QStringLiteral("ERROR");
 }
 
+// Actual axis values used by paintEvent, in Hz (ILD/ICN) or UI/ps (Eye).
+// Expose these for native event-loop regression tests without forcing a paint.
+void recordPaintedAxes(QWidget *widget, int panel, double x0, double x1,
+                       double y0, double y1) {
+  const QByteArray key=QByteArray("paintedAxes")+QByteArray::number(panel);
+  const QVariantList axes{x0,x1,y0,y1};
+  if(widget->property(key.constData()).toList()!=axes)
+    widget->setProperty(key.constData(),axes);
+}
+void clearPaintedAxes(QWidget *widget) {
+  for(int i=0;i<3;++i) {
+    const QByteArray key=QByteArray("paintedAxes")+QByteArray::number(i);
+    widget->setProperty(key.constData(),QVariant());
+  }
+}
 class IldPlotWidget final : public QWidget {
 public:
   explicit IldPlotWidget(QWidget *parent = nullptr) : QWidget(parent) {
@@ -55,8 +71,15 @@ public:
     setMinimumHeight(260);
     setMouseTracking(true);
   }
+  void setDetailYRange(bool enabled) {
+    detailYRange_=enabled;
+    clearPaintedAxes(this);
+    update();
+  }
   void setData(std::shared_ptr<const si::channel::IldData> data) {
     data_ = std::move(data);
+    clearPaintedAxes(this);
+    dragging_=false;
     if(data_ && data_->frequencyHz.size()>1) {
       viewFrom_=data_->frequencyHz.front();
       viewTo_=data_->frequencyHz.back();
@@ -148,8 +171,22 @@ protected:
         bounds.include(y0[sampleIndex]);
         if(panel==0) bounds.include(d.fittedLossDb[sampleIndex]);
       }
-      if(!bounds.pad(0.08,panel==1,false,0.05)) continue;
+      detail::PlotBounds focused;
+      bool detailView=false;
+      if(detailYRange_ && beginIndex==0 && endIndex>=4 &&
+         f0==d.frequencyHz.front()) {
+        detail::PlotBounds interior;
+        for(size_t j=1;j<endIndex;++j) {
+          interior.include(y0[j]);
+          if(panel==0) interior.include(d.fittedLossDb[j]);
+        }
+        detailView=detail::firstSampleFocus(bounds,interior,
+            d.frequencyHz[1]-f0,f1-f0,panel==1,focused);
+      }
+      if(detailView) bounds=focused;
+      else if(!bounds.pad(0.08,panel==1,false,0.05)) continue;
       const double low=bounds.low,high=bounds.high;
+      recordPaintedAxes(this,panel,f0,f1,low,high);
       p.setPen(QPen(palette().mid().color(),1));
       p.drawRect(area);
       p.setPen(palette().text().color());
@@ -203,9 +240,30 @@ protected:
         drawSeries(d.fittedLossDb,QColor("#e26c32"));
       } else drawSeries(d.deviationDb,QColor("#8b4cb8"));
       p.restore();
+      if(detailView) {
+        // Keep the clipped endpoint conspicuous in both the live plot and PNG.
+        const auto notice=sparamview::ui_language::textFor(this,
+            QStringLiteral("Detail view: first point outside Y range"));
+        p.setPen(palette().text().color());
+        const qreal noticeWidth=std::min(area.width()-10.0,
+            qreal(p.fontMetrics().horizontalAdvance(notice)+12));
+        const QRectF banner(area.right()-noticeWidth-5,area.top()+4,noticeWidth,22);
+        p.fillRect(banner,palette().base());
+        p.drawText(banner,Qt::AlignRight|Qt::AlignVCenter,
+            p.fontMetrics().elidedText(notice,Qt::ElideRight,int(banner.width())));
+        auto mark=[&](double value) {
+          if(value>=low && value<=high) return;
+          const double y=value>high?area.top()+2:area.bottom()-2;
+          p.setPen(QPen(QColor("#c75b44"),2));
+          p.drawLine(QPointF(area.left()+2,y),QPointF(area.left()+11,y));
+        };
+        mark(y0.front());
+        if(panel==0) mark(d.fittedLossDb.front());
+      }
     }
   }
 private:
+  bool detailYRange_=false;
   std::shared_ptr<const si::channel::IldData> data_;
   double viewFrom_=0,viewTo_=0,lastX_=0;
   bool dragging_=false;
@@ -219,10 +277,12 @@ public:
   }
   void setData(std::shared_ptr<const si::channel::IcnData> data) {
     data_=std::move(data);
+    clearPaintedAxes(this);
     update();
   }
   void setPanel(int selection) {
     panel_=std::clamp(selection,0,3);
+    clearPaintedAxes(this);
     setMinimumHeight(panel_==0?410:245);
     updateGeometry();
     update();
@@ -266,6 +326,7 @@ protected:
       // Linear PSD/RMS are nonnegative; dB power is not forced toward 0 dB.
       if(!bounds.pad(0.08,panel!=0,panel!=0,panel==0?0.05:0.0)) continue;
       const double low=bounds.low,high=bounds.high;
+      recordPaintedAxes(this,panel,f0,f1,low,high);
       p.setPen(QPen(palette().mid().color(),1));
       p.drawRect(area);
       p.setPen(palette().text().color());
@@ -331,9 +392,10 @@ public:
   }
   void setData(std::shared_ptr<const si::channel::EyeData> data, double thresholdV) {
     data_=std::move(data); thresholdV_=thresholdV;
-    zoom_=1; shift_=0; cursor_=-1; update();
+    clearPaintedAxes(this);
+    dragging_=false; zoom_=1; shift_=0; cursor_=-1; update();
   }
-  void setView(int view) { view_=std::clamp(view,0,2); zoom_=1;shift_=0;update(); }
+  void setView(int view) { view_=std::clamp(view,0,2); clearPaintedAxes(this); dragging_=false; zoom_=1;shift_=0;update(); }
 protected:
   void wheelEvent(QWheelEvent *e) override {
     if(!data_ || !e->angleDelta().y()) { QWidget::wheelEvent(e);return; }
@@ -407,6 +469,7 @@ protected:
     const double fullX=view_==0?2.0 : (d.timeSeconds.empty()?0:d.timeSeconds.back()*1e12);
     const double x0=fullX*shift_, x1=fullX*(shift_+1/zoom_);
     if(x1<=x0) return;
+    recordPaintedAxes(this,view_,x0,x1,low,high);
     auto xp=[&](double x){return area.left()+(x-x0)/(x1-x0)*area.width();};
     auto yp=[&](double y){return area.bottom()-(y-low)/(high-low)*area.height();};
     p.drawText(QRectF(area.left(),area.bottom()+5,area.width(),20),Qt::AlignLeft,
@@ -868,8 +931,8 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
   plotScroll->setWidget(plotPanel);
   auto *detailsTabs=new QTabWidget;
   detailsTabs->setObjectName(QStringLiteral("analysisDetailsTabs"));
-  detailsTabs->setMinimumHeight(90);
-  detailsTabs->setMaximumHeight(124);
+  // Tabs share a stable viewport; long text scrolls, never resizes the graph.
+  detailsTabs->setFixedHeight(124);
   auto *pageScroll=new QScrollArea;
   pageScroll->setObjectName(QStringLiteral("analysisPageScroll"));
   pageScroll->setWidgetResizable(true);
@@ -880,6 +943,7 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
   pageScroll->setWidget(detailsPage);
   detailsTabs->addTab(pageScroll,QStringLiteral("Results / warnings"));
   auto *guideScroll=new QScrollArea;
+  guideScroll->setObjectName(QStringLiteral("analysisGuideScroll"));
   guideScroll->setWidgetResizable(true);
   auto *guidePage=new QWidget;
   auto *guideLayout=new QVBoxLayout(guidePage);
@@ -888,12 +952,6 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
   guideLayout->addStretch();
   guideScroll->setWidget(guidePage);
   detailsTabs->addTab(guideScroll,QStringLiteral("How to read"));
-  // Keep the result view compact, but give the interpretation its own
-  // larger scrollable reading area without increasing the window minimum.
-  connect(detailsTabs,&QTabWidget::currentChanged,detailsTabs,[detailsTabs](int tabIndex){
-    detailsTabs->setMaximumHeight(tabIndex==1?220:124);
-    detailsTabs->updateGeometry();
-  });
   statusLabel_ = new QLabel;
   statusLabel_->setObjectName(QStringLiteral("analysisStatus"));
   statusLabel_->setWordWrap(true);
@@ -906,7 +964,13 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
   plotLayout->addWidget(graphPlaceholder_,1);
   if(feature_ == Feature::Ild) {
     graphPlaceholder_->hide();
-    ildGraph_=new IldPlotWidget(this);
+    auto *ildPlot=new IldPlotWidget(this);
+    ildGraph_=ildPlot;
+    auto *detailY=new QCheckBox(QStringLiteral("Detail Y range"));
+    detailY->setObjectName(QStringLiteral("ildDetailYRange"));
+    detailY->setToolTip(QStringLiteral("Optional detail view for an isolated first frequency point; unchecked shows full range."));
+    heading->insertWidget(1,detailY);
+    connect(detailY,&QCheckBox::toggled,ildPlot,&IldPlotWidget::setDetailYRange);
     plotLayout->addWidget(ildGraph_,1);
   } else if(feature_==Feature::Icn) {
     graphPlaceholder_->hide();
@@ -1120,9 +1184,11 @@ void AnalysisWindow::fitToScreen() {
   if(!screen) screen=QGuiApplication::primaryScreen();
   if(!screen) return;
   const QRect available=screen->availableGeometry();
-  // Consistent initial client size, bounded by the active screen work area.
-  // 1024x768 desktop (including decorations/taskbar) must remain usable.
-  const QSize preferred(984,688);
+  // Qt screen geometry is in logical pixels, including on Retina/HiDPI.
+  // Use 75% of each work-area dimension, with a compact usability floor
+  // where the screen allows it. Leave room for decorations.
+  const QSize preferred(std::max(640,qRound(available.width()*0.75)),
+                        std::max(480,qRound(available.height()*0.75)));
   const QSize bounded=preferred.boundedTo(QSize(std::max(300,available.width()-40),std::max(240,available.height()-80)));
   resize(bounded);
   move(available.x()+(available.width()-width())/2,available.y()+(available.height()-height())/2);
