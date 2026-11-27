@@ -957,6 +957,13 @@ struct WorkspaceProbe {
      check(count>0,"Japanese glyph layout was empty");
    };
    glyphs();
+   auto checkGuides=[&] {
+    for(auto *window:{ild,icn,eye}) {
+     auto *guide=window->findChild<QLabel *>("analysisInterpretation");
+     check(guide && guide->wordWrap() && guide->text().count("\n\n")>=3,
+           "Analysis interpretation must have separated readable paragraphs");
+    }
+   };
    // Retain the 100 cycles / 300 switches, alternating the order so both
    // directions are exercised without increasing the stress-test budget.
    auto verifyKorean=[&]{
@@ -966,7 +973,9 @@ struct WorkspaceProbe {
     check(w.quickButton->text()==QString::fromUtf8("빠른 분석"),"Korean quick analysis button");
     check(manual->text()==QString::fromUtf8("수동 실행"),"Korean open Eye Run Manual");
     check(direction->itemText(1)==QString::fromUtf8("역방향"),"Korean open Eye direction");
-    fixedLabels(QString::fromUtf8("원본 / 리비전"),QString::fromUtf8("피간섭 채널"),QString::fromUtf8("취소"),QString::fromUtf8("CSV 내보내기"),QString::fromUtf8("설정"));
+    check(eye->windowTitle().contains("Eye Diagram"),"Korean Eye Diagram terminology changed");
+    checkGuides();
+    fixedLabels(QString::fromUtf8("원본 / Revision"),QString::fromUtf8("피간섭 Channel"),QString::fromUtf8("취소"),QString::fromUtf8("CSV 내보내기"),QString::fromUtf8("설정"));
     check(QCoreApplication::translate("QPlatformTheme","Cancel")==QString::fromUtf8("취소"),"Korean framework dialog translation");
    };
    auto verifyJapanese=[&]{
@@ -976,12 +985,14 @@ struct WorkspaceProbe {
     check(w.quickButton->text()==QString::fromUtf8("クイック解析"),"Japanese quick analysis button");
     check(manual->text()==QString::fromUtf8("手動実行"),"Japanese open Eye Run Manual");
     check(direction->itemText(1)==QString::fromUtf8("逆方向"),"Japanese open Eye direction");
+    checkGuides();
     fixedLabels(QString::fromUtf8("ソース / リビジョン"),QString::fromUtf8("ビクティムチャネル"),QString::fromUtf8("キャンセル"),QString::fromUtf8("CSVエクスポート"),QString::fromUtf8("設定"));
     check(QCoreApplication::translate("QPlatformTheme","Cancel")==QString::fromUtf8("キャンセル"),"Japanese framework dialog translation");
    };
    auto verifyEnglish=[&]{
     en->trigger();verify(w,"File","English");
     check(newAction->text()=="New","English New action");
+    checkGuides();
     fixedLabels("Source / Revision","Victim Channel","Cancel","Export CSV","Settings");
     check(QCoreApplication::translate("QPlatformTheme","Cancel")=="Cancel","English framework dialog translation");
     check(manual->text()=="Run Manual" && direction->currentIndex()==1 && eye->status()==originalStatus && w.analysisWindows->context().generation==generation,"Language changed analysis state");

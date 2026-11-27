@@ -1,6 +1,7 @@
 #include "../../ui_language.hpp"
 #include "../../user_preferences.hpp"
 #include "gui/analysis/analysis_windows.hpp"
+#include "plot_axis.hpp"
 #include <algorithm>
 #include <cmath>
 #include <QPainter>
@@ -136,13 +137,19 @@ protected:
                   std::max(50,width()-padX-right),
                   std::max(55,(height()-35)/2-35));
       const auto &y0 = panel==0 ? d.insertionLossDb : d.deviationDb;
-      double low = 0, high = 0;
-      for (double v : y0) { low=std::min(low,v);high=std::max(high,v); }
-      if(panel==0) for(double v:d.fittedLossDb) {
-        low=std::min(low,v);high=std::max(high,v);
+      detail::PlotBounds bounds;
+      // ILD deviation needs its zero reference; raw/fitted IL does not.
+      // Include the samples bracketing the current visible frequency band.
+      const auto first=std::lower_bound(d.frequencyHz.begin(),d.frequencyHz.end(),f0);
+      const auto last=std::upper_bound(d.frequencyHz.begin(),d.frequencyHz.end(),f1);
+      const auto beginIndex=first==d.frequencyHz.begin()?size_t(0):size_t(first-d.frequencyHz.begin()-1);
+      const auto endIndex=std::min(d.frequencyHz.size(),size_t(last-d.frequencyHz.begin())+1);
+      for(size_t sampleIndex=beginIndex;sampleIndex<endIndex;++sampleIndex) {
+        bounds.include(y0[sampleIndex]);
+        if(panel==0) bounds.include(d.fittedLossDb[sampleIndex]);
       }
-      const double padding = std::max(0.05,(high-low)*0.08);
-      low -= padding; high += padding;
+      if(!bounds.pad(0.08,panel==1,false,0.05)) continue;
+      const double low=bounds.low,high=bounds.high;
       p.setPen(QPen(palette().mid().color(),1));
       p.drawRect(area);
       p.setPen(palette().text().color());
@@ -227,8 +234,8 @@ protected:
     p.setRenderHint(QPainter::Antialiasing);
     if(!data_ || data_->frequencyHz.size()<2) {
       p.setPen(palette().text().color());
-      p.drawText(rect(),Qt::AlignCenter,QStringLiteral(
-        "Select NEXT/FEXT aggressors and run the generic ICN model."));
+      p.drawText(rect(),Qt::AlignCenter,sparamview::ui_language::textFor(this,QStringLiteral(
+        "Select NEXT/FEXT aggressors and run the generic ICN model.")));
       return;
     }
     const auto &d=*data_;
@@ -253,14 +260,12 @@ protected:
         if(panel==1) return (which?d.fextDensityV2Hz[i]:d.nextDensityV2Hz[i])*1e15;
         return (which?d.fextCumulativeRmsV[i]:d.nextCumulativeRmsV[i])*1000.0;
       };
-      double low=0,high=0;
+      detail::PlotBounds bounds;
       for(size_t i=0;i<n;++i)
-        for(int w=0;w<seriesCount;++w) {
-          low=std::min(low,sample(i,w));
-          high=std::max(high,sample(i,w));
-        }
-      const double extra=std::max((high-low)*0.08,0.05);
-      low-=extra;high+=extra;
+        for(int w=0;w<seriesCount;++w) bounds.include(sample(i,w));
+      // Linear PSD/RMS are nonnegative; dB power is not forced toward 0 dB.
+      if(!bounds.pad(0.08,panel!=0,panel!=0,panel==0?0.05:0.0)) continue;
+      const double low=bounds.low,high=bounds.high;
       p.setPen(QPen(palette().mid().color(),1));
       p.drawRect(area);
       p.setPen(palette().text().color());
@@ -379,9 +384,8 @@ protected:
     }
     const auto &d=*data_;
     QRectF area(75,37,std::max(50,width()-100),std::max(50,height()-89));
-    double low=std::numeric_limits<double>::infinity();
-    double high=-std::numeric_limits<double>::infinity();
-    auto include=[&](double v) {if(std::isfinite(v)){low=std::min(low,v);high=std::max(high,v);}};
+    detail::PlotBounds bounds;
+    auto include=[&](double v) {bounds.include(v);};
     if(view_==0) {
       for(const auto &t:d.overlayV) for(double v:t) include(v*1000);
       include(thresholdV_*1000); include(d.minimumHighV*1000);include(d.maximumLowV*1000);
@@ -392,9 +396,8 @@ protected:
       for(double v:d.impulse.values) include(v);
       for(double v:d.unitPulse.values)include(v);
     }
-    if(!std::isfinite(low)||!std::isfinite(high))return;
-    const double margin=std::max((high-low)*0.10,0.001);
-    low-=margin;high+=margin;
+    if(!bounds.pad(0.10,false,false,view_==2?0.0:0.001)) return;
+    const double low=bounds.low,high=bounds.high;
     p.setPen(palette().mid().color());p.drawRect(area);
     p.setPen(palette().text().color());
     p.drawText(QRectF(2,area.top(),69,20),Qt::AlignRight,QString::number(high,'g',6));
@@ -603,11 +606,15 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
   auto *guide=new QLabel;
   guide->setObjectName(QStringLiteral("analysisInterpretation"));
   guide->setWordWrap(true);
+  guide->setTextFormat(Qt::PlainText);
+  guide->setAlignment(Qt::AlignLeft | Qt::AlignTop);
+  guide->setTextInteractionFlags(Qt::TextSelectableByMouse);
+  guide->setSizePolicy(QSizePolicy::Expanding,QSizePolicy::Preferred);
   guide->setText(feature_==Feature::Ild?QStringLiteral(
-    "Reading ILD: deviation near 0 dB means smoother loss relative to its fitted trend. Large absolute peaks deserve investigation; low ILD alone does not mean low insertion loss. No standard PASS limit."):
+    "ILD — How to read\n\nGood: deviation near 0 dB means smooth loss relative to the fitted trend.\n\nInvestigate: large absolute peaks may indicate loss irregularities.\n\nLimit: low ILD does not imply low insertion loss. No standard PASS limit."):
     feature_==Feature::Icn?QStringLiteral(
-    "Reading ICN: lower RMS and weighted PSD are preferable under identical TX/RX and band settings. Steep cumulative growth identifies noisy bands; compare path contributions. RSS assumes independent paths, not measured correlation. No standard PASS limit."):
-    QStringLiteral("Reading Eye: larger eye height and width imply more simulated decision margin; closed or overlapping levels indicate risk. Threshold and sampling lines are model conditions, not a PHY mask or BER measurement."));
+    "ICN — How to read\n\nGood: lower RMS and weighted PSD under identical TX/RX and frequency-band settings.\n\nInvestigate: steep cumulative growth identifies contributing bands; compare individual paths.\n\nLimit: RSS assumes independent paths, not measured correlation. No standard PASS limit."):
+    QStringLiteral("Eye Diagram — How to read\n\nGood: larger eye height and width suggest more simulated decision margin.\n\nInvestigate: closed or overlapping levels indicate risk.\n\nLimit: threshold and sampling lines are model conditions, not a PHY mask or BER measurement."));
   auto *settingsToggle=new QToolButton;
   settingsToggle->setObjectName(QStringLiteral("analysisSettingsToggle"));
   settingsToggle->setText(QStringLiteral("Settings"));
@@ -663,6 +670,8 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     fitModel_->setCurrentIndex(1);
   }
   if(feature_ == Feature::Icn) {
+    fromGhz_->setObjectName(QStringLiteral("icnStartGhz"));
+    toGhz_->setObjectName(QStringLiteral("icnStopGhz"));
     icnAggressors_=new QListWidget;
     icnAggressors_->setObjectName(QStringLiteral("icnAggressorList"));
     icnAggressors_->setMinimumHeight(100);
@@ -874,11 +883,17 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
   guideScroll->setWidgetResizable(true);
   auto *guidePage=new QWidget;
   auto *guideLayout=new QVBoxLayout(guidePage);
-  guideLayout->setContentsMargins(6,4,6,4);
+  guideLayout->setContentsMargins(10,8,10,8);
   guideLayout->addWidget(guide);
   guideLayout->addStretch();
   guideScroll->setWidget(guidePage);
   detailsTabs->addTab(guideScroll,QStringLiteral("How to read"));
+  // Keep the result view compact, but give the interpretation its own
+  // larger scrollable reading area without increasing the window minimum.
+  connect(detailsTabs,&QTabWidget::currentChanged,detailsTabs,[detailsTabs](int tabIndex){
+    detailsTabs->setMaximumHeight(tabIndex==1?220:124);
+    detailsTabs->updateGeometry();
+  });
   statusLabel_ = new QLabel;
   statusLabel_->setObjectName(QStringLiteral("analysisStatus"));
   statusLabel_->setWordWrap(true);
