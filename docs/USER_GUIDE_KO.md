@@ -676,9 +676,9 @@ $$e_{\rm RMS}=\sqrt{\frac1B\sum_i\frac{f_{i+1}-f_i}{3}(e_i^2+e_ie_{i+1}+e_{i+1}^
 
 ![v1.4.2 ICN 세 그래프](images/05_ICN.png)
 
-동일 확률의 독립적인 평균 0 NRZ Symbol에 대해 $T=1/R_s$, $\sigma_V=V_{pp}/2$, $\sigma_t=t_{10-90}/2.5631031310892007$, $\operatorname{sinc}(x)=\sin(x)/x$로 정의합니다. 실제 구현된 단측 Weighted PSD(V²/Hz)는
+동일 확률의 독립적인 평균 0 NRZ Symbol에 대해 $T=1/R_s$, $\sigma_V=V_{pp}/2$, $\sigma_t=t_{10-90}/2.5631031310892007$, $\mathrm{sinc}(x)=\sin(x)/x$로 정의합니다. 실제 구현된 단측 Weighted PSD(V²/Hz)는
 
-$$P(f)=2\sigma_V^2T\operatorname{sinc}^2(\pi fT)\exp[-(2\pi f\sigma_t)^2]\frac1{1+(f/f_{\rm RX})^2}.$$
+$$P(f)=2\sigma_V^2T\mathrm{sinc}^2(\pi fT)\exp[-(2\pi f\sigma_t)^2]\frac1{1+(f/f_{\rm RX})^2}.$$
 
 각 경로의 전달 응답 $H_k(f)$에 대해 출력 PSD는 $P_k(f)=|H_k(f)|^2P(f)$입니다. Power Sum은 가중 전의 $10\log_{10}\sum_k|H_k|^2$이며 -300 dB는 화면에만 적용되는 하한입니다. PSD 그래프는 mV²/GHz 단위이며 1 V²/Hz = $10^{15}$ mV²/GHz입니다. Cumulative Noise는 측정 대역의 교집합에서 사다리꼴 적분합니다.
 
@@ -710,7 +710,7 @@ $$UI=1/R_b,\quad f_{\rm ref}=R_b/2,\quad f_s=MR_b,\quad \Delta t=1/f_s,\quad \De
 
 Analysis Cap은 Reference Frequency와 독립적이며 측정 데이터 및 시뮬레이션 Nyquist 범위 안에 있어야 합니다. 복소 선형 보간, DC 조건화, Hermitian Spectrum을 구성하고 Cap 이상은 0으로 둡니다. 이는 실제 대역 밖 측정값이 아니라 이상적인 대역 제한 **시뮬레이션 가정**입니다. 구성한 전달 함수 $H[k]$로부터
 
-$$h[n]=\operatorname{IFFT}\{H[k]\},\quad y[n]=\Re\{\operatorname{IFFT}(\operatorname{FFT}(x[n])H[k])\}.$$
+$$h[n]=\mathrm{IFFT}\{H[k]\},\quad y[n]=\Re\{\mathrm{IFFT}(\mathrm{FFT}(x[n])H[k])\}.$$
 
 입력 $x$는 $N/M$ Bit의 유한 NRZ Frame을 반복합니다. Unit Pulse는 첫 $M$개 샘플이 1, 이후가 0인 신호를 동일 전달 함수에 통과시킵니다. Impulse 에너지 최대 샘플의 Index $d$에서 추정 지연은 $d\Delta t$입니다. 원형 지연이나 수치 조건이 유효하지 않으면 차단합니다. 이는 유한 주기 Convolution이며 긴 무작위 패턴이나 측정 Jitter 분포가 아닙니다.
 
