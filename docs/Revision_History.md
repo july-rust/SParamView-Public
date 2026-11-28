@@ -1,6 +1,10 @@
 # SParamView Revision History
 
-**Current official release: [v1.4.1](https://github.com/july-rust/SParamView-Public/releases/tag/v1.4.1)** — window geometry and File/New/Exit maintenance. [Release notes](Release_1.4.1.md).
+**Current official release: [v1.4.2](https://github.com/july-rust/SParamView-Public/releases/tag/v1.4.2)** — Eye Diagram Multi View. [Release notes](Release_1.4.2.md).
+
+## v1.4.2 — 014
+
+- Eye Diagram now offers **All three graphs** alongside the existing individual views: Eye overlay (2 UI), TX / RX waveform and Impulse / Unit pulse. All panels share one accepted numerical result, use independent axes and interaction, and support PNG export of the selected view. The combined layout adapts to logical width; narrow windows can scroll. The existing simulation-only qualification limits remain unchanged.
 
 ## v1.4.1 maintenance
 

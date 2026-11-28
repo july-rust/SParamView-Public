@@ -1,10 +1,10 @@
 # SParamView 사용자 설명서
 
-**적용 기준:** SParamView **v1.4.1 공식 릴리스**
+**적용 기준:** SParamView **v1.4.2 공식 릴리스**
 **지원 플랫폼:** Windows x64 / Windows ARM64 / macOS Apple Silicon (arm64)
 **문서 갱신:** 2026-11-28 (KST). 전체 창 화면 경계와 새로 만들기·종료 개선 반영.
 
-[English User Guide](USER_GUIDE_EN.md) | [한국어 README](../README_KO.md) | [v1.4.1 Release Notes](Release_1.4.1.md)
+[English User Guide](USER_GUIDE_EN.md) | [한국어 README](../README_KO.md) | [v1.4.2 Release Notes](Release_1.4.2.md)
 
 ---
 
@@ -110,9 +110,9 @@ GitHub Releases에서 사용 중인 시스템에 맞는 패키지를 선택합�
 
 | 시스템 | 권장 패키지 |
 |---|---|
-| Windows x64 | `SParamView_Windows_x64_v1.4.1.zip` |
-| Windows ARM64 | `SParamView_Windows_ARM64_v1.4.1.zip` |
-| macOS Apple Silicon | `SParamView_macOS_AppleSilicon_arm64_v1.4.1.dmg` 또는 `.zip` |
+| Windows x64 | `SParamView_Windows_x64_v1.4.2.zip` |
+| Windows ARM64 | `SParamView_Windows_ARM64_v1.4.2.zip` |
+| macOS Apple Silicon | `SParamView_macOS_AppleSilicon_arm64_v1.4.2.dmg` 또는 `.zip` |
 
 릴리스에는 SHA-256 확인용 파일도 함께 제공됩니다. 다운로드 무결성을 확인하려면 Windows PowerShell에서 `Get-FileHash <파일명> -Algorithm SHA256`, macOS Terminal에서 `shasum -a 256 <파일명>`을 실행한 뒤 릴리스의 `.sha256` 값과 비교할 수 있습니다.
 
@@ -590,7 +590,7 @@ SParamView 소스는 MIT License로 배포됩니다. Third-party component와 fo
 
 ## 22. 문서 검증 근거
 
-v1.2.1에서 도입된 과거 기능은 [v1.2.1 릴리스 노트](Release_1.2.1.md)와 다음 소스 자료를 참고했습니다. 현재 버전은 [v1.4.1 릴리스 노트](Release_1.4.1.md), [임시 캐시 정리](Temporary_Cache_Cleanup.md), [변경 이력](Revision_History.md) 및 [v1.4.1 소스](https://github.com/july-rust/SParamView-Public/tree/v1.4.1)를 참고하십시오. 이전 v1.2.4a 검증 기록은 [이전 릴리스 노트](Release_1.2.4a.md)에 보존되어 있습니다.
+v1.2.1에서 도입된 과거 기능은 [v1.2.1 릴리스 노트](Release_1.2.1.md)와 다음 소스 자료를 참고했습니다. 현재 버전은 [v1.4.2 릴리스 노트](Release_1.4.2.md), [임시 캐시 정리](Temporary_Cache_Cleanup.md), [변경 이력](Revision_History.md) 및 [v1.4.2 소스](https://github.com/july-rust/SParamView-Public/tree/v1.4.2)를 참고하십시오. 이전 v1.2.4a 검증 기록은 [이전 릴리스 노트](Release_1.2.4a.md)에 보존되어 있습니다.
 
 - [TDR 초기 축 범위 및 자동 스케일](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/src/plot.cpp)
 - [그래프 조작 및 초기 화면 복귀](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/src/navigation.cpp)
@@ -603,7 +603,7 @@ v1.2.1에서 도입된 과거 기능은 [v1.2.1 릴리스 노트](Release_1.2.1.
 
 ### 문서 버전
 
-이 설명서는 v1.4.1 (2026-11-28 KST) 기준입니다. 기존 이미지는 v1.2.1 역사적 검증 화면입니다.
+이 설명서는 v1.4.2 (2026-11-28 KST) 기준입니다. 기존 이미지는 v1.2.1 역사적 검증 화면입니다.
 
 
 
@@ -619,8 +619,12 @@ v1.2.1에서 도입된 과거 기능은 [v1.2.1 릴리스 노트](Release_1.2.1.
 
 **적용 범위:** 엔지니어링 참고용입니다. COM은 개발 보류되어 메뉴에 없으며 IEEE/SNIA/MIPI 적합성, 측정 BER, 모든 물리 장치/HiDPI 검증을 보증하지 않습니다.
 
-[Release notes](Release_1.4.1.md) · [ILD](Channel_Analysis_ILD_012_05.md) · [ICN](Channel_Analysis_ICN_012_06.md) · [Eye Diagram](Channel_Analysis_Eye_012_07.md) · [AC/Auto](qualification/012_54_AC_Auto_Analysis.md).
+[Release notes](Release_1.4.2.md) · [ILD](Channel_Analysis_ILD_012_05.md) · [ICN](Channel_Analysis_ICN_012_06.md) · [Eye Diagram](Channel_Analysis_Eye_012_07.md) · [AC/Auto](qualification/012_54_AC_Auto_Analysis.md).
 
+
+## v1.4.2 — Eye Diagram Multi View
+
+Eye Diagram에 기존 개별 표시와 함께 **그래프 3개 모두** 옵션을 추가했습니다. Eye overlay (2 UI), TX/RX 파형, Impulse/Unit pulse를 같은 분석 결과에서 표시하며, 독립 축·확대·이동 및 선택한 화면의 PNG Export를 지원합니다. 좁은 화면에서는 세로 배치와 스크롤을 사용합니다. 기존 시뮬레이션 한계는 변경하지 않습니다.
 
 ## v1.4.1 — 창 및 작업 공간 동작
 

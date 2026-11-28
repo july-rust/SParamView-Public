@@ -5,7 +5,7 @@ SParamView is a desktop tool for Touchstone-based S-parameter analysis and visua
 > **Important Notice**
 > SParamView calculates and visualizes the provided Touchstone data as a reference tool. Depending on the input data, frequency range, port/channel mapping, interpolation or approximation, and other analysis conditions, displayed graphs and calculated results may differ from the actual system or measurement results. Do not treat the output as 100% accurate or authoritative. Use it as a reference for engineering review, and independently verify important decisions against the original data and trusted measurement or analysis results.
 
-Current official release: **[v1.4.1](https://github.com/july-rust/SParamView-Public/releases/tag/v1.4.1)**. Independent ILD, ICN and Eye Diagram windows, runtime language switching and GUI improvements; COM deferred.
+Current official release: **[v1.4.2](https://github.com/july-rust/SParamView-Public/releases/tag/v1.4.2)**. Independent ILD, ICN and Eye Diagram windows, runtime language switching and GUI improvements; COM deferred.
 
 Supported release targets:
 - Windows x64
@@ -17,10 +17,14 @@ Documentation:
 - [한국어 README](README_KO.md)
 - [English User Guide](docs/USER_GUIDE_EN.md)
 - [한국어 사용설명서](docs/USER_GUIDE_KO.md)
-- [Release notes](docs/Release_1.4.1.md)
+- [Release notes](docs/Release_1.4.2.md)
 - [Revision history](docs/Revision_History.md)
 - [Historical channel-analysis development plan (COM deferred)](docs/Channel_Analysis_Development_Plan.md)
 - [Development history and release closeout (012_62)](docs/Development_Plan_012_v1.4.0.md)
+
+### What's new in v1.4.2
+
+- Eye Diagram now offers **All three graphs** alongside the existing individual views: Eye overlay (2 UI), TX / RX waveform and Impulse / Unit pulse. All panels share one accepted numerical result, use independent axes and interaction, and support PNG export of the selected view. The combined layout adapts to logical width; narrow windows can scroll. The existing simulation-only qualification limits remain unchanged.
 
 ### What's new in v1.4.1
 
