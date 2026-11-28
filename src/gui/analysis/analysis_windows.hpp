@@ -112,6 +112,10 @@ private:
   void invalidateRequest();
   void setStatus(si::channel::Status status, const QString &details);
   QString selectionIdentity() const;
+  // Keep the exact SI values of auto-populated controls until that field is edited.
+  QHash<QDoubleSpinBox *, double> resolvedSpinValues_;
+  double spinSi(QDoubleSpinBox *spin, double displayToSi) const;
+  void seedSpin(QDoubleSpinBox *spin, double siValue, double displayToSi);
   void launchIld(bool automatic = false);
   void showIld(const WorkOutcome &outcome);
   void exportIldCsv();
