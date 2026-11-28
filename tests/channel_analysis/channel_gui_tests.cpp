@@ -1059,7 +1059,11 @@ int main(int argc, char **argv) {
           "Eye PNG does not contain a real plot");
     check(eyeImage.text(QStringLiteral("SourceSHA256")) ==
           QString::fromStdString(cache->meta().sha256) &&
-          eyeImage.text(QStringLiteral("SettingsIdentity")).contains(QStringLiteral("EYE")) &&
+          eyeImage.text(QStringLiteral("SettingsIdentity")).startsWith(QStringLiteral("victim_hex=")) &&
+          eyeImage.text(QStringLiteral("SettingsIdentity")).contains(QStringLiteral("|rate_hz=4500000000|reference_hz=2250000000|cap_hz=10000000000|")) &&
+          eyeImage.text(QStringLiteral("SettingsIdentity")).endsWith(QStringLiteral("|MANUAL")) &&
+          eyeContent.contains(QByteArray("# settings_identity,\"")+
+            eyeImage.text(QStringLiteral("SettingsIdentity")).toUtf8()+QByteArray("\"")) &&
           eyeImage.text(QStringLiteral("Direction"))==QStringLiteral("Forward") &&
           eyeImage.text(QStringLiteral("FrameBits"))==QStringLiteral("256") &&
           eyeImage.text(QStringLiteral("SimulationStatus")).contains(QStringLiteral("SIMULATED_ONLY")),
