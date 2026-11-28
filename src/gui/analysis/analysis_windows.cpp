@@ -1372,7 +1372,8 @@ QString AnalysisWindow::selectionIdentity() const {
   if (index < 0 || index >= context_.sources.size()) return {};
   const auto &item = context_.sources[index];
   QString identity = item.sha256 + QLatin1Char('|') + item.revision + QLatin1Char('|') +
-    item.mappingDigest + QLatin1Char('|') + victim_->currentText() +
+    item.mappingDigest + QLatin1Char('|') +
+    item.channelIds.value(victim_->currentIndex()) + QLatin1Char('|') + victim_->currentText() +
     QLatin1Char('|') + aggressor_->currentText() + QLatin1Char('|') +
     QString::number(direction_->currentIndex()) + QLatin1Char('|') +
     QString::number(fromGhz_->value(), 'g', 17) + QLatin1Char('|') +

@@ -636,7 +636,8 @@ int main(int argc, char **argv) {
             if(responsePort==1 && sourcePort==2) value=0.08;
             if(responsePort==1 && sourcePort==3) value=0.12;
             if(responsePort==0 && sourcePort==3) value=0.16;
-            if(sourcePort/2==responsePort/2 && sourcePort!=responsePort) value=0.85;
+            if(sourcePort/2==responsePort/2 && sourcePort!=responsePort)
+              value=sourcePort<2?0.85:0.425; // two distinct mapped THRU gains
             out<<" "<<value<<" 0";
           }
         out<<"\n";
@@ -1244,6 +1245,46 @@ int main(int argc, char **argv) {
           !eye->saveEyeCsv(ildDir.filePath(QStringLiteral("unmeasured-cap.csv"))),
           "Unmeasured Eye analysis cap did not fail closed");
     cap->setValue(10);
+
+    // 016: a single four-port file has two mapped THRUs with a 2:1
+    // transfer magnitude ratio. Duplicate display labels are intentional:
+    // the immutable channel ID, not its presentation label, selects the trace.
+    auto eyeMultiContext=icnContext;
+    eyeMultiContext.sources[0].channels={QStringLiteral("Same label"),QStringLiteral("Same label")};
+    manager.setEyeSourceProvider([icnCache,icnVictim,icnAggressor](int idx)
+        ->std::optional<IldSourceInput> {
+      if(idx!=0) return std::nullopt;
+      return IldSourceInput{icnCache,{icnVictim,icnAggressor},
+         "ICN s4p fixture",icnCache->meta().sha256,1,1};
+    });
+    manager.setContext(eyeMultiContext);
+    auto *eyeVictim=eye->findChild<QComboBox *>("analysisVictim");
+    check(eyeVictim && eyeVictim->count()==2,"Eye two-net mapping missing");
+    eyeDirection->setCurrentIndex(0);
+    double multiHeight[2]{};
+    for(int k=0;k<2;++k) {
+      eyeVictim->setCurrentIndex(k);
+      if(k)check(!eyeCsv->isEnabled() && !eyePng->isEnabled(),
+                 "Eye net change retained prior result");
+      preview->click();drain(manager.scheduler());
+      check(eye->status()==S::Warning,"Auto Eye mapped net failed");
+      const auto autoPath=ildDir.filePath(QStringLiteral("eye-auto-net-%1.csv").arg(k));
+      check(eye->saveEyeCsv(autoPath),"Auto Eye mapped net export failed");
+      QFile file(autoPath);
+      check(file.open(QIODevice::ReadOnly),"Auto Eye mapped net readback");
+      const auto bytes=file.readAll();
+      check(bytes.contains(k?"# victim_id,\"aggressor\"":"# victim_id,\"victim\"") &&
+            bytes.contains("# input_mode,AUTO_PREVIEW_ASSUMED"),
+            "Auto Eye mapped net provenance mismatch");
+      multiHeight[k]=eyeHeightFromCsv(bytes);
+      eye->runButton()->click();drain(manager.scheduler());
+      check(eye->status()==S::Warning,"Auto Eye mapped net manual replay failed");
+      const auto replayPath=ildDir.filePath(QStringLiteral("eye-manual-net-%1.csv").arg(k));
+      check(eye->saveEyeCsv(replayPath),"Auto Eye mapped net replay export");
+      sameNumericalCsv(autoPath,replayPath,"Time_ps,TX_mV,RX_mV,Impulse_Unit,Unit_Pulse");
+    }
+    check(multiHeight[0]>0 && std::abs(multiHeight[1]-.5*multiHeight[0])<1e-6,
+          "Auto Eye same-file two-net independent gain-ratio oracle");
 
     // 012_52: real no-DC Touchstone -> verified mapped source -> preview/manual,
     // explicit modal cancellation and acceptance, blocked results never export.
