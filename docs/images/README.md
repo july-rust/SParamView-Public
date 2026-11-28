@@ -1,6 +1,6 @@
 # User-guide screenshot provenance
 
-The v1.4.3 guide uses new verified ILD, ICN and Eye window captures (04–06), alongside explicitly historical v1.4.2 screenshots for unchanged views. No real product measurements are included.
+The current v1.4.3 guide uses new verified ILD, ICN and Eye window captures (04–06), alongside explicitly historical v1.4.2 screenshots for unchanged views. No real product measurements are included.
 
 Historical source tag: v1.4.2; exact source commit: `8a7467166d9485c1a3f545c3b744deeff2585d81`.
 
