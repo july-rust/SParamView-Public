@@ -23,3 +23,7 @@ Source tag: v1.4.2; exact source commit: `8a7467166d9485c1a3f545c3b744deeff2585d
 | `09_NEXT.png` | 2400 × 1400 | `f10885d3272974d2a4a377da0b246191675fbf8651f54348406a964f004bff18` |
 | `10_FEXT.png` | 2400 × 1400 | `8164d25e3219f3a303255957e0e33b07a7486081f441a07923d2eb2c36c3787e` |
 | `11_TDR.png` | 2400 × 1400 | `580b49f7328d7d6c584685da648ee2116d00a7dedcefa984b00353236c8ebba7` |
+
+## v1.4.3 candidate evidence (016)
+
+[Native Windows ARM64 validation artifact](https://github.com/july-rust/SParamView-Public/actions/runs/46134402405/artifacts/15259787666), exact commit `2f254f905326c3a20e110804c55e49f4067864d0`. The verified readable `workspace/language_en_2.png` shows the current Eye Diagram without PHY Profile. Separate `analysis-screenshots/` images are actual offscreen captures but show missing glyphs and are not suitable for the guide. The next capture uses the bundled application font explicitly. Keep historical image provenance unchanged until new images are visually inspected.

@@ -15,3 +15,7 @@ Earlier candidate `60ca2d45fd583dfb2ff1cbc2becd973340a007bf` passed [three-platf
 ## Downloads
 
 [Release and checksums](https://github.com/july-rust/SParamView-Public/releases/tag/v1.4.3) when published by the validated release workflow.
+
+### Latest verified candidate evidence
+
+Commit `2f254f905326c3a20e110804c55e49f4067864d0` passed all nine non-publication jobs in [three-platform CI](https://github.com/july-rust/SParamView-Public/actions/runs/46134402405), including native Windows ARM64 packaged-binary qualification, and [CodeQL](https://github.com/july-rust/SParamView-Public/actions/runs/46134402409). This includes resolved-input CSV/PNG identity parity and fractional-rate preservation. [Native evidence archive](https://github.com/july-rust/SParamView-Public/actions/runs/46134402405/artifacts/15259787666) was downloaded and inspected. The `workspace/language_en_2.png` capture shows the actual v1.4.3 Eye window without PHY Profile and with readable labels. The separate `analysis-screenshots/` captures show missing glyphs on the offscreen runner; do not use them as manual illustrations until corrected. Original product S36P files remain unavailable. No real board correlation or final release is claimed.

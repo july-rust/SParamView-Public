@@ -17,6 +17,8 @@
 #include <QTemporaryDir>
 #include <QFile>
 #include <QImage>
+#include <QFontDatabase>
+#include <QFontMetrics>
 #include <QVariant>
 #include <QMouseEvent>
 #include <QWheelEvent>
@@ -35,8 +37,12 @@ void capture016(AnalysisWindow *window,const QString &name) {
   const auto path=qEnvironmentVariable("SPARAMVIEW_ANALYSIS_CAPTURE_DIR");
   if(path.isEmpty())return;
   check(QDir().mkpath(path),"016 capture directory failed");
+  const auto original=window->size();
+  window->resize(1024,768);
   QApplication::processEvents();
   check(window->grab().save(QDir(path).filePath(name)),"016 actual GUI capture failed");
+  window->resize(original);
+  QApplication::processEvents();
 }
 bool pumpUntil(const std::function<bool()> &predicate, int timeoutMs = 6000) {
   QElapsedTimer elapsed;
@@ -185,6 +191,21 @@ int main(int argc, char **argv) {
   QApplication app(argc, argv);
   std::cout << "Analysis GUI platform: " << QGuiApplication::platformName().toStdString() << std::endl;
   try {
+  // Offscreen Windows has no usable default system font in some runners.
+  // Load the same bundled font used by the actual application.
+  const auto captureFont=qEnvironmentVariable("SPARAMVIEW_ANALYSIS_CAPTURE_FONT");
+  if(!qEnvironmentVariable("SPARAMVIEW_ANALYSIS_CAPTURE_DIR").isEmpty()) {
+    check(!captureFont.isEmpty(),"016 capture font path missing");
+    const int id=QFontDatabase::addApplicationFont(captureFont);
+    check(id>=0,"016 bundled capture font could not be loaded");
+    const auto families=QFontDatabase::applicationFontFamilies(id);
+    check(!families.isEmpty(),"016 capture font has no family");
+    QFont font(families.front(),9);
+    app.setFont(font);
+    const QFontMetrics metrics(font);
+    check(metrics.inFont(QChar('A')) && metrics.inFont(QChar('0')),
+          "016 capture font lacks basic glyphs");
+  }
   // Numeric display bounds are independent of the analysis engine and mode.
   using si::gui::detail::PlotBounds;
   {
