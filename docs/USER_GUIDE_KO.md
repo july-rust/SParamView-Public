@@ -2,7 +2,7 @@
 
 **적용 기준:** SParamView **v1.4.2 공식 릴리스**
 **지원 플랫폼:** Windows x64 / Windows ARM64 / macOS Apple Silicon (arm64)
-**문서 갱신:** 2026-11-28 (KST). Eye Diagram Multi View와 기존 창 화면 경계, 새로 만들기·종료 개선 반영.
+**문서 갱신:** 2026-11-28 (KST). 최신 화면, 상세 사용법, 구현 수식 및 계산 예시·해석 한계 반영.
 
 [English User Guide](USER_GUIDE_EN.md) | [한국어 README](../README_KO.md) | [v1.4.2 Release Notes](Release_1.4.2.md) | [전체 문서 색인](README.md)
 
@@ -28,79 +28,9 @@ SParamView는 Touchstone S-parameter 데이터를 열어 채널 단위로 분석
 
 특히 **Quick TDR은 제한된 주파수 대역으로부터 계산한 추정값**이며 실제 TDR 계측기를 대체하지 않습니다.
 
-### 1.1 v1.2.1에서 알아둘 변경사항
+### 1.1 최신 버전의 분석 기능
 
-| 항목 | 사용 시 달라진 점 |
-|---|---|
-| 입력 검증 | 잘못된 숫자·범위와 모호한 입력 조건을 안전하게 거부합니다. 오류가 나면 입력과 설정을 확인하십시오. |
-| TDR 초기 화면 | 일반적인 0 ns 기반 결과는 약 −0.1~1.5 ns를 먼저 보여줍니다. 전체 계산 구간은 **Fit All**로 확인합니다. |
-| TDR 선택 범위 | Uniform FFT 경로에서 선택 시간 범위 밖의 임피던스 특이점이 정상 선택 구간까지 `UNSUITABLE`로 만들던 문제를 수정했습니다. |
-| Worst Margin 정렬 | 같은 분석 항목 안에서 Margin이 있는 결과를 먼저 표시하고, Margin이 없는 결과는 별도 그룹으로 정렬합니다. |
-
-v1.2.0의 기능별 소스 분할은 내부 코드 구조 변경입니다. 사용자가 파일을 나누거나 별도로 설정할 필요는 없습니다. 세부 변경 이력은 [v1.1.6](Release_1.1.6.md), [v1.1.7](Release_1.1.7.md), [v1.2.0](Release_1.2.0.md), [v1.2.1](Release_1.2.1.md)을 참고하십시오.
-
----
-
-### v1.2.4a 사용 흐름 변경
-
-- 안내가 나오면 Channel Mapping 전에 **Signal Type Detection**을 검토합니다. Single-ended를 선택하면 **Suggest from Labels**에서도 이름 기반 P/N 추론이 꺼진 상태를 유지합니다. 명시적 `.DiffChannels`와 Mixed-Mode descriptor는 별도 근거입니다. 필요한 경우 Near/Far를 직접 확인하고 대화상자의 미매핑 포트 수도 확인하십시오.
-- 분석 버튼은 현재 선택 채널·필터·Aggressor에 맞춰 계산합니다. 완료된 동일 요청은 재사용합니다. Metric 선택은 기존 결과의 조회만 변경하며 새 분석을 실행하지 않습니다. Direction 버튼은 계산된 방향의 표시를 전환합니다.
-- 프로젝트를 열 때 현재 원본 전체 SHA-256을 검증합니다. 원본 변경 시 기존 확정 매핑을 해제하고 현재 원본에서 생성한 후보를 다시 검토합니다. 매핑 오류만으로 유효한 원본을 버리지 않습니다.
-- 설정·마커·채널 선택·검색·Aggressor 변경은 저장 상태에 반영됩니다. 프로젝트 전환에서 Save / Discard / Cancel을 선택할 수 있으며 저장 취소·실패 시 현재 프로젝트를 유지합니다.
-- Excel Configuration에는 신호 종류·신뢰도·근거·매핑 출처 및 확인 상태, 원본 SHA-256 및 검증 상태, 분석 완료 시각·보고서 생성 시각, 실제 분석 설정 스냅샷을 기록합니다. 분석 후 바꾼 설정을 기존 결과의 계산 조건으로 표시하지 않습니다.
-- 첫 번째 이후 Touchstone 옵션 줄은 진단을 남기고 무시합니다. 첫 옵션의 해석을 유지하며 대칭 Lower/Upper mixed-mode 행렬을 지원합니다.
-- 아래 기존 화면은 v1.2.1 검증 자료이며 v1.2.4a의 신규 화면이 아닙니다. v1.2.2부터 적용한 74 px 설정 영역은 유지됩니다.
-
-**2026-10-13 릴리즈 후 검증:** 공식 v1.2.4a 실행 파일은 그대로 유지했습니다. GCC Release와 Clang ASan/UBSan, macOS Cocoa GUI, GitHub CLI 다운로드로 CI를 개선했으며, [공식 main 검증](https://github.com/july-rust/SParamView-Public/actions/runs/38383938009)에서 컴파일러·Qt 시험 환경·다운로드 경고 0건 및 Windows ARM64 수동 매핑 시험 10/10 PASS를 확인했습니다. 이는 사용자 기능의 추가가 아닌 검증 환경 개선입니다.
-
-### v1.2.5 종료 시 임시데이터 자동 정리
-
-- GUI는 실행 인스턴스마다 독립된 캐시 디렉터리를 생성하여 `.sicache`, `.sicache.tmp` 및 Excel 보고서 중간파일을 저장합니다. 정상 종료 시 작업 스레드와 열려 있는 캐시 핸들을 모두 닫은 후 해당 캐시 디렉터리를 삭제합니다.
-- 다른 실행 중인 SParamView 인스턴스의 캐시는 잠금 파일로 보호합니다. 프로그램이 비정상 종료된 경우 다음 실행에서 소유권 마커와 활성 잠금을 검증한 세션 폴더만 정리합니다.
-- CLI에서 캐시 경로를 따로 지정하지 않은 경우 실행 중에 만든 캐시를 명령 종료 때 삭제합니다. 사용자가 지정한 CLI 캐시 경로는 자동 삭제하지 않습니다.
-- 원본 Touchstone, 저장된 `.siproject`, XLSX/CSV/PNG 출력, 사용자 설정과 매핑 프리셋은 보존합니다. **이전 버전이 생성한 공유 캐시 파일은 오래된 실행 인스턴스 보호를 위해 삭제하지 않습니다.**
-- 캐시 삭제 후에는 다음 실행에서 원본을 다시 변환해야 하므로 첫 로딩 시간이 늘어날 수 있습니다.
-
-상세 내용: [임시 캐시 정리 설명](Temporary_Cache_Cleanup.md) 및 [v1.2.5 변경사항](Release_1.2.5.md).
-
-### v1.3.5 Mapping CSV 및 GUI·캐시 초기화 안정성
-
-- Mapping CSV v3(`v3-text-percent`)는 네 텍스트 열에 `text:` 접두어를 붙이고 공백·제어 문자·%를 퍼센트 인코딩합니다. 예: `00123` → `text:00123`, 줄바꿈 → `%0A`, `%` → `%25`. 포트 번호는 정수입니다. CSV를 직접 편집할 때 접두어와 인코딩을 유지하고, 일반 편집은 Channel Mapping 창을 사용하십시오. 구형 v1/v2 CSV는 읽을 수 있지만 **v1.3.4는 새 v3 CSV를 읽을 수 없습니다**. Linux LibreOffice GUI 왕복에서 확인한 범위와 Excel·플랫폼별 미검증 제한은 [검증 범위](Final_Qualification_1.3.5.md)를 참고하십시오.
-- GUI 초기화 예외를 안내하고 자동화·헤드리스 실행에서는 비정상 종료 코드로 보고합니다. 캐시 세션 초기화 실패 시 임시 자원을 안전하게 정리합니다.
-- 전기적 계산 및 프로젝트 스키마는 변경하지 않았습니다. [v1.3.5 릴리스 노트](Release_1.3.5.md), [2단계 검증](V133_Stage2_CSV_Validation.md), [3단계 검증](V133_Stage3_Startup_Validation.md)을 참고하십시오.
-
-### v1.3.3 Touchstone 포트 파싱 안정성
-
-- PowerSI `.DiffChannels` 포트 인덱스는 0부터 시작하는 부호 없는 10진 정수입니다. 소수, 부호, 오버플로 또는 범위를 벗어난 인덱스는 확정하지 않고 진단 및 수동 매핑 검토 대상으로 처리합니다.
-- Mixed-Mode `S<n>`, `D<n>,<n>`, `C<n>,<n>` 번호는 완전한 양의 정수여야 하며 실제 선언된 포트 범위 내에 있어야 합니다.
-- 기존 `! Port N = NAME`, `! PortN_COMPONENT_PIN::NET`, Near/Far 및 P/N 접미사 인식은 재귀 정규식 대신 선형 파싱으로 처리합니다. UTF-8 레이블과 정상적인 기존 차동 매핑 규칙은 보존합니다.
-- 프로젝트 스키마, 임시 캐시 정책, RL/IL/NEXT/FEXT/TDR 수치 연산, 다중 실행 격리 정책에는 변경을 의도하지 않았습니다. 자세한 내용은 [v1.3.3 릴리스 노트](Release_1.3.3.md)를 참고하십시오.
-
-### v1.3.2 프로젝트 교체 및 Touchstone 파일명 표시
-
-- **Open Project**에서는 새 프로젝트 원본을 찾아 SHA-256 검증과 새 캐시 디렉터리 입력을 완료한 후 기존 작업공간을 교체합니다. 오류·취소·파일 누락 시 기존 프로젝트를 유지하며 미저장 작업에 대한 Save/Discard/Cancel 보호도 유지합니다.
-- 프로젝트 교체 성공 시 오래된 분석 결과, 비교 테이블, 그래프 확대/축/이력, 선택 채널과 이전 프로젝트 캐시를 정리합니다. 해당 캐시를 참조하는 작업이 종료되도록 처리한 후 기존 핸들을 해제하며 다른 실행 프로그램 캐시는 삭제하지 않습니다.
-- **+ Open Touchstone**으로 파일을 추가하는 동작은 기존처럼 **Revision 추가**입니다. 여러 Touchstone을 비교하는 기능을 유지합니다.
-- 타이틀바에는 현재 선택한 Touchstone의 **원본 파일명과 확장자**가 표시되며 Revision 선택을 바꾸면 함께 갱신됩니다. 선택 창의 툴팁에는 **전체 원본 경로**를 표시합니다. 운영체제가 허용하는 타이틀바 폭이 좁으면 육안으로 보이는 부분은 잘릴 수 있습니다.
-- `.siproject` 저장 시 오래된 임시 `cache` 절대 경로를 기록하지 않습니다. 이 필드가 남아 있는 기존 schema-1 프로젝트도 계속 불러올 수 있습니다.
-- 상세 내용은 [v1.3.2 릴리스 노트](Release_1.3.2.md), [이슈 #15](https://github.com/july-rust/SParamView-Public/issues/15), [임시 캐시 정리 정책](Temporary_Cache_Cleanup.md)을 참고하십시오.
-
-### v1.3.1 다중 실행 캐시 안정화
-
-- SParamView를 두 개 이상 실행하고 **같은 Touchstone 파일을 동시에 열더라도**, 각 실행 인스턴스는 서로 다른 `session-XXXXXX` 디렉터리에 캐시를 작성합니다.
-- 정상 종료 시 삭제와 다른 실행 프로그램의 잔여 캐시 검사를 같은 레지스트리 잠금으로 보호합니다. 잠금 또는 열린 파일 때문에 삭제가 불가능할 경우 다른 프로그램의 캐시를 강제로 삭제하지 않고 다음 실행에서 안전하게 재시도합니다.
-- **한 창 내부에서** 새로운 Touchstone을 여는 동작은 기존과 같이 Revision을 추가합니다. 서로 다른 프로젝트를 열 때 이전 캐시·그래프를 초기화하는 기능은 v1.3.2에서 추가했습니다.
-- 세부 정책은 [캐시 정리 문서](Temporary_Cache_Cleanup.md)와 [v1.3.1 릴리스 노트](Release_1.3.1.md)를 확인하십시오.
-
-### v1.3.0 Touchstone 입력 및 Windows 배포 변경
-
-- **지원 버전:** Touchstone 1.0·1.1(`[Version]` 생략) 및 2.0·2.1(명시적인 `[Version]`과 필수 2.x 키워드) **S-파라미터** 파일을 처리합니다. Y/Z/H/G 네트워크 파라미터를 S-파라미터로 임의 변환하지 않으며 미지원 형식으로 안내합니다. `1.9`는 공식 Touchstone 버전이 아닙니다.
-- **수치 데이터 형식:** Hz/kHz/MHz/GHz, RI/MA/DB, Full/Lower/Upper 행렬, 포트 기준 임피던스, 2포트 순서 및 Mixed-Mode 순서 중 구현된 S-파라미터 범위를 지원합니다. P/N 및 Near/Far의 물리적 연결은 원본과 비교해 확인해야 합니다.
-- **포트 이름:** `! Port 1 = J1-A1 NET_P` 및 제조사 확장 `! Port1_J1_A1::NET_P` 주석을 읽습니다. `!.DiffChannels`는 공식 Touchstone 키워드가 아닌 제조사 주석으로, `[Mixed-Mode Order]`와 구별합니다. 포트 인덱스·NET·컴포넌트/핀·극성이 불일치하면 자동 확정하지 않고 수동 확인을 요구합니다.
-- **캐시:** v1.3.0에서 캐시 메타데이터 형식을 변경하여 이전 버전의 빈 포트 이름이 재사용되지 않도록 했습니다. 종료 시 임시 캐시를 안전하게 정리하는 v1.2.5 정책은 유지합니다.
-- **Windows 압축 배포본:** 최상위 EXE는 `SParamView.exe` 하나이며 Qt와 필수 MSVC DLL은 실행파일 옆에 둡니다. CLI는 `tools/si_cli.exe`에 유지합니다. v1.4.0 후보부터 테스트 실행파일(`tests/si_*.exe`)과 `Run_Windows_Verification.cmd`는 별도 전체 QA ZIP에 포함하며 일반 사용자 ZIP에는 포함하지 않습니다.
-
-규격 출처: [IBIS Touchstone v2.1 공식 문서](https://ibis.org/touchstone_ver2.1/touchstone_ver2_1.pdf). [v1.3.0 CI 검증](https://github.com/july-rust/SParamView-Public/actions/runs/40807027224).
+기존 RL / IL / NEXT / FEXT / Quick TDR 및 Revision 비교에 더해 Analysis 메뉴에서 ILD, ICN, Eye Diagram을 실행합니다. v1.4.2의 세 그래프 동시 표시와 계산 원리·수치 예시는 24장을 참조하십시오. 이전 버전 변경 사항은 부록과 [변경 이력](Revision_History.md)에 보존합니다.
 
 ## 2. 설치 및 처음 실행
 
@@ -149,7 +79,7 @@ ZIP 파일의 압축을 해제한 뒤 최상위 `SParamView.exe`를 실행합니
 > **자동 검증 화면** — 아래 이미지는 SParamView v1.2.1 네이티브 Windows ARM64 검증에서 synthetic sample project를 사용해 프로그램이 자동 생성한 화면입니다. OS, DPI 및 창 크기에 따라 실제 배치는 조금 달라질 수 있습니다.
 > 이 화면은 **v1.2.1 검증 당시 자료**로, v1.3.0에서 새로 생성한 화면이 아닙니다. TDR 표시 및 판정 동작은 10절을 확인하십시오. [이미지 출처](images/README.md).
 
-![SParamView v1.2.1 메인 화면](images/01_Main_Window.png)
+![SParamView v1.4.2 메인 화면](images/01_Main_Window.png)
 
 ### 4.1 상단 바로가기
 
@@ -603,7 +533,7 @@ v1.2.1에서 도입된 과거 기능은 [v1.2.1 릴리스 노트](Release_1.2.1.
 
 ### 문서 버전
 
-이 설명서는 v1.4.2 (2026-11-28 KST) 기준입니다. 기존 이미지는 v1.2.1 역사적 검증 화면입니다.
+이 설명서는 v1.4.2 (2026-11-28 KST) 기준입니다. 화면은 v1.4.2 공식 검증 자료 및 기록된 GUI 캡처에서 가져왔습니다.
 
 
 
@@ -630,3 +560,257 @@ Eye Diagram에 기존 개별 표시와 함께 **그래프 3개 모두** 옵션�
 
 - **v1.4.1:** 파일 > 새로 만들기는 저장 확인 후 ILD·ICN·Eye Diagram 창을 닫으며 취소 또는 저장 실패 시 기존 작업을 유지합니다. 파일 > 종료는 기존 저장·캐시 정리 절차를 사용합니다. 창을 현재 모니터의 논리 작업 영역에 맞추며 사용자 정의 대화상자는 본문 스크롤과 하단 고정 버튼을 사용합니다. 파일 선택은 공통 Qt 대화상자를 사용합니다.
 고해상도 배율 적용 시 물리 픽셀이 아닌 논리 픽셀을 기준으로 동작합니다. 지나치게 작은 작업 영역은 플랫폼·위젯의 최소 크기 제한을 받을 수 있으며 모든 실제 모니터와 배율 조합에 대한 검증을 의미하지 않습니다.
+
+## 24. 분석 기능별 계산 원리 및 실무 사용법 (v1.4.2)
+
+이 장은 공식 v1.4.2에 실제 구현된 C++ 계산식을 설명합니다. 향후 개발 예정 기능이나 IEEE 적합성 시험 방법을 설명하는 것이 아닙니다. 계산 예시는 수식 이해를 위한 가상 수치이며 아래 화면의 측정 결과가 아닙니다. 화면은 합성 QA 데이터로 생성하며 [이미지 출처](images/README.md)를 참고하십시오. 소스 링크는 변경되지 않는 v1.4.2 Tag를 기준으로 합니다. 내부 연산은 Hz, s, V, Ω를 사용하고 GUI에서는 GHz, ns/ps, mV, dB 등으로 표시합니다.
+
+### 24.1 Touchstone 데이터와 Channel Mapping
+
+1. Touchstone 1.0/1.1/2.0/2.1 S-parameter 파일을 엽니다. 주파수 범위, Reference Impedance, Port 이름과 물리적 방향을 확인합니다. RI, MA, DB 형식은 같은 복소수를 나타냅니다. 각각 $S=x+jy$, $S=M e^{j\theta}$, $S=10^{D/20}e^{j\theta}$입니다. 지수의 위상은 radian이며 Touchstone 파일의 위상은 degree입니다.
+2. Revision마다 Single-ended 또는 Differential Channel Mapping을 확인합니다. Differential은 Near P/N과 Far P/N의 극성을 확인합니다. 이름이 비슷하다는 이유로 물리 Pair를 확정하면 안 됩니다.
+3. Victim, 필요한 Aggressor, 방향, 주파수/시간 범위를 선택합니다. Quick Analysis 또는 개별 분석을 실행합니다. ILD, ICN, Eye Diagram은 별도의 Analysis 메뉴를 이용합니다.
+4. 결과의 Status, Quality, Worst point 및 전체 그래프를 검토하고 Export합니다. Revision 비교는 매핑·방향·종단·기준 임피던스·Limit를 일치시킵니다. 결과가 없는 경우 PASS로 해석하지 않습니다.
+
+동일한 호환 Reference를 갖는 물리 P/N Pair에 대해 Differential power-wave의 단위벡터는 $u=(1,-1)^T/\sqrt2$입니다. 실제 계산되는 차동 응답은 다음과 같습니다.
+
+$$S_{dd}=u_r^T S_{\mathrm{physical}}u_s=\tfrac12(S_{r_p s_p}-S_{r_p s_n}-S_{r_n s_p}+S_{r_n s_n}).$$
+
+$r$은 응답, $s$는 입력 Endpoint입니다. S-parameter의 행은 응답 Port, 열은 입력 Port입니다. Single-ended의 벡터 가중치는 1입니다. 위 식은 실제 구현된 Projection이며 서로 다른 기준 임피던스의 임의 Renormalization이 아닙니다. 물리 Port가 각각 50 Ω이면 차동 Reference는 100 Ω입니다. Quick 분석은 SE와 Differential 간 Cross-mode 누화를 계산하지 않습니다.
+
+측정 주파수 사이의 복소 보간은 $S(f)=(1-a)S_i+aS_{i+1}$, $a=(f-f_i)/(f_{i+1}-f_i)$입니다. dB 값만 보간하는 것이 아니며, 측정 범위를 넘어서는 분석 조건이 새로운 측정값을 만들어내지는 않습니다.
+
+구현 근거: [Trace 및 방향](https://github.com/july-rust/SParamView-Public/blob/v1.4.2/src/trace.cpp), [Endpoint 및 종단](https://github.com/july-rust/SParamView-Public/blob/v1.4.2/src/termination.cpp), [IBIS Touchstone 2.1 규격](https://ibis.org/touchstone_ver2.1/touchstone_ver2_1.pdf).
+
+### 24.2 Return Loss / Insertion Loss / NEXT / FEXT
+
+네 가지 Quick 주파수 분석은 선택된 복소 S-parameter $H(f)$에 대해 $D(f)=20\log_{10}|H(f)|$ dB를 표시합니다. 크기가 0이면 음의 무한대입니다. 일반적으로 양수로 정의하는 Return Loss 및 Insertion Loss는 $-D$입니다. **프로그램의 Quick 그래프는 부호가 있는 S-parameter dB**를 사용합니다.
+
+| 분석 | Forward (Near → Far) | Reverse (Far → Near) | 양호한 경향 |
+|---|---|---|---|
+| RL | Victim Near 반사: S11/Sdd11 | Victim Far 반사: S22/Sdd22 | 더 음수 |
+| IL | Victim Near 입력 → Far 출력: S21/Sdd21 | S12/Sdd12 | 수동 Through 경로에서 0 dB에 가까울수록 |
+| NEXT | Aggressor Near 입력 → Victim Near 응답 | Aggressor Far → Victim Far | 더 음수 |
+| FEXT | Aggressor Near 입력 → Victim Far 응답 | Aggressor Far → Victim Near | 더 음수 |
+
+예를 들어 $|S_{11}|=0.1$이면 -20 dB (양수 Return Loss 20 dB)이며 반사 power-wave 전력 비율은 $|S_{11}|^2=1\%$입니다. $|S_{21}|=0.5$이면 약 -6.02 dB이며 호환되는 power-wave 기준에서 전달 전력 비율은 25%입니다. 누화 응답 크기 0.01은 -40 dB, 전력 비율 0.01%입니다. 이는 Wave 비율이며 임피던스 부정합 회로의 실제 부하 전압 또는 소비 전력과 동일하다고 단정하면 안 됩니다.
+
+Both 방향을 선택했을 때 RL/IL의 방향 차이는 공통 주파수 범위에서 복소 보간을 적용한 $\max_f|D_{\rm forward}(f)-D_{\rm reverse}(f)|$입니다. 차이가 크면 비대칭이나 매핑 이상을 확인할 수 있으나 독립적인 적합성 판정 기준은 아닙니다. 호환되는 정규화 조건에서 상호적인 회로의 전달 응답은 같을 수 있지만 양단 반사는 다를 수 있습니다.
+
+구현 근거: [trace.cpp](https://github.com/july-rust/SParamView-Public/blob/v1.4.2/src/trace.cpp).
+
+### 24.3 Limit 및 Worst Margin 계산
+
+기본 예시 값은 RL -10 dB, IL -3 dB, NEXT/FEXT -20 dB, TDR 허용 오차 10%입니다. 체크박스는 처음에 해제되어 있습니다. 실제 인터페이스 규격에 맞는 Limit를 직접 입력해야 합니다.
+
+계산된 $D(f)$와 Limit $L(f)$로부터 Margin은
+
+$$m(f)=\begin{cases}D(f)-L(f),&\text{IL}\\ L(f)-D(f),&\text{RL, NEXT, FEXT}\end{cases}$$
+
+이며 Worst Margin은 평가된 Margin의 최솟값입니다. 주파수별 Limit는 입력된 dB 값 사이를 선형 보간하며 정의된 범위를 벗어나면 외삽하지 않습니다. TDR Margin은 Ω 단위의 $m(t)=Z_{\rm target}p/100-|Z(t)-Z_{\rm target}|$입니다 ($p$: 허용 오차 %).
+
+예시: RL -14 dB, Limit -10 dB이면 +4 dB입니다. IL -4 dB, Limit -3 dB이면 -1 dB입니다. TDR Target 100 Ω, 허용 오차 10%이면 범위는 90~110 Ω이며 112 Ω 지점의 Margin은 -2 Ω입니다. 위반이 검출되면 다른 결과 일부가 없더라도 NG이고, 위반이 없지만 데이터 부족·유효하지 않은 값·범위 부족 등이 있으면 N/A입니다. OK는 설정된 공학적 Limit를 만족했다는 뜻이지 표준 인증을 의미하지 않습니다.
+
+구현 근거: [analysis.cpp](https://github.com/july-rust/SParamView-Public/blob/v1.4.2/src/analysis.cpp), [Limit 보간](https://github.com/july-rust/SParamView-Public/blob/v1.4.2/src/termination.cpp).
+
+### 24.4 Quick TDR — 반사 응답으로 임피던스 계산
+
+TDR을 선택한 후 Reference 또는 반대쪽 종단 조건, Target 임피던스, 실제 분석 시간 범위를 설정합니다. 화면의 확대 범위와 분석 범위는 구분합니다. Quality를 확인한 후 임피던스를 해석합니다. Reference 종단은 나머지 물리 Port가 Reference에 정합된 원본 S-parameter를 유지합니다. 다른 종단은 매핑된 반대쪽 Endpoint에 적용합니다.
+
+기준 임피던스 $Z_0$, 계산된 실수 Step Reflection $\rho(t)$에 대해
+
+$$Z(t)=Z_0\frac{1+\rho(t)}{1-\rho(t)}.$$
+
+예를 들어 100 Ω Reference에서 $\rho=+0.1$이면 122.22 Ω, $\rho=-0.1$이면 81.82 Ω입니다. 반사 Step이 양수이면 추정 임피던스가 증가하고 음수이면 감소합니다. Open 부근의 특이점은 유효한 유한 임피던스가 아닙니다.
+
+구현에서는 균일 주파수 Grid에 복소 보간 후 Kaiser Window $W(u)=I_0(\beta\sqrt{1-u^2})/I_0(\beta)$ ($u=f/f_{\max}$, $I_0$: 수정 Bessel 함수)를 적용합니다. Hermitian 대칭으로 음수 주파수를 구성하고 IFFT, 시간 원점 이동, Impulse 누적 사다리꼴 적분을 수행합니다. 시간 샘플 간격은 $\Delta t=1/(2f_{\max})$, 주기적 FFT 시간 범위는 $1/\Delta f$입니다. 실제 선택 가능한 양의 시간 구간은 $0.45/\Delta f$까지 제한합니다. 샘플 간격이 계측기의 분해능을 의미하는 것은 아닙니다. DC가 누락된 경우 첫 두 실수 반사 샘플로 선형 DC 외삽을 수행하고 DC는 실수로 강제합니다. 저주파 Gap이 상한 주파수의 10%를 초과하거나 DC 값이 비정상인 경우 차단합니다.
+
+균일 Grid의 절대 복소 S 오차가 0.05를 초과하면 원래 주파수 구간을 사용하는 비균일 Step 적분으로 전환합니다.
+
+$$\rho(t)=\frac{\Re S(0)}2+\int_0^{f_{\max}}\frac{W(f)[\Re S(f)\sin(2\pi ft)+\Im S(f)\cos(2\pi ft)]}{\pi f}\,df.$$
+
+적분 차수와 보간 민감도를 비교하며 수치 조건을 만족하지 않는 경우 결과 품질을 제한합니다. 이는 계측기 정확도 규격이 아닌 Preview 수치 기준입니다. 고주파 대역이 넓을수록 짧은 구조를 분리하는 데 유리하지만 DC 누락, 주파수 간격, Noise 및 Window의 영향을 받습니다. 전파 속도 $v_p$를 별도로 알고 있을 때 반사 왕복 시간으로부터 거리 $d=v_pt/2$를 추정할 수 있습니다. 이는 공학적 거리 환산 예시이며 프로그램이 유전율이나 실제 거리를 자동 측정한다는 뜻이 아닙니다.
+
+반대편 물리 종단은 구동 Port 및 종단 Port로 S 행렬을 분할한 후 $a_L=\Gamma_L b_L$ 경계조건으로 $(I-\Gamma_L S_{LL})a_L=\Gamma_L S_{LN}a_N$을 풀고 $b_N=S_{NN}a_N+S_{NL}a_L$을 계산합니다. 비특이 조건의 등가 반사식은
+
+$$S_{\rm eff}=S_{NN}+S_{NL}(I-\Gamma_L S_{LL})^{-1}\Gamma_L S_{LN}.$$
+
+단일 저항 종단은 $\Gamma_L=(R-Z_0)/(R+Z_0)$이며 Open은 +1, Short는 -1입니다. Floating P–N 100 Ω과 P/N 각각 50 Ω-to-GND는 Common-mode 경계조건이 다르므로 동일 종단으로 취급하지 않습니다. 해가 일치하지 않거나 입력 응답이 유일하지 않은 경우 차단합니다.
+
+구현 근거: [tdr.cpp](https://github.com/july-rust/SParamView-Public/blob/v1.4.2/src/tdr.cpp), [termination.cpp](https://github.com/july-rust/SParamView-Public/blob/v1.4.2/src/termination.cpp).
+
+### 24.5 ILD (Insertion Loss Deviation)
+
+**Analysis → ILD**를 선택합니다. 확인된 소스, Victim, 방향을 지정하고 Auto Analysis를 실행하거나 Run Manual에서 주파수 범위와 Fit Model을 설정합니다. 그래프에서 양수 Insertion Loss 및 Fitted Loss, 부호 있는 Deviation을 확인합니다. 실제 적용 주파수 범위, RMS, Peak Absolute 및 해당 주파수를 확인합니다. 같은 모델과 주파수 조건에서는 편차가 작을수록 유리하지만 절대 IL이 낮다는 보장은 아닙니다.
+
+![v1.4.2 ILD 분석 화면](images/04_ILD.png)
+
+Quick IL과 달리 ILD는 양수 Loss $A(f)=-20\log_{10}|H(f)|$를 사용합니다. $F$는 선택된 측정 데이터의 마지막 주파수이며 $x=f/F$로 정규화합니다. 세 가지 Fit Model은
+
+$$\widehat A=a_0+a_1x,\qquad \widehat A=a_0+a_1\sqrt{x}+a_2x,\qquad \widehat A=a_0+a_1\sqrt{x}+a_2x+a_3x^2.$$
+
+기본 모델은 Root-linear입니다. 이는 매끄러운 손실을 근사하기 위한 공학적 모델로, 계수 자체를 동박·유전체의 직접 측정값으로 해석하면 안 됩니다. 측정 대역폭 $B=f_{\rm last}-f_{\rm first}$로 정규화한 사다리꼴 Cell 가중치 $w_i=(\Delta f_{\rm left}+\Delta f_{\rm right})/(2B)$를 사용하여 $\sum_iw_i(A_i-\widehat A_i)^2$를 최소화합니다. 양쪽 끝에서 없는 구간은 0입니다. 직접 역행렬 대신 두 번 재직교화한 Modified Gram–Schmidt QR로 계산합니다.
+
+편차는 $e_i=A_i-\widehat A_i$, 최대 절대 편차는 $\max_i|e_i|$입니다. RMS는 선형 연결된 편차를 제곱하여 대역폭 전체에 대해 적분합니다.
+
+$$e_{\rm RMS}=\sqrt{\frac1B\sum_i\frac{f_{i+1}-f_i}{3}(e_i^2+e_ie_{i+1}+e_{i+1}^2)}.$$
+
+예시: +0.5 dB 편차는 측정 양수 Loss가 Fit보다 0.5 dB 크고, -0.5 dB 편차는 0.5 dB 작습니다. 한 구간의 편차가 -1에서 +1 dB로 선형 변화하면 구간 RMS는 $1/\sqrt3\approx0.577$ dB입니다. 프로그램은 실제 범위 안의 측정 Bin만 사용하며 Zero Transfer, 부족한 샘플, Rank 부족 Fit 등을 차단합니다. Auto ILD는 관측된 AC-like Pole이 있으면 시작 주파수를 Pole의 10배 이상으로 올릴 수 있습니다. 누락된 손실을 외삽하지 않습니다. 동일 대역 및 모델로 비교해야 하며 IEEE weighted FOM_ILD가 아닌 Generic ILD입니다.
+
+구현 근거: [ild.cpp](https://github.com/july-rust/SParamView-Public/blob/v1.4.2/src/channel_analysis/ild.cpp), [ILD 수치 검증 기록](Channel_Analysis_ILD_012_05.md).
+
+### 24.6 ICN (Integrated Crosstalk Noise)
+
+**Analysis → ICN**에서 Victim, 방향, NEXT/FEXT Aggressor 경로(1~32개)를 선택합니다. Auto Analysis는 참고용 조건을 사용합니다. 실제 Baud, TX Vpp, Rise Time(10~90%), RX 대역폭과 적분 범위를 알고 있으면 Run Manual을 사용합니다. 다중 경로는 Independent/RSS 가정을 활성화해야 합니다. **All three graphs**에서 Power Sum, Weighted Noise PSD, Cumulative RMS를 함께 확인할 수 있습니다. 초기 화면은 Total 포함 Cumulative RMS입니다.
+
+![v1.4.2 ICN 세 그래프](images/05_ICN.png)
+
+동일 확률의 독립적인 평균 0 NRZ Symbol에 대해 $T=1/R_s$, $\sigma_V=V_{pp}/2$, $\sigma_t=t_{10-90}/2.5631031310892007$, $\operatorname{sinc}(x)=\sin(x)/x$로 정의합니다. 실제 구현된 단측 Weighted PSD(V²/Hz)는
+
+$$P(f)=2\sigma_V^2T\operatorname{sinc}^2(\pi fT)\exp[-(2\pi f\sigma_t)^2]\frac1{1+(f/f_{\rm RX})^2}.$$
+
+각 경로의 전달 응답 $H_k(f)$에 대해 출력 PSD는 $P_k(f)=|H_k(f)|^2P(f)$입니다. Power Sum은 가중 전의 $10\log_{10}\sum_k|H_k|^2$이며 -300 dB는 화면에만 적용되는 하한입니다. PSD 그래프는 mV²/GHz 단위이며 1 V²/Hz = $10^{15}$ mV²/GHz입니다. Cumulative Noise는 측정 대역의 교집합에서 사다리꼴 적분합니다.
+
+$$V_k(f_j)=\sqrt{\sum_{i<j}\tfrac12[P_k(f_i)+P_k(f_{i+1})](f_{i+1}-f_i)},\quad V_{\rm total}=\sqrt{V_{\rm NEXT}^2+V_{\rm FEXT}^2}.$$
+
+각 경로 기여율은 Total이 0이 아닐 때 $100(V_k/V_{\rm total})^2$입니다. 예를 들어 독립 NEXT 3 mV RMS, FEXT 4 mV RMS이면 Total은 7 mV가 아니라 5 mV이며 각각의 전력 기여율은 36%, 64%입니다. 상관된 Aggressor를 단순 RSS로 계산할 수는 없습니다.
+
+Auto 조건은 Cap=min(10 GHz, 측정 최대 주파수), Symbol Rate=min(4.5 GBd, Cap/1.5), TX 400 mVpp, Rise Time 30 ps, RX Bandwidth=Cap입니다. 실제 회로의 TX 조건을 자동 추출한 값이 아닙니다. 측정 대역에서만 적분하며 누락된 DC 및 대역 밖 Noise를 외삽하지 않습니다. Reference 불일치 및 주파수 Grid 불일치는 차단합니다. 같은 조건에서는 결과가 낮을수록 유리하지만 보편적인 ICN 합격 Limit 또는 IEEE/SNIA 적합성을 의미하지 않습니다.
+
+구현 근거: [icn.cpp](https://github.com/july-rust/SParamView-Public/blob/v1.4.2/src/channel_analysis/icn.cpp), [ICN 수치 검증 기록](Channel_Analysis_ICN_012_06.md).
+
+### 24.7 Eye Diagram — NRZ 시뮬레이션
+
+**Analysis → Eye Diagram**에서 Source, 물리 Mapping, 방향을 확인합니다. Auto Preview로 빠르게 분석하거나 Manual 설정의 Profile, Bit Rate, Analysis Cap, Pattern, FFT Length, Samples/UI, TX/RX 전기 조건을 확인하고 Run Manual을 실행합니다. 가정과 DC 상태, RX 입력 범위, Eye Height, Eye Width 및 경고를 함께 봅니다.
+
+- **Eye overlay (2 UI)**: RX 파형을 위상 정렬하여 중첩합니다. Threshold와 High/Low Envelope 또는 Sampling Marker를 확인합니다. 동일 조건에서 Eye가 높고 유효 위상 구간이 넓을수록 유리한 경향입니다.
+- **TX / RX waveform**: 원래 입력 대비 수신 진폭, 지연, Ringing, ISI(Inter-Symbol Interference)를 확인합니다.
+- **Impulse / Unit pulse**: 정규화된 Impulse와 1 UI 높이 1 Pulse의 채널 응답입니다. 응답 Tail로 이전 Symbol이 뒤 Symbol에 미치는 영향을 파악합니다.
+- **All three graphs**: 위 세 그래프가 하나의 동일한 분석 결과를 공유합니다. 표시 모드를 바꿔도 재분석하지 않습니다. 넓은 화면에서는 보조 그래프를 나란히 배치하고 좁은 화면에서는 세로로 쌓아 스크롤합니다. 각 그래프의 마우스 Wheel 확대, Drag 이동, Double Click 초기화는 독립적입니다. PNG Export는 선택된 개별 또는 전체 View를 저장하며 CSV는 원본 수치 데이터를 유지합니다.
+
+![v1.4.2 Eye Diagram Multi View 화면](images/06_Eye_Multi_View.png)
+
+NRZ Bit Rate $R_b$, Samples/UI $M$, FFT Length $N$에 대해
+
+$$UI=1/R_b,\quad f_{\rm ref}=R_b/2,\quad f_s=MR_b,\quad \Delta t=1/f_s,\quad \Delta f=f_s/N.$$
+
+Analysis Cap은 Reference Frequency와 독립적이며 측정 데이터 및 시뮬레이션 Nyquist 범위 안에 있어야 합니다. 복소 선형 보간, DC 조건화, Hermitian Spectrum을 구성하고 Cap 이상은 0으로 둡니다. 이는 실제 대역 밖 측정값이 아니라 이상적인 대역 제한 **시뮬레이션 가정**입니다. 구성한 전달 함수 $H[k]$로부터
+
+$$h[n]=\operatorname{IFFT}\{H[k]\},\quad y[n]=\Re\{\operatorname{IFFT}(\operatorname{FFT}(x[n])H[k])\}.$$
+
+입력 $x$는 $N/M$ Bit의 유한 NRZ Frame을 반복합니다. Unit Pulse는 첫 $M$개 샘플이 1, 이후가 0인 신호를 동일 전달 함수에 통과시킵니다. Impulse 에너지 최대 샘플의 Index $d$에서 추정 지연은 $d\Delta t$입니다. 원형 지연이나 수치 조건이 유효하지 않으면 차단합니다. 이는 유한 주기 Convolution이며 긴 무작위 패턴이나 측정 Jitter 분포가 아닙니다.
+
+각 위상 $p=0,\ldots,M-1$에서 High Bit의 최소 수신값 $H_{\min}(p)=\min_{b_i=1}y[(iM+d+p)\bmod N]$, Low Bit의 최대 수신값 $L_{\max}(p)=\max_{b_i=0}y[(iM+d+p)\bmod N]$를 계산합니다.
+
+$$\text{Eye Height}=\max_p[H_{\min}(p)-L_{\max}(p)],$$
+
+$$O(p)=[H_{\min}(p)>V_{\rm th}\ \text{and}\ L_{\max}(p)<V_{\rm th}],\qquad
+\text{Eye Width}_{UI}=\frac{\text{longest circular run of true }O(p)}{M}.$$
+
+Eye Width(sec)는 Eye Width(UI)에 UI를 곱한 값입니다. 최대 Height 위상이 Threshold를 만족하지 않을 수 있으며 프로그램은 별도 경고합니다. Overlay는 최대 64개 Segment를 그리지만 수치 계산은 유한 시뮬레이션 Frame 전체를 사용합니다. Width는 샘플 위상의 추정값이며 BER Contour가 아닙니다.
+
+계산 예시: 4.5 Gbps에서 UI=222.22 ps, Reference=2.25 GHz입니다. $M=32$, $N=8192$이면 샘플 간격 6.944 ps, Sample Rate 144 GHz, 주파수 Bin 간격 17.578125 MHz, Frame은 256 Bit(56.889 ns)입니다. 가상 High 최소 +120 mV, Low 최대 -80 mV이면 해당 위상의 높이 차이는 200 mV입니다. Threshold 0 mV에서 연속 유효 위상이 24개면 Eye Width는 0.75 UI(166.67 ps)입니다.
+
+Auto Preview는 PRBS7, TX -200/+200 mV(400 mVpp Incident Wave), 동일한 실수 Reference 정합, Threshold 0 mV, RX 선형 범위 -1000/+1000 mV를 가정합니다. Cap=min(10 GHz, 측정 최대), Bit Rate=min(4.5 Gbps, Cap/1.5)입니다. Manual은 실제 Low/High 전압, 정합 TX/RX Reference, RX 선형 범위 및 Threshold를 입력해야 합니다. 서로 다른 Reference의 Renormalization은 이 엔진에서 지원하지 않습니다. MIPI D-PHY HS Profile은 Differential 및 최대 4.5 Gbps 조건이며 PHY 적합성 시험이 아닙니다.
+
+구현 근거: [eye.cpp](https://github.com/july-rust/SParamView-Public/blob/v1.4.2/src/channel_analysis/eye.cpp), [Eye GUI 및 Export](https://github.com/july-rust/SParamView-Public/blob/v1.4.2/src/gui/analysis/analysis_windows.cpp).
+
+### 24.8 Eye Diagram의 DC Extrapolation과 AC Coupling
+
+DC가 없는 Touchstone 파일에 대한 주파수 기준은 다음과 같습니다.
+
+| 원래 시작 주파수 | 처리 |
+|---|---|
+| 10 kHz 이하 | 주파수 기준 확인 없이 진행, 다른 품질 검사는 유지 |
+| 10 kHz 초과~100 kHz 미만 | 제한된 외삽 경고 및 명시적 확인 필요 |
+| 100 kHz 이상 | 실행 차단 |
+
+0 Hz 값이 있다고 항상 신뢰할 수 있는 것은 아닙니다. DC 일관성과 근접 데이터의 품질을 평가하며 희소 DC는 별도 취급합니다. 지원되는 국소 Even-real Fit와 Constant/대체 Fit 비교로 DC를 조건화하고, 관측된 AC-like Pole을 검증한 경우 $H_{\rm RC}(f)=G(jf/f_p)/(1+jf/f_p)$를 첫 측정점에 맞추어 사용할 수 있습니다. 측정된 복소 샘플 자체는 유지합니다. 이 모델은 물리적인 AC Coupling Capacitor 토폴로지를 증명하지 않습니다.
+
+이상적 Pole의 Time Constant $\tau=1/(2\pi f_p)$, 시간 $t$의 Step 감소 비율은 $1-e^{-t/\tau}$입니다. $n$ Bit 연속 구간의 경우 $t=n\,UI$입니다. 별도 Long-step 모델은 두 개 FFT Grid의 수치 결과를 비교하지만 실제 긴 패턴의 Baseline Wander를 보증하지 않습니다. 따라서 짧은 Frame에서 Eye가 열려 있다는 이유만으로 AC Coupled 채널을 합격 처리할 수 없습니다. 1 kHz 시작은 첫 정책 범위에 속하지만 정확도를 보장하는 것은 아닙니다.
+
+구현 근거: [eye.cpp의 DC/Long-run 모델](https://github.com/july-rust/SParamView-Public/blob/v1.4.2/src/channel_analysis/eye.cpp), [DC 검증](qualification/012_52_Eye_DC_Qualification.md), [AC/Auto 검증](qualification/012_54_AC_Auto_Analysis.md).
+
+### 24.9 SI 실무 판단 체크리스트
+
+- 비교 조건은 원본 Source, Reference, Mapping, 방향, 대역, Fit, TX/RX 조건, Limit를 동일하게 유지합니다. 시간 영역 분석은 특히 복소 위상 및 Reference가 중요합니다.
+- 절대 IL, RL, TDR을 함께 확인합니다. Eye가 크고 ILD/ICN이 작아도 해당 PHY의 Mask, RX Model, 측정 BER 또는 표준 규격 시험을 대체하지 않습니다.
+- 가능한 경우 전체 수치 CSV/Excel 및 Source SHA-256, 분석 조건을 보관합니다. PNG는 시각적 기록이며 전체 수치 자료가 아닙니다. Source/Mapping 변경은 관련 결과를 무효화합니다.
+- COM은 연구 코드만 보존한 개발 보류 기능이며 운영 메뉴에서 제공하지 않습니다. ILD, ICN, Eye 결과로 COM을 임의 추정하지 않습니다.
+- 공식 v1.4.2 [3개 플랫폼 릴리즈 CI](https://github.com/july-rust/SParamView-Public/actions/runs/46093773220) 및 [CodeQL](https://github.com/july-rust/SParamView-Public/actions/runs/46093773213)은 통과했습니다. 모든 실제 모니터/DPI 조합, 물리 PCB, 장시간 패턴, 계측기 등가 정확도에 대한 인증은 아닙니다.
+
+## 부록 A. 이전 버전별 주요 변경 기록
+
+### v1.2.1에서 알아둘 변경사항
+
+| 항목 | 사용 시 달라진 점 |
+|---|---|
+| 입력 검증 | 잘못된 숫자·범위와 모호한 입력 조건을 안전하게 거부합니다. 오류가 나면 입력과 설정을 확인하십시오. |
+| TDR 초기 화면 | 일반적인 0 ns 기반 결과는 약 −0.1~1.5 ns를 먼저 보여줍니다. 전체 계산 구간은 **Fit All**로 확인합니다. |
+| TDR 선택 범위 | Uniform FFT 경로에서 선택 시간 범위 밖의 임피던스 특이점이 정상 선택 구간까지 `UNSUITABLE`로 만들던 문제를 수정했습니다. |
+| Worst Margin 정렬 | 같은 분석 항목 안에서 Margin이 있는 결과를 먼저 표시하고, Margin이 없는 결과는 별도 그룹으로 정렬합니다. |
+
+v1.2.0의 기능별 소스 분할은 내부 코드 구조 변경입니다. 사용자가 파일을 나누거나 별도로 설정할 필요는 없습니다. 세부 변경 이력은 [v1.1.6](Release_1.1.6.md), [v1.1.7](Release_1.1.7.md), [v1.2.0](Release_1.2.0.md), [v1.2.1](Release_1.2.1.md)을 참고하십시오.
+
+---
+
+### v1.2.4a 사용 흐름 변경
+
+- 안내가 나오면 Channel Mapping 전에 **Signal Type Detection**을 검토합니다. Single-ended를 선택하면 **Suggest from Labels**에서도 이름 기반 P/N 추론이 꺼진 상태를 유지합니다. 명시적 `.DiffChannels`와 Mixed-Mode descriptor는 별도 근거입니다. 필요한 경우 Near/Far를 직접 확인하고 대화상자의 미매핑 포트 수도 확인하십시오.
+- 분석 버튼은 현재 선택 채널·필터·Aggressor에 맞춰 계산합니다. 완료된 동일 요청은 재사용합니다. Metric 선택은 기존 결과의 조회만 변경하며 새 분석을 실행하지 않습니다. Direction 버튼은 계산된 방향의 표시를 전환합니다.
+- 프로젝트를 열 때 현재 원본 전체 SHA-256을 검증합니다. 원본 변경 시 기존 확정 매핑을 해제하고 현재 원본에서 생성한 후보를 다시 검토합니다. 매핑 오류만으로 유효한 원본을 버리지 않습니다.
+- 설정·마커·채널 선택·검색·Aggressor 변경은 저장 상태에 반영됩니다. 프로젝트 전환에서 Save / Discard / Cancel을 선택할 수 있으며 저장 취소·실패 시 현재 프로젝트를 유지합니다.
+- Excel Configuration에는 신호 종류·신뢰도·근거·매핑 출처 및 확인 상태, 원본 SHA-256 및 검증 상태, 분석 완료 시각·보고서 생성 시각, 실제 분석 설정 스냅샷을 기록합니다. 분석 후 바꾼 설정을 기존 결과의 계산 조건으로 표시하지 않습니다.
+- 첫 번째 이후 Touchstone 옵션 줄은 진단을 남기고 무시합니다. 첫 옵션의 해석을 유지하며 대칭 Lower/Upper mixed-mode 행렬을 지원합니다.
+- 아래 기존 화면은 v1.2.1 검증 자료이며 v1.2.4a의 신규 화면이 아닙니다. v1.2.2부터 적용한 74 px 설정 영역은 유지됩니다.
+
+**2026-10-13 릴리즈 후 검증:** 공식 v1.2.4a 실행 파일은 그대로 유지했습니다. GCC Release와 Clang ASan/UBSan, macOS Cocoa GUI, GitHub CLI 다운로드로 CI를 개선했으며, [공식 main 검증](https://github.com/july-rust/SParamView-Public/actions/runs/38383938009)에서 컴파일러·Qt 시험 환경·다운로드 경고 0건 및 Windows ARM64 수동 매핑 시험 10/10 PASS를 확인했습니다. 이는 사용자 기능의 추가가 아닌 검증 환경 개선입니다.
+
+### v1.2.5 종료 시 임시데이터 자동 정리
+
+- GUI는 실행 인스턴스마다 독립된 캐시 디렉터리를 생성하여 `.sicache`, `.sicache.tmp` 및 Excel 보고서 중간파일을 저장합니다. 정상 종료 시 작업 스레드와 열려 있는 캐시 핸들을 모두 닫은 후 해당 캐시 디렉터리를 삭제합니다.
+- 다른 실행 중인 SParamView 인스턴스의 캐시는 잠금 파일로 보호합니다. 프로그램이 비정상 종료된 경우 다음 실행에서 소유권 마커와 활성 잠금을 검증한 세션 폴더만 정리합니다.
+- CLI에서 캐시 경로를 따로 지정하지 않은 경우 실행 중에 만든 캐시를 명령 종료 때 삭제합니다. 사용자가 지정한 CLI 캐시 경로는 자동 삭제하지 않습니다.
+- 원본 Touchstone, 저장된 `.siproject`, XLSX/CSV/PNG 출력, 사용자 설정과 매핑 프리셋은 보존합니다. **이전 버전이 생성한 공유 캐시 파일은 오래된 실행 인스턴스 보호를 위해 삭제하지 않습니다.**
+- 캐시 삭제 후에는 다음 실행에서 원본을 다시 변환해야 하므로 첫 로딩 시간이 늘어날 수 있습니다.
+
+상세 내용: [임시 캐시 정리 설명](Temporary_Cache_Cleanup.md) 및 [v1.2.5 변경사항](Release_1.2.5.md).
+
+### v1.3.5 Mapping CSV 및 GUI·캐시 초기화 안정성
+
+- Mapping CSV v3(`v3-text-percent`)는 네 텍스트 열에 `text:` 접두어를 붙이고 공백·제어 문자·%를 퍼센트 인코딩합니다. 예: `00123` → `text:00123`, 줄바꿈 → `%0A`, `%` → `%25`. 포트 번호는 정수입니다. CSV를 직접 편집할 때 접두어와 인코딩을 유지하고, 일반 편집은 Channel Mapping 창을 사용하십시오. 구형 v1/v2 CSV는 읽을 수 있지만 **v1.3.4는 새 v3 CSV를 읽을 수 없습니다**. Linux LibreOffice GUI 왕복에서 확인한 범위와 Excel·플랫폼별 미검증 제한은 [검증 범위](Final_Qualification_1.3.5.md)를 참고하십시오.
+- GUI 초기화 예외를 안내하고 자동화·헤드리스 실행에서는 비정상 종료 코드로 보고합니다. 캐시 세션 초기화 실패 시 임시 자원을 안전하게 정리합니다.
+- 전기적 계산 및 프로젝트 스키마는 변경하지 않았습니다. [v1.3.5 릴리스 노트](Release_1.3.5.md), [2단계 검증](V133_Stage2_CSV_Validation.md), [3단계 검증](V133_Stage3_Startup_Validation.md)을 참고하십시오.
+
+### v1.3.3 Touchstone 포트 파싱 안정성
+
+- PowerSI `.DiffChannels` 포트 인덱스는 0부터 시작하는 부호 없는 10진 정수입니다. 소수, 부호, 오버플로 또는 범위를 벗어난 인덱스는 확정하지 않고 진단 및 수동 매핑 검토 대상으로 처리합니다.
+- Mixed-Mode `S<n>`, `D<n>,<n>`, `C<n>,<n>` 번호는 완전한 양의 정수여야 하며 실제 선언된 포트 범위 내에 있어야 합니다.
+- 기존 `! Port N = NAME`, `! PortN_COMPONENT_PIN::NET`, Near/Far 및 P/N 접미사 인식은 재귀 정규식 대신 선형 파싱으로 처리합니다. UTF-8 레이블과 정상적인 기존 차동 매핑 규칙은 보존합니다.
+- 프로젝트 스키마, 임시 캐시 정책, RL/IL/NEXT/FEXT/TDR 수치 연산, 다중 실행 격리 정책에는 변경을 의도하지 않았습니다. 자세한 내용은 [v1.3.3 릴리스 노트](Release_1.3.3.md)를 참고하십시오.
+
+### v1.3.2 프로젝트 교체 및 Touchstone 파일명 표시
+
+- **Open Project**에서는 새 프로젝트 원본을 찾아 SHA-256 검증과 새 캐시 디렉터리 입력을 완료한 후 기존 작업공간을 교체합니다. 오류·취소·파일 누락 시 기존 프로젝트를 유지하며 미저장 작업에 대한 Save/Discard/Cancel 보호도 유지합니다.
+- 프로젝트 교체 성공 시 오래된 분석 결과, 비교 테이블, 그래프 확대/축/이력, 선택 채널과 이전 프로젝트 캐시를 정리합니다. 해당 캐시를 참조하는 작업이 종료되도록 처리한 후 기존 핸들을 해제하며 다른 실행 프로그램 캐시는 삭제하지 않습니다.
+- **+ Open Touchstone**으로 파일을 추가하는 동작은 기존처럼 **Revision 추가**입니다. 여러 Touchstone을 비교하는 기능을 유지합니다.
+- 타이틀바에는 현재 선택한 Touchstone의 **원본 파일명과 확장자**가 표시되며 Revision 선택을 바꾸면 함께 갱신됩니다. 선택 창의 툴팁에는 **전체 원본 경로**를 표시합니다. 운영체제가 허용하는 타이틀바 폭이 좁으면 육안으로 보이는 부분은 잘릴 수 있습니다.
+- `.siproject` 저장 시 오래된 임시 `cache` 절대 경로를 기록하지 않습니다. 이 필드가 남아 있는 기존 schema-1 프로젝트도 계속 불러올 수 있습니다.
+- 상세 내용은 [v1.3.2 릴리스 노트](Release_1.3.2.md), [이슈 #15](https://github.com/july-rust/SParamView-Public/issues/15), [임시 캐시 정리 정책](Temporary_Cache_Cleanup.md)을 참고하십시오.
+
+### v1.3.1 다중 실행 캐시 안정화
+
+- SParamView를 두 개 이상 실행하고 **같은 Touchstone 파일을 동시에 열더라도**, 각 실행 인스턴스는 서로 다른 `session-XXXXXX` 디렉터리에 캐시를 작성합니다.
+- 정상 종료 시 삭제와 다른 실행 프로그램의 잔여 캐시 검사를 같은 레지스트리 잠금으로 보호합니다. 잠금 또는 열린 파일 때문에 삭제가 불가능할 경우 다른 프로그램의 캐시를 강제로 삭제하지 않고 다음 실행에서 안전하게 재시도합니다.
+- **한 창 내부에서** 새로운 Touchstone을 여는 동작은 기존과 같이 Revision을 추가합니다. 서로 다른 프로젝트를 열 때 이전 캐시·그래프를 초기화하는 기능은 v1.3.2에서 추가했습니다.
+- 세부 정책은 [캐시 정리 문서](Temporary_Cache_Cleanup.md)와 [v1.3.1 릴리스 노트](Release_1.3.1.md)를 확인하십시오.
+
+### v1.3.0 Touchstone 입력 및 Windows 배포 변경
+
+- **지원 버전:** Touchstone 1.0·1.1(`[Version]` 생략) 및 2.0·2.1(명시적인 `[Version]`과 필수 2.x 키워드) **S-파라미터** 파일을 처리합니다. Y/Z/H/G 네트워크 파라미터를 S-파라미터로 임의 변환하지 않으며 미지원 형식으로 안내합니다. `1.9`는 공식 Touchstone 버전이 아닙니다.
+- **수치 데이터 형식:** Hz/kHz/MHz/GHz, RI/MA/DB, Full/Lower/Upper 행렬, 포트 기준 임피던스, 2포트 순서 및 Mixed-Mode 순서 중 구현된 S-파라미터 범위를 지원합니다. P/N 및 Near/Far의 물리적 연결은 원본과 비교해 확인해야 합니다.
+- **포트 이름:** `! Port 1 = J1-A1 NET_P` 및 제조사 확장 `! Port1_J1_A1::NET_P` 주석을 읽습니다. `!.DiffChannels`는 공식 Touchstone 키워드가 아닌 제조사 주석으로, `[Mixed-Mode Order]`와 구별합니다. 포트 인덱스·NET·컴포넌트/핀·극성이 불일치하면 자동 확정하지 않고 수동 확인을 요구합니다.
+- **캐시:** v1.3.0에서 캐시 메타데이터 형식을 변경하여 이전 버전의 빈 포트 이름이 재사용되지 않도록 했습니다. 종료 시 임시 캐시를 안전하게 정리하는 v1.2.5 정책은 유지합니다.
+- **Windows 압축 배포본:** 최상위 EXE는 `SParamView.exe` 하나이며 Qt와 필수 MSVC DLL은 실행파일 옆에 둡니다. CLI는 `tools/si_cli.exe`에 유지합니다. v1.4.0 후보부터 테스트 실행파일(`tests/si_*.exe`)과 `Run_Windows_Verification.cmd`는 별도 전체 QA ZIP에 포함하며 일반 사용자 ZIP에는 포함하지 않습니다.
+
+규격 출처: [IBIS Touchstone v2.1 공식 문서](https://ibis.org/touchstone_ver2.1/touchstone_ver2_1.pdf). [v1.3.0 CI 검증](https://github.com/july-rust/SParamView-Public/actions/runs/40807027224).
