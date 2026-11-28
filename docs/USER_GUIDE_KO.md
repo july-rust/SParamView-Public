@@ -544,7 +544,7 @@ v1.2.1에서 도입된 과거 기능은 [v1.2.1 릴리스 노트](Release_1.2.1.
 
 ### 문서 버전
 
-이 설명서는 v1.4.3 기준입니다. 기존 화면은 v1.4.2의 합성 QA 자료이며 PHY Profile 삭제 이전 화면을 포함합니다. v1.4.3 화면으로 간주하지 마십시오.
+이 설명서는 v1.4.3 기준입니다. [실제 v1.4.3 Native ARM64 검증 자료](https://github.com/july-rust/SParamView-Public/actions/runs/46136603711/artifacts/15259804829)의 `analysis-screenshots/`에서 글꼴을 확인한 최신 ILD, ICN 및 Eye Multi View 화면을 확인할 수 있습니다. Actions 자료는 보관 기간이 제한됩니다. 본문에 포함된 기존 화면은 v1.4.2 합성 QA 자료이며 PHY Profile 삭제 이전 화면을 포함합니다. v1.4.3 화면으로 간주하지 마십시오.
 
 
 

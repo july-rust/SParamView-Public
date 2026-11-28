@@ -542,7 +542,7 @@ Historical v1.2.1 feature changes are supported by the [v1.2.1 release notes](Re
 
 ### Document Version
 
-This guide targets v1.4.3. Existing screenshots are v1.4.2 synthetic QA evidence and may show the removed PHY Profile; they are not v1.4.3 captures.
+This guide targets v1.4.3. The [visually inspected v1.4.3 native ARM64 evidence archive](https://github.com/july-rust/SParamView-Public/actions/runs/46136603711/artifacts/15259804829) contains readable current ILD, ICN and Eye Multi View window captures under `analysis-screenshots/`. Actions artifacts are time-limited. The embedded older images below are v1.4.2 synthetic QA evidence and may show the removed PHY Profile; they are not v1.4.3 captures.
 
 
 
