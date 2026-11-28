@@ -11,10 +11,10 @@ Maintenance update to [v1.4.1](Release_1.4.1.md) — 014 Eye Diagram Multi-Graph
 
 ## Qualification
 
-The new GUI regression covers three-panel axes, independent zoom, identical CSV bytes, PNG provenance, and repeated display switching without restarting numerical analysis. Exact candidate CI results are required before publication; these statements describe implemented tests, not a claim of executed success. Physical LCD/DPI coverage, memory measurements and native interactive performance must be reported separately where available.
+The GUI regression covers three-panel axes, independent zoom, identical CSV bytes, PNG provenance, and repeated display switching without restarting numerical analysis. The exact release commit `8a7467166d9485c1a3f545c3b744deeff2585d81` passed the [final three-platform release CI](https://github.com/july-rust/SParamView-Public/actions/runs/46093773220), including version consistency, Core quality, Windows x64/ARM64, native Windows ARM64 packaged-binary gate, macOS Apple Silicon and publication; [final CodeQL](https://github.com/july-rust/SParamView-Public/actions/runs/46093773213) passed. The [official v1.4.2 release](https://github.com/july-rust/SParamView-Public/releases/tag/v1.4.2) was published on 2026-11-28 at 10:56:34 KST, with 22 assets including checksums and validation evidence. Exhaustive physical LCD/DPI coverage, memory measurements and native interactive performance comparisons remain unverified.
 
 ## Downloads
 
-The existing release workflow publishes validated Windows x64/ARM64 ZIPs, optional QA bundles, macOS Apple Silicon ZIP/DMG, guides and SHA-256 checksums after mandatory gates. Previous release assets remain immutable.
+The release workflow published validated Windows x64/ARM64 ZIPs, optional QA bundles, macOS Apple Silicon ZIP/DMG, guides and SHA-256 checksums after mandatory gates. See the official release for the downloads and validation evidence. This post-release documentation clarification on main does not alter the original v1.4.2 tag or any published assets.
 
 [English guide](USER_GUIDE_EN.md) · [한국어 사용자 설명서](USER_GUIDE_KO.md) · [Revision history](Revision_History.md)

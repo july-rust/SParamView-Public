@@ -5,6 +5,8 @@ SParamView is a desktop application for Touchstone-based S-parameter analysis an
 > **Important Notice**
 > SParamView calculates and visualizes the provided Touchstone data as a reference tool. Depending on the input data, frequency range, port/channel mapping, interpolation or approximation, and other analysis conditions, displayed graphs and calculated results may differ from the actual system or measurement results. Do not treat the output as 100% accurate or authoritative. Use it as a reference for engineering review, and independently verify important decisions against the original data and trusted measurement or analysis results.
 
+[Documentation index](docs/README.md) · [Official release](https://github.com/july-rust/SParamView-Public/releases/tag/v1.4.2)
+
 ## Release targets
 - Windows x64
 - Windows ARM64

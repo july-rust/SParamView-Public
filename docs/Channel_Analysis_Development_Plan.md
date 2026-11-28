@@ -1,12 +1,12 @@
 # v1.4.0 release closeout — 012_62 (2026-11-27 KST)
 
-The owner accepted the engineering-reference release scope after reporting smooth operation and requested official publication. ILD, Generic ICN, simulated Eye Diagram and legacy functions are included; COM remains deferred. Issues #118/#121 closed with residual limitations preserved. [Release notes](Release_1.4.0.md) are the authoritative current scope. The following text is historical planning/requirements evidence; earlier dates, pending flags, versions and gates describe their original stages, not current release status. Publication is conditional on final release CI and review.
+The owner accepted the engineering-reference release scope after reporting smooth operation and requested official publication. ILD, Generic ICN, simulated Eye Diagram and legacy functions are included; COM remains deferred. Issues #118/#121 closed with residual limitations preserved. [v1.4.0 release notes](Release_1.4.0.md) record that release's scope. The current official release is [v1.4.2](https://github.com/july-rust/SParamView-Public/releases/tag/v1.4.2); see [current release notes](Release_1.4.2.md) and the [documentation index](README.md). The following text is historical planning/requirements evidence; earlier dates, pending flags, versions, release conditions and gates describe their original stages, not current release status. No old roadmap is an active work order.
 
 ---
 
 # SParamView Channel Analysis Development Plan — v1.3.5 Baseline
 
-**Current execution work breakdown (2026-11-25 KST):** [active 012_43–012_52 plan](Development_Plan_012_v1.4.0.md). COM is DEFERRED / NOT_IEEE_COM; 012_42 remains REFERENCE BLOCKED. Earlier 012_01~012_14 numbering and the 2026-11-16 baseline are retained for historical traceability, **not as a second active release schedule**. This page retains the feature/architecture overview.
+**Historical execution work breakdown (2026-11-25 KST):** [012_43–012_52 plan](Development_Plan_012_v1.4.0.md). COM is DEFERRED / NOT_IEEE_COM; 012_42 remains REFERENCE BLOCKED. Earlier 012_01~012_14 numbering and the 2026-11-16 baseline are retained for historical traceability, **not as a second active release schedule**. This page retains the feature/architecture overview.
 
 **Updated:** 2026-11-16 (KST)  
 **Status:** PARTIAL IMPLEMENTATION / ILD + ICN numerical & automated GUI scope, Eye numerical 012_07 COMPLETE; Eye GUI 012_08 COMPLETE (PR and post-merge CI success); COM deferred; final three-feature release qualification pending  

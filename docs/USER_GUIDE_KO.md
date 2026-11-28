@@ -2,9 +2,9 @@
 
 **적용 기준:** SParamView **v1.4.2 공식 릴리스**
 **지원 플랫폼:** Windows x64 / Windows ARM64 / macOS Apple Silicon (arm64)
-**문서 갱신:** 2026-11-28 (KST). 전체 창 화면 경계와 새로 만들기·종료 개선 반영.
+**문서 갱신:** 2026-11-28 (KST). Eye Diagram Multi View와 기존 창 화면 경계, 새로 만들기·종료 개선 반영.
 
-[English User Guide](USER_GUIDE_EN.md) | [한국어 README](../README_KO.md) | [v1.4.2 Release Notes](Release_1.4.2.md)
+[English User Guide](USER_GUIDE_EN.md) | [한국어 README](../README_KO.md) | [v1.4.2 Release Notes](Release_1.4.2.md) | [전체 문서 색인](README.md)
 
 ---
 

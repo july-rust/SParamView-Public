@@ -2,9 +2,9 @@
 
 **Applies to:** SParamView **v1.4.2 official release**
 **Supported platforms:** Windows x64 / Windows ARM64 / macOS Apple Silicon (arm64)
-**Documentation updated:** 2026-11-28 (KST). Includes window geometry and File/New/Exit improvements.
+**Documentation updated:** 2026-11-28 (KST). Includes Eye Diagram Multi View and retained window geometry and File/New/Exit improvements.
 
-[한국어 사용자 설명서](USER_GUIDE_KO.md) | [English README](../README_EN.md) | [v1.4.2 Release Notes](Release_1.4.2.md)
+[한국어 사용자 설명서](USER_GUIDE_KO.md) | [English README](../README_EN.md) | [v1.4.2 Release Notes](Release_1.4.2.md) | [Documentation index](README.md)
 
 ---
 
