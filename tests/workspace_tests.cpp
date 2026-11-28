@@ -804,19 +804,17 @@ struct WorkspaceProbe {
    auto *eye=open(Feature::Eye);
    check(ild!=icn && ild!=eye && icn!=eye,"Analysis windows share identity");
    QListWidget *items=nullptr;
-   QComboBox *profile=nullptr;
    auto configure=[&] {
    auto *fit=ild->findChild<QComboBox*>("ildFitModel");
    auto *ildStop=ild->findChild<QDoubleSpinBox*>("ildStopGhz");
    items=icn->findChild<QListWidget*>("icnAggressorList");
-   profile=eye->findChild<QComboBox*>("eyeProfile");
    auto *mode=eye->findChild<QComboBox*>("eyeMode");
    auto *baud=eye->findChild<QDoubleSpinBox*>("eyeBitRateGbps");
    auto *cap=eye->findChild<QDoubleSpinBox*>("eyeAnalysisCapGhz");
-   check(fit && ildStop && items && profile && mode && baud && cap,
+   check(fit && ildStop && items && mode && baud && cap &&
+         !eye->findChild<QComboBox*>("eyeProfile"),
          "Integrated feature controls missing");
    fit->setCurrentIndex(0);ildStop->setValue(10);
-   profile->setCurrentIndex(int(si::channel::EyeProfile::Custom));
    mode->setCurrentIndex(1);baud->setValue(4.5);cap->setValue(10);
    auto *reference=eye->findChild<QDoubleSpinBox*>("eyeReferenceGhz");
    check(reference && std::abs(reference->value()-2.25)<1e-9,
@@ -914,7 +912,11 @@ struct WorkspaceProbe {
      check(eyeStatus && eyeStatus->text().contains(sparamview::ui_language::menuText("Simulated only — Not measured, no BER or PHY compliance; ",language)),"Eye simulation disclaimer not localized");
      const auto *eyeMetrics=eye->findChild<QLabel *>("eyeMetrics");
      check(eyeMetrics && eyeMetrics->text().contains("\n"+sparamview::ui_language::menuText("Original",language)+"\n"),"Original DC method presentation not localized");
-     check(profile->currentText()==sparamview::ui_language::menuText("Custom (user-qualified)",language),"Eye profile presentation not localized");
+     const auto *eyeMode=eye->findChild<QComboBox *>("eyeMode");
+     check(!eye->findChild<QComboBox *>("eyeProfile") && eyeMode &&
+           eyeMode->currentIndex()==1 &&
+           eyeMode->currentText()==sparamview::ui_language::menuText("Single-ended",language),
+           "Eye transfer mode localization or profile removal regressed");
      check(values(w)==legacy && eye->status()==statusBefore && manager.context().generation==contextBefore &&
            manager.scheduler().inFlight()==0,"Language switch changed computed result/context");
      check(ild->saveIldCsv(parityPrefix+"ild.csv") && icn->saveIcnCsv(parityPrefix+"icn.csv") &&
