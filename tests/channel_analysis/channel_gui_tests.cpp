@@ -691,6 +691,24 @@ int main(int argc, char **argv) {
     const auto manualIcnPath=ildDir.filePath(QStringLiteral("icn-auto-replay.csv"));
     check(icn->saveIcnCsv(manualIcnPath),"ICN replay CSV failed");
     sameNumericalCsv(autoIcnPath,manualIcnPath,"Frequency_GHz,NEXT_Power_dB,FEXT_Power_dB,");
+    // The subsequent independent directional oracle deliberately uses the
+    // original explicit 4 GBd, 800 mVpp, 30 ps, 10 GHz RX, 0..30 GHz request.
+    // Do not accidentally test that oracle with the newly seeded Auto values.
+    auto *manualRate=icn->findChild<QDoubleSpinBox *>("icnSymbolRate");
+    auto *manualVpp=icn->findChild<QDoubleSpinBox *>("icnTxVpp");
+    auto *manualRise=icn->findChild<QDoubleSpinBox *>("icnRiseTime");
+    auto *manualRx=icn->findChild<QDoubleSpinBox *>("icnRxBandwidth");
+    auto *manualStart=icn->findChild<QDoubleSpinBox *>("icnStartGhz");
+    auto *manualStop=icn->findChild<QDoubleSpinBox *>("icnStopGhz");
+    check(manualRate && manualVpp && manualRise && manualRx &&
+          manualStart && manualStop,"ICN manual oracle controls missing");
+    check(manualRate->value()==4.5 && manualVpp->value()==400 &&
+          manualRise->value()==30 && manualRx->value()==8 &&
+          manualStart->value()==0 && manualStop->value()==8,
+          "ICN Auto did not populate resolved electrical and band settings");
+    manualRate->setValue(4);manualVpp->setValue(800);
+    manualRise->setValue(30);manualRx->setValue(10);
+    manualStart->setValue(0);manualStop->setValue(30);
     rss->setChecked(false);
     icn->runButton()->click();
     check(icn->status()==S::NotEvaluated,"Disabling RSS must still block multiple paths");
