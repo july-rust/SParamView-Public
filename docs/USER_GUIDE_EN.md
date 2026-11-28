@@ -76,7 +76,7 @@ The status guidance at the bottom of the main window follows the same basic sequ
 
 ## 4. Main Window
 
-> **v1.4.2 automated validation screenshot** — Main window and RL plot use the official native Windows ARM64 synthetic sample project. Analysis-window images use the tagged v1.4.2 GUI and synthetic test fixtures. Layout can differ with OS, DPI and window size. [Image provenance](images/README.md).
+> **v1.4.2 automated validation screenshot** — Main window and RL plot use the official native Windows ARM64 synthetic sample project. The ILD, ICN and Eye window images in chapter 24 use verified v1.4.3 native captures and synthetic test fixtures. Layout can differ with OS, DPI and window size. [Image provenance](images/README.md).
 
 ![SParamView v1.4.2 main window](images/01_Main_Window.png)
 
@@ -542,7 +542,7 @@ Historical v1.2.1 feature changes are supported by the [v1.2.1 release notes](Re
 
 ### Document Version
 
-This guide targets v1.4.3. The [visually inspected v1.4.3 native ARM64 evidence archive](https://github.com/july-rust/SParamView-Public/actions/runs/46136603711/artifacts/15259804829) contains readable current ILD, ICN and Eye Multi View window captures under `analysis-screenshots/`. Actions artifacts are time-limited. The embedded older images below are v1.4.2 synthetic QA evidence and may show the removed PHY Profile; they are not v1.4.3 captures.
+This guide targets v1.4.3. The [visually inspected v1.4.3 native ARM64 evidence archive](https://github.com/july-rust/SParamView-Public/actions/runs/46136603711/artifacts/15259804829) contains readable current ILD, ICN and Eye Multi View window captures under `analysis-screenshots/`. Actions artifacts are time-limited. The three ILD, ICN and Eye window images below are the verified v1.4.3 captures. The combined export example and other explicitly labeled v1.4.2 illustrations remain historical.
 
 
 
@@ -656,7 +656,7 @@ Implementation: [tdr.cpp](https://github.com/july-rust/SParamView-Public/blob/v1
 
 Open **Analysis → ILD**, select the verified source, victim and direction, and use Auto Analysis for the measured fit band or Run Manual to set the band and model. The graph shows positive loss and fitted loss, then their signed deviation. Inspect the actual fitted band, RMS, peak absolute deviation and its frequency. Smaller residuals are preferable for a comparable fit band/model, but do not guarantee low total insertion loss.
 
-![v1.4.2 ILD analysis](images/04_ILD.png)
+![v1.4.3 ILD analysis](images/04_ILD.png)
 
 Unlike the Quick IL plot, the ILD engine uses positive loss $A(f)=-20\log_{10}|H(f)|$. Set $x=f/F$, where $F$ is the last included measured frequency. Available models are:
 
@@ -676,7 +676,7 @@ Implementation: [ild.cpp](https://github.com/july-rust/SParamView-Public/blob/v1
 
 Open **Analysis → ICN**, choose the mapped victim, direction and distinct NEXT/FEXT aggressor paths (1–32). Auto Analysis uses exploratory assumptions; use Run Manual for known baud, TX Vpp, 10–90% rise time, receiver bandwidth and integration band. Multiple paths require the independent/RSS assumption to be enabled. Select **All three graphs** to compare power sum, weighted noise PSD and cumulative RMS; cumulative RMS including total is the initial view.
 
-![v1.4.2 ICN three graphs](images/05_ICN.png)
+![v1.4.3 ICN analysis window](images/05_ICN.png)
 
 For equiprobable independent zero-mean NRZ symbols, let $T=1/R_s$, $\sigma_V=V_{pp}/2$, $\sigma_t=t_{10-90}/2.5631031310892007$, and $\mathrm{sinc}(x)=\sin(x)/x$. The implemented one-sided weighted PSD in V²/Hz is
 
@@ -701,7 +701,7 @@ Open **Analysis → Eye Diagram**. Confirm source mapping and direction. Use Aut
 - **Impulse / Unit pulse:** normalized channel impulse and response to a one-UI unit-height pulse; tails illustrate how previous symbols can influence later symbols.
 - **All three graphs:** the above plots use a single immutable numerical result; no recalculation on selection. Wide logical layouts place auxiliary panels side by side and narrow layouts stack them. Scroll if necessary; zoom and pan are independent. Mouse wheel zoom, drag pan, and double click reset. Export PNG captures the selected view (including combined view); CSV preserves original numerical samples.
 
-![v1.4.2 Eye Diagram Multi View](images/06_Eye_Multi_View.png)
+![v1.4.3 Eye Diagram Multi View](images/06_Eye_Multi_View.png)
 
 ![v1.4.2 exported combined Eye plot](images/07_Eye_Multi_Plot.png)
 

@@ -76,7 +76,7 @@ ZIP 파일의 압축을 해제한 뒤 최상위 `SParamView.exe`를 실행합니
 
 ## 4. 메인 화면 구성
 
-> **v1.4.2 자동 검증 화면** — 메인 화면 및 RL 그래프는 공식 Windows ARM64 네이티브 검증의 합성 예제 프로젝트입니다. 추가 분석 창은 v1.4.2 Tag의 GUI와 합성 검증 데이터를 이용합니다. OS, DPI와 창 크기에 따라 배치가 다를 수 있습니다. [이미지 출처](images/README.md).
+> **v1.4.2 자동 검증 화면** — 메인 화면 및 RL 그래프는 공식 Windows ARM64 네이티브 검증의 합성 예제 프로젝트입니다. 24장의 ILD, ICN 및 Eye 분석 창은 v1.4.3 Native 검증 화면과 합성 검증 데이터를 이용합니다. OS, DPI와 창 크기에 따라 배치가 다를 수 있습니다. [이미지 출처](images/README.md).
 
 ![SParamView v1.4.2 메인 화면](images/01_Main_Window.png)
 
@@ -544,7 +544,7 @@ v1.2.1에서 도입된 과거 기능은 [v1.2.1 릴리스 노트](Release_1.2.1.
 
 ### 문서 버전
 
-이 설명서는 v1.4.3 기준입니다. [실제 v1.4.3 Native ARM64 검증 자료](https://github.com/july-rust/SParamView-Public/actions/runs/46136603711/artifacts/15259804829)의 `analysis-screenshots/`에서 글꼴을 확인한 최신 ILD, ICN 및 Eye Multi View 화면을 확인할 수 있습니다. Actions 자료는 보관 기간이 제한됩니다. 본문에 포함된 기존 화면은 v1.4.2 합성 QA 자료이며 PHY Profile 삭제 이전 화면을 포함합니다. v1.4.3 화면으로 간주하지 마십시오.
+이 설명서는 v1.4.3 기준입니다. [실제 v1.4.3 Native ARM64 검증 자료](https://github.com/july-rust/SParamView-Public/actions/runs/46136603711/artifacts/15259804829)의 `analysis-screenshots/`에서 글꼴을 확인한 최신 ILD, ICN 및 Eye Multi View 화면을 확인할 수 있습니다. Actions 자료는 보관 기간이 제한됩니다. 아래 ILD, ICN 및 Eye 분석 창 3개는 검증된 v1.4.3 화면입니다. 전체 그래프 Export 예시 및 v1.4.2로 명시된 다른 이미지는 이전 버전의 참고 자료입니다.
 
 
 
@@ -658,7 +658,7 @@ $$S_{\rm eff}=S_{NN}+S_{NL}(I-\Gamma_L S_{LL})^{-1}\Gamma_L S_{LN}.$$
 
 **Analysis → ILD**를 선택합니다. 확인된 소스, Victim, 방향을 지정하고 Auto Analysis를 실행하거나 Run Manual에서 주파수 범위와 Fit Model을 설정합니다. 그래프에서 양수 Insertion Loss 및 Fitted Loss, 부호 있는 Deviation을 확인합니다. 실제 적용 주파수 범위, RMS, Peak Absolute 및 해당 주파수를 확인합니다. 같은 모델과 주파수 조건에서는 편차가 작을수록 유리하지만 절대 IL이 낮다는 보장은 아닙니다.
 
-![v1.4.2 ILD 분석 화면](images/04_ILD.png)
+![v1.4.3 ILD 분석 화면](images/04_ILD.png)
 
 Quick IL과 달리 ILD는 양수 Loss $A(f)=-20\log_{10}|H(f)|$를 사용합니다. $F$는 선택된 측정 데이터의 마지막 주파수이며 $x=f/F$로 정규화합니다. 세 가지 Fit Model은
 
@@ -678,7 +678,7 @@ $$e_{\rm RMS}=\sqrt{\frac1B\sum_i\frac{f_{i+1}-f_i}{3}(e_i^2+e_ie_{i+1}+e_{i+1}^
 
 **Analysis → ICN**에서 Victim, 방향, NEXT/FEXT Aggressor 경로(1~32개)를 선택합니다. Auto Analysis는 참고용 조건을 사용합니다. 실제 Baud, TX Vpp, Rise Time(10~90%), RX 대역폭과 적분 범위를 알고 있으면 Run Manual을 사용합니다. 다중 경로는 Independent/RSS 가정을 활성화해야 합니다. **All three graphs**에서 Power Sum, Weighted Noise PSD, Cumulative RMS를 함께 확인할 수 있습니다. 초기 화면은 Total 포함 Cumulative RMS입니다.
 
-![v1.4.2 ICN 세 그래프](images/05_ICN.png)
+![v1.4.3 ICN 분석 화면](images/05_ICN.png)
 
 동일 확률의 독립적인 평균 0 NRZ Symbol에 대해 $T=1/R_s$, $\sigma_V=V_{pp}/2$, $\sigma_t=t_{10-90}/2.5631031310892007$, $\mathrm{sinc}(x)=\sin(x)/x$로 정의합니다. 실제 구현된 단측 Weighted PSD(V²/Hz)는
 
@@ -703,7 +703,7 @@ Auto 조건은 Cap=min(10 GHz, 측정 최대 주파수), Symbol Rate=min(4.5 GBd
 - **Impulse / Unit pulse**: 정규화된 Impulse와 1 UI 높이 1 Pulse의 채널 응답입니다. 응답 Tail로 이전 Symbol이 뒤 Symbol에 미치는 영향을 파악합니다.
 - **All three graphs**: 위 세 그래프가 하나의 동일한 분석 결과를 공유합니다. 표시 모드를 바꿔도 재분석하지 않습니다. 넓은 화면에서는 보조 그래프를 나란히 배치하고 좁은 화면에서는 세로로 쌓아 스크롤합니다. 각 그래프의 마우스 Wheel 확대, Drag 이동, Double Click 초기화는 독립적입니다. PNG Export는 선택된 개별 또는 전체 View를 저장하며 CSV는 원본 수치 데이터를 유지합니다.
 
-![v1.4.2 Eye Diagram Multi View 화면](images/06_Eye_Multi_View.png)
+![v1.4.3 Eye Diagram Multi View 화면](images/06_Eye_Multi_View.png)
 
 ![v1.4.2 Eye Diagram 전체 PNG Export](images/07_Eye_Multi_Plot.png)
 
