@@ -674,9 +674,9 @@ Open **Analysis → ICN**, choose the mapped victim, direction and distinct NEXT
 
 ![v1.4.2 ICN three graphs](images/05_ICN.png)
 
-For equiprobable independent zero-mean NRZ symbols, let $T=1/R_s$, $\sigma_V=V_{pp}/2$, $\sigma_t=t_{10-90}/2.5631031310892007$, and $\operatorname{sinc}(x)=\sin(x)/x$. The implemented one-sided weighted PSD in V²/Hz is
+For equiprobable independent zero-mean NRZ symbols, let $T=1/R_s$, $\sigma_V=V_{pp}/2$, $\sigma_t=t_{10-90}/2.5631031310892007$, and $\mathrm{sinc}(x)=\sin(x)/x$. The implemented one-sided weighted PSD in V²/Hz is
 
-$$P(f)=2\sigma_V^2 T\operatorname{sinc}^2(\pi fT)\exp[-(2\pi f\sigma_t)^2]\frac1{1+(f/f_{\rm RX})^2}.$$
+$$P(f)=2\sigma_V^2 T\mathrm{sinc}^2(\pi fT)\exp[-(2\pi f\sigma_t)^2]\frac1{1+(f/f_{\rm RX})^2}.$$
 
 For each measured path $H_k(f)$, its weighted output PSD is $P_k(f)=|H_k(f)|^2P(f)$. The unweighted power-sum graph uses $10\log_{10}\sum_k|H_k|^2$; the -300 dB floor applies only to display. The PSD graph uses mV²/GHz ($1$ V²/Hz = $10^{15}$ mV²/GHz). Cumulative noise power uses the trapezoidal integral over the measured overlap:
 
@@ -708,7 +708,7 @@ $$UI=1/R_b,\quad f_{\rm ref}=R_b/2,\quad f_s=MR_b,\quad \Delta t=1/f_s,\quad \De
 
 The selected analysis cap is independent of $f_{\rm ref}$ and must be supported by measured data and sampling Nyquist. The engine uses complex linear interpolation, qualified DC conditioning, a Hermitian spectrum and zero above the cap (an ideal band-limited **simulation assumption**, not measured transfer). With $H[k]$ the constructed complex transfer,
 
-$$h[n]=\operatorname{IFFT}\{H[k]\},\quad y[n]=\Re\{\operatorname{IFFT}(\operatorname{FFT}(x[n])H[k])\}.$$
+$$h[n]=\mathrm{IFFT}\{H[k]\},\quad y[n]=\Re\{\mathrm{IFFT}(\mathrm{FFT}(x[n])H[k])\}.$$
 
 The input $x$ repeats a finite deterministic NRZ frame of $N/M$ bits. The unit pulse is 1 for the first $M$ samples and 0 thereafter, passed through the same transfer. The delay index $d$ is the largest impulse-energy sample; estimated delay is $d\Delta t$. Unresolved/circular delay or invalid input blocks the result. This is a periodic convolution, not a long random data stream or measured jitter distribution.
 
