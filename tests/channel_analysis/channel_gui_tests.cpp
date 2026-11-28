@@ -415,6 +415,19 @@ int main(int argc, char **argv) {
           "ILD Auto did not seed fit and measured band");
     ild->runButton()->click();drain(manager.scheduler());
     check(ild->status()==S::Valid,"Unedited Auto-to-Manual ILD failed");
+    auto sameNumericalCsv=[&](const QString &autoPath,const QString &manualPath,
+                             const QByteArray &header) {
+      QFile a(autoPath),m(manualPath);
+      check(a.open(QIODevice::ReadOnly) && m.open(QIODevice::ReadOnly),
+            "016 numerical CSV readback failed");
+      const auto aa=a.readAll(),mm=m.readAll();
+      const auto ai=aa.indexOf(header),mi=mm.indexOf(header);
+      check(ai>=0 && mi>=0 && aa.mid(ai)==mm.mid(mi),
+            "016 unedited Auto/Manual numerical rows differ");
+    };
+    const auto manualIldPath=ildDir.filePath(QStringLiteral("ild-auto-replay.csv"));
+    check(ild->saveIldCsv(manualIldPath),"ILD replay CSV failed");
+    sameNumericalCsv(autoIldPath,manualIldPath,"Frequency_GHz,IL_dB,Fitted_IL_dB,ILD_dB");
     ildModel->setCurrentIndex(2); // fixture is an exact quadratic-root model
     ild->runButton()->click();
     drain(manager.scheduler());
@@ -675,6 +688,9 @@ int main(int argc, char **argv) {
     check(rss && rss->isChecked() && rss->text().contains("assumed"),"Default exploratory RSS assumption must be visible");
     icn->runButton()->click();drain(manager.scheduler());
     check(icn->status()==S::Valid || icn->status()==S::Warning,"Default multi-path ICN failed");
+    const auto manualIcnPath=ildDir.filePath(QStringLiteral("icn-auto-replay.csv"));
+    check(icn->saveIcnCsv(manualIcnPath),"ICN replay CSV failed");
+    sameNumericalCsv(autoIcnPath,manualIcnPath,"Frequency_GHz,NEXT_Power_dB,FEXT_Power_dB,");
     rss->setChecked(false);
     icn->runButton()->click();
     check(icn->status()==S::NotEvaluated,"Disabling RSS must still block multiple paths");
@@ -844,6 +860,9 @@ int main(int argc, char **argv) {
           "Eye Auto Preview did not seed manual electrical fields");
     eye->runButton()->click();drain(manager.scheduler());
     check(eye->status()==S::Warning,"Unedited Auto-to-Manual Eye failed");
+    const auto manualEyePath=ildDir.filePath(QStringLiteral("eye-auto-replay.csv"));
+    check(eye->saveEyeCsv(manualEyePath),"Eye replay CSV failed");
+    sameNumericalCsv(previewCsv,manualEyePath,"Overlay_Index,Phase_UI,Received_mV");
     mode->setCurrentIndex(1);
     baud->setValue(4.5);
     check(std::abs(reference->value()-2.25)<1e-9,
