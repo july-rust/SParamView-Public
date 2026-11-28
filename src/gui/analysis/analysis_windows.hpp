@@ -129,7 +129,6 @@ private:
   void clearEye();
   void exportEyeCsv();
   void exportEyePng();
-  void selectEyeProfile();
   Feature feature_;
   AsyncScheduler *scheduler_ = nullptr;
   AnalysisContext context_;
@@ -145,7 +144,7 @@ private:
                  *icnRise_ = nullptr, *icnRx_ = nullptr;
   QDoubleSpinBox *fromGhz_ = nullptr, *toGhz_ = nullptr;
   QDoubleSpinBox *eyeBitRate_ = nullptr, *eyeReference_ = nullptr;
-  QComboBox *eyeProfile_ = nullptr, *eyeMode_ = nullptr, *eyePattern_ = nullptr;
+  QComboBox *eyeMode_ = nullptr, *eyePattern_ = nullptr;
   QComboBox *eyeFft_ = nullptr, *eyeSamples_ = nullptr, *eyeView_ = nullptr;
   QLineEdit *eyeBits_ = nullptr;
   std::array<QLineEdit *,7> eyeElectrical_{};

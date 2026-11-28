@@ -525,6 +525,10 @@ private:
     if(view_==0) {
       for(const auto &t:d.overlayV) for(double v:t) include(v*1000);
       include(thresholdV_*1000); include(d.minimumHighV*1000);include(d.maximumLowV*1000);
+      // Include the incident TX levels as a common voltage reference so a
+      // purely attenuated eye does not expand to the same apparent opening.
+      include(d.settings.electrical.txLowV*1000);
+      include(d.settings.electrical.txHighV*1000);
     } else if(view_==1) {
       for(double v:d.transmittedV)include(v*1000);
       for(double v:d.receivedV)include(v*1000);
@@ -911,11 +915,6 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     fromGhz_->setValue(0);
     toGhz_->setObjectName(QStringLiteral("eyeAnalysisCapGhz"));
     toGhz_->setValue(10);
-    eyeProfile_=new QComboBox;
-    eyeProfile_->setObjectName(QStringLiteral("eyeProfile"));
-    for(int i=0;i<=int(si::channel::EyeProfile::Custom);++i)
-      eyeProfile_->addItem(QString::fromUtf8(
-        si::channel::eyeProfileName(static_cast<si::channel::EyeProfile>(i))));
     eyeMode_=new QComboBox;
     eyeMode_->setObjectName(QStringLiteral("eyeMode"));
     eyeMode_->addItems({QStringLiteral("Required: choose mode"),
@@ -981,10 +980,6 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     auto *signalForm=addSettingsTab(QStringLiteral("Signal"));
     auto *waveformForm=addSettingsTab(QStringLiteral("Pattern / FFT"));
     auto *electricalForm=addSettingsTab(QStringLiteral("TX / RX"));
-    eyeProfile_->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
-    eyeProfile_->setMinimumContentsLength(12);
-    eyeProfile_->setToolTip(QStringLiteral("Example PHY profile, not compliance"));
-    signalForm->addRow(QStringLiteral("PHY profile (example)"),eyeProfile_);
     signalForm->addRow(QStringLiteral("Transfer mode"),eyeMode_);
     signalForm->addRow(QStringLiteral("NRZ bit rate"),eyeBitRate_);
     signalForm->addRow(QStringLiteral("Nyquist (coupled)"),eyeReference_);
@@ -1182,7 +1177,6 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     connect(run_,&QPushButton::clicked,this,[this]{launchEye();});
     connect(csv_,&QPushButton::clicked,this,[this]{exportEyeCsv();});
     connect(png_,&QPushButton::clicked,this,[this]{exportEyePng();});
-    connect(eyeProfile_,&QComboBox::currentIndexChanged,this,[this]{selectEyeProfile();});
     connect(eyeMode_,&QComboBox::currentIndexChanged,this,[this]{invalidateRequest();});
     connect(eyePattern_,&QComboBox::currentIndexChanged,this,[this]{
       eyeBits_->setEnabled(eyePattern_->currentIndex()==2); invalidateRequest();
@@ -1213,7 +1207,6 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     });
     for(auto *edit:eyeElectrical_)
       connect(edit,&QLineEdit::textChanged,this,[this]{invalidateRequest();});
-    selectEyeProfile();
   }
   connect(source_, &QComboBox::currentIndexChanged, this, [this] {
     QSignalBlocker block(victim_);
@@ -1257,7 +1250,7 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     bindUiText(translated,edit,edit->placeholderText(),[](QLineEdit *w,const QString &s){w->setPlaceholderText(s);});
   for(auto *spin:findChildren<QDoubleSpinBox *>())
     bindUiText(translated,spin,spin->specialValueText(),[](QDoubleSpinBox *w,const QString &s){w->setSpecialValueText(s);});
-  for(auto *box:{direction_,fitModel_,eyeMode_,eyePattern_,eyeView_,eyeProfile_,findChild<QComboBox *>("icnPlotView")})
+  for(auto *box:{direction_,fitModel_,eyeMode_,eyePattern_,eyeView_,findChild<QComboBox *>("icnPlotView")})
     if(box) bindCombo(translated,box);
   for(auto *tab:findChildren<QTabWidget *>()) {
     QStringList sources;
@@ -1397,8 +1390,7 @@ QString AnalysisWindow::selectionIdentity() const {
       identity+=QStringLiteral("|")+QString::number(spin->value(),'g',17);
   }
   if(feature_==Feature::Eye) {
-    identity+=QStringLiteral("|EYE|")+QString::number(eyeProfile_->currentIndex())+
-      QLatin1Char('|')+QString::number(eyeMode_->currentIndex())+
+    identity+=QStringLiteral("|EYE|")+QString::number(eyeMode_->currentIndex())+
       QLatin1Char('|')+QString::number(eyePattern_->currentIndex())+
       QLatin1Char('|')+QString::number(eyeBitRate_->value(),'g',17)+
       QLatin1Char('|')+QString::number(eyeReference_->value(),'g',17)+
@@ -1612,6 +1604,11 @@ void AnalysisWindow::launchIld(bool automatic) {
   cfg.startHz=fromGhz_->value()*1e9;
   cfg.stopHz=toGhz_->value()*1e9;
   cfg.model=static_cast<si::channel::IldFitModel>(fitModel_->currentIndex());
+  // An unedited published result retains full precision beyond spinbox display.
+  if(!automatic && ildResult_) {
+    cfg.startHz=ildResult_->requestedStartHz;
+    cfg.stopHz=ildResult_->requestedStopHz;
+  }
   const std::string fitIdentity=selectionIdentity().toStdString()+(automatic?"|AUTO_ILD":"|MANUAL_ILD");
   const bool accepted=startWork([input=*input,victimId,reverse,cfg,fitIdentity,automatic]
      (const std::atomic_bool &cancel,std::atomic_int &progress) mutable ->WorkOutcome {
@@ -1656,6 +1653,12 @@ void AnalysisWindow::launchIld(bool automatic) {
 void AnalysisWindow::showIld(const WorkOutcome &outcome) {
   if(!outcome.ild) return;
   ildResult_=outcome.ild;
+  if(ildResult_->analysisMode=="AUTO") {
+    const QSignalBlocker from(fromGhz_),to(toGhz_),fit(fitModel_);
+    fromGhz_->setValue(ildResult_->requestedStartHz/1e9);
+    toGhz_->setValue(ildResult_->requestedStopHz/1e9);
+    fitModel_->setCurrentIndex(int(si::channel::IldFitModel::RootLinear));
+  }
   ildProvenance_=outcome.provenance;
   static_cast<IldPlotWidget *>(ildGraph_)->setData(ildResult_);
   csv_->setEnabled(true);
@@ -1842,6 +1845,7 @@ void AnalysisWindow::launchIcn(bool automatic) {
   settings.txPeakToPeakV=icnVpp_->value()*1e-3;
   settings.riseTimeSeconds=icnRise_->value()*1e-12;
   settings.rxBandwidthHz=icnRx_->value()*1e9;
+  if(!automatic && icnResult_) settings=icnResult_->settings;
   const std::string settingsIdentity=selectionIdentity().toStdString()+(automatic?"|AUTO_ICN":"|MANUAL_ICN");
   std::vector<std::string> candidateIds;
   if(automatic) for(const auto &id:source.channelIds) candidateIds.push_back(id.toStdString());
@@ -1910,6 +1914,28 @@ void AnalysisWindow::launchIcn(bool automatic) {
 void AnalysisWindow::showIcn(const WorkOutcome &outcome) {
   if(!outcome.icn || !icnGraph_) return;
   icnResult_=outcome.icn;
+  if(icnResult_->analysisMode=="AUTO") {
+    const auto &s=icnResult_->settings;
+    const QSignalBlocker from(fromGhz_),to(toGhz_),baud(icnBaud_),vpp(icnVpp_),
+      rise(icnRise_),rx(icnRx_),paths(icnAggressors_);
+    fromGhz_->setValue(s.startHz/1e9);
+    toGhz_->setValue(s.stopHz/1e9);
+    icnBaud_->setValue(s.symbolRateHz/1e9);
+    icnVpp_->setValue(s.txPeakToPeakV*1000);
+    icnRise_->setValue(s.riseTimeSeconds*1e12);
+    icnRx_->setValue(s.rxBandwidthHz/1e9);
+    const auto &ids=context_.sources[source_->currentIndex()].channelIds;
+    for(int k=0;k<icnAggressors_->count();++k) {
+      auto *item=icnAggressors_->item(k);
+      const int i=item->data(Qt::UserRole).toInt();
+      const auto end=item->data(Qt::UserRole+1).toInt()==0?
+        si::channel::IcnEnd::Next:si::channel::IcnEnd::Fext;
+      const bool used=i>=0 && i<ids.size() &&
+        std::any_of(icnResult_->aggressors.begin(),icnResult_->aggressors.end(),
+          [&](const auto &a){return a.id==ids[i].toStdString() && a.end==end;});
+      item->setCheckState(used?Qt::Checked:Qt::Unchecked);
+    }
+  }
   icnProvenance_=outcome.provenance;
   static_cast<IcnPlotWidget *>(icnGraph_)->setData(icnResult_);
   csv_->setEnabled(true);
@@ -2050,28 +2076,6 @@ bool AnalysisWindow::saveIcnPng(const QString &name) {
   return okay;
 }
 
-void AnalysisWindow::selectEyeProfile() {
-  if(feature_!=Feature::Eye || !eyeProfile_)return;
-  const auto profile=static_cast<si::channel::EyeProfile>(eyeProfile_->currentIndex());
-  const auto s=si::channel::eyeProfile(profile);
-  {
-    QSignalBlocker b1(eyeBitRate_),b2(eyeReference_),b3(toGhz_),b4(eyeMode_);
-    QSignalBlocker b5(eyePattern_),b6(eyeBits_);
-    eyeBitRate_->setValue(std::isfinite(s.bitRateHz)?s.bitRateHz/1e9:0);
-    eyeReference_->setValue(std::isfinite(s.referenceFrequencyHz)?
-                            s.referenceFrequencyHz/1e9:0);
-    toGhz_->setValue(std::isfinite(s.analysisStopHz)?s.analysisStopHz/1e9:0);
-    eyeMode_->setCurrentIndex(s.mode==si::channel::EyeMode::Differential?2:0);
-    eyePattern_->setCurrentIndex(0);
-    eyeBits_->clear();
-    eyeBits_->setEnabled(false);
-    for(auto *edit:eyeElectrical_) {
-      QSignalBlocker electricalBlock(edit);
-      edit->clear(); // PHY labels NEVER infer voltage / actual termination.
-    }
-  }
-  invalidateRequest();
-}
 void AnalysisWindow::setEyeSourceProvider(EyeSourceProvider provider) {
   eyeProvider_=std::move(provider);
   if(feature_==Feature::Eye) {
@@ -2091,8 +2095,7 @@ void AnalysisWindow::clearEye() {
     csv_->setEnabled(false); png_->setEnabled(false);
   }
 }
-// Manual analysis never inherits assumed preview values. Validate user-provided
-// electrical conditions before scheduling work, keeping widgets on the GUI thread.
+// Validate explicit or auto-seeded manual electrical conditions on the GUI thread.
 bool AnalysisWindow::readManualEyeSettings(si::channel::EyeSettings &settings) {
   using namespace si::channel;
   if(eyeMode_->currentIndex()==0 || eyeBitRate_->value()<=0 ||
@@ -2101,7 +2104,7 @@ bool AnalysisWindow::readManualEyeSettings(si::channel::EyeSettings &settings) {
       "Explicit signal mode, bit rate, reference frequency and analysis cap required"));
     return false;
   }
-  settings=eyeProfile(static_cast<EyeProfile>(eyeProfile_->currentIndex()));
+  settings=EyeSettings{};
   settings.mode=static_cast<EyeMode>(eyeMode_->currentIndex());
   settings.pattern=static_cast<EyePattern>(eyePattern_->currentData().toInt());
   settings.bitRateHz=eyeBitRate_->value()*1e9;
@@ -2144,6 +2147,7 @@ bool AnalysisWindow::readManualEyeSettings(si::channel::EyeSettings &settings) {
 void AnalysisWindow::launchEye(bool autoPreview, bool acceptLimitedDc) {
   using namespace si::channel;
   if(feature_!=Feature::Eye || !eyeProvider_ || eyeDcPrompt_)return;
+  const auto previous=eyeResult_;
   clearEye();
   const int idx=source_->currentIndex(), selected=victim_->currentIndex();
   if(idx<0 || idx>=context_.sources.size() || selected<0) {
@@ -2164,7 +2168,10 @@ void AnalysisWindow::launchEye(bool autoPreview, bool acceptLimitedDc) {
   // Preview deliberately bypasses only the manual input form, never source
   // validation or the shared numerical engine's DC/impedance/band checks.
   EyeSettings settings;
-  if(!autoPreview && !readManualEyeSettings(settings)) return;
+  if(!autoPreview) {
+    if(previous) settings=previous->settings;
+    else if(!readManualEyeSettings(settings)) return;
+  }
   settings.acceptLimitedDc=acceptLimitedDc;
   const QString sourceFile=QFileInfo(QString::fromUtf8(input->cache->meta().source.c_str())).fileName();
   const std::string victimId=source.channelIds[selected].toStdString();
@@ -2235,6 +2242,28 @@ void AnalysisWindow::showEye(const WorkOutcome &outcome) {
   eyeResult_=outcome.eye;
   eyeProvenance_=outcome.provenance;
   eyeSourceFilename_=outcome.eyeSourceFilename;
+  if(eyeProvenance_.settingsIdentity.ends_with("|AUTO_PREVIEW_ASSUMED_MATCHED_400mVpp")) {
+    const auto &s=eyeResult_->settings;
+    const QSignalBlocker mode(eyeMode_),rate(eyeBitRate_),ref(eyeReference_),
+      cap(toGhz_),pattern(eyePattern_),fft(eyeFft_),samples(eyeSamples_),bits(eyeBits_);
+    eyeMode_->setCurrentIndex(int(s.mode));
+    eyeBitRate_->setValue(s.bitRateHz/1e9);
+    eyeReference_->setValue(s.referenceFrequencyHz/1e9);
+    toGhz_->setValue(s.analysisStopHz/1e9);
+    eyePattern_->setCurrentIndex(eyePattern_->findData(int(s.pattern)));
+    eyeFft_->setCurrentText(QString::number(qulonglong(s.fftLength)));
+    eyeSamples_->setCurrentText(QString::number(qulonglong(s.samplesPerUI)));
+    eyeBits_->clear();
+    eyeBits_->setEnabled(false);
+    const auto &e=s.electrical;
+    const std::array<double,7> v={e.txLowV*1000,e.txHighV*1000,
+      e.txSourceOhm,e.rxTerminationOhm,e.rxThresholdV*1000,
+      e.rxInputMinimumV*1000,e.rxInputMaximumV*1000};
+    for(size_t i=0;i<v.size();++i) {
+      const QSignalBlocker field(eyeElectrical_[i]);
+      eyeElectrical_[i]->setText(QString::number(v[i],'g',17));
+    }
+  }
   auto *plot=static_cast<EyePlotPanel *>(eyeGraph_);
   plot->setData(eyeResult_,eyeResult_->settings.electrical.rxThresholdV);
   plot->setView(eyeView_->currentIndex());

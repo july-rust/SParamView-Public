@@ -410,6 +410,11 @@ int main(int argc, char **argv) {
     QFile autoIldFile(autoIldPath);
     check(autoIldFile.open(QIODevice::ReadOnly) && autoIldFile.readAll().contains("# analysis_mode,AUTO"),
           "ILD auto provenance absent");
+    check(ildModel->currentIndex()==1 &&
+          std::abs(ild->findChild<QDoubleSpinBox *>("ildStopGhz")->value()-16)<1e-8,
+          "ILD Auto did not seed fit and measured band");
+    ild->runButton()->click();drain(manager.scheduler());
+    check(ild->status()==S::Valid,"Unedited Auto-to-Manual ILD failed");
     ildModel->setCurrentIndex(2); // fixture is an exact quadratic-root model
     ild->runButton()->click();
     drain(manager.scheduler());
@@ -663,8 +668,9 @@ int main(int argc, char **argv) {
     QFile autoIcnFile(autoIcnPath);
     check(autoIcnFile.open(QIODevice::ReadOnly) && autoIcnFile.readAll().contains("# analysis_mode,AUTO"),
           "ICN auto provenance absent");
-    items->item(0)->setCheckState(Qt::Checked);
-    items->item(1)->setCheckState(Qt::Checked);
+    check(items->item(0)->checkState()==Qt::Checked &&
+          items->item(1)->checkState()==Qt::Checked,
+          "ICN Auto did not seed selected NEXT/FEXT paths");
     auto *rss=icn->findChild<QCheckBox *>(QStringLiteral("icnIndependentAssumption"));
     check(rss && rss->isChecked() && rss->text().contains("assumed"),"Default exploratory RSS assumption must be visible");
     icn->runButton()->click();drain(manager.scheduler());
@@ -817,15 +823,11 @@ int main(int argc, char **argv) {
     auto *cap=eye->findChild<QDoubleSpinBox *>(QStringLiteral("analysisStopFrequency"));
     // Common stop-frequency spin gets an explicit ID in 012_08.
     if(!cap)cap=eye->findChild<QDoubleSpinBox *>(QStringLiteral("eyeAnalysisCapGhz"));
-    check(profile && mode && baud && reference && cap,
-          "Eye profile/bitrate/reference/cap controls missing");
-    check(std::abs(baud->value()-4.5)<1e-9 &&
-          std::abs(reference->value()-2.25)<1e-9 &&
-          std::abs(cap->value()-10)<1e-9,
-          "MIPI 4.5/2.25/10 example defaults were not installed");
+    check(!profile && mode && baud && reference && cap,
+          "Eye profile must be removed; explicit controls must remain");
     eye->runButton()->click();
     check(eye->status()==S::NotEvaluated,
-          "MIPI preset without verified electrical inputs must fail closed");
+          "Manual without electrical inputs must fail closed");
     auto *preview=eye->findChild<QPushButton *>(QStringLiteral("eyeAutoPreview"));
     check(preview && preview->isEnabled(),"Auto Preview unavailable");
     preview->click();drain(manager.scheduler());
@@ -834,7 +836,14 @@ int main(int argc, char **argv) {
     check(eye->saveEyeCsv(previewCsv),"Auto Preview CSV failed");
     QFile previewData(previewCsv);
     check(previewData.open(QIODevice::ReadOnly) && previewData.readAll().contains("# input_mode,AUTO_PREVIEW_ASSUMED"),"Assumptions missing from preview export");
-    profile->setCurrentIndex(8); // Custom: single-ended s2p fixture
+    check(mode->currentIndex()==1 && baud->value()>0 &&
+          std::abs(reference->value()-baud->value()/2)<1e-8,
+          "Eye Auto Preview did not seed manual signal fields");
+    check(eye->findChild<QLineEdit *>("eyeTxLowMv")->text().toDouble()==-200 &&
+          eye->findChild<QLineEdit *>("eyeTxHighMv")->text().toDouble()==200,
+          "Eye Auto Preview did not seed manual electrical fields");
+    eye->runButton()->click();drain(manager.scheduler());
+    check(eye->status()==S::Warning,"Unedited Auto-to-Manual Eye failed");
     mode->setCurrentIndex(1);
     baud->setValue(4.5);
     check(std::abs(reference->value()-2.25)<1e-9,
@@ -1143,11 +1152,7 @@ int main(int argc, char **argv) {
         check(ok&&std::abs(loss+20*std::log10(reverse?0.5:0.8))<1e-8,"Differential ILD loss oracle");
       }
     }
-    profile->setCurrentIndex(0);
-    check(mode->currentIndex()==2 && std::abs(baud->value()-4.5)<1e-9 &&
-          std::abs(reference->value()-2.25)<1e-9 &&
-          std::abs(cap->value()-10)<1e-9,
-          "MIPI differential 4.5/2.25/10 GUI preset changed");
+    mode->setCurrentIndex(2);baud->setValue(4.5);cap->setValue(10);
     const QStringList diffElectrical={
       QStringLiteral("-200"),QStringLiteral("200"),
       QStringLiteral("100"),QStringLiteral("100"),
@@ -1160,7 +1165,7 @@ int main(int argc, char **argv) {
     eye->runButton()->click();
     drain(manager.scheduler());
     check(eye->status()==S::Warning,
-          "MIPI labeled, physically differential s4p did not simulate");
+          "Explicit physically differential s4p did not simulate");
     const QString diffCsvPath=ildDir.filePath(QStringLiteral("eye-diff-result.csv"));
     check(eye->saveEyeCsv(diffCsvPath),"Differential Eye CSV export failed");
     QFile diffRead(diffCsvPath);
@@ -1241,9 +1246,8 @@ int main(int argc, char **argv) {
     const QImage lowImage(lowPng);
     check(lowImage.text("DCStatus")=="EXTRAPOLATED DC" &&
           lowImage.text("EffectiveStartHz")=="1000","DC PNG provenance");
-    // Custom profile intentionally clears rates/electrical fields; explicitly
-    // restore the manual NRZ settings rather than relying on the previous PHY.
-    profile->setCurrentIndex(8);mode->setCurrentIndex(1);
+    // Explicitly restore the manual NRZ settings for this source.
+    mode->setCurrentIndex(1);
     baud->setValue(4.5);reference->setValue(2.25);cap->setValue(10);
     check(std::abs(baud->value()-4.5)<1e-9 && std::abs(reference->value()-2.25)<1e-9,
           "explicit manual DC fixture rate");
