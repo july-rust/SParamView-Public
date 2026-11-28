@@ -509,15 +509,17 @@ Result<EyeData> calculateEye(const ComplexTrace &trace, const EyeSettings &s,
   std::vector<double> phaseHeights(spp);
   std::vector<bool> opens(spp,false);
   double best=-std::numeric_limits<double>::infinity();
-  size_t bestPhase=0;
+  size_t bestPhase=0, bestHighBit=0, bestLowBit=0;
   for(size_t p=0;p<spp;++p) {
     if (!(p&15u)) check(cancelled);
     double minHigh=std::numeric_limits<double>::infinity();
     double maxLow=-std::numeric_limits<double>::infinity();
+    size_t minHighBit=0, maxLowBit=0;
     for(size_t bit=0;bit<bitCount;++bit) {
       const double v=data.receivedV[(bit*spp+delay+p)%n];
-      if(bits[bit]) minHigh=std::min(minHigh,v);
-      else maxLow=std::max(maxLow,v);
+      if(bits[bit]) {
+        if(v<minHigh) {minHigh=v;minHighBit=bit;}
+      } else if(v>maxLow) {maxLow=v;maxLowBit=bit;}
     }
     phaseHeights[p]=minHigh-maxLow;
     require(std::isfinite(phaseHeights[p]), "Nonfinite eye height");
@@ -525,6 +527,8 @@ Result<EyeData> calculateEye(const ComplexTrace &trace, const EyeSettings &s,
     if(phaseHeights[p]>best) {
       best=phaseHeights[p];
       bestPhase=p;
+      bestHighBit=minHighBit;
+      bestLowBit=maxLowBit;
       data.minimumHighV=minHigh;
       data.maximumLowV=maxLow;
     }
@@ -549,8 +553,32 @@ Result<EyeData> calculateEye(const ComplexTrace &trace, const EyeSettings &s,
   data.overlayPhaseUI.reserve(2*spp);
   for(size_t p=0;p<2*spp;++p)
     data.overlayPhaseUI.push_back(double(p)/double(spp));
+  // Keep rendering/export bounded, but select from the entire periodic frame.
+  // Always retain the two actual traces defining the reported maximum height,
+  // and at least one of every present adjacent-bit class (00/01/10/11).
+  // The remaining traces are distributed across the frame; no voltage synthesis.
+  std::vector<size_t> overlayBits;
+  overlayBits.reserve(overlayCount);
+  std::vector<bool> selected(bitCount,false);
+  auto addBit=[&](size_t bit) {
+    if(overlayBits.size()<overlayCount && !selected[bit]) {
+      selected[bit]=true;
+      overlayBits.push_back(bit);
+    }
+  };
+  addBit(bestHighBit);
+  addBit(bestLowBit);
+  std::array<bool,4> pairSeen{};
+  for(size_t bit=0;bit<bitCount;++bit) {
+    if(!(bit&1023u)) check(cancelled);
+    const size_t pair=2*size_t(bits[bit])+size_t(bits[(bit+1)%bitCount]);
+    if(!pairSeen[pair]) {addBit(bit);pairSeen[pair]=true;}
+  }
+  for(size_t k=0;k<overlayCount;++k) addBit(k*bitCount/overlayCount);
+  for(size_t bit=0;bit<bitCount && overlayBits.size()<overlayCount;++bit) addBit(bit);
+  std::sort(overlayBits.begin(),overlayBits.end());
   data.overlayV.reserve(overlayCount);
-  for(size_t bit=0;bit<overlayCount;++bit) {
+  for(size_t bit:overlayBits) {
     if (!(bit&15u)) check(cancelled);
     std::vector<double> segment;
     segment.reserve(2*spp);

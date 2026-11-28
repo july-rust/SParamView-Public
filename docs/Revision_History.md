@@ -6,7 +6,7 @@ The sections below record the state at each historical development stage. Earlie
 
 ## v1.4.3 — 016
 
-- Successful Auto Analysis/Auto Preview fills Manual controls with resolved settings. Unedited frequency and ICN numeric controls retain calculation precision when another field is changed. Review assumptions before applying known conditions. PHY Profile is removed; Eye overlay includes TX incident voltage as a visual reference. COM remains deferred.
+- Successful Auto Analysis/Auto Preview fills Manual controls with resolved settings. Unedited frequency and ICN numeric controls retain calculation precision when another field is changed. Review assumptions before applying known conditions. PHY Profile is removed; Eye overlay includes TX incident voltage as a visual reference and uses bounded full-frame trace selection, including present adjacent-bit classes and height-defining traces. COM remains deferred.
 
 ## v1.4.2 — 014
 

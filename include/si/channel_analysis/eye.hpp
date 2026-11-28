@@ -69,7 +69,8 @@ struct EyeData {
   EyeDcInfo dc;
   std::vector<double> timeSeconds, transmittedV, receivedV;
   TimeSeries impulse, unitPulse;
-  // A bounded subset of two-UI received traces, for the 012_08 GUI renderer.
+  // Bounded full-frame selection of two-UI RX traces, including present bit-pair
+  // classes and the two traces defining the maximum-height phase.
   std::vector<std::vector<double>> overlayV;
   std::vector<double> overlayPhaseUI;
   double bitRateHz = 0, referenceFrequencyHz = 0, analysisStopHz = 0;

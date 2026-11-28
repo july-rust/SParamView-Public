@@ -85,6 +85,25 @@ int main() {
     for(size_t i=0;i<ideal.value->receivedV.size();++i)
       close(ideal.value->receivedV[i],ideal.value->transmittedV[i],1e-10,
             "identity channel discrete Fourier oracle");
+    // A long initial run used to hide both logic levels and transitions in the
+    // first-64 overlay, despite a valid full-frame height and width.
+    auto longRun=s; longRun.fftLength=1024; longRun.pattern=EyePattern::CustomBits;
+    longRun.customBits.assign(128,0);
+    std::fill(longRun.customBits.begin()+80,longRun.customBits.end(),uint8_t{1});
+    const auto longEye=calculateEye(thru(),longRun);
+    const auto &ld=*longEye.value;
+    close(ld.eyeHeightV,0.4,1e-10,"long-run full-frame height");
+    close(ld.eyeWidthUI,1.0,1e-12,"long-run full-frame width");
+    check(ld.overlayV.size()==64,"long-run bounded overlay");
+    std::array<bool,4> pairs{};
+    for(const auto &segment:ld.overlayV) {
+      const auto phase=longRun.samplesPerUI/2;
+      pairs[2*size_t(segment[phase]>0)+size_t(segment[phase+longRun.samplesPerUI]>0)]=true;
+    }
+    check(std::all_of(pairs.begin(),pairs.end(),[](bool b){return b;}),
+          "overlay includes 00/01/10/11 including circular transition");
+    check(ld.overlayV==calculateEye(thru(),longRun).value->overlayV,
+          "deterministic full-frame overlay selection");
     // Exact integer-sample phase delay is an independent analytic DFT golden.
     const double dt=1.0/(s.bitRateHz*double(s.samplesPerUI));
     auto delayed=calculateEye(gridAlignedDelay(s,4*dt),s);
@@ -271,6 +290,28 @@ int main() {
       width=std::max(width,len);
     }
     close(nd.eyeHeightV,bestHeight,1e-10,"independent height");
+    // Independently locate the actual full-frame limiting high and low traces
+    // at the selected phase, and require their complete two-UI segments.
+    const size_t phase=size_t(std::llround(nd.samplingPhaseUI*double(spp)));
+    size_t highBit=0, lowBit=0;
+    double minHigh=std::numeric_limits<double>::infinity();
+    double maxLow=-std::numeric_limits<double>::infinity();
+    for(size_t bit=0;bit<count/spp;++bit) {
+      const double v=nd.receivedV[(bit*spp+delayIndex+phase)%count];
+      if(echo.customBits[bit%echo.customBits.size()]) {
+        if(v<minHigh) {minHigh=v;highBit=bit;}
+      } else if(v>maxLow) {maxLow=v;lowBit=bit;}
+    }
+    for(size_t bit:{highBit,lowBit}) {
+      bool found=false;
+      for(const auto &segment:nd.overlayV) {
+        bool match=segment.size()==2*spp;
+        for(size_t j=0;match && j<2*spp;++j)
+          match=segment[j]==nd.receivedV[(bit*spp+delayIndex+j)%count];
+        found=found||match;
+      }
+      check(found,"overlay retains full-frame height-defining trace");
+    }
     close(nd.eyeWidthUI,double(width)/double(spp),1e-12,"independent circular width");
     close(nd.eyeWidthSeconds,double(width)/double(spp)/echo.bitRateHz,1e-18,"width seconds");
     // Independent PRBS recurrence and period check (x^7+x^6+1).

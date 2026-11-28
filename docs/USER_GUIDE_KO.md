@@ -725,7 +725,7 @@ $$\text{Eye Height}=\max_p[H_{\min}(p)-L_{\max}(p)],$$
 $$O(p)=[H_{\min}(p)>V_{\rm th}\ \text{and}\ L_{\max}(p)<V_{\rm th}],\qquad
 \text{Eye Width}_{UI}=\frac{\text{longest circular run of true }O(p)}{M}.$$
 
-Eye Width(sec)는 Eye Width(UI)에 UI를 곱한 값입니다. 최대 Height 위상이 Threshold를 만족하지 않을 수 있으며 프로그램은 별도 경고합니다. Overlay는 최대 64개 Segment를 그리지만 수치 계산은 유한 시뮬레이션 Frame 전체를 사용합니다. Width는 샘플 위상의 추정값이며 BER Contour가 아닙니다.
+Eye Width(sec)는 Eye Width(UI)에 UI를 곱한 값입니다. 최대 Height 위상이 Threshold를 만족하지 않을 수 있으며 프로그램은 별도 경고합니다. Overlay는 주기적 Frame 전체에서 최대 64개의 실제 Segment를 선택하며, 존재하는 00/01/10/11 인접 비트 조합과 최대 Height 위상을 결정하는 High/Low 파형을 포함합니다. 수치 계산은 유한 Frame 전체를 사용하며 Overlay는 전체 Eye Envelope가 아닙니다. Width는 샘플 위상의 추정값이며 BER Contour가 아닙니다.
 
 계산 예시: 4.5 Gbps에서 UI=222.22 ps, Reference=2.25 GHz입니다. $M=32$, $N=8192$이면 샘플 간격 6.944 ps, Sample Rate 144 GHz, 주파수 Bin 간격 17.578125 MHz, Frame은 256 Bit(56.889 ns)입니다. 가상 High 최소 +120 mV, Low 최대 -80 mV이면 해당 위상의 높이 차이는 200 mV입니다. Threshold 0 mV에서 연속 유효 위상이 24개면 Eye Width는 0.75 UI(166.67 ps)입니다.
 

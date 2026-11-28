@@ -723,7 +723,7 @@ $$\text{Eye Height}=\max_p[H_{\min}(p)-L_{\max}(p)],$$
 $$O(p)=[H_{\min}(p)>V_{\rm th}\ \text{and}\ L_{\max}(p)<V_{\rm th}],\qquad
 \text{Eye Width}_{UI}=\frac{\text{longest circular run of true }O(p)}{M}.$$
 
-Eye Width in seconds is Eye Width in UI multiplied by UI. The maximum-height phase need not satisfy the specified threshold; the program warns separately. Overlay renders up to 64 segments, whereas the metrics use the full finite simulated frame. Width is a sampled-time estimate, not interpolated BER contours.
+Eye Width in seconds is Eye Width in UI multiplied by UI. The maximum-height phase need not satisfy the specified threshold; the program warns separately. Overlay renders up to 64 actual segments selected across the full periodic frame, including each present adjacent-bit class and the two traces defining the maximum-height phase. Metrics still use the full finite frame; the overlay is not an exhaustive eye envelope. Width is a sampled-time estimate, not interpolated BER contours.
 
 Worked example: 4.5 Gbps gives UI 222.22 ps and reference 2.25 GHz. With $M=32$ and $N=8192$, sample spacing is 6.944 ps, sample rate 144 GHz, bin spacing 17.578125 MHz and frame length 256 bits (56.889 ns). If a hypothetical valid phase has minimum high +120 mV and maximum low -80 mV, separation is 200 mV. If the longest run of open phases at threshold zero is 24 samples, width is 0.75 UI (166.67 ps). These are examples, not guaranteed channel results.
 
