@@ -1,10 +1,10 @@
 # SParamView User Guide
 
-**Applies to:** SParamView **v1.4.1 official release**
+**Applies to:** SParamView **v1.4.2 official release**
 **Supported platforms:** Windows x64 / Windows ARM64 / macOS Apple Silicon (arm64)
 **Documentation updated:** 2026-11-28 (KST). Includes window geometry and File/New/Exit improvements.
 
-[한국어 사용자 설명서](USER_GUIDE_KO.md) | [English README](../README_EN.md) | [v1.4.1 Release Notes](Release_1.4.1.md)
+[한국어 사용자 설명서](USER_GUIDE_KO.md) | [English README](../README_EN.md) | [v1.4.2 Release Notes](Release_1.4.2.md)
 
 ---
 
@@ -110,9 +110,9 @@ Download the package that matches your system from GitHub Releases.
 
 | System | Recommended package |
 |---|---|
-| Windows x64 | `SParamView_Windows_x64_v1.4.1.zip` |
-| Windows ARM64 | `SParamView_Windows_ARM64_v1.4.1.zip` |
-| macOS Apple Silicon | `SParamView_macOS_AppleSilicon_arm64_v1.4.1.dmg` or `.zip` |
+| Windows x64 | `SParamView_Windows_x64_v1.4.2.zip` |
+| Windows ARM64 | `SParamView_Windows_ARM64_v1.4.2.zip` |
+| macOS Apple Silicon | `SParamView_macOS_AppleSilicon_arm64_v1.4.2.dmg` or `.zip` |
 
 SHA-256 files are also provided with the release. To verify download integrity, run `Get-FileHash <filename> -Algorithm SHA256` in Windows PowerShell or `shasum -a 256 <filename>` in macOS Terminal, then compare the result with the corresponding `.sha256` file.
 
@@ -588,7 +588,7 @@ Contact: **sparamview@gmail.com**
 
 ## 22. Documentation verification sources
 
-Historical v1.2.1 feature changes are supported by the [v1.2.1 release notes](Release_1.2.1.md) and the source links below. For the current release, see the [v1.4.1 release notes](Release_1.4.1.md), [temporary-cache policy](Temporary_Cache_Cleanup.md), [revision history](Revision_History.md), and [tagged source](https://github.com/july-rust/SParamView-Public/tree/v1.4.1). Previous v1.2.4a validation is retained in the [historical release notes](Release_1.2.4a.md).
+Historical v1.2.1 feature changes are supported by the [v1.2.1 release notes](Release_1.2.1.md) and the source links below. For the current release, see the [v1.4.2 release notes](Release_1.4.2.md), [temporary-cache policy](Temporary_Cache_Cleanup.md), [revision history](Revision_History.md), and [tagged source](https://github.com/july-rust/SParamView-Public/tree/v1.4.2). Previous v1.2.4a validation is retained in the [historical release notes](Release_1.2.4a.md).
 
 - [Initial TDR axes and automatic scaling](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/src/plot.cpp)
 - [Plot interaction and viewport restoration](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/src/navigation.cpp)
@@ -601,7 +601,7 @@ Historical v1.2.1 feature changes are supported by the [v1.2.1 release notes](Re
 
 ### Document Version
 
-This guide applies to v1.4.1 (2026-11-28 KST); embedded screenshots are historical v1.2.1 captures.
+This guide applies to v1.4.2 (2026-11-28 KST); embedded screenshots are historical v1.2.1 captures.
 
 
 
@@ -617,8 +617,12 @@ This guide applies to v1.4.1 (2026-11-28 KST); embedded screenshots are historic
 
 **Scope:** engineering-reference calculations only. COM is deferred and has no production menu. No IEEE/SNIA/MIPI compliance, measured BER or exhaustive physical-platform/HiDPI certification is claimed.
 
-[Release notes](Release_1.4.1.md) · [ILD](Channel_Analysis_ILD_012_05.md) · [ICN](Channel_Analysis_ICN_012_06.md) · [Eye Diagram](Channel_Analysis_Eye_012_07.md) · [AC/Auto](qualification/012_54_AC_Auto_Analysis.md).
+[Release notes](Release_1.4.2.md) · [ILD](Channel_Analysis_ILD_012_05.md) · [ICN](Channel_Analysis_ICN_012_06.md) · [Eye Diagram](Channel_Analysis_Eye_012_07.md) · [AC/Auto](qualification/012_54_AC_Auto_Analysis.md).
 
+
+## v1.4.2 — Eye Diagram Multi View
+
+Eye Diagram now offers **All three graphs** alongside the existing individual views: Eye overlay (2 UI), TX / RX waveform and Impulse / Unit pulse. All panels share one accepted numerical result, use independent axes and interaction, and support PNG export of the selected view. The combined layout adapts to logical width; narrow windows can scroll. The existing simulation-only qualification limits remain unchanged.
 
 ## v1.4.1 — Window and workspace behavior
 

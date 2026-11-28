@@ -1,4 +1,4 @@
-# SParamView v1.4.1
+# SParamView v1.4.2
 
 SParamView is a desktop application for Touchstone-based S-parameter analysis and visualization.
 
@@ -19,6 +19,10 @@ SParamView is a desktop application for Touchstone-based S-parameter analysis an
 - Project load/save (`.siproject`)
 
 Quick TDR is a band-limited estimate affected by frequency span, spacing, extrapolation, windowing, and termination. It should not be interpreted as an instrument-equivalent measurement.
+
+### What's new in v1.4.2
+
+- Eye Diagram now offers **All three graphs** alongside the existing individual views: Eye overlay (2 UI), TX / RX waveform and Impulse / Unit pulse. All panels share one accepted numerical result, use independent axes and interaction, and support PNG export of the selected view. The combined layout adapts to logical width; narrow windows can scroll. The existing simulation-only qualification limits remain unchanged.
 
 ### What's new in v1.4.1
 
@@ -41,9 +45,9 @@ Quick TDR is a band-limited estimate affected by frequency span, spacing, extrap
 - [한국어 사용자 설명서](docs/USER_GUIDE_KO.md)
 - [Historical development plan (COM deferred)](docs/Channel_Analysis_Development_Plan.md)
 
-## Current release — v1.4.1
+## Current release — v1.4.2
 
-**[Official release and downloads](https://github.com/july-rust/SParamView-Public/releases/tag/v1.4.1)** · [v1.4.1 release notes](docs/Release_1.4.1.md) · [release CI](https://github.com/july-rust/SParamView-Public/actions)
+**[Official release and downloads](https://github.com/july-rust/SParamView-Public/releases/tag/v1.4.2)** · [v1.4.2 release notes](docs/Release_1.4.2.md) · [release CI](https://github.com/july-rust/SParamView-Public/actions)
 
 - **v1.3.5:** Mapping CSV v3 preserves text through the qualified spreadsheet round trips; successful import refreshes guidance. Adds isolated crash/recovery and native GUI tests. v1.3.4 introduced the retained startup/cache guards.
 - **v1.3.3:** Strict integer parsing for PowerSI hints and mixed-mode port descriptors; linear-time Touchstone comment/label parsing without regular-expression recursion. Existing valid labels and differential pairing rules are retained.
@@ -72,7 +76,7 @@ Quick TDR is a band-limited estimate affected by frequency span, spacing, extrap
 
 The previous [v1.2.4a published artifacts](https://github.com/july-rust/SParamView-Public/releases/tag/v1.2.4a) remain unchanged. On 2026-10-13, a separate documentation and CI maintenance pass verified zero warning messages across the six required validation gates, native Windows ARM64 mapping fallback 10/10 passes, and native Cocoa macOS GUI tests. These changes do not replace the tagged binaries. See [Revision History](docs/Revision_History.md) and [CI evidence](https://github.com/july-rust/SParamView-Public/actions/runs/38383938009).
 
-See [Release_1.4.1.md](docs/Release_1.4.1.md) for the current release, and [Release_1.3.0.md](docs/Release_1.3.0.md) for its Touchstone predecessor and [Release_1.2.5.md](docs/Release_1.2.5.md) / [Release_1.2.4a.md](docs/Release_1.2.4a.md) for historical details. Earlier changes: [v1.1.6](docs/Release_1.1.6.md), [v1.1.7](docs/Release_1.1.7.md), [v1.2.0](docs/Release_1.2.0.md).
+See [Release_1.4.2.md](docs/Release_1.4.2.md) for the current release, and [Release_1.3.0.md](docs/Release_1.3.0.md) for its Touchstone predecessor and [Release_1.2.5.md](docs/Release_1.2.5.md) / [Release_1.2.4a.md](docs/Release_1.2.4a.md) for historical details. Earlier changes: [v1.1.6](docs/Release_1.1.6.md), [v1.1.7](docs/Release_1.1.7.md), [v1.2.0](docs/Release_1.2.0.md).
 
 ## Build
 SParamView uses C++20, CMake, and Qt 6.8.3 (Core, Gui, Widgets, Concurrent).

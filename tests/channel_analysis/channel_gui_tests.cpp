@@ -986,6 +986,49 @@ int main(int argc, char **argv) {
           eyeImage.text(QStringLiteral("FrameBits"))==QStringLiteral("256") &&
           eyeImage.text(QStringLiteral("SimulationStatus")).contains(QStringLiteral("SIMULATED_ONLY")),
           "Eye PNG lost original source SHA, numerical settings or simulation disclaimer");
+    // 014: simultaneous views share the accepted result; no worker restart.
+    eyeView->setCurrentIndex(2);
+    const auto responseAxes=paintedAxes(eyeGraph,2);
+    const auto metricsBeforeMulti=metrics->text();
+    auto *multiPanel=eye->findChild<QWidget *>("eyePlotPanel");
+    auto *waveform=eye->findChild<QWidget *>("eyeWaveformGraph");
+    auto *response=eye->findChild<QWidget *>("eyeResponseGraph");
+    check(multiPanel && waveform && response && eyeView->count()==4,
+          "Eye multi-view widgets unavailable");
+    eyeView->setCurrentIndex(3);
+    QCoreApplication::processEvents();
+    check(waveform->isVisible() && response->isVisible() &&
+          manager.scheduler().inFlight()==0 && metrics->text()==metricsBeforeMulti,
+          "Multi-view restarted analysis or lost accepted metrics");
+    const QString multiPngPath=ildDir.filePath("eye-multi.png");
+    const QString multiCsvPath=ildDir.filePath("eye-multi.csv");
+    check(eye->saveEyePng(multiPngPath) && eye->saveEyeCsv(multiCsvPath),
+          "Eye multi-view export failed");
+    check(paintedAxes(eyeGraph,0)==eyeOverlayAxes &&
+          paintedAxes(waveform,1)==eyeFull &&
+          paintedAxes(response,2)==responseAxes,
+          "Multi-view numerical axes differ from single-view");
+    QImage multiImage(multiPngPath);
+    check(!multiImage.isNull() && multiImage.text("PlotView")=="3" &&
+          multiImage.text("SourceSHA256")==eyeImage.text("SourceSHA256"),
+          "Multi-view export lost plot mode or source identity");
+    QFile multiCsv(multiCsvPath);
+    check(multiCsv.open(QIODevice::ReadOnly) && multiCsv.readAll()==eyeContent,
+          "Display mode changed original Eye CSV");
+    sendPlotWheel(waveform,QPoint(),QPoint(0,120));
+    multiPanel->grab(); // also renders panels below the scroll viewport
+    check(paintedAxes(waveform,1)!=eyeFull &&
+          paintedAxes(eyeGraph,0)==eyeOverlayAxes &&
+          paintedAxes(response,2)==responseAxes,
+          "Multi-view zoom changed another panel");
+    for(int i=0;i<100;++i) {
+      eyeView->setCurrentIndex(i%3);
+      eyeView->setCurrentIndex(3);
+    }
+    eyeView->setCurrentIndex(0);
+    check(!waveform->isVisible() && !response->isVisible() &&
+          manager.scheduler().inFlight()==0 && metrics->text()==metricsBeforeMulti,
+          "Repeated Eye view switching restarted analysis or left hidden panels visible");
     // Windows QIODevice::Text emits CRLF; validate numerical samples after
     // normalizing line endings, not against a Unix-only byte sequence.
     const QByteArray normalizedEye=QByteArray(eyeContent).replace("\r\n","\n");

@@ -15,6 +15,8 @@
 #include <QCursor>
 #include <QWindow>
 #include <QShowEvent>
+#include <QResizeEvent>
+#include <QGridLayout>
 #include <QVariant>
 #include <QPixmap>
 #include <QtMath>
@@ -413,6 +415,13 @@ public:
     dragging_=false; zoom_=1; shift_=0; cursor_=-1; update();
   }
   void setView(int view) { view_=std::clamp(view,0,2); staticLayer_=QPixmap(); clearPaintedAxes(this); dragging_=false; zoom_=1;shift_=0;cursor_=-1;update(); }
+  void setMulti(bool multi) {
+    if(multi_==multi)return;
+    multi_=multi; staticLayer_=QPixmap();
+    setMinimumHeight(multi?220:330); updateGeometry(); update();
+  }
+  void releaseLayer() { staticLayer_=QPixmap(); }
+
 protected:
   void wheelEvent(QWheelEvent *e) override {
     const double steps=plotZoomSteps(*e);
@@ -459,7 +468,7 @@ protected:
     const QSize pixels(qCeil(width()*dpr),qCeil(height()*dpr));
     const QString language=sparamview::ui_language::code(sparamview::ui_language::current(this));
     const bool cacheable=data_ && !pixels.isEmpty() &&
-        qint64(pixels.width())*pixels.height()<=16*1024*1024;
+        qint64(pixels.width())*pixels.height()<=(multi_?5:16)*1024*1024;
     if(cacheable) {
       if(staticLayer_.isNull() || staticLayer_.size()!=pixels ||
          staticLayer_.devicePixelRatio()!=dpr || cachedLogicalSize_!=size() ||
@@ -486,7 +495,7 @@ protected:
       drawStaticPlot(p);
     }
     if(data_ && cursor_>=0) {
-      const QRectF area(75,37,std::max(50,width()-100),std::max(50,height()-89));
+      const QRectF area(75,48,std::max(50,width()-100),std::max(50,height()-100));
       p.save();p.setClipRect(area);
       p.setPen(QPen(palette().text().color(),1,Qt::DotLine));
       const double xx=area.left()+cursor_*area.width();
@@ -500,14 +509,17 @@ private:
     p.fillRect(rect(),palette().base());
     p.setRenderHint(QPainter::Antialiasing);
     p.setPen(palette().text().color());
-    const QString title=sparamview::ui_language::textFor(this,QStringLiteral("Simulated Channel Eye — Not Measured / Not PHY Compliance"));
-    p.drawText(QRectF(8,3,width()-16,24),Qt::AlignCenter,title);
+    const QString title=sparamview::ui_language::textFor(this,view_==0?QStringLiteral("Eye overlay (2 UI)"):
+        view_==1?QStringLiteral("TX / RX waveform"):QStringLiteral("Impulse / Unit pulse"));
+    p.drawText(QRectF(8,1,width()-16,20),Qt::AlignCenter,title);
+    const auto warning=sparamview::ui_language::textFor(this,QStringLiteral("Simulated Channel Eye — Not Measured / Not PHY Compliance"));
+    p.drawText(QRectF(4,21,width()-8,19),Qt::AlignCenter,p.fontMetrics().elidedText(warning,Qt::ElideRight,std::max(0,width()-8)));
     if(!data_) {
       p.drawText(rect(),Qt::AlignCenter,sparamview::ui_language::textFor(this,QStringLiteral("Auto Preview or enter verified settings and Run Manual")));
       return;
     }
     const auto &d=*data_;
-    QRectF area(75,37,std::max(50,width()-100),std::max(50,height()-89));
+    QRectF area(75,48,std::max(50,width()-100),std::max(50,height()-100));
     detail::PlotBounds bounds;
     auto include=[&](double v) {bounds.include(v);};
     if(view_==0) {
@@ -526,7 +538,7 @@ private:
     p.setPen(palette().text().color());
     p.drawText(QRectF(2,area.top(),69,20),Qt::AlignRight,QString::number(high,'g',6));
     p.drawText(QRectF(2,area.bottom()-20,69,20),Qt::AlignRight,QString::number(low,'g',6));
-    p.drawText(QRectF(4,22,70,16),Qt::AlignRight,
+    p.drawText(QRectF(4,32,70,16),Qt::AlignRight,
       view_==2?sparamview::ui_language::textFor(this,QStringLiteral("relative")):QStringLiteral("mV"));
     const double fullX=view_==0?2.0 : (d.timeSeconds.empty()?0:d.timeSeconds.back()*1e12);
     const double x0=fullX*shift_, x1=fullX*(shift_+1/zoom_);
@@ -596,7 +608,69 @@ private:
   std::shared_ptr<const si::channel::EyeData> data_;
   double thresholdV_=0,zoom_=1,shift_=0,cursor_=-1,lastX_=0;
   int view_=0;
-  bool dragging_=false;
+  bool dragging_=false,multi_=false;
+};
+
+// 014: reuse the existing per-plot rendering, independent interaction and
+// bounded backing layers. All panels share one immutable numerical result.
+class EyePlotPanel final : public QWidget {
+public:
+  explicit EyePlotPanel(QWidget *parent=nullptr):QWidget(parent) {
+    setObjectName(QStringLiteral("eyePlotPanel"));
+    grid_=new QGridLayout(this);
+    grid_->setContentsMargins(0,0,0,0);
+    grid_->setSpacing(4);
+    primary_=new EyePlotWidget(this);
+    waveform_=new EyePlotWidget(this);
+    waveform_->setObjectName(QStringLiteral("eyeWaveformGraph"));
+    response_=new EyePlotWidget(this);
+    response_->setObjectName(QStringLiteral("eyeResponseGraph"));
+    waveform_->setView(1); response_->setView(2);
+    waveform_->setMulti(true); response_->setMulti(true);
+    waveform_->hide();response_->hide();
+    arrange(false);
+  }
+  void setData(const std::shared_ptr<const si::channel::EyeData> &data,double threshold) {
+    for(auto *plot:{primary_,waveform_,response_})plot->setData(data,threshold);
+  }
+  void setView(int index) {
+    index=std::clamp(index,0,3);
+    const bool multi=index==3;
+    primary_->setMulti(multi);
+    primary_->setView(multi?0:index);
+    waveform_->setVisible(multi);response_->setVisible(multi);
+    if(!multi) {waveform_->releaseLayer();response_->releaseLayer();}
+    multi_=multi;
+    arrange(multi_ && width()>=820);
+    updateGeometry();
+  }
+  void refreshPlots() {
+    for(auto *plot:{primary_,waveform_,response_})plot->update();
+  }
+protected:
+  void resizeEvent(QResizeEvent *e) override {
+    QWidget::resizeEvent(e);
+    const bool wide=multi_ && e->size().width()>=820;
+    if(wide!=wide_)arrange(wide);
+  }
+private:
+  void arrange(bool wide) {
+    wide_=wide;
+    for(auto *plot:{primary_,waveform_,response_})grid_->removeWidget(plot);
+    for(int i=0;i<3;++i)grid_->setRowStretch(i,0);
+    grid_->setColumnStretch(0,1);grid_->setColumnStretch(1,wide?1:0);
+    grid_->addWidget(primary_,0,0,1,wide?2:1);
+    grid_->setRowStretch(0,multi_?3:1);
+    if(multi_) {
+      grid_->addWidget(waveform_,1,0);
+      grid_->addWidget(response_,wide?1:2,wide?1:0);
+      grid_->setRowStretch(1,2);
+      if(!wide)grid_->setRowStretch(2,2);
+    }
+  }
+  QGridLayout *grid_=nullptr;
+  EyePlotWidget *primary_=nullptr,*waveform_=nullptr,*response_=nullptr;
+  bool multi_=false,wide_=false;
 };
 
 }
@@ -879,7 +953,12 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     eyeView_->setObjectName(QStringLiteral("eyePlotView"));
     eyeView_->addItems({QStringLiteral("Eye overlay (2 UI)"),
                         QStringLiteral("TX / RX waveform"),
-                        QStringLiteral("Impulse / Unit pulse")});
+                        QStringLiteral("Impulse / Unit pulse"),
+                        QStringLiteral("All three graphs")});
+    if(!sparamview::preferences::automated()) {
+      const int saved=sparamview::preferences::store().value("eye/v1/plotView",0).toInt();
+      eyeView_->setCurrentIndex(std::clamp(saved,0,3));
+    }
     const QStringList fields={
       QStringLiteral("TX incident low (mV)"),QStringLiteral("TX incident high (mV)"),
       QStringLiteral("TX source (ohm)"),QStringLiteral("RX termination (ohm)"),
@@ -1054,7 +1133,8 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     detailsLayout->addWidget(icnContributions_);
   } else if(feature_==Feature::Eye) {
     graphPlaceholder_->hide();
-    eyeGraph_=new EyePlotWidget(this);
+    eyeGraph_=new EyePlotPanel(this);
+    static_cast<EyePlotPanel *>(eyeGraph_)->setView(eyeView_->currentIndex());
     outer->addWidget(eyeView_);
     plotLayout->addWidget(eyeGraph_,1);
     eyeMetrics_=new QLabel(QStringLiteral("Simulated Channel Eye — Not Measured / Not PHY Compliance"));
@@ -1125,7 +1205,11 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     for(auto *combo:{eyeFft_,eyeSamples_})
       connect(combo,&QComboBox::currentIndexChanged,this,[this]{invalidateRequest();});
     connect(eyeView_,&QComboBox::currentIndexChanged,this,[this](int view){
-      if(eyeGraph_) static_cast<EyePlotWidget *>(eyeGraph_)->setView(view);
+      if(eyeGraph_) static_cast<EyePlotPanel *>(eyeGraph_)->setView(view);
+      if(!sparamview::preferences::automated()) {
+        auto prefs=sparamview::preferences::store();
+        prefs.setValue("eye/v1/plotView",view);
+      }
     });
     for(auto *edit:eyeElectrical_)
       connect(edit,&QLineEdit::textChanged,this,[this]{invalidateRequest();});
@@ -1188,7 +1272,8 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     header->setText(QStringLiteral("<b>")+title+QStringLiteral("</b> — ")+menuText("Channel Analysis",value));
     statusLabel_->setText(menuText(statusName(status_),value)+QStringLiteral(" — ")+diagnosticText(statusDetailsSource_,value));
     statusLabel_->setToolTip(statusLabel_->text());
-    for(auto *graph:{ildGraph_,icnGraph_,eyeGraph_}) if(graph) graph->update();
+    for(auto *graph:{ildGraph_,icnGraph_}) if(graph) graph->update();
+    if(eyeGraph_) static_cast<EyePlotPanel *>(eyeGraph_)->refreshPlots();
   });
   // Direct manager notification avoids event-filter order/platform dependence.
   languageRefresh_=[this, translated=std::move(translated)](const QString &codeValue) {
@@ -2000,7 +2085,7 @@ void AnalysisWindow::setEyeSourceProvider(EyeSourceProvider provider) {
 void AnalysisWindow::clearEye() {
   eyeResult_.reset();
   eyeSourceFilename_.clear();
-  if(eyeGraph_) static_cast<EyePlotWidget *>(eyeGraph_)->setData({},0);
+  if(eyeGraph_) static_cast<EyePlotPanel *>(eyeGraph_)->setData({},0);
   if(eyeMetrics_) renderEyeMetrics();
   if(feature_==Feature::Eye && csv_ && png_) {
     csv_->setEnabled(false); png_->setEnabled(false);
@@ -2150,7 +2235,7 @@ void AnalysisWindow::showEye(const WorkOutcome &outcome) {
   eyeResult_=outcome.eye;
   eyeProvenance_=outcome.provenance;
   eyeSourceFilename_=outcome.eyeSourceFilename;
-  auto *plot=static_cast<EyePlotWidget *>(eyeGraph_);
+  auto *plot=static_cast<EyePlotPanel *>(eyeGraph_);
   plot->setData(eyeResult_,eyeResult_->settings.electrical.rxThresholdV);
   plot->setView(eyeView_->currentIndex());
   renderEyeMetrics();
@@ -2422,6 +2507,7 @@ bool AnalysisWindow::saveEyePng(const QString &name) {
     QString::number(eyeResult_->dc.modelSpread,'g',17):QStringLiteral("NOT_EVALUATED"));
   output.setText(QStringLiteral("DCAcknowledged"),eyeResult_->dc.requiresConfirmation &&
     eyeResult_->settings.acceptLimitedDc?QStringLiteral("true"):QStringLiteral("false"));
+  output.setText(QStringLiteral("PlotView"),QString::number(eyeView_->currentIndex()));
   output.setText(QStringLiteral("SimulationStatus"),
                  QStringLiteral("SIMULATED_ONLY / NOT_PHY_COMPLIANCE"));
   QSaveFile file(name);
