@@ -76,14 +76,13 @@ The status guidance at the bottom of the main window follows the same basic sequ
 
 ## 4. Main Window
 
-> **Automated validation screenshot** — The image below was generated automatically by SParamView v1.2.1 during native Windows ARM64 validation using the synthetic sample project. Layout can vary slightly with OS, DPI, and window size.
-> These screenshots were generated during public v1.2.1 release validation and are **not v1.3.0 screenshots**. See section 10 for TDR display and evaluation behavior. [Image provenance](images/README.md).
+> **v1.4.2 automated validation screenshot** — Main window and RL plot use the official native Windows ARM64 synthetic sample project. Analysis-window images use the tagged v1.4.2 GUI and synthetic test fixtures. Layout can differ with OS, DPI and window size. [Image provenance](images/README.md).
 
 ![SParamView v1.4.2 main window](images/01_Main_Window.png)
 
 ### 4.1 Header shortcuts
 
-The historical v1.2.1 screenshot shows these header shortcuts; the v1.3.2 application UI is the source of truth if placement differs:
+The v1.4.2 main window provides the following header shortcuts; placement can vary with OS, DPI and window size:
 
 - **+ Open Touchstone**: open one or more Touchstone files
 - **Open Project**: open an SParamView `.siproject`
@@ -760,7 +759,7 @@ The v1.2.0 source partitioning is an internal code-structure change and requires
 - Saved controls, marker settings, selected channels, search and Aggressor participate in unsaved-change tracking. Switching projects offers Save / Discard / Cancel; cancelled or failed saves retain the current project.
 - Excel Configuration includes signal type, confidence/evidence, mapping source/confirmation, source SHA-256 and verification, analysis completion time, report generation time and the actual analysis settings snapshot. Settings changed after analysis are not relabeled as the settings used for those results.
 - Additional Touchstone option lines are ignored with a diagnostic; the first option line remains authoritative. Symmetric Lower/Upper mixed-mode matrices are supported.
-- The retained screenshots below were captured with v1.2.1 test fixtures; they are **not** screenshots from v1.2.4a. The compact settings strip introduced in v1.2.2 remains 74 px.
+- At that historical stage, the screenshot fixtures came from v1.2.1, and the compact settings strip introduced in v1.2.2 was 74 px. Current screenshots are documented separately.
 
 **Post-release validation (2026-10-13):** The published v1.2.4a binaries are unchanged. CI/test updates use GCC for the Release core and Clang for ASan/UBSan, native Cocoa for macOS GUI validation, and GitHub CLI for artifact retrieval. The official [main validation](https://github.com/july-rust/SParamView-Public/actions/runs/38383938009) reported no compiler, Qt test-platform, or artifact-download warning messages; all ten native Windows ARM64 fallback mapping checks passed. These are test-infrastructure and documentation updates, not new application features.
 
