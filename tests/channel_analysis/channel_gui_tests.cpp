@@ -1290,14 +1290,14 @@ int main(int argc, char **argv) {
 
     // 012_52: real no-DC Touchstone -> verified mapped source -> preview/manual,
     // explicit modal cancellation and acceptance, blocked results never export.
-    auto setLowSource=[&](double start) {
-      const QString key=QString::number(start,'f',0);
+    auto setLowSource=[&](double start,int maxGhz=16) {
+      const QString key=QString::number(start,'f',0)+QStringLiteral("-")+QString::number(maxGhz);
       const auto path=si::pathFromUtf8(ildDir.filePath("dc-"+key+".s2p").toStdString());
       {
         std::ofstream out(path);out<<std::setprecision(17)<<"# Hz S RI R 50\n";
         for(double f:{start,2*start,3*start})
           out<<f<<" 0 0 0.5 0 0.5 0 0 0\n";
-        for(int i=1;i<=16;++i)
+        for(int i=1;i<=maxGhz;++i)
           out<<i*1e9<<" 0 0 0.5 0 0.5 0 0 0\n";
       }
       auto low=si::Cache::open(path,
@@ -1312,6 +1312,34 @@ int main(int argc, char **argv) {
       });
       manager.setContext(ctx);
     };
+    // A 5 GHz source resolves 10/3 Gbps; editing only the threshold
+    // must not round the auto-seeded rate or reference frequency.
+    setLowSource(1000,5);
+    preview->click();drain(manager.scheduler());
+    check(eye->status()==S::Warning,"Fractional-rate automatic Eye failed");
+    const auto exactAuto=ildDir.filePath("eye-fractional-auto.csv");
+    check(eye->saveEyeCsv(exactAuto),"Fractional-rate Auto CSV missing");
+    auto fieldFromCsv=[](const QString &path,const QByteArray &key) {
+      QFile file(path);check(file.open(QIODevice::ReadOnly),"Fractional-rate CSV read");
+      const auto bytes=file.readAll();const auto at=bytes.indexOf(key);
+      check(at>=0,"Fractional-rate metadata missing");
+      return bytes.mid(at+key.size()).split('\n').front().trimmed();
+    };
+    const auto autoRate=fieldFromCsv(exactAuto,"# bit_rate_gbps,");
+    check(std::abs(autoRate.toDouble()-10.0/3.0)<1e-14,"Auto rate oracle");
+    auto *threshold=eye->findChild<QLineEdit *>("eyeRxThresholdMv");
+    check(threshold,"Manual threshold control missing");
+    threshold->setText("10");
+    eye->runButton()->click();drain(manager.scheduler());
+    check(eye->status()==S::Warning,"Partial manual edit failed");
+    const auto exactManual=ildDir.filePath("eye-fractional-manual.csv");
+    check(eye->saveEyeCsv(exactManual) &&
+          fieldFromCsv(exactManual,"# bit_rate_gbps,")==autoRate &&
+          fieldFromCsv(exactManual,"# reference_frequency_ghz,")==
+            fieldFromCsv(exactAuto,"# reference_frequency_ghz,") &&
+          fieldFromCsv(exactManual,"# rx_threshold_mv,").toDouble()==10,
+          "Unedited auto rate/reference lost precision after manual edit");
+
     setLowSource(1000);
     preview->click();drain(manager.scheduler());
     check(eye->status()==S::Warning && metrics->text().contains("EXTRAPOLATED DC"),
