@@ -13,6 +13,7 @@ Supported release targets:
 - macOS Apple Silicon (arm64)
 
 Documentation:
+- [Documentation index — current guides, release evidence and historical records](docs/README.md)
 - [English README](README_EN.md)
 - [한국어 README](README_KO.md)
 - [English User Guide](docs/USER_GUIDE_EN.md)
