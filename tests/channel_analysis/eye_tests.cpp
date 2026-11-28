@@ -49,7 +49,6 @@ ComplexTrace gridAlignedDelay(const EyeSettings &s, double delaySeconds) {
 }
 EyeSettings exact() {
   EyeSettings s;
-  s.profile=EyeProfile::Custom;
   s.mode=EyeMode::Differential;
   s.pattern=EyePattern::Prbs7;
   s.bitRateHz=4e9;
@@ -69,24 +68,12 @@ EyeSettings exact() {
 }
 int main() {
   try {
-    const auto mipi=eyeProfile(EyeProfile::MipiDphyHs);
-    close(mipi.bitRateHz,4.5e9,1,"MIPI 4.5 Gb/s");
-    close(mipi.referenceFrequencyHz,2.25e9,1,"MIPI reference 2.25 GHz");
-    close(mipi.analysisStopHz,10e9,1,"MIPI cap 10 GHz");
-    check(std::isnan(mipi.electrical.txLowV) &&
-          std::isnan(mipi.electrical.rxTerminationOhm) &&
-          std::isnan(mipi.electrical.rxThresholdV),
-          "MIPI electrical values must not be invented");
-    for(const EyeProfile p:{EyeProfile::Ddr2,EyeProfile::Ddr3,EyeProfile::Ddr4,
-                            EyeProfile::Ddr5,EyeProfile::Lvds,EyeProfile::Slvs,
-                            EyeProfile::SlvsEc,EyeProfile::Custom}) {
-      const auto profile=eyeProfile(p);
-      check(std::isnan(profile.bitRateHz) &&
-            std::isnan(profile.electrical.txHighV),
-            "other profiles must require explicit bit rate and electrical values");
-    }
-    reject([&]{(void)calculateEye(thru(),mipi);},
-           "MIPI must fail closed on missing electrical profile");
+    EyeSettings unconfigured;
+    check(std::isnan(unconfigured.bitRateHz) &&
+          std::isnan(unconfigured.electrical.txHighV),
+          "Manual eye must require explicit bit rate and electrical values");
+    reject([&]{(void)calculateEye(thru(),unconfigured);},
+           "Unconfigured manual eye must fail closed");
     auto s=exact();
     auto ideal=calculateEye(thru(),s);
     check(ideal.usable() && ideal.value->simulated,"ideal deterministic model");
@@ -133,24 +120,20 @@ int main() {
           "band-limited simulated eye must stay marked non-qualified");
     close(band.value->analysisStopHz,10e9,1,"selected cap");
     // 4.5 Gb/s / 2.25 GHz / 10 GHz with fully supplied user electrical input.
-    auto m=mipi;
-    m.electrical=s.electrical;
+    auto m=s;
+    m.bitRateHz=4.5e9;
+    m.referenceFrequencyHz=2.25e9;
+    m.analysisStopHz=10e9;
     auto example=calculateEye(thru(16e9),m);
     check(example.usable() && example.value->bitRateHz==4.5e9 &&
           example.value->referenceFrequencyHz==2.25e9 &&
           example.value->analysisStopHz==10e9,
-          "MIPI configured numerical example");
-    auto tooFastMipi=eyeWithReferenceFrequency(m,3e9);
-    reject([&]{(void)calculateEye(thru(16e9),tooFastMipi);},
-           "MIPI v2.1 must reject a 6 Gb/s named profile");
-    auto wrongMipi=m;
-    wrongMipi.mode=EyeMode::SingleEnded;
-    wrongMipi.electrical.txSourceOhm=50;
-    wrongMipi.electrical.rxTerminationOhm=50;
-    reject([&]{(void)calculateEye(thru(16e9,0,1,false),wrongMipi);},
-           "MIPI HS must reject a single-ended profile");
-    // No false standard PASS; the only output is simulated/warning.
-    check(example.status==Status::Warning,"no MIPI conformance claim");
+          "Explicit 4.5 Gb/s numerical example");
+    // Explicit NRZ conditions are not a named PHY or compliance model.
+    auto faster=eyeWithReferenceFrequency(m,3e9);
+    check(calculateEye(thru(16e9),faster).usable(),
+          "Explicit 6 Gb/s NRZ conditions must not inherit a PHY cap");
+    check(example.status==Status::Warning,"no PHY conformance claim");
     auto reversed=thru();reversed.parameter="Sdd12";
     check(calculateEye(reversed,s).usable(),"reverse THRU supported");
     auto single=s; single.mode=EyeMode::SingleEnded;

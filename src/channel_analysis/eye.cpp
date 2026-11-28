@@ -252,7 +252,6 @@ std::optional<EyeDcInfo> inspectObservedAcModel(const ComplexTrace &trace) {
 EyeSettings automaticEyeSettings(const ComplexTrace &trace, bool differential) {
   validateTrace(trace);
   EyeSettings settings;
-  settings.profile=EyeProfile::Custom;
   settings.mode=differential?EyeMode::Differential:EyeMode::SingleEnded;
   settings.pattern=EyePattern::Prbs7;
   settings.analysisStopHz=std::min(10e9,trace.frequencyHz.back());
@@ -346,33 +345,6 @@ EyeDcInfo inspectEyeDc(const ComplexTrace &trace) {
   return dc;
 }
 
-const char *eyeProfileName(EyeProfile profile) {
-  switch(profile) {
-    case EyeProfile::MipiDphyHs: return "MIPI D-PHY v2.1 HS (example, not compliance)";
-    case EyeProfile::Ddr2: return "DDR2 (user-qualified)";
-    case EyeProfile::Ddr3: return "DDR3 (user-qualified)";
-    case EyeProfile::Ddr4: return "DDR4 (user-qualified)";
-    case EyeProfile::Ddr5: return "DDR5 (user-qualified)";
-    case EyeProfile::Lvds: return "LVDS (user-qualified)";
-    case EyeProfile::Slvs: return "SLVS (user-qualified)";
-    case EyeProfile::SlvsEc: return "SLVS-EC (user-qualified)";
-    case EyeProfile::Custom: return "Custom (user-qualified)";
-  }
-  throw Error("Unknown Eye profile");
-}
-EyeSettings eyeProfile(EyeProfile profile) {
-  (void)eyeProfileName(profile);
-  EyeSettings s;
-  s.profile=profile;
-  if(profile == EyeProfile::MipiDphyHs) {
-    s.mode=EyeMode::Differential;
-    s.bitRateHz=4.5e9;
-    s.referenceFrequencyHz=2.25e9; // NRZ Nyquist marker (NOT the FFT upper cap)
-    s.analysisStopHz=10e9;
-  }
-  // In particular DO NOT assign a fabricated MIPI VOD, termination or RX threshold.
-  return s;
-}
 EyeSettings eyeWithReferenceFrequency(EyeSettings s, double referenceHz) {
   require(positive(referenceHz) && positive(2.0*referenceHz),
           "Invalid NRZ reference frequency");
@@ -429,16 +401,6 @@ Result<EyeData> calculateEye(const ComplexTrace &trace, const EyeSettings &s,
           e.rxInputMinimumV<e.rxThresholdV &&
           e.rxThresholdV<e.rxInputMaximumV,
           "Explicit RX input linear range and threshold required");
-  (void)eyeProfileName(s.profile); // reject invalid/unknown enum
-  if(s.profile==EyeProfile::MipiDphyHs) {
-    require(s.mode==EyeMode::Differential && s.bitRateHz<=4.5e9,
-      "MIPI D-PHY v2.1 HS needs differential mode and rate at or below 4.5 Gb/s");
-  }
-  if(s.profile==EyeProfile::Lvds || s.profile==EyeProfile::Slvs ||
-     s.profile==EyeProfile::SlvsEc) {
-    require(s.mode==EyeMode::Differential,
-      "LVDS/SLVS/SLVS-EC profile requires differential signaling");
-  }
   const size_t n=s.fftLength, spp=s.samplesPerUI, bitCount=n/spp;
   const double dt=1.0/sampleRate;
   const double ui=1.0/s.bitRateHz;
@@ -509,7 +471,6 @@ Result<EyeData> calculateEye(const ComplexTrace &trace, const EyeSettings &s,
   }
   data.frameBitCount=bitCount;
   data.reverse=(trace.parameter=="S12" || trace.parameter=="Sdd12");
-  data.profileName=eyeProfileName(s.profile);
   data.transferParameter=trace.parameter;
   data.bitRateHz=s.bitRateHz;
   data.referenceFrequencyHz=s.referenceFrequencyHz;

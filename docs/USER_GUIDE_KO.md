@@ -682,7 +682,7 @@ $$P(f)=2\sigma_V^2T\mathrm{sinc}^2(\pi fT)\exp[-(2\pi f\sigma_t)^2]\frac1{1+(f/f
 
 각 경로의 전달 응답 $H_k(f)$에 대해 출력 PSD는 $P_k(f)=|H_k(f)|^2P(f)$입니다. Power Sum은 가중 전의 $10\log_{10}\sum_k|H_k|^2$이며 -300 dB는 화면에만 적용되는 하한입니다. PSD 그래프는 mV²/GHz 단위이며 1 V²/Hz = $10^{15}$ mV²/GHz입니다. Cumulative Noise는 측정 대역의 교집합에서 사다리꼴 적분합니다.
 
-$$V_k(f_j)=\sqrt{\sum_{i<j}\tfrac12[P_k(f_i)+P_k(f_{i+1})](f_{i+1}-f_i)},\quad V_{\rm total}=\sqrt{V_{\rm NEXT}^2+V_{\rm FEXT}^2}.$$
+$$V_k(f_j)=\sqrt{\sum_{i<j}\tfrac12[P_k(f_i)+P_k(f_{i+1})]\cdot(f_{i+1}-f_i)},\quad V_{\rm total}=\sqrt{V_{\rm NEXT}^2+V_{\rm FEXT}^2}.$$
 
 각 경로 기여율은 Total이 0이 아닐 때 $100(V_k/V_{\rm total})^2$입니다. 예를 들어 독립 NEXT 3 mV RMS, FEXT 4 mV RMS이면 Total은 7 mV가 아니라 5 mV이며 각각의 전력 기여율은 36%, 64%입니다. 상관된 Aggressor를 단순 RSS로 계산할 수는 없습니다.
 
@@ -692,7 +692,7 @@ Auto 조건은 Cap=min(10 GHz, 측정 최대 주파수), Symbol Rate=min(4.5 GBd
 
 ### 24.7 Eye Diagram — NRZ 시뮬레이션
 
-**Analysis → Eye Diagram**에서 Source, 물리 Mapping, 방향을 확인합니다. Auto Preview로 빠르게 분석하거나 Manual 설정의 Profile, Bit Rate, Analysis Cap, Pattern, FFT Length, Samples/UI, TX/RX 전기 조건을 확인하고 Run Manual을 실행합니다. 가정과 DC 상태, RX 입력 범위, Eye Height, Eye Width 및 경고를 함께 봅니다.
+**Analysis → Eye Diagram**에서 Source, 물리 Mapping, 방향을 확인합니다. Auto Preview로 빠르게 분석하거나 Manual 설정의 Bit Rate, Analysis Cap, Pattern, FFT Length, Samples/UI, TX/RX 전기 조건을 확인하고 Run Manual을 실행합니다. 가정과 DC 상태, RX 입력 범위, Eye Height, Eye Width 및 경고를 함께 봅니다.
 
 - **Eye overlay (2 UI)**: RX 파형을 위상 정렬하여 중첩합니다. Threshold와 High/Low Envelope 또는 Sampling Marker를 확인합니다. 동일 조건에서 Eye가 높고 유효 위상 구간이 넓을수록 유리한 경향입니다.
 - **TX / RX waveform**: 원래 입력 대비 수신 진폭, 지연, Ringing, ISI(Inter-Symbol Interference)를 확인합니다.
@@ -725,7 +725,7 @@ Eye Width(sec)는 Eye Width(UI)에 UI를 곱한 값입니다. 최대 Height 위�
 
 계산 예시: 4.5 Gbps에서 UI=222.22 ps, Reference=2.25 GHz입니다. $M=32$, $N=8192$이면 샘플 간격 6.944 ps, Sample Rate 144 GHz, 주파수 Bin 간격 17.578125 MHz, Frame은 256 Bit(56.889 ns)입니다. 가상 High 최소 +120 mV, Low 최대 -80 mV이면 해당 위상의 높이 차이는 200 mV입니다. Threshold 0 mV에서 연속 유효 위상이 24개면 Eye Width는 0.75 UI(166.67 ps)입니다.
 
-Auto Preview는 PRBS7, TX -200/+200 mV(400 mVpp Incident Wave), 동일한 실수 Reference 정합, Threshold 0 mV, RX 선형 범위 -1000/+1000 mV를 가정합니다. Cap=min(10 GHz, 측정 최대), Bit Rate=min(4.5 Gbps, Cap/1.5)입니다. Manual은 실제 Low/High 전압, 정합 TX/RX Reference, RX 선형 범위 및 Threshold를 입력해야 합니다. 서로 다른 Reference의 Renormalization은 이 엔진에서 지원하지 않습니다. MIPI D-PHY HS Profile은 Differential 및 최대 4.5 Gbps 조건이며 PHY 적합성 시험이 아닙니다.
+Auto Preview는 PRBS7, TX -200/+200 mV(400 mVpp Incident Wave), 동일한 실수 Reference 정합, Threshold 0 mV, RX 선형 범위 -1000/+1000 mV를 가정합니다. Cap=min(10 GHz, 측정 최대), Bit Rate=min(4.5 Gbps, Cap/1.5)입니다. Manual은 실제 Low/High 전압, 정합 TX/RX Reference, RX 선형 범위 및 Threshold를 입력해야 합니다. 서로 다른 Reference의 Renormalization은 이 엔진에서 지원하지 않습니다. PHY Profile을 선택하거나 추정하지 않으며 PHY 적합성 시험이 아닙니다. Auto Preview는 실제 계산에 사용된 설정값을 Manual 영역에 반영합니다. 수정하지 않고 Run Manual을 실행하면 동일한 설정을 사용합니다. Eye overlay의 세로축에는 비교 기준으로 TX incident 전압 범위를 포함합니다.
 
 구현 근거: [eye.cpp](https://github.com/july-rust/SParamView-Public/blob/v1.4.2/src/channel_analysis/eye.cpp), [Eye GUI 및 Export](https://github.com/july-rust/SParamView-Public/blob/v1.4.2/src/gui/analysis/analysis_windows.cpp).
 

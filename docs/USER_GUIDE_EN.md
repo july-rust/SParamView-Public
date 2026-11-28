@@ -680,7 +680,7 @@ $$P(f)=2\sigma_V^2 T\mathrm{sinc}^2(\pi fT)\exp[-(2\pi f\sigma_t)^2]\frac1{1+(f/
 
 For each measured path $H_k(f)$, its weighted output PSD is $P_k(f)=|H_k(f)|^2P(f)$. The unweighted power-sum graph uses $10\log_{10}\sum_k|H_k|^2$; the -300 dB floor applies only to display. The PSD graph uses mV²/GHz ($1$ V²/Hz = $10^{15}$ mV²/GHz). Cumulative noise power uses the trapezoidal integral over the measured overlap:
 
-$$V_k(f_j)=\sqrt{\sum_{i<j}\tfrac12[P_k(f_i)+P_k(f_{i+1})](f_{i+1}-f_i)},\quad V_{\rm total}=\sqrt{V_{\rm NEXT}^2+V_{\rm FEXT}^2}.$$
+$$V_k(f_j)=\sqrt{\sum_{i<j}\tfrac12[P_k(f_i)+P_k(f_{i+1})]\cdot(f_{i+1}-f_i)},\quad V_{\rm total}=\sqrt{V_{\rm NEXT}^2+V_{\rm FEXT}^2}.$$
 
 Contribution percent is $100(V_k/V_{\rm total})^2$ when total is nonzero. Example: independent NEXT 3 mV RMS and FEXT 4 mV RMS give 5 mV total, not 7 mV. Contributions are 36% and 64%. Correlated aggressors cannot generally be combined this way.
 
@@ -690,7 +690,7 @@ Implementation: [icn.cpp](https://github.com/july-rust/SParamView-Public/blob/v1
 
 ### 24.7 Eye Diagram — simulated NRZ waveform
 
-Open **Analysis → Eye Diagram**. Confirm source mapping and direction. Use Auto Preview as a first engineering check or set actual electrical parameters, profile, bit rate, frequency cap, pattern, FFT length and samples/UI in the Manual settings tabs before Run Manual. Review the assumption banner, DC status, input linear range, Eye Height/Width and warnings. The three graph modes are:
+Open **Analysis → Eye Diagram**. Confirm source mapping and direction. Use Auto Preview as a first engineering check or set actual electrical parameters, bit rate, frequency cap, pattern, FFT length and samples/UI in the Manual settings tabs before Run Manual. Review the assumption banner, DC status, input linear range, Eye Height/Width and warnings. The three graph modes are:
 
 - **Eye overlay (2 UI):** phase-aligned RX waveform segments; dashed threshold and high/low envelope or sampling markers when available. Larger separation and longer valid phase interval are generally desirable for identical settings.
 - **TX / RX waveform:** inspect amplitude, delayed transitions, ringing and intersymbol interference (ISI) relative to the transmitted sequence.
@@ -723,7 +723,7 @@ Eye Width in seconds is Eye Width in UI multiplied by UI. The maximum-height pha
 
 Worked example: 4.5 Gbps gives UI 222.22 ps and reference 2.25 GHz. With $M=32$ and $N=8192$, sample spacing is 6.944 ps, sample rate 144 GHz, bin spacing 17.578125 MHz and frame length 256 bits (56.889 ns). If a hypothetical valid phase has minimum high +120 mV and maximum low -80 mV, separation is 200 mV. If the longest run of open phases at threshold zero is 24 samples, width is 0.75 UI (166.67 ps). These are examples, not guaranteed channel results.
 
-Auto Preview assumes PRBS7, TX -200/+200 mV (400 mVpp incident wave), matched equal real reference impedances, threshold 0 mV, RX linear range -1000/+1000 mV; cap and bit rate follow min(10 GHz, measured maximum) and min(4.5 Gbps, cap/1.5). Manual mode needs explicit low/high voltages, matched TX/RX reference and RX linear range/threshold. Unequal references are not renormalized by this engine. MIPI D-PHY HS profile is differential and limited to 4.5 Gbps; profiles are not PHY conformance tests.
+Auto Preview assumes PRBS7, TX -200/+200 mV (400 mVpp incident wave), matched equal real reference impedances, threshold 0 mV, RX linear range -1000/+1000 mV; cap and bit rate follow min(10 GHz, measured maximum) and min(4.5 Gbps, cap/1.5). Manual mode needs explicit low/high voltages, matched TX/RX reference and RX linear range/threshold. Unequal references are not renormalized by this engine. No PHY profile is required or inferred; this is not a PHY conformance test. Auto Preview populates the manual fields with the actual resolved settings. Unchanged Run Manual reuses those exact settings. The Eye overlay includes the incident TX voltage range as a comparison reference.
 
 Implementation: [eye.cpp](https://github.com/july-rust/SParamView-Public/blob/v1.4.2/src/channel_analysis/eye.cpp), [Eye plot and export](https://github.com/july-rust/SParamView-Public/blob/v1.4.2/src/gui/analysis/analysis_windows.cpp).
 

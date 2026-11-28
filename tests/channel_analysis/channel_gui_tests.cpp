@@ -862,7 +862,7 @@ int main(int argc, char **argv) {
     check(eye->status()==S::Warning,"Unedited Auto-to-Manual Eye failed");
     const auto manualEyePath=ildDir.filePath(QStringLiteral("eye-auto-replay.csv"));
     check(eye->saveEyeCsv(manualEyePath),"Eye replay CSV failed");
-    sameNumericalCsv(previewCsv,manualEyePath,"Overlay_Index,Phase_UI,Received_mV");
+    sameNumericalCsv(previewCsv,manualEyePath,"Time_ps,TX_mV,RX_mV,Impulse_Unit,Unit_Pulse");
     mode->setCurrentIndex(1);
     baud->setValue(4.5);
     check(std::abs(reference->value()-2.25)<1e-9,
@@ -1093,7 +1093,7 @@ int main(int argc, char **argv) {
           !eye->saveEyeCsv(ildDir.filePath(QStringLiteral("stale-eye.csv"))),
           "STALE Eye remained exportable");
 
-    // Real MIPI-profile UI with four physical ports and a differential THRU.
+    // Explicit NRZ UI with four physical ports and a differential THRU.
     // This is only an analytical s4p fixture, NOT a PHY-conformance oracle.
     const auto diffPath=si::pathFromUtf8(
       (ildDir.path()+QStringLiteral("/eye-diff.s4p")).toStdString());

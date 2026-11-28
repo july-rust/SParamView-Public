@@ -2396,7 +2396,6 @@ bool AnalysisWindow::saveEyeCsv(const QString &name) {
      <<"# frame_model,PERIODIC_FRAME\n"
      <<"# workspace_generation,"<<eyeProvenance_.workspaceGeneration<<"\n"
      <<"# mapping_generation,"<<eyeProvenance_.mappingGeneration<<"\n"
-     <<"# profile,"<<safe(d.profileName)<<"\n"
      <<"# bit_rate_gbps,"<<n(d.bitRateHz/1e9)<<"\n"
      <<"# reference_frequency_ghz,"<<n(d.referenceFrequencyHz/1e9)<<"\n"
      <<"# analysis_stop_ghz,"<<n(d.analysisStopHz/1e9)<<"\n"
@@ -2467,7 +2466,7 @@ bool AnalysisWindow::saveEyePng(const QString &name) {
     "Simulated Channel Eye — Not Measured / Not PHY Compliance\n"
     "File: %1 | Revision: %2 | Channel: %3 | %4\n"
     "SHA-256: %5\n"
-    "Profile: %6 | Bit rate: %7 Gbps | Reference: %8 GHz | Cap: %9 GHz"));
+    "Bit rate: %6 Gbps | Reference: %7 GHz | Cap: %8 GHz"));
   const QString inputMode=eyeProvenance_.settingsIdentity.ends_with("|AUTO_PREVIEW_ASSUMED_MATCHED_400mVpp")?
     QStringLiteral("\nAUTO PREVIEW: assumed 400 mVpp / matched Zref / PRBS7; not actual PHY settings."):QStringLiteral("\nMANUAL SETTINGS");
   const QString labeled=caption.arg(eyeSourceFilename_,
@@ -2475,7 +2474,6 @@ bool AnalysisWindow::saveEyePng(const QString &name) {
      QString::fromStdString(eyeResult_->victimId),
      sparamview::ui_language::textFor(this,eyeResult_->reverse?QStringLiteral("Reverse"):QStringLiteral("Forward")),
      QString::fromStdString(eyeProvenance_.sourceSha256),
-     sparamview::ui_language::textFor(this,QString::fromStdString(eyeResult_->profileName)),
      QString::number(eyeResult_->bitRateHz/1e9,'g',7),
      QString::number(eyeResult_->referenceFrequencyHz/1e9,'g',7),
      QString::number(eyeResult_->analysisStopHz/1e9,'g',7))+sparamview::ui_language::textFor(this,inputMode)+
