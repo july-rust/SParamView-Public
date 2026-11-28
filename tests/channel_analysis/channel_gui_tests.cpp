@@ -1250,6 +1250,8 @@ int main(int argc, char **argv) {
     // transfer magnitude ratio. Duplicate display labels are intentional:
     // the immutable channel ID, not its presentation label, selects the trace.
     auto eyeMultiContext=icnContext;
+    // The earlier ICN stale-source regression intentionally changed the SHA.
+    eyeMultiContext.sources[0].sha256=QString::fromStdString(icnCache->meta().sha256);
     eyeMultiContext.sources[0].channels={QStringLiteral("Same label"),QStringLiteral("Same label")};
     manager.setEyeSourceProvider([icnCache,icnVictim,icnAggressor](int idx)
         ->std::optional<IldSourceInput> {
