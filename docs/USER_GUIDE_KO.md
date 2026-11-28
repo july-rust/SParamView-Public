@@ -212,13 +212,22 @@ SParamView는 RL 결과를 Single-ended에서는 **S11**, Differential에서는 
 
 ### 8.2 Insertion Loss
 
+![v1.4.2 Insertion Loss 그래프](images/08_IL.png)
+
+
 IL은 Single-ended의 **S21**, Differential의 **Sdd21**에 대응하여 표시합니다. 현재 Limit 입력은 `≥` 조건입니다. 예를 들어 `-3 dB` Limit이면 `-3 dB 이상`이 기준을 만족합니다.
 
 ### 8.3 NEXT
 
+![v1.4.2 NEXT 그래프](images/09_NEXT.png)
+
+
 NEXT는 Near-end aggressor가 Near-end victim에 미치는 누화 응답입니다. Limit은 `≤` 조건입니다.
 
 ### 8.4 FEXT
+
+![v1.4.2 FEXT 그래프](images/10_FEXT.png)
+
 
 FEXT는 Near-end aggressor가 Far-end victim에 미치는 누화 응답입니다. Limit은 `≤` 조건입니다.
 
@@ -263,6 +272,9 @@ Limit 설정은 JSON Preset으로 저장/불러올 수 있습니다.
 ---
 
 ## 10. Quick TDR
+
+![v1.4.2 Quick TDR 그래프](images/11_TDR.png)
+
 
 ### 10.1 가장 중요한 주의사항
 
@@ -688,6 +700,9 @@ Auto 조건은 Cap=min(10 GHz, 측정 최대 주파수), Symbol Rate=min(4.5 GBd
 - **All three graphs**: 위 세 그래프가 하나의 동일한 분석 결과를 공유합니다. 표시 모드를 바꿔도 재분석하지 않습니다. 넓은 화면에서는 보조 그래프를 나란히 배치하고 좁은 화면에서는 세로로 쌓아 스크롤합니다. 각 그래프의 마우스 Wheel 확대, Drag 이동, Double Click 초기화는 독립적입니다. PNG Export는 선택된 개별 또는 전체 View를 저장하며 CSV는 원본 수치 데이터를 유지합니다.
 
 ![v1.4.2 Eye Diagram Multi View 화면](images/06_Eye_Multi_View.png)
+
+![v1.4.2 Eye Diagram 전체 PNG Export](images/07_Eye_Multi_Plot.png)
+
 
 NRZ Bit Rate $R_b$, Samples/UI $M$, FFT Length $N$에 대해
 

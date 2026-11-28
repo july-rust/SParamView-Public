@@ -212,13 +212,22 @@ The automatically generated validation plot below shows an **Sdd11 Return Loss**
 
 ### 8.2 Insertion Loss
 
+![v1.4.2 signed insertion-loss plot](images/08_IL.png)
+
+
 IL corresponds to **S21** for single-ended data and **Sdd21** for differential data where applicable. The current limit relation is `≥`. For example, with a `-3 dB` limit, values at or above `-3 dB` satisfy the limit.
 
 ### 8.3 NEXT
 
+![v1.4.2 NEXT plot](images/09_NEXT.png)
+
+
 NEXT represents coupling from a near-end aggressor to a near-end victim. Its limit relation is `≤`.
 
 ### 8.4 FEXT
+
+![v1.4.2 FEXT plot](images/10_FEXT.png)
+
 
 FEXT represents coupling from a near-end aggressor to a far-end victim. Its limit relation is `≤`.
 
@@ -263,6 +272,9 @@ Limit settings can be saved and loaded as JSON presets.
 ---
 
 ## 10. Quick TDR
+
+![v1.4.2 Quick TDR plot](images/11_TDR.png)
+
 
 ### 10.1 Important limitation
 
@@ -686,6 +698,9 @@ Open **Analysis → Eye Diagram**. Confirm source mapping and direction. Use Aut
 - **All three graphs:** the above plots use a single immutable numerical result; no recalculation on selection. Wide logical layouts place auxiliary panels side by side and narrow layouts stack them. Scroll if necessary; zoom and pan are independent. Mouse wheel zoom, drag pan, and double click reset. Export PNG captures the selected view (including combined view); CSV preserves original numerical samples.
 
 ![v1.4.2 Eye Diagram Multi View](images/06_Eye_Multi_View.png)
+
+![v1.4.2 exported combined Eye plot](images/07_Eye_Multi_Plot.png)
+
 
 For NRZ bit rate $R_b$, samples/UI $M$, and FFT length $N$:
 
