@@ -1,6 +1,6 @@
 # User-guide screenshot provenance
 
-All current v1.4.2 screenshots use synthetic QA fixtures, not real product measurements.
+The current v1.4.3 documentation temporarily retains historical v1.4.2 synthetic QA screenshots. They are not v1.4.3 captures, and the old Eye controls may include the removed PHY Profile. No real product measurements are included.
 
 Source tag: v1.4.2; exact source commit: `8a7467166d9485c1a3f545c3b744deeff2585d81`.
 

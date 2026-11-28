@@ -1,10 +1,10 @@
 # SParamView User Guide
 
-**Applies to:** SParamView **v1.4.2 official release**
+**Applies to:** SParamView **v1.4.3 official release**
 **Supported platforms:** Windows x64 / Windows ARM64 / macOS Apple Silicon (arm64)
 **Documentation updated:** 2026-11-28 (KST). Includes current screenshots, detailed operating instructions, implemented equations, examples and interpretation limits.
 
-[한국어 사용자 설명서](USER_GUIDE_KO.md) | [English README](../README_EN.md) | [v1.4.2 Release Notes](Release_1.4.2.md) | [Documentation index](README.md)
+[한국어 사용자 설명서](USER_GUIDE_KO.md) | [English README](../README_EN.md) | [v1.4.3 Release Notes](Release_1.4.3.md) | [Documentation index](README.md)
 
 ---
 
@@ -40,9 +40,9 @@ Download the package that matches your system from GitHub Releases.
 
 | System | Recommended package |
 |---|---|
-| Windows x64 | `SParamView_Windows_x64_v1.4.2.zip` |
-| Windows ARM64 | `SParamView_Windows_ARM64_v1.4.2.zip` |
-| macOS Apple Silicon | `SParamView_macOS_AppleSilicon_arm64_v1.4.2.dmg` or `.zip` |
+| Windows x64 | `SParamView_Windows_x64_v1.4.3.zip` |
+| Windows ARM64 | `SParamView_Windows_ARM64_v1.4.3.zip` |
+| macOS Apple Silicon | `SParamView_macOS_AppleSilicon_arm64_v1.4.3.dmg` or `.zip` |
 
 SHA-256 files are also provided with the release. To verify download integrity, run `Get-FileHash <filename> -Algorithm SHA256` in Windows PowerShell or `shasum -a 256 <filename>` in macOS Terminal, then compare the result with the corresponding `.sha256` file.
 
@@ -529,7 +529,7 @@ Contact: **sparamview@gmail.com**
 
 ## 22. Documentation verification sources
 
-Historical v1.2.1 feature changes are supported by the [v1.2.1 release notes](Release_1.2.1.md) and the source links below. For the current release, see the [v1.4.2 release notes](Release_1.4.2.md), [temporary-cache policy](Temporary_Cache_Cleanup.md), [revision history](Revision_History.md), and [tagged source](https://github.com/july-rust/SParamView-Public/tree/v1.4.2). Previous v1.2.4a validation is retained in the [historical release notes](Release_1.2.4a.md).
+Historical v1.2.1 feature changes are supported by the [v1.2.1 release notes](Release_1.2.1.md) and the source links below. For the current release, see the [v1.4.3 release notes](Release_1.4.3.md), [temporary-cache policy](Temporary_Cache_Cleanup.md), [revision history](Revision_History.md), and [tagged source](https://github.com/july-rust/SParamView-Public/tree/v1.4.3). Previous v1.2.4a validation is retained in the [historical release notes](Release_1.2.4a.md).
 
 - [Initial TDR axes and automatic scaling](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/src/plot.cpp)
 - [Plot interaction and viewport restoration](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/src/navigation.cpp)
@@ -542,7 +542,7 @@ Historical v1.2.1 feature changes are supported by the [v1.2.1 release notes](Re
 
 ### Document Version
 
-This guide applies to v1.4.2 (2026-11-28 KST); screenshots are sourced from v1.4.2 release evidence and the documented GUI capture run.
+This guide targets v1.4.3. Existing screenshots are v1.4.2 synthetic QA evidence and may show the removed PHY Profile; they are not v1.4.3 captures.
 
 
 
@@ -558,8 +558,12 @@ This guide applies to v1.4.2 (2026-11-28 KST); screenshots are sourced from v1.4
 
 **Scope:** engineering-reference calculations only. COM is deferred and has no production menu. No IEEE/SNIA/MIPI compliance, measured BER or exhaustive physical-platform/HiDPI certification is claimed.
 
-[Release notes](Release_1.4.2.md) · [ILD](Channel_Analysis_ILD_012_05.md) · [ICN](Channel_Analysis_ICN_012_06.md) · [Eye Diagram](Channel_Analysis_Eye_012_07.md) · [AC/Auto](qualification/012_54_AC_Auto_Analysis.md).
+[Release notes](Release_1.4.3.md) · [ILD](Channel_Analysis_ILD_012_05.md) · [ICN](Channel_Analysis_ICN_012_06.md) · [Eye Diagram](Channel_Analysis_Eye_012_07.md) · [AC/Auto](qualification/012_54_AC_Auto_Analysis.md).
 
+
+## v1.4.3 — Auto-to-Manual / Eye Diagram
+
+Successful Auto Analysis/Auto Preview fills Manual controls with resolved settings. Unedited frequency and ICN numeric controls retain calculation precision when another field is changed. Review assumptions before applying known conditions. PHY Profile is removed; Eye overlay includes TX incident voltage as a visual reference. COM remains deferred.
 
 ## v1.4.2 — Eye Diagram Multi View
 
@@ -570,9 +574,9 @@ Eye Diagram now offers **All three graphs** alongside the existing individual vi
 - **v1.4.1:** File > New closes ILD, ICN and Eye Diagram only after confirmation; Cancel or a failed save preserves the workspace. File > Exit uses the normal save/cleanup path. Window geometry is fitted to the active monitor's logical work area, with scrollable custom dialog bodies and fixed confirmation buttons. Qt file dialogs are used consistently across platforms.
 High-DPI displays use logical rather than physical pixels; very small work areas can still be limited by platform/widget minimum sizes. The geometry policy does not claim physical certification of every screen and scaling combination.
 
-## 24. Numerical reference and analysis workflow (v1.4.2)
+## 24. Numerical reference and analysis workflow (v1.4.3)
 
-This chapter explains the equations actually implemented in the released C++ reference engine, not a proposed future feature or an IEEE compliance procedure. All worked examples are illustrative calculations, not measured values or results extracted from the screenshots. The screenshots use synthetic QA fixtures; see [capture provenance](images/README.md). Code references point to the immutable v1.4.2 tag. SI units are used internally (Hz, s, V, Ω); the GUI converts to GHz, ns/ps, mV and dB where appropriate.
+This chapter explains the equations actually implemented in the released C++ reference engine, not a proposed future feature or an IEEE compliance procedure. All worked examples are illustrative calculations, not measured values or results extracted from the screenshots. The screenshots use synthetic QA fixtures; see [capture provenance](images/README.md). Code references point to the immutable v1.4.3 tag. SI units are used internally (Hz, s, V, Ω); the GUI converts to GHz, ns/ps, mV and dB where appropriate.
 
 ### 24.1 From Touchstone to a physical channel
 
@@ -589,7 +593,7 @@ Here $r$ is the response endpoint and $s$ the stimulus endpoint; the matrix inde
 
 Complex interpolation between two measured samples uses $S(f)=(1-a)S_i+aS_{i+1}$, $a=(f-f_i)/(f_{i+1}-f_i)$. It is not interpolation of dB alone. An analysis cap beyond measured coverage does not create new measured data.
 
-Implementation: [trace and direction](https://github.com/july-rust/SParamView-Public/blob/v1.4.2/src/trace.cpp), [endpoint and load mapping](https://github.com/july-rust/SParamView-Public/blob/v1.4.2/src/termination.cpp), [Touchstone 2.1 specification](https://ibis.org/touchstone_ver2.1/touchstone_ver2_1.pdf).
+Implementation: [trace and direction](https://github.com/july-rust/SParamView-Public/blob/v1.4.3/src/trace.cpp), [endpoint and load mapping](https://github.com/july-rust/SParamView-Public/blob/v1.4.3/src/termination.cpp), [Touchstone 2.1 specification](https://ibis.org/touchstone_ver2.1/touchstone_ver2_1.pdf).
 
 ### 24.2 Return Loss, Insertion Loss, NEXT and FEXT
 
@@ -606,7 +610,7 @@ For example, $|S_{11}|=0.1$ gives -20 dB (positive return loss 20 dB) and reflec
 
 For **Both** direction, RL/IL directional delta is $\max_f|D_{\rm forward}(f)-D_{\rm reverse}(f)|$ over the common frequency interval, with complex interpolation on the union of frequency bins. A large delta can reveal asymmetry or mapping issues; it is not a standalone compliance criterion. Equal transmission in a reciprocal network is expected for compatible port normalization, but reflection at the two ends need not be equal.
 
-Implementation: [trace.cpp](https://github.com/july-rust/SParamView-Public/blob/v1.4.2/src/trace.cpp).
+Implementation: [trace.cpp](https://github.com/july-rust/SParamView-Public/blob/v1.4.3/src/trace.cpp).
 
 ### 24.3 Limit, worst margin and interpretation
 
@@ -620,7 +624,7 @@ The displayed worst margin is the minimum evaluated margin. Piecewise-linear fre
 
 Example: RL -14 dB with limit -10 dB has +4 dB margin. IL -4 dB with limit -3 dB has -1 dB margin. TDR target 100 Ω and tolerance 10% gives the 90–110 Ω range; a point at 112 Ω has -2 Ω margin. A detected violation is NG even if other samples are unknown; otherwise incomplete coverage, unknown samples or unsuitable results are N/A, not OK. OK only means the enabled engineering limit was evaluated and satisfied.
 
-Implementation: [analysis.cpp](https://github.com/july-rust/SParamView-Public/blob/v1.4.2/src/analysis.cpp), [limit interpolation](https://github.com/july-rust/SParamView-Public/blob/v1.4.2/src/termination.cpp).
+Implementation: [analysis.cpp](https://github.com/july-rust/SParamView-Public/blob/v1.4.3/src/analysis.cpp), [limit interpolation](https://github.com/july-rust/SParamView-Public/blob/v1.4.3/src/termination.cpp).
 
 ### 24.4 Quick TDR: from reflection to impedance
 
@@ -646,7 +650,7 @@ $$S_{\rm eff}=S_{NN}+S_{NL}(I-\Gamma_L S_{LL})^{-1}\Gamma_L S_{LN}.$$
 
 For a single resistive port $\Gamma_L=(R-Z_0)/(R+Z_0)$. Open and short give +1 and -1 respectively. A floating differential P–N 100 Ω load and two 50 Ω-to-ground loads have different common-mode boundaries; the code solves the physical load feedback rather than substituting identical scalar terminations. Nonunique or inconsistent solutions fail closed.
 
-Implementation: [tdr.cpp](https://github.com/july-rust/SParamView-Public/blob/v1.4.2/src/tdr.cpp), [termination.cpp](https://github.com/july-rust/SParamView-Public/blob/v1.4.2/src/termination.cpp).
+Implementation: [tdr.cpp](https://github.com/july-rust/SParamView-Public/blob/v1.4.3/src/tdr.cpp), [termination.cpp](https://github.com/july-rust/SParamView-Public/blob/v1.4.3/src/termination.cpp).
 
 ### 24.5 ILD — Insertion Loss Deviation
 
@@ -666,7 +670,7 @@ $$e_{\rm RMS}=\sqrt{\frac1B\sum_i\frac{f_{i+1}-f_i}{3}(e_i^2+e_ie_{i+1}+e_{i+1}^
 
 Example: a +0.5 dB residual means measured positive loss is 0.5 dB higher than the fitted loss; a -0.5 dB residual means it is lower. A residual changing linearly from -1 to +1 dB over one interval has interval RMS $1/\sqrt3\approx0.577$ dB, not 1 dB. The implementation uses only measured bins within the selected band and rejects zero transfer or insufficient/rank-deficient fits. Automatic ILD may raise the start to at least ten times an observed AC-like pole frequency. It does not extrapolate missing loss data. Compare with the same model and frequency band; this is generic ILD, not IEEE weighted FOM_ILD.
 
-Implementation: [ild.cpp](https://github.com/july-rust/SParamView-Public/blob/v1.4.2/src/channel_analysis/ild.cpp), [ILD numerical contract](Channel_Analysis_ILD_012_05.md).
+Implementation: [ild.cpp](https://github.com/july-rust/SParamView-Public/blob/v1.4.3/src/channel_analysis/ild.cpp), [ILD numerical contract](Channel_Analysis_ILD_012_05.md).
 
 ### 24.6 ICN — Integrated Crosstalk Noise
 
@@ -686,7 +690,7 @@ Contribution percent is $100(V_k/V_{\rm total})^2$ when total is nonzero. Exampl
 
 Auto settings: cap = min(10 GHz, measured maximum); symbol rate = min(4.5 GBd, cap/1.5); TX 400 mVpp, rise time 30 ps, RX bandwidth = cap. These are assumptions, not values inferred from the actual transmitter. The integral is restricted to the measured band; missing DC/out-of-band noise is not extrapolated. Unequal references or mismatched grids are rejected. A lower result is generally preferable under identical assumptions, but no universal ICN pass limit or IEEE/SNIA compliance is asserted.
 
-Implementation: [icn.cpp](https://github.com/july-rust/SParamView-Public/blob/v1.4.2/src/channel_analysis/icn.cpp), [ICN technical contract](Channel_Analysis_ICN_012_06.md).
+Implementation: [icn.cpp](https://github.com/july-rust/SParamView-Public/blob/v1.4.3/src/channel_analysis/icn.cpp), [ICN technical contract](Channel_Analysis_ICN_012_06.md).
 
 ### 24.7 Eye Diagram — simulated NRZ waveform
 
@@ -725,7 +729,7 @@ Worked example: 4.5 Gbps gives UI 222.22 ps and reference 2.25 GHz. With $M=32$ 
 
 Auto Preview assumes PRBS7, TX -200/+200 mV (400 mVpp incident wave), matched equal real reference impedances, threshold 0 mV, RX linear range -1000/+1000 mV; cap and bit rate follow min(10 GHz, measured maximum) and min(4.5 Gbps, cap/1.5). Manual mode needs explicit low/high voltages, matched TX/RX reference and RX linear range/threshold. Unequal references are not renormalized by this engine. No PHY profile is required or inferred; this is not a PHY conformance test. Auto Preview populates the manual fields with the actual resolved settings. Unchanged Run Manual reuses those exact settings. The Eye overlay includes the incident TX voltage range as a comparison reference.
 
-Implementation: [eye.cpp](https://github.com/july-rust/SParamView-Public/blob/v1.4.2/src/channel_analysis/eye.cpp), [Eye plot and export](https://github.com/july-rust/SParamView-Public/blob/v1.4.2/src/gui/analysis/analysis_windows.cpp).
+Implementation: [eye.cpp](https://github.com/july-rust/SParamView-Public/blob/v1.4.3/src/channel_analysis/eye.cpp), [Eye plot and export](https://github.com/july-rust/SParamView-Public/blob/v1.4.3/src/gui/analysis/analysis_windows.cpp).
 
 ### 24.8 DC extrapolation and AC coupling in Eye Diagram
 
@@ -741,7 +745,7 @@ A supplied 0 Hz point is not automatically trustworthy: DC consistency and local
 
 For the ideal fitted pole, $\tau=1/(2\pi f_p)$ and the fractional decay of a step over duration $t$ is $1-e^{-t/\tau}$. For a run of $n$ bits, use $t=n\,UI$. The separately reported long-step model checks two numerical grids; it does not establish physical long-pattern baseline wander. An open short-frame eye is therefore not sufficient to accept an AC-coupled link. A source starting at 1 kHz is eligible for the first policy band, but eligibility is not an accuracy guarantee.
 
-Implementation: [DC and long-run model in eye.cpp](https://github.com/july-rust/SParamView-Public/blob/v1.4.2/src/channel_analysis/eye.cpp), [DC qualification](qualification/012_52_Eye_DC_Qualification.md), [AC/Auto qualification](qualification/012_54_AC_Auto_Analysis.md).
+Implementation: [DC and long-run model in eye.cpp](https://github.com/july-rust/SParamView-Public/blob/v1.4.3/src/channel_analysis/eye.cpp), [DC qualification](qualification/012_52_Eye_DC_Qualification.md), [AC/Auto qualification](qualification/012_54_AC_Auto_Analysis.md).
 
 ### 24.9 Engineering checklist and validation boundary
 

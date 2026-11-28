@@ -1,8 +1,12 @@
 # SParamView Revision History
 
-**Current official release: [v1.4.2](https://github.com/july-rust/SParamView-Public/releases/tag/v1.4.2)** — Eye Diagram Multi View. [Release notes](Release_1.4.2.md).
+**Current official release: [v1.4.3](https://github.com/july-rust/SParamView-Public/releases/tag/v1.4.3)** — Auto-to-Manual and Eye Diagram requalification. [Release notes](Release_1.4.3.md).
 
 The sections below record the state at each historical development stage. Earlier labels such as unreleased, pending and previous release are historical, not the current product status. See the [documentation index](README.md) for the current scope.
+
+## v1.4.3 — 016
+
+- Successful Auto Analysis/Auto Preview fills Manual controls with resolved settings. Unedited frequency and ICN numeric controls retain calculation precision when another field is changed. Review assumptions before applying known conditions. PHY Profile is removed; Eye overlay includes TX incident voltage as a visual reference. COM remains deferred.
 
 ## v1.4.2 — 014
 

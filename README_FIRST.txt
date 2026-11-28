@@ -1,7 +1,7 @@
-SParamView v1.4.2
+SParamView v1.4.3
 =================
 
-SParamView v1.4.2 is a reference tool for calculating and visualizing Touchstone S-parameter data. Supported S-parameter file versions: Touchstone 1.0/1.1/2.0/2.1. Y/Z/H/G are not automatically converted to S parameters.
+SParamView v1.4.3 is a reference tool for calculating and visualizing Touchstone S-parameter data. Supported S-parameter file versions: Touchstone 1.0/1.1/2.0/2.1. Y/Z/H/G are not automatically converted to S parameters.
 
 IMPORTANT NOTICE
 ----------------
@@ -20,6 +20,7 @@ Hover over the Revision selector for its full source path. Open Project rotates 
 the previous project cache/plot/comparison state after successful import; Open Touchstone
 continues to append revisions for comparison.
 
+New in v1.4.3: Successful Auto Analysis/Auto Preview fills Manual controls with resolved settings. Unedited frequency and ICN numeric controls retain calculation precision when another field is changed. Review assumptions before applying known conditions. PHY Profile is removed; Eye overlay includes TX incident voltage as a visual reference. COM remains deferred.
 New in v1.4.2: Eye Diagram All three graphs, independent plot controls and adaptive layout. v1.4.1 workspace and geometry improvements retained.
 
 New in v1.4.0: ILD, Generic ICN, simulated NRZ Eye Diagram; Auto/Manual settings; English/Korean/Japanese runtime language switching; adaptive GUI. COM deferred. Engineering reference only, not compliance or measured BER.
@@ -30,7 +31,7 @@ Windows ZIP layout:
 - The separate Windows QA ZIP contains tests/ and Run_Windows_Verification.cmd for optional full validation.
 - The user ZIP retains the application, optional CLI, runtime, examples, documentation and license.
 
-Official release: https://github.com/july-rust/SParamView-Public/releases/tag/v1.4.2
+Official release: https://github.com/july-rust/SParamView-Public/releases/tag/v1.4.3
 
 Supported release targets:
 - Windows x64
@@ -40,7 +41,7 @@ Supported release targets:
 Documentation:
 - README_EN.md
 - README_KO.md
-- docs/Release_1.4.2.md
+- docs/Release_1.4.3.md
 
 License: MIT
 Contact: sparamview@gmail.com
