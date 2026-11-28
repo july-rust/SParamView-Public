@@ -495,7 +495,7 @@ protected:
       drawStaticPlot(p);
     }
     if(data_ && cursor_>=0) {
-      const QRectF area(75,37,std::max(50,width()-100),std::max(50,height()-89));
+      const QRectF area(75,48,std::max(50,width()-100),std::max(50,height()-100));
       p.save();p.setClipRect(area);
       p.setPen(QPen(palette().text().color(),1,Qt::DotLine));
       const double xx=area.left()+cursor_*area.width();
@@ -511,13 +511,15 @@ private:
     p.setPen(palette().text().color());
     const QString title=sparamview::ui_language::textFor(this,view_==0?QStringLiteral("Eye overlay (2 UI)"):
         view_==1?QStringLiteral("TX / RX waveform"):QStringLiteral("Impulse / Unit pulse"));
-    p.drawText(QRectF(8,3,width()-16,24),Qt::AlignCenter,title);
+    p.drawText(QRectF(8,1,width()-16,20),Qt::AlignCenter,title);
+    const auto warning=sparamview::ui_language::textFor(this,QStringLiteral("Simulated Channel Eye — Not Measured / Not PHY Compliance"));
+    p.drawText(QRectF(4,21,width()-8,19),Qt::AlignCenter,p.fontMetrics().elidedText(warning,Qt::ElideRight,std::max(0,width()-8)));
     if(!data_) {
       p.drawText(rect(),Qt::AlignCenter,sparamview::ui_language::textFor(this,QStringLiteral("Auto Preview or enter verified settings and Run Manual")));
       return;
     }
     const auto &d=*data_;
-    QRectF area(75,37,std::max(50,width()-100),std::max(50,height()-89));
+    QRectF area(75,48,std::max(50,width()-100),std::max(50,height()-100));
     detail::PlotBounds bounds;
     auto include=[&](double v) {bounds.include(v);};
     if(view_==0) {
@@ -536,7 +538,7 @@ private:
     p.setPen(palette().text().color());
     p.drawText(QRectF(2,area.top(),69,20),Qt::AlignRight,QString::number(high,'g',6));
     p.drawText(QRectF(2,area.bottom()-20,69,20),Qt::AlignRight,QString::number(low,'g',6));
-    p.drawText(QRectF(4,22,70,16),Qt::AlignRight,
+    p.drawText(QRectF(4,32,70,16),Qt::AlignRight,
       view_==2?sparamview::ui_language::textFor(this,QStringLiteral("relative")):QStringLiteral("mV"));
     const double fullX=view_==0?2.0 : (d.timeSeconds.empty()?0:d.timeSeconds.back()*1e12);
     const double x0=fullX*shift_, x1=fullX*(shift_+1/zoom_);
