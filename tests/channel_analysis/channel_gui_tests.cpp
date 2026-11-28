@@ -30,6 +30,14 @@ namespace {
 void check(bool condition, const char *message) {
   if (!condition) throw std::runtime_error(message);
 }
+// Optional evidence capture; only on explicitly configured qualification runs.
+void capture016(AnalysisWindow *window,const QString &name) {
+  const auto path=qEnvironmentVariable("SPARAMVIEW_ANALYSIS_CAPTURE_DIR");
+  if(path.isEmpty())return;
+  check(QDir().mkpath(path),"016 capture directory failed");
+  QApplication::processEvents();
+  check(window->grab().save(QDir(path).filePath(name)),"016 actual GUI capture failed");
+}
 bool pumpUntil(const std::function<bool()> &predicate, int timeoutMs = 6000) {
   QElapsedTimer elapsed;
   elapsed.start();
@@ -408,8 +416,12 @@ int main(int argc, char **argv) {
     const QString autoIldPath=ildDir.filePath(QStringLiteral("ild-auto.csv"));
     check(ild->saveIldCsv(autoIldPath),"ILD auto CSV failed");
     QFile autoIldFile(autoIldPath);
-    check(autoIldFile.open(QIODevice::ReadOnly) && autoIldFile.readAll().contains("# analysis_mode,AUTO"),
-          "ILD auto provenance absent");
+    check(autoIldFile.open(QIODevice::ReadOnly),"ILD auto CSV read");
+    const auto autoIldBytes=autoIldFile.readAll();
+    check(autoIldBytes.contains("# analysis_mode,AUTO") &&
+          autoIldBytes.contains("|stop_hz=16000000000|fit=1|AUTO_ILD"),
+          "ILD resolved auto provenance absent");
+    capture016(ild,"04_ILD.png");
     check(ildModel->currentIndex()==1 &&
           std::abs(ild->findChild<QDoubleSpinBox *>("ildStopGhz")->value()-16)<1e-8,
           "ILD Auto did not seed fit and measured band");
@@ -680,8 +692,13 @@ int main(int argc, char **argv) {
     const QString autoIcnPath=ildDir.filePath(QStringLiteral("icn-auto.csv"));
     check(icn->saveIcnCsv(autoIcnPath),"ICN auto CSV failed");
     QFile autoIcnFile(autoIcnPath);
-    check(autoIcnFile.open(QIODevice::ReadOnly) && autoIcnFile.readAll().contains("# analysis_mode,AUTO"),
-          "ICN auto provenance absent");
+    check(autoIcnFile.open(QIODevice::ReadOnly),"ICN auto CSV read");
+    const auto autoIcnBytes=autoIcnFile.readAll();
+    check(autoIcnBytes.contains("# analysis_mode,AUTO") &&
+          autoIcnBytes.contains("|stop_hz=8000000000|baud=4500000000|") &&
+          autoIcnBytes.contains("|rss=1|path_hex=616767726573736f72:NEXT|path_hex=616767726573736f72:FEXT|AUTO_ICN"),
+          "ICN resolved auto provenance absent");
+    capture016(icn,"05_ICN.png");
     check(items->item(0)->checkState()==Qt::Checked &&
           items->item(1)->checkState()==Qt::Checked,
           "ICN Auto did not seed selected NEXT/FEXT paths");
@@ -870,7 +887,21 @@ int main(int argc, char **argv) {
     const auto previewCsv=ildDir.filePath(QStringLiteral("auto-preview-eye.csv"));
     check(eye->saveEyeCsv(previewCsv),"Auto Preview CSV failed");
     QFile previewData(previewCsv);
-    check(previewData.open(QIODevice::ReadOnly) && previewData.readAll().contains("# input_mode,AUTO_PREVIEW_ASSUMED"),"Assumptions missing from preview export");
+    check(previewData.open(QIODevice::ReadOnly),"Auto Eye CSV read");
+    const auto previewBytes=previewData.readAll();
+    check(previewBytes.contains("# input_mode,AUTO_PREVIEW_ASSUMED") &&
+          previewBytes.contains("|rate_hz=4500000000|reference_hz=2250000000|cap_hz=10000000000|") &&
+          previewBytes.contains("|AUTO_PREVIEW_ASSUMED_MATCHED_400mVpp"),
+          "Resolved Auto Eye provenance or assumptions missing");
+    auto *captureView=eye->findChild<QComboBox *>("eyePlotView");
+    check(captureView,"Eye capture view missing");
+    const int previousView=captureView->currentIndex();
+    captureView->setCurrentIndex(3);
+    capture016(eye,"06_Eye_Multi_View.png");
+    if(!qEnvironmentVariable("SPARAMVIEW_ANALYSIS_CAPTURE_DIR").isEmpty())
+      check(eye->saveEyePng(QDir(qEnvironmentVariable("SPARAMVIEW_ANALYSIS_CAPTURE_DIR")).filePath("07_Eye_Multi_Plot.png")),
+            "016 actual combined Eye PNG failed");
+    captureView->setCurrentIndex(previousView);
     check(mode->currentIndex()==1 && baud->value()>0 &&
           std::abs(reference->value()-baud->value()/2)<1e-8,
           "Eye Auto Preview did not seed manual signal fields");

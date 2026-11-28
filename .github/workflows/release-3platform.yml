@@ -352,6 +352,7 @@ jobs:
           $env:PATH = $bundle + [IO.Path]::PathSeparator + (Join-Path $bundle 'tests') + [IO.Path]::PathSeparator + $env:PATH
           $env:QT_PLUGIN_PATH = $bundle
           $env:QT_QPA_PLATFORM = 'offscreen'
+          $env:SPARAMVIEW_ANALYSIS_CAPTURE_DIR = Join-Path $qa 'analysis-screenshots'
           $log = Join-Path $qa 'results.txt'
           "SParamView v$env:SPARAMVIEW_VERSION native Windows ARM64 packaged-binary gate" | Set-Content $log
           function Invoke-Test {
