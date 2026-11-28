@@ -30,6 +30,49 @@ namespace {
 constexpr bool isReleaseFeature(Feature feature) noexcept {
   return feature == Feature::Ild || feature == Feature::Icn || feature == Feature::Eye;
 }
+// Export identity is built from resolved worker inputs, not pre-Auto widgets.
+std::string resolvedNumber(double value) {
+  return QString::number(value,'g',17).toStdString();
+}
+std::string resolvedChannel(const std::string &id,bool reverse) {
+  // Hex encoding is unambiguous even for labels containing delimiters.
+  return "victim_hex="+QByteArray::fromStdString(id).toHex().toStdString()+
+    "|reverse="+(reverse?"1":"0");
+}
+std::string resolvedIld(const std::string &id,bool reverse,
+                        const si::channel::IldSettings &s,bool automatic) {
+  return resolvedChannel(id,reverse)+"|start_hz="+resolvedNumber(s.startHz)+
+    "|stop_hz="+resolvedNumber(s.stopHz)+"|fit="+std::to_string(int(s.model))+
+    (automatic?"|AUTO_ILD":"|MANUAL_ILD");
+}
+std::string resolvedIcn(const std::string &id,bool reverse,
+                        const si::channel::IcnSettings &s,
+                        const std::vector<std::pair<std::string,si::channel::IcnEnd>> &paths,
+                        bool rss,bool automatic) {
+  auto key=resolvedChannel(id,reverse)+"|start_hz="+resolvedNumber(s.startHz)+
+    "|stop_hz="+resolvedNumber(s.stopHz)+"|baud="+resolvedNumber(s.symbolRateHz)+
+    "|vpp_v="+resolvedNumber(s.txPeakToPeakV)+"|rise_s="+resolvedNumber(s.riseTimeSeconds)+
+    "|rx_hz="+resolvedNumber(s.rxBandwidthHz)+"|rss="+(rss?"1":"0");
+  for(const auto &path:paths)
+    key+="|path_hex="+QByteArray::fromStdString(path.first).toHex().toStdString()+
+      (path.second==si::channel::IcnEnd::Next?":NEXT":":FEXT");
+  return key+(automatic?"|AUTO_ICN":"|MANUAL_ICN");
+}
+std::string resolvedEye(const std::string &id,bool reverse,
+                        const si::channel::EyeSettings &s,bool automatic) {
+  const auto &e=s.electrical;
+  auto key=resolvedChannel(id,reverse)+"|mode="+std::to_string(int(s.mode))+
+    "|pattern="+std::to_string(int(s.pattern))+"|rate_hz="+resolvedNumber(s.bitRateHz)+
+    "|reference_hz="+resolvedNumber(s.referenceFrequencyHz)+
+    "|cap_hz="+resolvedNumber(s.analysisStopHz)+"|fft="+std::to_string(s.fftLength)+
+    "|samples_per_ui="+std::to_string(s.samplesPerUI)+"|tx_low_v="+resolvedNumber(e.txLowV)+
+    "|tx_high_v="+resolvedNumber(e.txHighV)+"|tx_ohm="+resolvedNumber(e.txSourceOhm)+
+    "|rx_ohm="+resolvedNumber(e.rxTerminationOhm)+"|threshold_v="+resolvedNumber(e.rxThresholdV)+
+    "|rx_min_v="+resolvedNumber(e.rxInputMinimumV)+"|rx_max_v="+resolvedNumber(e.rxInputMaximumV)+
+    "|dc_consent="+(s.acceptLimitedDc?"1":"0")+"|bits=";
+  for(auto bit:s.customBits)key+=bit?'1':'0';
+  return key+(automatic?"|AUTO_PREVIEW_ASSUMED_MATCHED_400mVpp":"|MANUAL");
+}
 QString labelFor(Feature feature) {
   switch (feature) {
     case Feature::Ild: return QStringLiteral("ILD");
@@ -1623,8 +1666,7 @@ void AnalysisWindow::launchIld(bool automatic) {
     cfg.startHz=ildResult_->requestedStartHz;
     cfg.stopHz=ildResult_->requestedStopHz;
   }
-  const std::string fitIdentity=selectionIdentity().toStdString()+(automatic?"|AUTO_ILD":"|MANUAL_ILD");
-  const bool accepted=startWork([input=*input,victimId,reverse,cfg,fitIdentity,automatic]
+  const bool accepted=startWork([input=*input,victimId,reverse,cfg,automatic]
      (const std::atomic_bool &cancel,std::atomic_int &progress) mutable ->WorkOutcome {
     if(cancel.load()) return {si::channel::Status::Cancelled,QStringLiteral("Cancelled")};
     progress.store(10);
@@ -1639,11 +1681,11 @@ void AnalysisWindow::launchIld(bool automatic) {
     if(cancel.load()) return {si::channel::Status::Cancelled,QStringLiteral("Cancelled")};
     progress.store(65);
     const auto &identity=snapshot.identity();
-    si::channel::Provenance provenance{identity.sha256,identity.revision,
-      identity.mappingIdentity,"Generic ILD bandwidth-weighted least-squares","012_44-v2",
-      fitIdentity,identity.workspaceGeneration,identity.mappingGeneration};
     double acPole=0;
     if(automatic) cfg=si::channel::automaticIldSettings(trace,&acPole);
+    si::channel::Provenance provenance{identity.sha256,identity.revision,
+      identity.mappingIdentity,"Generic ILD bandwidth-weighted least-squares","012_44-v2",
+      resolvedIld(victimId,reverse,cfg,automatic),identity.workspaceGeneration,identity.mappingGeneration};
     auto output=si::channel::calculateIld(trace,cfg,provenance,&cancel);
     if(cancel.load()) return {si::channel::Status::Cancelled,QStringLiteral("Cancelled")};
     auto data=std::make_shared<si::channel::IldData>(std::move(*output.value));
@@ -1860,11 +1902,10 @@ void AnalysisWindow::launchIcn(bool automatic) {
   settings.riseTimeSeconds=spinSi(icnRise_,1e-12);
   settings.rxBandwidthHz=spinSi(icnRx_,1e9);
   if(!automatic && icnResult_) settings=icnResult_->settings;
-  const std::string settingsIdentity=selectionIdentity().toStdString()+(automatic?"|AUTO_ICN":"|MANUAL_ICN");
   std::vector<std::string> candidateIds;
   if(automatic) for(const auto &id:source.channelIds) candidateIds.push_back(id.toStdString());
   const bool rssAssumed=icnIndependent_->isChecked();
-  startWork([input=*input,victimId,reverse,chosen,settings,settingsIdentity,automatic,candidateIds,rssAssumed]
+  startWork([input=*input,victimId,reverse,chosen,settings,automatic,candidateIds,rssAssumed]
       (const std::atomic_bool &cancel,std::atomic_int &progress) mutable ->WorkOutcome {
     if(cancel.load()) throw si::Cancelled();
     progress.store(10);
@@ -1907,7 +1948,7 @@ void AnalysisWindow::launchIcn(bool automatic) {
     const auto &identity=snap.identity();
     si::channel::Provenance provenance{identity.sha256,identity.revision,
       identity.mappingIdentity,"Generic uncorrelated NRZ ICN","012_45-v2",
-      settingsIdentity,identity.workspaceGeneration,identity.mappingGeneration};
+      resolvedIcn(victimId,reverse,settings,chosen,rssAssumed,automatic),identity.workspaceGeneration,identity.mappingGeneration};
     auto result=si::channel::calculateIcn(paths,settings,provenance,&cancel);
     result.value->victimId=victimId;
     result.value->direction=reverse?"reverse":"forward";
@@ -2190,9 +2231,7 @@ void AnalysisWindow::launchEye(bool autoPreview, bool acceptLimitedDc) {
   const QString sourceFile=QFileInfo(QString::fromUtf8(input->cache->meta().source.c_str())).fileName();
   const std::string victimId=source.channelIds[selected].toStdString();
   const bool reverse=direction_->currentIndex()==1;
-  const std::string settingsIdentity=selectionIdentity().toStdString()+
-    (autoPreview?"|AUTO_PREVIEW_ASSUMED_MATCHED_400mVpp":"|MANUAL");
-  startWork([input=*input,victimId,reverse,settings,settingsIdentity,sourceFile,autoPreview]
+  startWork([input=*input,victimId,reverse,settings,sourceFile,autoPreview]
        (const std::atomic_bool &cancel,std::atomic_int &progress) mutable ->WorkOutcome {
     if(cancel.load()) throw si::Cancelled();
     progress.store(5);
@@ -2229,7 +2268,7 @@ void AnalysisWindow::launchEye(bool autoPreview, bool acceptLimitedDc) {
     const auto &id=snapshot.identity();
     Provenance provenance{id.sha256,id.revision,id.mappingIdentity,
       "Phase-preserving deterministic NRZ Eye","012_54-ac-candidate",
-      settingsIdentity,id.workspaceGeneration,id.mappingGeneration};
+      resolvedEye(victimId,reverse,settings,autoPreview),id.workspaceGeneration,id.mappingGeneration};
     auto result=calculateEye(trace,settings,provenance,&cancel);
     if(cancel.load()) throw si::Cancelled();
     WorkOutcome outcome;
