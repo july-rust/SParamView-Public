@@ -70,6 +70,7 @@ inline const auto &catalogEntries() {
   static constexpr CatalogEntry entries[] = {
     {"File", "파일", "ファイル"},
     {"New", "새로 만들기", "新規作成"},
+    {"Exit", "종료", "終了"},
     {"Open Touchstone...", "Touchstone 열기...", "Touchstoneを開く..."},
     {"Open Project...", "프로젝트 열기...", "プロジェクトを開く..."},
     {"Save Project", "프로젝트 저장", "プロジェクトを保存"},

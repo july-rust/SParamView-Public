@@ -1,3 +1,20 @@
+#include "gui/window_geometry.hpp"
+
+class ImportMappingDialog final : public QDialog {
+public:
+  ImportMappingDialog(QWidget *owner, QSize preferred)
+      : QDialog(owner), preferred_(preferred) {}
+  int execBounded() {
+    sparamview::geometry::prepareDialog(*this,preferred_);
+    return exec();
+  }
+private:
+  QSize preferred_;
+};
+static QVBoxLayout *importDialogBody(QVBoxLayout *outer) {
+  return sparamview::geometry::scrollColumn(outer,QStringLiteral("importDialogScroll"));
+}
+
 static QString mixedDescriptorType(const si::Metadata &meta) {
   bool d=false,s=false;
   for (const auto &token:meta.mixedOrder) {
@@ -409,8 +426,9 @@ void MainWindow::applySettings() {
 void MainWindow::chooseTerminations() {
   if(busy)return;
   try{syncSettings();}catch(const std::exception &e){error(qs(e.what()));return;}
-  QDialog dialog(this);dialog.setWindowTitle(sparamview::ui_language::textFor(this, "TDR Options"));
-  auto layout=new QVBoxLayout(&dialog);
+  ImportMappingDialog dialog(this,QSize(600,460));dialog.setObjectName("tdrOptionsDialog");dialog.setWindowTitle(sparamview::ui_language::textFor(this, "TDR Options"));
+  auto *outer=new QVBoxLayout(&dialog);
+  auto *layout=sparamview::geometry::scrollColumn(outer);
   layout->addWidget(new QLabel(sparamview::ui_language::textFor(this, "Select multiple conditions to overlay TDR traces.\nForward: terminate Far / Reverse: terminate Near\nAll other physical ports are matched to their source reference impedances.")));
   QCheckBox *choices[5];
   QStringList labels{"Reference: matched to source reference impedance",
@@ -424,14 +442,14 @@ void MainWindow::chooseTerminations() {
   }
   layout->addWidget(new QLabel(sparamview::ui_language::textFor(this, "The two SE 50 Ω options are equivalent and are calculated once.\nReflection coefficient ρ is recommended for open circuits. These are ideal resistive/open/short conditions.")));
   auto reflection = new QCheckBox(sparamview::ui_language::textFor(this, "Show Reflection Coefficient ρ")); reflection->setChecked(settings.tdrReflection); reflection->setToolTip(sparamview::ui_language::textFor(this, "Useful for open/short comparisons. Impedance tolerance limits do not apply to ρ.")); layout->addWidget(reflection);
-  auto buttons=new QDialogButtonBox(QDialogButtonBox::Ok|QDialogButtonBox::Cancel);layout->addWidget(buttons);
+  auto buttons=new QDialogButtonBox(QDialogButtonBox::Ok|QDialogButtonBox::Cancel);outer->addWidget(buttons);
   sparamview::ui_language::localizeButtons(buttons,this);
   connect(buttons,&QDialogButtonBox::rejected,&dialog,&QDialog::reject);
   connect(buttons,&QDialogButtonBox::accepted,&dialog,[&]{
     bool any=false;for(auto c:choices)any|=c->isChecked();
     if(!any){QMessageBox::information(&dialog,sparamview::ui_language::textFor(this, "Select Terminations"),sparamview::ui_language::textFor(this, "Select at least one termination condition."));return;}dialog.accept();
   });
-  if(dialog.exec()!=QDialog::Accepted)return;
+  if(dialog.execBounded()!=QDialog::Accepted)return;
   settings.tdrTerminations.clear();
   for(int i=0;i<5;++i)if(choices[i]->isChecked())settings.tdrTerminations.push_back(si::Termination(i));
   settings.tdrReflection = reflection->isChecked(); tdrReflection->setChecked(settings.tdrReflection);
@@ -441,22 +459,25 @@ void MainWindow::chooseTerminations() {
 bool MainWindow::reviewSignalType(Revision &rev) {
   if (rev.signalTypeReviewed || rev.confirmed)
     return true;
-  QDialog dialog(this);
+  ImportMappingDialog dialog(this, QSize(680, 360));
   dialog.setWindowTitle(sparamview::ui_language::textFor(this, "Signal Type Detection") + " — " + rev.name);
   dialog.setObjectName("signalTypeDetectionDialog");
-  dialog.resize(560, 300);
-  auto *layout = new QVBoxLayout(&dialog);
+  auto *outer = new QVBoxLayout(&dialog);
+  auto *layout = importDialogBody(outer);
   auto *signalSummary = new QLabel(
       sparamview::ui_language::textFor(this,"<b>Detected:</b> %1 &nbsp;&nbsp; <b>Confidence:</b> %2")
           .arg(sparamview::ui_language::textFor(this,rev.signalType),sparamview::ui_language::textFor(this,rev.signalConfidence)));
+  signalSummary->setWordWrap(true);
   layout->addWidget(signalSummary);
   auto *evidence = new QLabel(
       sparamview::ui_language::textFor(this,"<b>Evidence:</b> ") + sparamview::ui_language::diagnosticText(rev.signalEvidence,sparamview::ui_language::current(this)) +
       sparamview::ui_language::textFor(this,"<br><br>SParamView recognizes a name-based P/N pair only when two net names have the same length and differ at exactly one character, where that character is P versus N. The P/N position may be anywhere in the name. Irregular or ambiguous names are not guessed."));
   evidence->setWordWrap(true);
   layout->addWidget(evidence);
-  layout->addWidget(new QLabel(
-      sparamview::ui_language::textFor(this,"Confirm the electrical signal type before Channel Mapping. You can still edit every physical P/N and Near/Far assignment in the next step.")));
+  auto *instruction = new QLabel(
+      sparamview::ui_language::textFor(this,"Confirm the electrical signal type before Channel Mapping. You can still edit every physical P/N and Near/Far assignment in the next step."));
+  instruction->setWordWrap(true);
+  layout->addWidget(instruction);
   auto *selector = new QComboBox;
   selector->setObjectName("signalTypeSelector");
   selector->addItem(sparamview::ui_language::textFor(this, "Select signal type…"), "");
@@ -467,6 +488,7 @@ bool MainWindow::reviewSignalType(Revision &rev) {
   if (detected > 0)
     selector->setCurrentIndex(detected);
   layout->addWidget(selector);
+  layout->addStretch();
   auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok |
                                        QDialogButtonBox::Cancel);
   buttons->button(QDialogButtonBox::Ok)->setText(sparamview::ui_language::textFor(this, "Continue to Channel Mapping"));
@@ -477,10 +499,10 @@ bool MainWindow::reviewSignalType(Revision &rev) {
   });
   connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
   connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-  layout->addWidget(buttons);
+  outer->addWidget(buttons);
   sparamview::ui_language::localizeButtons(buttons,this);
   buttons->button(QDialogButtonBox::Ok)->setText(sparamview::ui_language::textFor(this, "Continue to Channel Mapping"));
-  if (dialog.exec() != QDialog::Accepted)
+  if (dialog.execBounded() != QDialog::Accepted)
     return false;
 
   const QString selected = selector->currentData().toString();
@@ -529,11 +551,11 @@ bool MainWindow::confirmMapping(Revision &mappingRevision) {
   if (!reviewSignalType(mappingRevision)) return false;
   // The caller owns the staged revision; no workspace mutation occurs here.
   // Signal review and channel confirmation use the same file-local metadata.
-  QDialog dialog(this);
+  ImportMappingDialog dialog(this, QSize(980, 620));
   dialog.setWindowTitle(sparamview::ui_language::textFor(this, "Channel Mapping") + " — " + mappingRevision.name);
   dialog.setObjectName("channelMappingDialog");
-  dialog.resize(980, 540);
-  auto layout = new QVBoxLayout(&dialog);
+  auto *outer = new QVBoxLayout(&dialog);
+  auto *layout = importDialogBody(outer);
   auto info = new QLabel(
       sparamview::ui_language::textFor(this,"Signal Type: %1 (%2)\nEvidence: %3\nSource: %4\nPort numbering starts at 1. Leave Near−/Far− blank for single-ended channels.\nVerify Near/Far and P/N against the physical connections. A blank Far end supports reflection/TDR only.")
           .arg(sparamview::ui_language::textFor(this,mappingRevision.signalType))
@@ -552,6 +574,7 @@ bool MainWindow::confirmMapping(Revision &mappingRevision) {
     layout->addWidget(warning);
   }
   auto grid = new QTableWidget;
+  grid->setMinimumHeight(160);
   grid->setColumnCount(8);
   grid->setHorizontalHeaderLabels({sparamview::ui_language::textFor(this, "Channel"), "Near+", "Near−", "Far+", "Far−", sparamview::ui_language::textFor(this, "Group"), sparamview::ui_language::textFor(this, "Alias"), sparamview::ui_language::textFor(this, "Mapping ID")});
   grid->horizontalHeader()->setStretchLastSection(true);
@@ -638,6 +661,8 @@ bool MainWindow::confirmMapping(Revision &mappingRevision) {
   QStringList portTitles{"Near P", "Near N", "Far P", "Far N"};
   for (int k = 0; k < 4; ++k) {
     manualPorts[k] = new QComboBox;
+    manualPorts[k]->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+    manualPorts[k]->setMinimumContentsLength(10);
     manualPorts[k]->addItem("—", -1);
     for (size_t port = 0; port < mappingRevision.cache->meta().ports; ++port) {
       QString label = port < mappingRevision.cache->meta().labels.size()
@@ -710,6 +735,8 @@ bool MainWindow::confirmMapping(Revision &mappingRevision) {
   manual->addLayout(manualActions, 3, 0, 1, 4);
   layout->addWidget(manualGroup);
   auto portLabels = new QComboBox;
+  portLabels->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+  portLabels->setMinimumContentsLength(18);
   portLabels->addItem(sparamview::ui_language::textFor(this, "Physical Ports / Labels"));
   for (size_t i = 0; i < mappingRevision.cache->meta().labels.size(); ++i)
     portLabels->addItem("P" + QString::number(i + 1) + "  " +
@@ -718,7 +745,7 @@ bool MainWindow::confirmMapping(Revision &mappingRevision) {
   // Validate all edited rows before committing them to the staged revision.
   auto bottom =
       new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel);
-  layout->addWidget(bottom);
+  outer->addWidget(bottom);
   sparamview::ui_language::localizeButtons(bottom,this);
   connect(bottom, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
   connect(bottom, &QDialogButtonBox::accepted, &dialog, [&] {
@@ -777,7 +804,7 @@ bool MainWindow::confirmMapping(Revision &mappingRevision) {
       error(qs(e.what()));
     }
   });
-  return dialog.exec() == QDialog::Accepted;
+  return dialog.execBounded() == QDialog::Accepted;
 }
 void MainWindow::importMapping() {
   int i = revisionBox->currentIndex();

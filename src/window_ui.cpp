@@ -364,6 +364,11 @@ MainWindow::MainWindow() {
   file->addAction("Export Excel Workbook...", this, [this] { exportXlsx(); });
   file->addAction("Export Plot as PNG...", this, [this] { savePng(); });
   file->addAction("Export Selected Trace as CSV...", this, [this] { saveCsv(); });
+  file->addSeparator();
+  auto *exitAction = file->addAction("Exit", this, [this] { close(); });
+  exitAction->setObjectName("exitApplicationAction");
+  // Keep the explicit File menu entry on macOS as well.
+  exitAction->setMenuRole(QAction::NoRole);
   auto mapping = menuBar()->addMenu("Channel Mapping");
   mapping->addAction("Edit / Confirm Mapping...", this, [this] { editMapping(); });
   mapping->addAction("Import Mapping CSV...", this, [this] { importMapping(); });

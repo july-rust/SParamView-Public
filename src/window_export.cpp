@@ -4,8 +4,10 @@ void MainWindow::exportXlsx() {
     return;
   }
   QDialog d(this);
+  d.setObjectName("excelExportOptionsDialog");
   d.setWindowTitle(sparamview::ui_language::textFor(this, "Excel Export"));
-  auto layout = new QVBoxLayout(&d);
+  auto *outer = new QVBoxLayout(&d);
+  auto *layout = sparamview::geometry::scrollColumn(outer);
   auto a = new QCheckBox(sparamview::ui_language::textFor(this, "Summary")), b = new QCheckBox(sparamview::ui_language::textFor(this, "Detailed results")),
        c = new QCheckBox(sparamview::ui_language::textFor(this, "Graphs")),
        raw = new QCheckBox(sparamview::ui_language::textFor(this, "Raw trace data (large)"));
@@ -16,10 +18,11 @@ void MainWindow::exportXlsx() {
   c->setChecked(true);
   auto buttons =
       new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
-  layout->addWidget(buttons);
+  outer->addWidget(buttons);
   sparamview::ui_language::localizeButtons(buttons,this);
   connect(buttons, &QDialogButtonBox::accepted, &d, &QDialog::accept);
   connect(buttons, &QDialogButtonBox::rejected, &d, &QDialog::reject);
+  sparamview::geometry::prepareDialog(d,QSize(420,300));
   if (d.exec() != QDialog::Accepted)
     return;
   QString path = withExtension(
@@ -244,6 +247,10 @@ void MainWindow::closeEvent(QCloseEvent *e) {
     return;
   }
   if (!confirmProjectTransition()) {e->ignore();return;}
+  if (analysisWindows) {
+    analysisWindows->setContext({});
+    analysisWindows->closeAllWindows();
+  }
   saveStartupWindowState();
   saveWorkspaceLayout();
   e->accept();

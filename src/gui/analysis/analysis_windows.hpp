@@ -184,6 +184,7 @@ public:
   void installMenu();
   void refreshLanguage(const QString &code);
   void setContext(AnalysisContext context);
+  void closeAllWindows();
   // Keep an old project cache directory alive while any cancelled worker
   // may still own a SourceSnapshot backed by its files.
   void retireWorkspace(std::shared_ptr<QTemporaryDir> workspace);

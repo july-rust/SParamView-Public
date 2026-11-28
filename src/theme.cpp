@@ -1,4 +1,5 @@
 #include "app.hpp"
+#include "gui/window_geometry.hpp"
 #include <QFontDatabase>
 #include <QFileDialog>
 #include <QToolButton>
@@ -166,6 +167,13 @@ QProgressBar { border:0; background:#e2ebf3; height:8px; }
 QProgressBar::chunk { background:#006c70; }
 QToolTip { background:#ffffff; color:#20374f; border:1px solid #607286; padding:5px; }
 )" ).arg(fontRule));
+  // Use the existing Qt file picker consistently so the same window bounds,
+  // navigation icons and translations apply across supported desktops.
+  QCoreApplication::setAttribute(Qt::AA_DontUseNativeDialogs,true);
+  if(!app.property("sparamview.windowGeometryFilterInstalled").toBool()) {
+    app.installEventFilter(new sparamview::geometry::WindowGeometryFilter(&app));
+    app.setProperty("sparamview.windowGeometryFilterInstalled",true);
+  }
   if(!app.property("sparamview.fileDialogNavigationFilterInstalled").toBool()) {
     app.installEventFilter(new FileDialogNavigationFilter(&app));
     app.setProperty("sparamview.fileDialogNavigationFilterInstalled",true);

@@ -1,3 +1,4 @@
+#include "../window_geometry.hpp"
 #include "../../ui_language.hpp"
 #include "../../user_preferences.hpp"
 #include "gui/analysis/analysis_windows.hpp"
@@ -1228,18 +1229,8 @@ void AnalysisWindow::watchScreen(QScreen *screen) {
 }
 void AnalysisWindow::clampToScreen(QScreen *screen) {
   if(!screen || isMaximized() || isFullScreen()) return;
-  const QRect available=screen->availableGeometry();
-  const QSize limit(std::max(minimumWidth(),available.width()-40),
-                    std::max(minimumHeight(),available.height()-80));
-  const QSize fitted=size().boundedTo(limit);
-  if(fitted!=size()) resize(fitted);
-  // Only move when the frame is actually outside the available work area.
-  const QRect frame=frameGeometry();
-  if(!available.contains(frame)) {
-    const QPoint bounded(std::clamp(frame.left(),available.left(),std::max(available.left(),available.right()-frame.width()+1)),
-                         std::clamp(frame.top(),available.top(),std::max(available.top(),available.bottom()-frame.height()+1)));
-    move(pos()+bounded-frame.topLeft());
-  }
+  sparamview::geometry::fitWindow(this,screen);
+
 }
 void AnalysisWindow::fitToScreen() {
   auto *screen=QGuiApplication::screenAt(QCursor::pos());
@@ -1434,7 +1425,8 @@ bool AnalysisWindow::startWork(AsyncWork work, bool automaticBand) {
           dialog->setWindowTitle(sparamview::ui_language::textFor(guard.data(),"Eye DC extrapolation"));
           dialog->setAttribute(Qt::WA_DeleteOnClose);
           dialog->setWindowModality(Qt::WindowModal);
-          auto *layout=new QVBoxLayout(dialog);
+          auto *outer=new QVBoxLayout(dialog);
+          auto *layout=sparamview::geometry::scrollColumn(outer);
           auto *message=new QLabel(sparamview::ui_language::diagnosticText(outcome.diagnostic,sparamview::ui_language::current(guard.data())),dialog);
           message->setWordWrap(true);
           layout->addWidget(message);
@@ -1443,7 +1435,7 @@ bool AnalysisWindow::startWork(AsyncWork work, bool automaticBand) {
           buttons->button(QDialogButtonBox::Ok)->setText(sparamview::ui_language::textFor(guard.data(),"Continue"));
           buttons->button(QDialogButtonBox::Ok)->setAutoDefault(false);
           buttons->button(QDialogButtonBox::Cancel)->setDefault(true);
-          layout->addWidget(buttons);
+          outer->addWidget(buttons);
           QObject::connect(buttons,&QDialogButtonBox::accepted,dialog,&QDialog::accept);
           QObject::connect(buttons,&QDialogButtonBox::rejected,dialog,&QDialog::reject);
           guard->eyeDcPrompt_=dialog;
@@ -1458,6 +1450,7 @@ bool AnalysisWindow::startWork(AsyncWork work, bool automaticBand) {
               if(answer==QDialog::Accepted) guard->launchEye(autoPreview,true);
               else guard->setStatus(si::channel::Status::Cancelled,QStringLiteral("DC extrapolation cancelled"));
             });
+          sparamview::geometry::prepareDialog(*dialog,QSize(560,320));
           dialog->open();
           return;
         }
@@ -2462,8 +2455,7 @@ AnalysisWindowManager::AnalysisWindowManager(QMainWindow *owner)
 AnalysisWindowManager::~AnalysisWindowManager() {
   scheduler_.invalidate();
   retirementPoll_.stop();
-  for (auto &window : windows_)
-    if (window) window->close();
+  closeAllWindows();
   // The scheduler member is destroyed (and its workers joined) before the
   // retained cache vector is destroyed; this ordering is intentional.
 }
@@ -2494,6 +2486,16 @@ void AnalysisWindowManager::setContext(AnalysisContext context) {
   scheduler_.invalidate();
   for (auto &window : windows_)
     if (window) window->setContext(context_);
+}
+void AnalysisWindowManager::closeAllWindows() {
+  for (auto &window : windows_) {
+    if (auto *current = window.data()) {
+      // WA_DeleteOnClose defers destruction. Detach the registry immediately
+      // so a subsequent open never reuses a retiring window.
+      window.clear();
+      current->close();
+    }
+  }
 }
 void AnalysisWindowManager::retireWorkspace(std::shared_ptr<QTemporaryDir> workspace) {
   if (!workspace) return;
@@ -2547,9 +2549,8 @@ AnalysisWindow *AnalysisWindowManager::openWindow(Feature feature) {
   window->setContext(context_);
   window->refreshLanguage(sparamview::ui_language::code(sparamview::ui_language::current(owner_)));
   windows_[index] = window;
-  connect(window, &QObject::destroyed, this, [this, index] {
-    windows_[index] = nullptr;
-  });
+  // QPointer clears itself on destruction. An old deferred deletion must
+  // not clear the registry entry for a replacement window.
   window->show();
   window->raise();
   window->activateWindow();
