@@ -49,7 +49,6 @@ ComplexTrace gridAlignedDelay(const EyeSettings &s, double delaySeconds) {
 }
 EyeSettings exact() {
   EyeSettings s;
-  s.profile=EyeProfile::Custom;
   s.mode=EyeMode::Differential;
   s.pattern=EyePattern::Prbs7;
   s.bitRateHz=4e9;
@@ -69,24 +68,12 @@ EyeSettings exact() {
 }
 int main() {
   try {
-    const auto mipi=eyeProfile(EyeProfile::MipiDphyHs);
-    close(mipi.bitRateHz,4.5e9,1,"MIPI 4.5 Gb/s");
-    close(mipi.referenceFrequencyHz,2.25e9,1,"MIPI reference 2.25 GHz");
-    close(mipi.analysisStopHz,10e9,1,"MIPI cap 10 GHz");
-    check(std::isnan(mipi.electrical.txLowV) &&
-          std::isnan(mipi.electrical.rxTerminationOhm) &&
-          std::isnan(mipi.electrical.rxThresholdV),
-          "MIPI electrical values must not be invented");
-    for(const EyeProfile p:{EyeProfile::Ddr2,EyeProfile::Ddr3,EyeProfile::Ddr4,
-                            EyeProfile::Ddr5,EyeProfile::Lvds,EyeProfile::Slvs,
-                            EyeProfile::SlvsEc,EyeProfile::Custom}) {
-      const auto profile=eyeProfile(p);
-      check(std::isnan(profile.bitRateHz) &&
-            std::isnan(profile.electrical.txHighV),
-            "other profiles must require explicit bit rate and electrical values");
-    }
-    reject([&]{(void)calculateEye(thru(),mipi);},
-           "MIPI must fail closed on missing electrical profile");
+    EyeSettings unconfigured;
+    check(std::isnan(unconfigured.bitRateHz) &&
+          std::isnan(unconfigured.electrical.txHighV),
+          "Manual eye must require explicit bit rate and electrical values");
+    reject([&]{(void)calculateEye(thru(),unconfigured);},
+           "Unconfigured manual eye must fail closed");
     auto s=exact();
     auto ideal=calculateEye(thru(),s);
     check(ideal.usable() && ideal.value->simulated,"ideal deterministic model");
@@ -98,6 +85,25 @@ int main() {
     for(size_t i=0;i<ideal.value->receivedV.size();++i)
       close(ideal.value->receivedV[i],ideal.value->transmittedV[i],1e-10,
             "identity channel discrete Fourier oracle");
+    // A long initial run used to hide both logic levels and transitions in the
+    // first-64 overlay, despite a valid full-frame height and width.
+    auto longRun=s; longRun.fftLength=1024; longRun.pattern=EyePattern::CustomBits;
+    longRun.customBits.assign(128,0);
+    std::fill(longRun.customBits.begin()+80,longRun.customBits.end(),uint8_t{1});
+    const auto longEye=calculateEye(thru(),longRun);
+    const auto &ld=*longEye.value;
+    close(ld.eyeHeightV,0.4,1e-10,"long-run full-frame height");
+    close(ld.eyeWidthUI,1.0,1e-12,"long-run full-frame width");
+    check(ld.overlayV.size()==64,"long-run bounded overlay");
+    std::array<bool,4> pairs{};
+    for(const auto &segment:ld.overlayV) {
+      const auto phase=longRun.samplesPerUI/2;
+      pairs[2*size_t(segment[phase]>0)+size_t(segment[phase+longRun.samplesPerUI]>0)]=true;
+    }
+    check(std::all_of(pairs.begin(),pairs.end(),[](bool b){return b;}),
+          "overlay includes 00/01/10/11 including circular transition");
+    check(ld.overlayV==calculateEye(thru(),longRun).value->overlayV,
+          "deterministic full-frame overlay selection");
     // Exact integer-sample phase delay is an independent analytic DFT golden.
     const double dt=1.0/(s.bitRateHz*double(s.samplesPerUI));
     auto delayed=calculateEye(gridAlignedDelay(s,4*dt),s);
@@ -133,24 +139,20 @@ int main() {
           "band-limited simulated eye must stay marked non-qualified");
     close(band.value->analysisStopHz,10e9,1,"selected cap");
     // 4.5 Gb/s / 2.25 GHz / 10 GHz with fully supplied user electrical input.
-    auto m=mipi;
-    m.electrical=s.electrical;
+    auto m=s;
+    m.bitRateHz=4.5e9;
+    m.referenceFrequencyHz=2.25e9;
+    m.analysisStopHz=10e9;
     auto example=calculateEye(thru(16e9),m);
     check(example.usable() && example.value->bitRateHz==4.5e9 &&
           example.value->referenceFrequencyHz==2.25e9 &&
           example.value->analysisStopHz==10e9,
-          "MIPI configured numerical example");
-    auto tooFastMipi=eyeWithReferenceFrequency(m,3e9);
-    reject([&]{(void)calculateEye(thru(16e9),tooFastMipi);},
-           "MIPI v2.1 must reject a 6 Gb/s named profile");
-    auto wrongMipi=m;
-    wrongMipi.mode=EyeMode::SingleEnded;
-    wrongMipi.electrical.txSourceOhm=50;
-    wrongMipi.electrical.rxTerminationOhm=50;
-    reject([&]{(void)calculateEye(thru(16e9,0,1,false),wrongMipi);},
-           "MIPI HS must reject a single-ended profile");
-    // No false standard PASS; the only output is simulated/warning.
-    check(example.status==Status::Warning,"no MIPI conformance claim");
+          "Explicit 4.5 Gb/s numerical example");
+    // Explicit NRZ conditions are not a named PHY or compliance model.
+    auto faster=eyeWithReferenceFrequency(m,3e9);
+    check(calculateEye(thru(16e9),faster).usable(),
+          "Explicit 6 Gb/s NRZ conditions must not inherit a PHY cap");
+    check(example.status==Status::Warning,"no PHY conformance claim");
     auto reversed=thru();reversed.parameter="Sdd12";
     check(calculateEye(reversed,s).usable(),"reverse THRU supported");
     auto single=s; single.mode=EyeMode::SingleEnded;
@@ -288,6 +290,28 @@ int main() {
       width=std::max(width,len);
     }
     close(nd.eyeHeightV,bestHeight,1e-10,"independent height");
+    // Independently locate the actual full-frame limiting high and low traces
+    // at the selected phase, and require their complete two-UI segments.
+    const size_t phase=size_t(std::llround(nd.samplingPhaseUI*double(spp)));
+    size_t highBit=0, lowBit=0;
+    double minHigh=std::numeric_limits<double>::infinity();
+    double maxLow=-std::numeric_limits<double>::infinity();
+    for(size_t bit=0;bit<count/spp;++bit) {
+      const double v=nd.receivedV[(bit*spp+delayIndex+phase)%count];
+      if(echo.customBits[bit%echo.customBits.size()]) {
+        if(v<minHigh) {minHigh=v;highBit=bit;}
+      } else if(v>maxLow) {maxLow=v;lowBit=bit;}
+    }
+    for(size_t bit:{highBit,lowBit}) {
+      bool found=false;
+      for(const auto &segment:nd.overlayV) {
+        bool match=segment.size()==2*spp;
+        for(size_t j=0;match && j<2*spp;++j)
+          match=segment[j]==nd.receivedV[(bit*spp+delayIndex+j)%count];
+        found=found||match;
+      }
+      check(found,"overlay retains full-frame height-defining trace");
+    }
     close(nd.eyeWidthUI,double(width)/double(spp),1e-12,"independent circular width");
     close(nd.eyeWidthSeconds,double(width)/double(spp)/echo.bitRateHz,1e-18,"width seconds");
     // Independent PRBS recurrence and period check (x^7+x^6+1).

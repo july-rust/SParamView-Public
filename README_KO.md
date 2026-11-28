@@ -1,4 +1,4 @@
-# SParamView v1.4.2
+# SParamView v1.4.3
 
 SParamView는 Touchstone S-parameter 데이터를 열고 채널 기준으로 분석하는 C++20 / Qt 6 데스크톱 프로그램입니다.
 
@@ -26,6 +26,10 @@ Quick TDR은 제한된 주파수 대역을 이용한 추정값이며 계측기 T
 - [개발 이력 (COM 보류)](docs/Channel_Analysis_Development_Plan.md)
 - [v1.4.0 개발 이력 및 012_62 마무리](docs/Development_Plan_012_v1.4.0.md)
 
+### v1.4.3 변경 사항
+
+- Auto Analysis/Auto Preview 성공 시 실제 계산에 사용한 설정값을 Manual 영역에 반영합니다. 다른 항목을 수정해도 수정하지 않은 주파수 및 ICN 수치 설정은 계산 정밀도를 유지합니다. 가정값을 검토한 후 실제 조건을 입력하십시오. PHY Profile은 제거되었으며 Eye overlay 세로축에는 TX incident 전압 범위를 포함합니다. COM은 개발 보류 상태입니다.
+
 ### v1.4.2 변경 사항
 
 - Eye Diagram에 기존 개별 표시와 함께 **그래프 3개 모두** 옵션을 추가했습니다. Eye overlay (2 UI), TX/RX 파형, Impulse/Unit pulse를 같은 분석 결과에서 표시하며, 독립 축·확대·이동 및 선택한 화면의 PNG Export를 지원합니다. 좁은 화면에서는 세로 배치와 스크롤을 사용합니다. 기존 시뮬레이션 한계는 변경하지 않습니다.
@@ -45,9 +49,9 @@ Quick TDR은 제한된 주파수 대역을 이용한 추정값이며 계측기 T
 
 **적용 범위:** 엔지니어링 참고용입니다. COM은 개발 보류되어 메뉴에 없으며 IEEE/SNIA/MIPI 적합성, 측정 BER, 모든 물리 장치/HiDPI 검증을 보증하지 않습니다.
 
-## 공식 최신 릴리스 — v1.4.2
+## 공식 최신 릴리스 — v1.4.3
 
-[**v1.4.2 다운로드**](https://github.com/july-rust/SParamView-Public/releases/tag/v1.4.2) · [릴리스 노트](docs/Release_1.4.2.md) · [공식 CI](https://github.com/july-rust/SParamView-Public/actions)
+[**v1.4.3 다운로드**](https://github.com/july-rust/SParamView-Public/releases/tag/v1.4.3) · [릴리스 노트](docs/Release_1.4.3.md) · [공식 CI](https://github.com/july-rust/SParamView-Public/actions)
 
 - **v1.3.5:** Mapping CSV v3로 스프레드시트 재저장 시 텍스트 손실을 수정하고 가져오기 성공 안내를 갱신합니다. 별도 프로세스의 시작 오류·치명적 종료·캐시 복구 및 네이티브 GUI 시험을 추가했습니다. v1.3.4의 시작·캐시 보호는 유지합니다.
 - **v1.3.3:** PowerSI 포트 인덱스와 Mixed-Mode 포트 번호를 엄격히 정수 검증하고, Touchstone 포트명과 채널 레이블의 정규식 기반 처리를 선형 파싱으로 변경했습니다. 기존 정상 포트명과 차동 매핑 정책을 유지합니다.

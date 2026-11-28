@@ -252,7 +252,6 @@ std::optional<EyeDcInfo> inspectObservedAcModel(const ComplexTrace &trace) {
 EyeSettings automaticEyeSettings(const ComplexTrace &trace, bool differential) {
   validateTrace(trace);
   EyeSettings settings;
-  settings.profile=EyeProfile::Custom;
   settings.mode=differential?EyeMode::Differential:EyeMode::SingleEnded;
   settings.pattern=EyePattern::Prbs7;
   settings.analysisStopHz=std::min(10e9,trace.frequencyHz.back());
@@ -346,33 +345,6 @@ EyeDcInfo inspectEyeDc(const ComplexTrace &trace) {
   return dc;
 }
 
-const char *eyeProfileName(EyeProfile profile) {
-  switch(profile) {
-    case EyeProfile::MipiDphyHs: return "MIPI D-PHY v2.1 HS (example, not compliance)";
-    case EyeProfile::Ddr2: return "DDR2 (user-qualified)";
-    case EyeProfile::Ddr3: return "DDR3 (user-qualified)";
-    case EyeProfile::Ddr4: return "DDR4 (user-qualified)";
-    case EyeProfile::Ddr5: return "DDR5 (user-qualified)";
-    case EyeProfile::Lvds: return "LVDS (user-qualified)";
-    case EyeProfile::Slvs: return "SLVS (user-qualified)";
-    case EyeProfile::SlvsEc: return "SLVS-EC (user-qualified)";
-    case EyeProfile::Custom: return "Custom (user-qualified)";
-  }
-  throw Error("Unknown Eye profile");
-}
-EyeSettings eyeProfile(EyeProfile profile) {
-  (void)eyeProfileName(profile);
-  EyeSettings s;
-  s.profile=profile;
-  if(profile == EyeProfile::MipiDphyHs) {
-    s.mode=EyeMode::Differential;
-    s.bitRateHz=4.5e9;
-    s.referenceFrequencyHz=2.25e9; // NRZ Nyquist marker (NOT the FFT upper cap)
-    s.analysisStopHz=10e9;
-  }
-  // In particular DO NOT assign a fabricated MIPI VOD, termination or RX threshold.
-  return s;
-}
 EyeSettings eyeWithReferenceFrequency(EyeSettings s, double referenceHz) {
   require(positive(referenceHz) && positive(2.0*referenceHz),
           "Invalid NRZ reference frequency");
@@ -429,16 +401,6 @@ Result<EyeData> calculateEye(const ComplexTrace &trace, const EyeSettings &s,
           e.rxInputMinimumV<e.rxThresholdV &&
           e.rxThresholdV<e.rxInputMaximumV,
           "Explicit RX input linear range and threshold required");
-  (void)eyeProfileName(s.profile); // reject invalid/unknown enum
-  if(s.profile==EyeProfile::MipiDphyHs) {
-    require(s.mode==EyeMode::Differential && s.bitRateHz<=4.5e9,
-      "MIPI D-PHY v2.1 HS needs differential mode and rate at or below 4.5 Gb/s");
-  }
-  if(s.profile==EyeProfile::Lvds || s.profile==EyeProfile::Slvs ||
-     s.profile==EyeProfile::SlvsEc) {
-    require(s.mode==EyeMode::Differential,
-      "LVDS/SLVS/SLVS-EC profile requires differential signaling");
-  }
   const size_t n=s.fftLength, spp=s.samplesPerUI, bitCount=n/spp;
   const double dt=1.0/sampleRate;
   const double ui=1.0/s.bitRateHz;
@@ -509,7 +471,6 @@ Result<EyeData> calculateEye(const ComplexTrace &trace, const EyeSettings &s,
   }
   data.frameBitCount=bitCount;
   data.reverse=(trace.parameter=="S12" || trace.parameter=="Sdd12");
-  data.profileName=eyeProfileName(s.profile);
   data.transferParameter=trace.parameter;
   data.bitRateHz=s.bitRateHz;
   data.referenceFrequencyHz=s.referenceFrequencyHz;
@@ -548,15 +509,17 @@ Result<EyeData> calculateEye(const ComplexTrace &trace, const EyeSettings &s,
   std::vector<double> phaseHeights(spp);
   std::vector<bool> opens(spp,false);
   double best=-std::numeric_limits<double>::infinity();
-  size_t bestPhase=0;
+  size_t bestPhase=0, bestHighBit=0, bestLowBit=0;
   for(size_t p=0;p<spp;++p) {
     if (!(p&15u)) check(cancelled);
     double minHigh=std::numeric_limits<double>::infinity();
     double maxLow=-std::numeric_limits<double>::infinity();
+    size_t minHighBit=0, maxLowBit=0;
     for(size_t bit=0;bit<bitCount;++bit) {
       const double v=data.receivedV[(bit*spp+delay+p)%n];
-      if(bits[bit]) minHigh=std::min(minHigh,v);
-      else maxLow=std::max(maxLow,v);
+      if(bits[bit]) {
+        if(v<minHigh) {minHigh=v;minHighBit=bit;}
+      } else if(v>maxLow) {maxLow=v;maxLowBit=bit;}
     }
     phaseHeights[p]=minHigh-maxLow;
     require(std::isfinite(phaseHeights[p]), "Nonfinite eye height");
@@ -564,6 +527,8 @@ Result<EyeData> calculateEye(const ComplexTrace &trace, const EyeSettings &s,
     if(phaseHeights[p]>best) {
       best=phaseHeights[p];
       bestPhase=p;
+      bestHighBit=minHighBit;
+      bestLowBit=maxLowBit;
       data.minimumHighV=minHigh;
       data.maximumLowV=maxLow;
     }
@@ -588,8 +553,32 @@ Result<EyeData> calculateEye(const ComplexTrace &trace, const EyeSettings &s,
   data.overlayPhaseUI.reserve(2*spp);
   for(size_t p=0;p<2*spp;++p)
     data.overlayPhaseUI.push_back(double(p)/double(spp));
+  // Keep rendering/export bounded, but select from the entire periodic frame.
+  // Always retain the two actual traces defining the reported maximum height,
+  // and at least one of every present adjacent-bit class (00/01/10/11).
+  // The remaining traces are distributed across the frame; no voltage synthesis.
+  std::vector<size_t> overlayBits;
+  overlayBits.reserve(overlayCount);
+  std::vector<bool> selected(bitCount,false);
+  auto addBit=[&](size_t bit) {
+    if(overlayBits.size()<overlayCount && !selected[bit]) {
+      selected[bit]=true;
+      overlayBits.push_back(bit);
+    }
+  };
+  addBit(bestHighBit);
+  addBit(bestLowBit);
+  std::array<bool,4> pairSeen{};
+  for(size_t bit=0;bit<bitCount;++bit) {
+    if(!(bit&1023u)) check(cancelled);
+    const size_t pair=2*size_t(bits[bit])+size_t(bits[(bit+1)%bitCount]);
+    if(!pairSeen[pair]) {addBit(bit);pairSeen[pair]=true;}
+  }
+  for(size_t k=0;k<overlayCount;++k) addBit(k*bitCount/overlayCount);
+  for(size_t bit=0;bit<bitCount && overlayBits.size()<overlayCount;++bit) addBit(bit);
+  std::sort(overlayBits.begin(),overlayBits.end());
   data.overlayV.reserve(overlayCount);
-  for(size_t bit=0;bit<overlayCount;++bit) {
+  for(size_t bit:overlayBits) {
     if (!(bit&15u)) check(cancelled);
     std::vector<double> segment;
     segment.reserve(2*spp);

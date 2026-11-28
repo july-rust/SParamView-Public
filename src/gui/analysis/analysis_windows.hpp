@@ -112,6 +112,10 @@ private:
   void invalidateRequest();
   void setStatus(si::channel::Status status, const QString &details);
   QString selectionIdentity() const;
+  // Keep the exact SI values of auto-populated controls until that field is edited.
+  QHash<QDoubleSpinBox *, double> resolvedSpinValues_;
+  double spinSi(QDoubleSpinBox *spin, double displayToSi) const;
+  void seedSpin(QDoubleSpinBox *spin, double siValue, double displayToSi);
   void launchIld(bool automatic = false);
   void showIld(const WorkOutcome &outcome);
   void exportIldCsv();
@@ -129,7 +133,6 @@ private:
   void clearEye();
   void exportEyeCsv();
   void exportEyePng();
-  void selectEyeProfile();
   Feature feature_;
   AsyncScheduler *scheduler_ = nullptr;
   AnalysisContext context_;
@@ -145,7 +148,7 @@ private:
                  *icnRise_ = nullptr, *icnRx_ = nullptr;
   QDoubleSpinBox *fromGhz_ = nullptr, *toGhz_ = nullptr;
   QDoubleSpinBox *eyeBitRate_ = nullptr, *eyeReference_ = nullptr;
-  QComboBox *eyeProfile_ = nullptr, *eyeMode_ = nullptr, *eyePattern_ = nullptr;
+  QComboBox *eyeMode_ = nullptr, *eyePattern_ = nullptr;
   QComboBox *eyeFft_ = nullptr, *eyeSamples_ = nullptr, *eyeView_ = nullptr;
   QLineEdit *eyeBits_ = nullptr;
   std::array<QLineEdit *,7> eyeElectrical_{};

@@ -1,10 +1,10 @@
 # SParamView 사용자 설명서
 
-**적용 기준:** SParamView **v1.4.2 공식 릴리스**
+**적용 기준:** SParamView **v1.4.3 공식 릴리스**
 **지원 플랫폼:** Windows x64 / Windows ARM64 / macOS Apple Silicon (arm64)
 **문서 갱신:** 2026-11-28 (KST). 최신 화면, 상세 사용법, 구현 수식 및 계산 예시·해석 한계 반영.
 
-[English User Guide](USER_GUIDE_EN.md) | [한국어 README](../README_KO.md) | [v1.4.2 Release Notes](Release_1.4.2.md) | [전체 문서 색인](README.md)
+[English User Guide](USER_GUIDE_EN.md) | [한국어 README](../README_KO.md) | [v1.4.3 Release Notes](Release_1.4.3.md) | [전체 문서 색인](README.md)
 
 ---
 
@@ -40,9 +40,9 @@ GitHub Releases에서 사용 중인 시스템에 맞는 패키지를 선택합�
 
 | 시스템 | 권장 패키지 |
 |---|---|
-| Windows x64 | `SParamView_Windows_x64_v1.4.2.zip` |
-| Windows ARM64 | `SParamView_Windows_ARM64_v1.4.2.zip` |
-| macOS Apple Silicon | `SParamView_macOS_AppleSilicon_arm64_v1.4.2.dmg` 또는 `.zip` |
+| Windows x64 | `SParamView_Windows_x64_v1.4.3.zip` |
+| Windows ARM64 | `SParamView_Windows_ARM64_v1.4.3.zip` |
+| macOS Apple Silicon | `SParamView_macOS_AppleSilicon_arm64_v1.4.3.dmg` 또는 `.zip` |
 
 릴리스에는 SHA-256 확인용 파일도 함께 제공됩니다. 다운로드 무결성을 확인하려면 Windows PowerShell에서 `Get-FileHash <파일명> -Algorithm SHA256`, macOS Terminal에서 `shasum -a 256 <파일명>`을 실행한 뒤 릴리스의 `.sha256` 값과 비교할 수 있습니다.
 
@@ -76,7 +76,7 @@ ZIP 파일의 압축을 해제한 뒤 최상위 `SParamView.exe`를 실행합니
 
 ## 4. 메인 화면 구성
 
-> **v1.4.2 자동 검증 화면** — 메인 화면 및 RL 그래프는 공식 Windows ARM64 네이티브 검증의 합성 예제 프로젝트입니다. 추가 분석 창은 v1.4.2 Tag의 GUI와 합성 검증 데이터를 이용합니다. OS, DPI와 창 크기에 따라 배치가 다를 수 있습니다. [이미지 출처](images/README.md).
+> **v1.4.2 자동 검증 화면** — 메인 화면 및 RL 그래프는 공식 Windows ARM64 네이티브 검증의 합성 예제 프로젝트입니다. 24장의 ILD, ICN 및 Eye 분석 창은 v1.4.3 Native 검증 화면과 합성 검증 데이터를 이용합니다. OS, DPI와 창 크기에 따라 배치가 다를 수 있습니다. [이미지 출처](images/README.md).
 
 ![SParamView v1.4.2 메인 화면](images/01_Main_Window.png)
 
@@ -531,7 +531,7 @@ SParamView 소스는 MIT License로 배포됩니다. Third-party component와 fo
 
 ## 22. 문서 검증 근거
 
-v1.2.1에서 도입된 과거 기능은 [v1.2.1 릴리스 노트](Release_1.2.1.md)와 다음 소스 자료를 참고했습니다. 현재 버전은 [v1.4.2 릴리스 노트](Release_1.4.2.md), [임시 캐시 정리](Temporary_Cache_Cleanup.md), [변경 이력](Revision_History.md) 및 [v1.4.2 소스](https://github.com/july-rust/SParamView-Public/tree/v1.4.2)를 참고하십시오. 이전 v1.2.4a 검증 기록은 [이전 릴리스 노트](Release_1.2.4a.md)에 보존되어 있습니다.
+v1.2.1에서 도입된 과거 기능은 [v1.2.1 릴리스 노트](Release_1.2.1.md)와 다음 소스 자료를 참고했습니다. 현재 버전은 [v1.4.3 릴리스 노트](Release_1.4.3.md), [임시 캐시 정리](Temporary_Cache_Cleanup.md), [변경 이력](Revision_History.md) 및 [v1.4.3 소스](https://github.com/july-rust/SParamView-Public/tree/v1.4.3)를 참고하십시오. 이전 v1.2.4a 검증 기록은 [이전 릴리스 노트](Release_1.2.4a.md)에 보존되어 있습니다.
 
 - [TDR 초기 축 범위 및 자동 스케일](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/src/plot.cpp)
 - [그래프 조작 및 초기 화면 복귀](https://github.com/july-rust/SParamView-Public/blob/v1.2.1/src/navigation.cpp)
@@ -544,7 +544,7 @@ v1.2.1에서 도입된 과거 기능은 [v1.2.1 릴리스 노트](Release_1.2.1.
 
 ### 문서 버전
 
-이 설명서는 v1.4.2 (2026-11-28 KST) 기준입니다. 화면은 v1.4.2 공식 검증 자료 및 기록된 GUI 캡처에서 가져왔습니다.
+이 설명서는 v1.4.3 기준입니다. [실제 v1.4.3 Native ARM64 검증 자료](https://github.com/july-rust/SParamView-Public/actions/runs/46136603711/artifacts/15259804829)의 `analysis-screenshots/`에서 글꼴을 확인한 최신 ILD, ICN 및 Eye Multi View 화면을 확인할 수 있습니다. Actions 자료는 보관 기간이 제한됩니다. 아래 ILD, ICN 및 Eye 분석 창 3개는 검증된 v1.4.3 화면입니다. 전체 그래프 Export 예시 및 v1.4.2로 명시된 다른 이미지는 이전 버전의 참고 자료입니다.
 
 
 
@@ -560,8 +560,12 @@ v1.2.1에서 도입된 과거 기능은 [v1.2.1 릴리스 노트](Release_1.2.1.
 
 **적용 범위:** 엔지니어링 참고용입니다. COM은 개발 보류되어 메뉴에 없으며 IEEE/SNIA/MIPI 적합성, 측정 BER, 모든 물리 장치/HiDPI 검증을 보증하지 않습니다.
 
-[Release notes](Release_1.4.2.md) · [ILD](Channel_Analysis_ILD_012_05.md) · [ICN](Channel_Analysis_ICN_012_06.md) · [Eye Diagram](Channel_Analysis_Eye_012_07.md) · [AC/Auto](qualification/012_54_AC_Auto_Analysis.md).
+[Release notes](Release_1.4.3.md) · [ILD](Channel_Analysis_ILD_012_05.md) · [ICN](Channel_Analysis_ICN_012_06.md) · [Eye Diagram](Channel_Analysis_Eye_012_07.md) · [AC/Auto](qualification/012_54_AC_Auto_Analysis.md).
 
+
+## v1.4.3 — Auto-to-Manual / Eye Diagram
+
+Auto Analysis/Auto Preview 성공 시 실제 계산에 사용한 설정값을 Manual 영역에 반영합니다. 다른 항목을 수정해도 수정하지 않은 주파수 및 ICN 수치 설정은 계산 정밀도를 유지합니다. 가정값을 검토한 후 실제 조건을 입력하십시오. PHY Profile은 제거되었으며 Eye overlay 세로축에는 TX incident 전압 범위를 포함합니다. COM은 개발 보류 상태입니다.
 
 ## v1.4.2 — Eye Diagram Multi View
 
@@ -572,9 +576,9 @@ Eye Diagram에 기존 개별 표시와 함께 **그래프 3개 모두** 옵션�
 - **v1.4.1:** 파일 > 새로 만들기는 저장 확인 후 ILD·ICN·Eye Diagram 창을 닫으며 취소 또는 저장 실패 시 기존 작업을 유지합니다. 파일 > 종료는 기존 저장·캐시 정리 절차를 사용합니다. 창을 현재 모니터의 논리 작업 영역에 맞추며 사용자 정의 대화상자는 본문 스크롤과 하단 고정 버튼을 사용합니다. 파일 선택은 공통 Qt 대화상자를 사용합니다.
 고해상도 배율 적용 시 물리 픽셀이 아닌 논리 픽셀을 기준으로 동작합니다. 지나치게 작은 작업 영역은 플랫폼·위젯의 최소 크기 제한을 받을 수 있으며 모든 실제 모니터와 배율 조합에 대한 검증을 의미하지 않습니다.
 
-## 24. 분석 기능별 계산 원리 및 실무 사용법 (v1.4.2)
+## 24. 분석 기능별 계산 원리 및 실무 사용법 (v1.4.3)
 
-이 장은 공식 v1.4.2에 실제 구현된 C++ 계산식을 설명합니다. 향후 개발 예정 기능이나 IEEE 적합성 시험 방법을 설명하는 것이 아닙니다. 계산 예시는 수식 이해를 위한 가상 수치이며 아래 화면의 측정 결과가 아닙니다. 화면은 합성 QA 데이터로 생성하며 [이미지 출처](images/README.md)를 참고하십시오. 소스 링크는 변경되지 않는 v1.4.2 Tag를 기준으로 합니다. 내부 연산은 Hz, s, V, Ω를 사용하고 GUI에서는 GHz, ns/ps, mV, dB 등으로 표시합니다.
+이 장은 v1.4.3에 실제 구현된 C++ 계산식을 설명합니다. 향후 개발 예정 기능이나 IEEE 적합성 시험 방법을 설명하는 것이 아닙니다. 계산 예시는 수식 이해를 위한 가상 수치이며 아래 화면의 측정 결과가 아닙니다. 화면은 합성 QA 데이터로 생성하며 [이미지 출처](images/README.md)를 참고하십시오. 소스 링크는 변경되지 않는 v1.4.3 Tag를 기준으로 합니다. 내부 연산은 Hz, s, V, Ω를 사용하고 GUI에서는 GHz, ns/ps, mV, dB 등으로 표시합니다.
 
 ### 24.1 Touchstone 데이터와 Channel Mapping
 
@@ -591,7 +595,7 @@ $r$은 응답, $s$는 입력 Endpoint입니다. S-parameter의 행은 응답 Por
 
 측정 주파수 사이의 복소 보간은 $S(f)=(1-a)S_i+aS_{i+1}$, $a=(f-f_i)/(f_{i+1}-f_i)$입니다. dB 값만 보간하는 것이 아니며, 측정 범위를 넘어서는 분석 조건이 새로운 측정값을 만들어내지는 않습니다.
 
-구현 근거: [Trace 및 방향](https://github.com/july-rust/SParamView-Public/blob/v1.4.2/src/trace.cpp), [Endpoint 및 종단](https://github.com/july-rust/SParamView-Public/blob/v1.4.2/src/termination.cpp), [IBIS Touchstone 2.1 규격](https://ibis.org/touchstone_ver2.1/touchstone_ver2_1.pdf).
+구현 근거: [Trace 및 방향](https://github.com/july-rust/SParamView-Public/blob/v1.4.3/src/trace.cpp), [Endpoint 및 종단](https://github.com/july-rust/SParamView-Public/blob/v1.4.3/src/termination.cpp), [IBIS Touchstone 2.1 규격](https://ibis.org/touchstone_ver2.1/touchstone_ver2_1.pdf).
 
 ### 24.2 Return Loss / Insertion Loss / NEXT / FEXT
 
@@ -608,7 +612,7 @@ $r$은 응답, $s$는 입력 Endpoint입니다. S-parameter의 행은 응답 Por
 
 Both 방향을 선택했을 때 RL/IL의 방향 차이는 공통 주파수 범위에서 복소 보간을 적용한 $\max_f|D_{\rm forward}(f)-D_{\rm reverse}(f)|$입니다. 차이가 크면 비대칭이나 매핑 이상을 확인할 수 있으나 독립적인 적합성 판정 기준은 아닙니다. 호환되는 정규화 조건에서 상호적인 회로의 전달 응답은 같을 수 있지만 양단 반사는 다를 수 있습니다.
 
-구현 근거: [trace.cpp](https://github.com/july-rust/SParamView-Public/blob/v1.4.2/src/trace.cpp).
+구현 근거: [trace.cpp](https://github.com/july-rust/SParamView-Public/blob/v1.4.3/src/trace.cpp).
 
 ### 24.3 Limit 및 Worst Margin 계산
 
@@ -622,7 +626,7 @@ $$m(f)=\begin{cases}D(f)-L(f),&\text{IL}\\ L(f)-D(f),&\text{RL, NEXT, FEXT}\end{
 
 예시: RL -14 dB, Limit -10 dB이면 +4 dB입니다. IL -4 dB, Limit -3 dB이면 -1 dB입니다. TDR Target 100 Ω, 허용 오차 10%이면 범위는 90~110 Ω이며 112 Ω 지점의 Margin은 -2 Ω입니다. 위반이 검출되면 다른 결과 일부가 없더라도 NG이고, 위반이 없지만 데이터 부족·유효하지 않은 값·범위 부족 등이 있으면 N/A입니다. OK는 설정된 공학적 Limit를 만족했다는 뜻이지 표준 인증을 의미하지 않습니다.
 
-구현 근거: [analysis.cpp](https://github.com/july-rust/SParamView-Public/blob/v1.4.2/src/analysis.cpp), [Limit 보간](https://github.com/july-rust/SParamView-Public/blob/v1.4.2/src/termination.cpp).
+구현 근거: [analysis.cpp](https://github.com/july-rust/SParamView-Public/blob/v1.4.3/src/analysis.cpp), [Limit 보간](https://github.com/july-rust/SParamView-Public/blob/v1.4.3/src/termination.cpp).
 
 ### 24.4 Quick TDR — 반사 응답으로 임피던스 계산
 
@@ -648,13 +652,13 @@ $$S_{\rm eff}=S_{NN}+S_{NL}(I-\Gamma_L S_{LL})^{-1}\Gamma_L S_{LN}.$$
 
 단일 저항 종단은 $\Gamma_L=(R-Z_0)/(R+Z_0)$이며 Open은 +1, Short는 -1입니다. Floating P–N 100 Ω과 P/N 각각 50 Ω-to-GND는 Common-mode 경계조건이 다르므로 동일 종단으로 취급하지 않습니다. 해가 일치하지 않거나 입력 응답이 유일하지 않은 경우 차단합니다.
 
-구현 근거: [tdr.cpp](https://github.com/july-rust/SParamView-Public/blob/v1.4.2/src/tdr.cpp), [termination.cpp](https://github.com/july-rust/SParamView-Public/blob/v1.4.2/src/termination.cpp).
+구현 근거: [tdr.cpp](https://github.com/july-rust/SParamView-Public/blob/v1.4.3/src/tdr.cpp), [termination.cpp](https://github.com/july-rust/SParamView-Public/blob/v1.4.3/src/termination.cpp).
 
 ### 24.5 ILD (Insertion Loss Deviation)
 
 **Analysis → ILD**를 선택합니다. 확인된 소스, Victim, 방향을 지정하고 Auto Analysis를 실행하거나 Run Manual에서 주파수 범위와 Fit Model을 설정합니다. 그래프에서 양수 Insertion Loss 및 Fitted Loss, 부호 있는 Deviation을 확인합니다. 실제 적용 주파수 범위, RMS, Peak Absolute 및 해당 주파수를 확인합니다. 같은 모델과 주파수 조건에서는 편차가 작을수록 유리하지만 절대 IL이 낮다는 보장은 아닙니다.
 
-![v1.4.2 ILD 분석 화면](images/04_ILD.png)
+![v1.4.3 ILD 분석 화면](images/04_ILD.png)
 
 Quick IL과 달리 ILD는 양수 Loss $A(f)=-20\log_{10}|H(f)|$를 사용합니다. $F$는 선택된 측정 데이터의 마지막 주파수이며 $x=f/F$로 정규화합니다. 세 가지 Fit Model은
 
@@ -668,13 +672,13 @@ $$e_{\rm RMS}=\sqrt{\frac1B\sum_i\frac{f_{i+1}-f_i}{3}(e_i^2+e_ie_{i+1}+e_{i+1}^
 
 예시: +0.5 dB 편차는 측정 양수 Loss가 Fit보다 0.5 dB 크고, -0.5 dB 편차는 0.5 dB 작습니다. 한 구간의 편차가 -1에서 +1 dB로 선형 변화하면 구간 RMS는 $1/\sqrt3\approx0.577$ dB입니다. 프로그램은 실제 범위 안의 측정 Bin만 사용하며 Zero Transfer, 부족한 샘플, Rank 부족 Fit 등을 차단합니다. Auto ILD는 관측된 AC-like Pole이 있으면 시작 주파수를 Pole의 10배 이상으로 올릴 수 있습니다. 누락된 손실을 외삽하지 않습니다. 동일 대역 및 모델로 비교해야 하며 IEEE weighted FOM_ILD가 아닌 Generic ILD입니다.
 
-구현 근거: [ild.cpp](https://github.com/july-rust/SParamView-Public/blob/v1.4.2/src/channel_analysis/ild.cpp), [ILD 수치 검증 기록](Channel_Analysis_ILD_012_05.md).
+구현 근거: [ild.cpp](https://github.com/july-rust/SParamView-Public/blob/v1.4.3/src/channel_analysis/ild.cpp), [ILD 수치 검증 기록](Channel_Analysis_ILD_012_05.md).
 
 ### 24.6 ICN (Integrated Crosstalk Noise)
 
 **Analysis → ICN**에서 Victim, 방향, NEXT/FEXT Aggressor 경로(1~32개)를 선택합니다. Auto Analysis는 참고용 조건을 사용합니다. 실제 Baud, TX Vpp, Rise Time(10~90%), RX 대역폭과 적분 범위를 알고 있으면 Run Manual을 사용합니다. 다중 경로는 Independent/RSS 가정을 활성화해야 합니다. **All three graphs**에서 Power Sum, Weighted Noise PSD, Cumulative RMS를 함께 확인할 수 있습니다. 초기 화면은 Total 포함 Cumulative RMS입니다.
 
-![v1.4.2 ICN 세 그래프](images/05_ICN.png)
+![v1.4.3 ICN 분석 화면](images/05_ICN.png)
 
 동일 확률의 독립적인 평균 0 NRZ Symbol에 대해 $T=1/R_s$, $\sigma_V=V_{pp}/2$, $\sigma_t=t_{10-90}/2.5631031310892007$, $\mathrm{sinc}(x)=\sin(x)/x$로 정의합니다. 실제 구현된 단측 Weighted PSD(V²/Hz)는
 
@@ -682,24 +686,24 @@ $$P(f)=2\sigma_V^2T\mathrm{sinc}^2(\pi fT)\exp[-(2\pi f\sigma_t)^2]\frac1{1+(f/f
 
 각 경로의 전달 응답 $H_k(f)$에 대해 출력 PSD는 $P_k(f)=|H_k(f)|^2P(f)$입니다. Power Sum은 가중 전의 $10\log_{10}\sum_k|H_k|^2$이며 -300 dB는 화면에만 적용되는 하한입니다. PSD 그래프는 mV²/GHz 단위이며 1 V²/Hz = $10^{15}$ mV²/GHz입니다. Cumulative Noise는 측정 대역의 교집합에서 사다리꼴 적분합니다.
 
-$$V_k(f_j)=\sqrt{\sum_{i<j}\tfrac12[P_k(f_i)+P_k(f_{i+1})](f_{i+1}-f_i)},\quad V_{\rm total}=\sqrt{V_{\rm NEXT}^2+V_{\rm FEXT}^2}.$$
+$$V_k(f_j)=\sqrt{\sum_{i<j}\tfrac12[P_k(f_i)+P_k(f_{i+1})]\cdot(f_{i+1}-f_i)},\quad V_{\rm total}=\sqrt{V_{\rm NEXT}^2+V_{\rm FEXT}^2}.$$
 
 각 경로 기여율은 Total이 0이 아닐 때 $100(V_k/V_{\rm total})^2$입니다. 예를 들어 독립 NEXT 3 mV RMS, FEXT 4 mV RMS이면 Total은 7 mV가 아니라 5 mV이며 각각의 전력 기여율은 36%, 64%입니다. 상관된 Aggressor를 단순 RSS로 계산할 수는 없습니다.
 
 Auto 조건은 Cap=min(10 GHz, 측정 최대 주파수), Symbol Rate=min(4.5 GBd, Cap/1.5), TX 400 mVpp, Rise Time 30 ps, RX Bandwidth=Cap입니다. 실제 회로의 TX 조건을 자동 추출한 값이 아닙니다. 측정 대역에서만 적분하며 누락된 DC 및 대역 밖 Noise를 외삽하지 않습니다. Reference 불일치 및 주파수 Grid 불일치는 차단합니다. 같은 조건에서는 결과가 낮을수록 유리하지만 보편적인 ICN 합격 Limit 또는 IEEE/SNIA 적합성을 의미하지 않습니다.
 
-구현 근거: [icn.cpp](https://github.com/july-rust/SParamView-Public/blob/v1.4.2/src/channel_analysis/icn.cpp), [ICN 수치 검증 기록](Channel_Analysis_ICN_012_06.md).
+구현 근거: [icn.cpp](https://github.com/july-rust/SParamView-Public/blob/v1.4.3/src/channel_analysis/icn.cpp), [ICN 수치 검증 기록](Channel_Analysis_ICN_012_06.md).
 
 ### 24.7 Eye Diagram — NRZ 시뮬레이션
 
-**Analysis → Eye Diagram**에서 Source, 물리 Mapping, 방향을 확인합니다. Auto Preview로 빠르게 분석하거나 Manual 설정의 Profile, Bit Rate, Analysis Cap, Pattern, FFT Length, Samples/UI, TX/RX 전기 조건을 확인하고 Run Manual을 실행합니다. 가정과 DC 상태, RX 입력 범위, Eye Height, Eye Width 및 경고를 함께 봅니다.
+**Analysis → Eye Diagram**에서 Source, 물리 Mapping, 방향을 확인합니다. Auto Preview로 빠르게 분석하거나 Manual 설정의 Bit Rate, Analysis Cap, Pattern, FFT Length, Samples/UI, TX/RX 전기 조건을 확인하고 Run Manual을 실행합니다. 가정과 DC 상태, RX 입력 범위, Eye Height, Eye Width 및 경고를 함께 봅니다.
 
 - **Eye overlay (2 UI)**: RX 파형을 위상 정렬하여 중첩합니다. Threshold와 High/Low Envelope 또는 Sampling Marker를 확인합니다. 동일 조건에서 Eye가 높고 유효 위상 구간이 넓을수록 유리한 경향입니다.
 - **TX / RX waveform**: 원래 입력 대비 수신 진폭, 지연, Ringing, ISI(Inter-Symbol Interference)를 확인합니다.
 - **Impulse / Unit pulse**: 정규화된 Impulse와 1 UI 높이 1 Pulse의 채널 응답입니다. 응답 Tail로 이전 Symbol이 뒤 Symbol에 미치는 영향을 파악합니다.
 - **All three graphs**: 위 세 그래프가 하나의 동일한 분석 결과를 공유합니다. 표시 모드를 바꿔도 재분석하지 않습니다. 넓은 화면에서는 보조 그래프를 나란히 배치하고 좁은 화면에서는 세로로 쌓아 스크롤합니다. 각 그래프의 마우스 Wheel 확대, Drag 이동, Double Click 초기화는 독립적입니다. PNG Export는 선택된 개별 또는 전체 View를 저장하며 CSV는 원본 수치 데이터를 유지합니다.
 
-![v1.4.2 Eye Diagram Multi View 화면](images/06_Eye_Multi_View.png)
+![v1.4.3 Eye Diagram Multi View 화면](images/06_Eye_Multi_View.png)
 
 ![v1.4.2 Eye Diagram 전체 PNG Export](images/07_Eye_Multi_Plot.png)
 
@@ -721,13 +725,13 @@ $$\text{Eye Height}=\max_p[H_{\min}(p)-L_{\max}(p)],$$
 $$O(p)=[H_{\min}(p)>V_{\rm th}\ \text{and}\ L_{\max}(p)<V_{\rm th}],\qquad
 \text{Eye Width}_{UI}=\frac{\text{longest circular run of true }O(p)}{M}.$$
 
-Eye Width(sec)는 Eye Width(UI)에 UI를 곱한 값입니다. 최대 Height 위상이 Threshold를 만족하지 않을 수 있으며 프로그램은 별도 경고합니다. Overlay는 최대 64개 Segment를 그리지만 수치 계산은 유한 시뮬레이션 Frame 전체를 사용합니다. Width는 샘플 위상의 추정값이며 BER Contour가 아닙니다.
+Eye Width(sec)는 Eye Width(UI)에 UI를 곱한 값입니다. 최대 Height 위상이 Threshold를 만족하지 않을 수 있으며 프로그램은 별도 경고합니다. Overlay는 주기적 Frame 전체에서 최대 64개의 실제 Segment를 선택하며, 존재하는 00/01/10/11 인접 비트 조합과 최대 Height 위상을 결정하는 High/Low 파형을 포함합니다. 수치 계산은 유한 Frame 전체를 사용하며 Overlay는 전체 Eye Envelope가 아닙니다. Width는 샘플 위상의 추정값이며 BER Contour가 아닙니다.
 
 계산 예시: 4.5 Gbps에서 UI=222.22 ps, Reference=2.25 GHz입니다. $M=32$, $N=8192$이면 샘플 간격 6.944 ps, Sample Rate 144 GHz, 주파수 Bin 간격 17.578125 MHz, Frame은 256 Bit(56.889 ns)입니다. 가상 High 최소 +120 mV, Low 최대 -80 mV이면 해당 위상의 높이 차이는 200 mV입니다. Threshold 0 mV에서 연속 유효 위상이 24개면 Eye Width는 0.75 UI(166.67 ps)입니다.
 
-Auto Preview는 PRBS7, TX -200/+200 mV(400 mVpp Incident Wave), 동일한 실수 Reference 정합, Threshold 0 mV, RX 선형 범위 -1000/+1000 mV를 가정합니다. Cap=min(10 GHz, 측정 최대), Bit Rate=min(4.5 Gbps, Cap/1.5)입니다. Manual은 실제 Low/High 전압, 정합 TX/RX Reference, RX 선형 범위 및 Threshold를 입력해야 합니다. 서로 다른 Reference의 Renormalization은 이 엔진에서 지원하지 않습니다. MIPI D-PHY HS Profile은 Differential 및 최대 4.5 Gbps 조건이며 PHY 적합성 시험이 아닙니다.
+Auto Preview는 PRBS7, TX -200/+200 mV(400 mVpp Incident Wave), 동일한 실수 Reference 정합, Threshold 0 mV, RX 선형 범위 -1000/+1000 mV를 가정합니다. Cap=min(10 GHz, 측정 최대), Bit Rate=min(4.5 Gbps, Cap/1.5)입니다. Manual은 실제 Low/High 전압, 정합 TX/RX Reference, RX 선형 범위 및 Threshold를 입력해야 합니다. 서로 다른 Reference의 Renormalization은 이 엔진에서 지원하지 않습니다. PHY Profile을 선택하거나 추정하지 않으며 PHY 적합성 시험이 아닙니다. Auto Preview는 실제 계산에 사용된 설정값을 Manual 영역에 반영합니다. 수정하지 않고 Run Manual을 실행하면 동일한 설정을 사용합니다. Eye overlay의 세로축에는 비교 기준으로 TX incident 전압 범위를 포함합니다.
 
-구현 근거: [eye.cpp](https://github.com/july-rust/SParamView-Public/blob/v1.4.2/src/channel_analysis/eye.cpp), [Eye GUI 및 Export](https://github.com/july-rust/SParamView-Public/blob/v1.4.2/src/gui/analysis/analysis_windows.cpp).
+구현 근거: [eye.cpp](https://github.com/july-rust/SParamView-Public/blob/v1.4.3/src/channel_analysis/eye.cpp), [Eye GUI 및 Export](https://github.com/july-rust/SParamView-Public/blob/v1.4.3/src/gui/analysis/analysis_windows.cpp).
 
 ### 24.8 Eye Diagram의 DC Extrapolation과 AC Coupling
 
@@ -743,7 +747,7 @@ DC가 없는 Touchstone 파일에 대한 주파수 기준은 다음과 같습니
 
 이상적 Pole의 Time Constant $\tau=1/(2\pi f_p)$, 시간 $t$의 Step 감소 비율은 $1-e^{-t/\tau}$입니다. $n$ Bit 연속 구간의 경우 $t=n\,UI$입니다. 별도 Long-step 모델은 두 개 FFT Grid의 수치 결과를 비교하지만 실제 긴 패턴의 Baseline Wander를 보증하지 않습니다. 따라서 짧은 Frame에서 Eye가 열려 있다는 이유만으로 AC Coupled 채널을 합격 처리할 수 없습니다. 1 kHz 시작은 첫 정책 범위에 속하지만 정확도를 보장하는 것은 아닙니다.
 
-구현 근거: [eye.cpp의 DC/Long-run 모델](https://github.com/july-rust/SParamView-Public/blob/v1.4.2/src/channel_analysis/eye.cpp), [DC 검증](qualification/012_52_Eye_DC_Qualification.md), [AC/Auto 검증](qualification/012_54_AC_Auto_Analysis.md).
+구현 근거: [eye.cpp의 DC/Long-run 모델](https://github.com/july-rust/SParamView-Public/blob/v1.4.3/src/channel_analysis/eye.cpp), [DC 검증](qualification/012_52_Eye_DC_Qualification.md), [AC/Auto 검증](qualification/012_54_AC_Auto_Analysis.md).
 
 ### 24.9 SI 실무 판단 체크리스트
 

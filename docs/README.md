@@ -1,17 +1,19 @@
 # SParamView documentation / 문서 색인
 
-**Current official release / 현재 공식 릴리즈:** [v1.4.2](https://github.com/july-rust/SParamView-Public/releases/tag/v1.4.2), published 2026-11-28 KST. The tagged source and release assets are immutable. This index and post-release clarifications on main do not replace those assets.
+**Current official release / 현재 공식 릴리즈:** [v1.4.3](https://github.com/july-rust/SParamView-Public/releases/tag/v1.4.3). The tagged source and release assets are immutable. This index and post-release clarifications on main do not replace those assets.
 
 ## Current user documentation / 현재 사용자 문서
 
 - [English User Guide](USER_GUIDE_EN.md) · [한국어 사용자 설명서](USER_GUIDE_KO.md)
 - [English README](../README_EN.md) · [한국어 README](../README_KO.md)
-- [v1.4.2 release notes](Release_1.4.2.md) · [Revision History](Revision_History.md)
+- [v1.4.3 release notes](Release_1.4.3.md) · [Revision History](Revision_History.md)
 - [Temporary cache policy](Temporary_Cache_Cleanup.md) · [Screenshot provenance](images/README.md)
 - [Examples and synthetic fixture provenance](../examples/README.txt)
 - [License](../LICENSE) · [Copyright and third-party notices](../COPYRIGHT.txt)
 
 ## Qualification and implementation reference / 구현·검증 근거
+
+- [016 pre-release candidate CI](https://github.com/july-rust/SParamView-Public/actions/runs/46120571235) (earlier candidate; not final v1.4.3 evidence)
 
 - [Final v1.4.2 release CI](https://github.com/july-rust/SParamView-Public/actions/runs/46093773220) · [CodeQL](https://github.com/july-rust/SParamView-Public/actions/runs/46093773213)
 - [ILD](Channel_Analysis_ILD_012_05.md) · [Generic ICN](Channel_Analysis_ICN_012_06.md)

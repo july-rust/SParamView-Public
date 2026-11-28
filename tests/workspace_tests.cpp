@@ -105,7 +105,22 @@ static void localizationCatalogQualification() {
     check(placeholders(en)==placeholders(ko) && placeholders(en)==placeholders(ja),"Localization placeholder mismatch");
     check(menuText(en,Language::Korean)==ko && menuText(en,Language::Japanese)==ja,"Localization lookup mismatch");
   }
-  check(keys.size()>=935,"Localization catalog unexpectedly reduced");
+  // 016 deliberately deletes exactly these 14 obsolete Eye PHY profile
+  // strings. Preserve the previous coverage floor for every other entry.
+  const QStringList removedEyeProfileKeys={
+    "PHY profile (example)","Example PHY profile, not compliance",
+    "Unknown Eye profile",
+    "MIPI D-PHY v2.1 HS needs differential mode and rate at or below 4.5 Gb/s",
+    "LVDS/SLVS/SLVS-EC profile requires differential signaling",
+    "MIPI D-PHY v2.1 HS (example, not compliance)",
+    "DDR2 (user-qualified)","DDR3 (user-qualified)",
+    "DDR4 (user-qualified)","DDR5 (user-qualified)",
+    "LVDS (user-qualified)","SLVS (user-qualified)",
+    "SLVS-EC (user-qualified)","Custom (user-qualified)"};
+  for(const auto &removed:removedEyeProfileKeys)
+    check(!keys.contains(removed),"Removed Eye profile localization key retained");
+  check(keys.size()>=935-removedEyeProfileKeys.size(),
+        "Localization catalog unexpectedly reduced beyond intentional Eye profile removal");
   for (auto language : {Language::Korean,Language::Japanese}) {
     for (const auto *source : {"Legacy Confirmed Mapping","PowerSI .DiffChannels / P/N Review","Mixed-Mode / P/N Review"})
       check(menuText(QString::fromUtf8(source),language)!=QString::fromUtf8(source),
@@ -804,19 +819,17 @@ struct WorkspaceProbe {
    auto *eye=open(Feature::Eye);
    check(ild!=icn && ild!=eye && icn!=eye,"Analysis windows share identity");
    QListWidget *items=nullptr;
-   QComboBox *profile=nullptr;
    auto configure=[&] {
    auto *fit=ild->findChild<QComboBox*>("ildFitModel");
    auto *ildStop=ild->findChild<QDoubleSpinBox*>("ildStopGhz");
    items=icn->findChild<QListWidget*>("icnAggressorList");
-   profile=eye->findChild<QComboBox*>("eyeProfile");
    auto *mode=eye->findChild<QComboBox*>("eyeMode");
    auto *baud=eye->findChild<QDoubleSpinBox*>("eyeBitRateGbps");
    auto *cap=eye->findChild<QDoubleSpinBox*>("eyeAnalysisCapGhz");
-   check(fit && ildStop && items && profile && mode && baud && cap,
+   check(fit && ildStop && items && mode && baud && cap &&
+         !eye->findChild<QComboBox*>("eyeProfile"),
          "Integrated feature controls missing");
    fit->setCurrentIndex(0);ildStop->setValue(10);
-   profile->setCurrentIndex(int(si::channel::EyeProfile::Custom));
    mode->setCurrentIndex(1);baud->setValue(4.5);cap->setValue(10);
    auto *reference=eye->findChild<QDoubleSpinBox*>("eyeReferenceGhz");
    check(reference && std::abs(reference->value()-2.25)<1e-9,
@@ -914,7 +927,11 @@ struct WorkspaceProbe {
      check(eyeStatus && eyeStatus->text().contains(sparamview::ui_language::menuText("Simulated only — Not measured, no BER or PHY compliance; ",language)),"Eye simulation disclaimer not localized");
      const auto *eyeMetrics=eye->findChild<QLabel *>("eyeMetrics");
      check(eyeMetrics && eyeMetrics->text().contains("\n"+sparamview::ui_language::menuText("Original",language)+"\n"),"Original DC method presentation not localized");
-     check(profile->currentText()==sparamview::ui_language::menuText("Custom (user-qualified)",language),"Eye profile presentation not localized");
+     const auto *eyeMode=eye->findChild<QComboBox *>("eyeMode");
+     check(!eye->findChild<QComboBox *>("eyeProfile") && eyeMode &&
+           eyeMode->currentIndex()==1 &&
+           eyeMode->currentText()==sparamview::ui_language::menuText("Single-ended",language),
+           "Eye transfer mode localization or profile removal regressed");
      check(values(w)==legacy && eye->status()==statusBefore && manager.context().generation==contextBefore &&
            manager.scheduler().inFlight()==0,"Language switch changed computed result/context");
      check(ild->saveIldCsv(parityPrefix+"ild.csv") && icn->saveIcnCsv(parityPrefix+"icn.csv") &&

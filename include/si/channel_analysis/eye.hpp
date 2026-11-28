@@ -12,9 +12,6 @@
 
 namespace si::channel {
 
-enum class EyeProfile {
-  MipiDphyHs, Ddr2, Ddr3, Ddr4, Ddr5, Lvds, Slvs, SlvsEc, Custom
-};
 enum class EyeMode { Unspecified, SingleEnded, Differential };
 enum class EyePattern { Alternating, Prbs7, CustomBits };
 
@@ -32,7 +29,6 @@ struct EyeElectrical {
   double rxInputMaximumV = std::numeric_limits<double>::quiet_NaN();
 };
 struct EyeSettings {
-  EyeProfile profile = EyeProfile::Custom;
   EyeMode mode = EyeMode::Unspecified;
   EyePattern pattern = EyePattern::Prbs7;
   // NRZ referenceFrequencyHz == bitRateHz/2; analysisStopHz is independent.
@@ -45,13 +41,8 @@ struct EyeSettings {
   std::vector<uint8_t> customBits;
   bool acceptLimitedDc = false; // explicit acknowledgement for >10 kHz and <100 kHz
 };
-// Only MIPI example supplies bit rate (4.5 Gb/s), NRZ Nyquist reference
-// (2.25 GHz), and analysis cap (10 GHz). All profile electrical fields remain
-// unspecified. Other profiles intentionally require explicit rates/bands.
-EyeSettings eyeProfile(EyeProfile profile);
 // Adjusting the NRZ reference MUST also change symbol rate and UI.
 EyeSettings eyeWithReferenceFrequency(EyeSettings settings, double referenceHz);
-const char *eyeProfileName(EyeProfile profile);
 
 // Eye-only DC conditioning; does not alter source, TDR or other analyzers.
 struct EyeDcInfo {
@@ -78,7 +69,8 @@ struct EyeData {
   EyeDcInfo dc;
   std::vector<double> timeSeconds, transmittedV, receivedV;
   TimeSeries impulse, unitPulse;
-  // A bounded subset of two-UI received traces, for the 012_08 GUI renderer.
+  // Bounded full-frame selection of two-UI RX traces, including present bit-pair
+  // classes and the two traces defining the maximum-height phase.
   std::vector<std::vector<double>> overlayV;
   std::vector<double> overlayPhaseUI;
   double bitRateHz = 0, referenceFrequencyHz = 0, analysisStopHz = 0;
@@ -102,7 +94,7 @@ struct EyeData {
   bool bandLimited = false, simulated = true;
   std::string victimId; // populated by the verified source adapter
   bool reverse = false;
-  std::string profileName, transferParameter;
+  std::string transferParameter;
   // Deterministic worst-case sampled high/low separation for the GIVEN
   // periodic bit sequence; never an eye-mask, statistical BER, or compliance.
 };

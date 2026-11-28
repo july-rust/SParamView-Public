@@ -17,6 +17,8 @@
 #include <QTemporaryDir>
 #include <QFile>
 #include <QImage>
+#include <QFontDatabase>
+#include <QFontMetrics>
 #include <QVariant>
 #include <QMouseEvent>
 #include <QWheelEvent>
@@ -29,6 +31,18 @@ using S = si::channel::Status;
 namespace {
 void check(bool condition, const char *message) {
   if (!condition) throw std::runtime_error(message);
+}
+// Optional evidence capture; only on explicitly configured qualification runs.
+void capture016(AnalysisWindow *window,const QString &name) {
+  const auto path=qEnvironmentVariable("SPARAMVIEW_ANALYSIS_CAPTURE_DIR");
+  if(path.isEmpty())return;
+  check(QDir().mkpath(path),"016 capture directory failed");
+  const auto original=window->size();
+  window->resize(1024,768);
+  QApplication::processEvents();
+  check(window->grab().save(QDir(path).filePath(name)),"016 actual GUI capture failed");
+  window->resize(original);
+  QApplication::processEvents();
 }
 bool pumpUntil(const std::function<bool()> &predicate, int timeoutMs = 6000) {
   QElapsedTimer elapsed;
@@ -177,6 +191,21 @@ int main(int argc, char **argv) {
   QApplication app(argc, argv);
   std::cout << "Analysis GUI platform: " << QGuiApplication::platformName().toStdString() << std::endl;
   try {
+  // Offscreen Windows has no usable default system font in some runners.
+  // Load the same bundled font used by the actual application.
+  const auto captureFont=qEnvironmentVariable("SPARAMVIEW_ANALYSIS_CAPTURE_FONT");
+  if(!qEnvironmentVariable("SPARAMVIEW_ANALYSIS_CAPTURE_DIR").isEmpty()) {
+    check(!captureFont.isEmpty(),"016 capture font path missing");
+    const int id=QFontDatabase::addApplicationFont(captureFont);
+    check(id>=0,"016 bundled capture font could not be loaded");
+    const auto families=QFontDatabase::applicationFontFamilies(id);
+    check(!families.isEmpty(),"016 capture font has no family");
+    QFont font(families.front(),9);
+    app.setFont(font);
+    const QFontMetrics metrics(font);
+    check(metrics.inFont(QChar('A')) && metrics.inFont(QChar('0')),
+          "016 capture font lacks basic glyphs");
+  }
   // Numeric display bounds are independent of the analysis engine and mode.
   using si::gui::detail::PlotBounds;
   {
@@ -408,8 +437,30 @@ int main(int argc, char **argv) {
     const QString autoIldPath=ildDir.filePath(QStringLiteral("ild-auto.csv"));
     check(ild->saveIldCsv(autoIldPath),"ILD auto CSV failed");
     QFile autoIldFile(autoIldPath);
-    check(autoIldFile.open(QIODevice::ReadOnly) && autoIldFile.readAll().contains("# analysis_mode,AUTO"),
-          "ILD auto provenance absent");
+    check(autoIldFile.open(QIODevice::ReadOnly),"ILD auto CSV read");
+    const auto autoIldBytes=autoIldFile.readAll();
+    check(autoIldBytes.contains("# analysis_mode,AUTO") &&
+          autoIldBytes.contains("|stop_hz=16000000000|fit=1|AUTO_ILD"),
+          "ILD resolved auto provenance absent");
+    capture016(ild,"04_ILD.png");
+    check(ildModel->currentIndex()==1 &&
+          std::abs(ild->findChild<QDoubleSpinBox *>("ildStopGhz")->value()-16)<1e-8,
+          "ILD Auto did not seed fit and measured band");
+    ild->runButton()->click();drain(manager.scheduler());
+    check(ild->status()==S::Valid,"Unedited Auto-to-Manual ILD failed");
+    auto sameNumericalCsv=[&](const QString &autoPath,const QString &manualPath,
+                             const QByteArray &header) {
+      QFile a(autoPath),m(manualPath);
+      check(a.open(QIODevice::ReadOnly) && m.open(QIODevice::ReadOnly),
+            "016 numerical CSV readback failed");
+      const auto aa=a.readAll(),mm=m.readAll();
+      const auto ai=aa.indexOf(header),mi=mm.indexOf(header);
+      check(ai>=0 && mi>=0 && aa.mid(ai)==mm.mid(mi),
+            "016 unedited Auto/Manual numerical rows differ");
+    };
+    const auto manualIldPath=ildDir.filePath(QStringLiteral("ild-auto-replay.csv"));
+    check(ild->saveIldCsv(manualIldPath),"ILD replay CSV failed");
+    sameNumericalCsv(autoIldPath,manualIldPath,"Frequency_GHz,IL_dB,Fitted_IL_dB,ILD_dB");
     ildModel->setCurrentIndex(2); // fixture is an exact quadratic-root model
     ild->runButton()->click();
     drain(manager.scheduler());
@@ -618,7 +669,8 @@ int main(int argc, char **argv) {
             if(responsePort==1 && sourcePort==2) value=0.08;
             if(responsePort==1 && sourcePort==3) value=0.12;
             if(responsePort==0 && sourcePort==3) value=0.16;
-            if(sourcePort/2==responsePort/2 && sourcePort!=responsePort) value=0.85;
+            if(sourcePort/2==responsePort/2 && sourcePort!=responsePort)
+              value=sourcePort<2?0.85:0.425; // two distinct mapped THRU gains
             out<<" "<<value<<" 0";
           }
         out<<"\n";
@@ -661,14 +713,41 @@ int main(int argc, char **argv) {
     const QString autoIcnPath=ildDir.filePath(QStringLiteral("icn-auto.csv"));
     check(icn->saveIcnCsv(autoIcnPath),"ICN auto CSV failed");
     QFile autoIcnFile(autoIcnPath);
-    check(autoIcnFile.open(QIODevice::ReadOnly) && autoIcnFile.readAll().contains("# analysis_mode,AUTO"),
-          "ICN auto provenance absent");
-    items->item(0)->setCheckState(Qt::Checked);
-    items->item(1)->setCheckState(Qt::Checked);
+    check(autoIcnFile.open(QIODevice::ReadOnly),"ICN auto CSV read");
+    const auto autoIcnBytes=autoIcnFile.readAll();
+    check(autoIcnBytes.contains("# analysis_mode,AUTO") &&
+          autoIcnBytes.contains("|stop_hz=8000000000|baud=4500000000|") &&
+          autoIcnBytes.contains("|rss=1|path_hex=616767726573736f72:NEXT|path_hex=616767726573736f72:FEXT|AUTO_ICN"),
+          "ICN resolved auto provenance absent");
+    capture016(icn,"05_ICN.png");
+    check(items->item(0)->checkState()==Qt::Checked &&
+          items->item(1)->checkState()==Qt::Checked,
+          "ICN Auto did not seed selected NEXT/FEXT paths");
     auto *rss=icn->findChild<QCheckBox *>(QStringLiteral("icnIndependentAssumption"));
     check(rss && rss->isChecked() && rss->text().contains("assumed"),"Default exploratory RSS assumption must be visible");
     icn->runButton()->click();drain(manager.scheduler());
     check(icn->status()==S::Valid || icn->status()==S::Warning,"Default multi-path ICN failed");
+    const auto manualIcnPath=ildDir.filePath(QStringLiteral("icn-auto-replay.csv"));
+    check(icn->saveIcnCsv(manualIcnPath),"ICN replay CSV failed");
+    sameNumericalCsv(autoIcnPath,manualIcnPath,"Frequency_GHz,NEXT_Power_dB,FEXT_Power_dB,");
+    // The subsequent independent directional oracle deliberately uses the
+    // original explicit 4 GBd, 800 mVpp, 30 ps, 10 GHz RX, 0..30 GHz request.
+    // Do not accidentally test that oracle with the newly seeded Auto values.
+    auto *manualRate=icn->findChild<QDoubleSpinBox *>("icnSymbolRate");
+    auto *manualVpp=icn->findChild<QDoubleSpinBox *>("icnTxVpp");
+    auto *manualRise=icn->findChild<QDoubleSpinBox *>("icnRiseTime");
+    auto *manualRx=icn->findChild<QDoubleSpinBox *>("icnRxBandwidth");
+    auto *manualStart=icn->findChild<QDoubleSpinBox *>("icnStartGhz");
+    auto *manualStop=icn->findChild<QDoubleSpinBox *>("icnStopGhz");
+    check(manualRate && manualVpp && manualRise && manualRx &&
+          manualStart && manualStop,"ICN manual oracle controls missing");
+    check(manualRate->value()==4.5 && manualVpp->value()==400 &&
+          manualRise->value()==30 && manualRx->value()==8 &&
+          manualStart->value()==0 && manualStop->value()==8,
+          "ICN Auto did not populate resolved electrical and band settings");
+    manualRate->setValue(4);manualVpp->setValue(800);
+    manualRise->setValue(30);manualRx->setValue(10);
+    manualStart->setValue(0);manualStop->setValue(30);
     rss->setChecked(false);
     icn->runButton()->click();
     check(icn->status()==S::NotEvaluated,"Disabling RSS must still block multiple paths");
@@ -817,15 +896,11 @@ int main(int argc, char **argv) {
     auto *cap=eye->findChild<QDoubleSpinBox *>(QStringLiteral("analysisStopFrequency"));
     // Common stop-frequency spin gets an explicit ID in 012_08.
     if(!cap)cap=eye->findChild<QDoubleSpinBox *>(QStringLiteral("eyeAnalysisCapGhz"));
-    check(profile && mode && baud && reference && cap,
-          "Eye profile/bitrate/reference/cap controls missing");
-    check(std::abs(baud->value()-4.5)<1e-9 &&
-          std::abs(reference->value()-2.25)<1e-9 &&
-          std::abs(cap->value()-10)<1e-9,
-          "MIPI 4.5/2.25/10 example defaults were not installed");
+    check(!profile && mode && baud && reference && cap,
+          "Eye profile must be removed; explicit controls must remain");
     eye->runButton()->click();
     check(eye->status()==S::NotEvaluated,
-          "MIPI preset without verified electrical inputs must fail closed");
+          "Manual without electrical inputs must fail closed");
     auto *preview=eye->findChild<QPushButton *>(QStringLiteral("eyeAutoPreview"));
     check(preview && preview->isEnabled(),"Auto Preview unavailable");
     preview->click();drain(manager.scheduler());
@@ -833,8 +908,32 @@ int main(int argc, char **argv) {
     const auto previewCsv=ildDir.filePath(QStringLiteral("auto-preview-eye.csv"));
     check(eye->saveEyeCsv(previewCsv),"Auto Preview CSV failed");
     QFile previewData(previewCsv);
-    check(previewData.open(QIODevice::ReadOnly) && previewData.readAll().contains("# input_mode,AUTO_PREVIEW_ASSUMED"),"Assumptions missing from preview export");
-    profile->setCurrentIndex(8); // Custom: single-ended s2p fixture
+    check(previewData.open(QIODevice::ReadOnly),"Auto Eye CSV read");
+    const auto previewBytes=previewData.readAll();
+    check(previewBytes.contains("# input_mode,AUTO_PREVIEW_ASSUMED") &&
+          previewBytes.contains("|rate_hz=4500000000|reference_hz=2250000000|cap_hz=10000000000|") &&
+          previewBytes.contains("|AUTO_PREVIEW_ASSUMED_MATCHED_400mVpp"),
+          "Resolved Auto Eye provenance or assumptions missing");
+    auto *captureView=eye->findChild<QComboBox *>("eyePlotView");
+    check(captureView,"Eye capture view missing");
+    const int previousView=captureView->currentIndex();
+    captureView->setCurrentIndex(3);
+    capture016(eye,"06_Eye_Multi_View.png");
+    if(!qEnvironmentVariable("SPARAMVIEW_ANALYSIS_CAPTURE_DIR").isEmpty())
+      check(eye->saveEyePng(QDir(qEnvironmentVariable("SPARAMVIEW_ANALYSIS_CAPTURE_DIR")).filePath("07_Eye_Multi_Plot.png")),
+            "016 actual combined Eye PNG failed");
+    captureView->setCurrentIndex(previousView);
+    check(mode->currentIndex()==1 && baud->value()>0 &&
+          std::abs(reference->value()-baud->value()/2)<1e-8,
+          "Eye Auto Preview did not seed manual signal fields");
+    check(eye->findChild<QLineEdit *>("eyeTxLowMv")->text().toDouble()==-200 &&
+          eye->findChild<QLineEdit *>("eyeTxHighMv")->text().toDouble()==200,
+          "Eye Auto Preview did not seed manual electrical fields");
+    eye->runButton()->click();drain(manager.scheduler());
+    check(eye->status()==S::Warning,"Unedited Auto-to-Manual Eye failed");
+    const auto manualEyePath=ildDir.filePath(QStringLiteral("eye-auto-replay.csv"));
+    check(eye->saveEyeCsv(manualEyePath),"Eye replay CSV failed");
+    sameNumericalCsv(previewCsv,manualEyePath,"Time_ps,TX_mV,RX_mV,Impulse_Unit,Unit_Pulse");
     mode->setCurrentIndex(1);
     baud->setValue(4.5);
     check(std::abs(reference->value()-2.25)<1e-9,
@@ -981,7 +1080,11 @@ int main(int argc, char **argv) {
           "Eye PNG does not contain a real plot");
     check(eyeImage.text(QStringLiteral("SourceSHA256")) ==
           QString::fromStdString(cache->meta().sha256) &&
-          eyeImage.text(QStringLiteral("SettingsIdentity")).contains(QStringLiteral("EYE")) &&
+          eyeImage.text(QStringLiteral("SettingsIdentity")).startsWith(QStringLiteral("victim_hex=")) &&
+          eyeImage.text(QStringLiteral("SettingsIdentity")).contains(QStringLiteral("|rate_hz=4500000000|reference_hz=2250000000|cap_hz=10000000000|")) &&
+          eyeImage.text(QStringLiteral("SettingsIdentity")).endsWith(QStringLiteral("|MANUAL")) &&
+          eyeContent.contains(QByteArray("# settings_identity,\"")+
+            eyeImage.text(QStringLiteral("SettingsIdentity")).toUtf8()+QByteArray("\"")) &&
           eyeImage.text(QStringLiteral("Direction"))==QStringLiteral("Forward") &&
           eyeImage.text(QStringLiteral("FrameBits"))==QStringLiteral("256") &&
           eyeImage.text(QStringLiteral("SimulationStatus")).contains(QStringLiteral("SIMULATED_ONLY")),
@@ -1065,7 +1168,7 @@ int main(int argc, char **argv) {
           !eye->saveEyeCsv(ildDir.filePath(QStringLiteral("stale-eye.csv"))),
           "STALE Eye remained exportable");
 
-    // Real MIPI-profile UI with four physical ports and a differential THRU.
+    // Explicit NRZ UI with four physical ports and a differential THRU.
     // This is only an analytical s4p fixture, NOT a PHY-conformance oracle.
     const auto diffPath=si::pathFromUtf8(
       (ildDir.path()+QStringLiteral("/eye-diff.s4p")).toStdString());
@@ -1143,11 +1246,7 @@ int main(int argc, char **argv) {
         check(ok&&std::abs(loss+20*std::log10(reverse?0.5:0.8))<1e-8,"Differential ILD loss oracle");
       }
     }
-    profile->setCurrentIndex(0);
-    check(mode->currentIndex()==2 && std::abs(baud->value()-4.5)<1e-9 &&
-          std::abs(reference->value()-2.25)<1e-9 &&
-          std::abs(cap->value()-10)<1e-9,
-          "MIPI differential 4.5/2.25/10 GUI preset changed");
+    mode->setCurrentIndex(2);baud->setValue(4.5);cap->setValue(10);
     const QStringList diffElectrical={
       QStringLiteral("-200"),QStringLiteral("200"),
       QStringLiteral("100"),QStringLiteral("100"),
@@ -1160,7 +1259,7 @@ int main(int argc, char **argv) {
     eye->runButton()->click();
     drain(manager.scheduler());
     check(eye->status()==S::Warning,
-          "MIPI labeled, physically differential s4p did not simulate");
+          "Explicit physically differential s4p did not simulate");
     const QString diffCsvPath=ildDir.filePath(QStringLiteral("eye-diff-result.csv"));
     check(eye->saveEyeCsv(diffCsvPath),"Differential Eye CSV export failed");
     QFile diffRead(diffCsvPath);
@@ -1203,16 +1302,58 @@ int main(int argc, char **argv) {
           "Unmeasured Eye analysis cap did not fail closed");
     cap->setValue(10);
 
+    // 016: a single four-port file has two mapped THRUs with a 2:1
+    // transfer magnitude ratio. Duplicate display labels are intentional:
+    // the immutable channel ID, not its presentation label, selects the trace.
+    auto eyeMultiContext=icnContext;
+    // The earlier ICN stale-source regression intentionally changed the SHA.
+    eyeMultiContext.sources[0].sha256=QString::fromStdString(icnCache->meta().sha256);
+    eyeMultiContext.sources[0].channels={QStringLiteral("Same label"),QStringLiteral("Same label")};
+    manager.setEyeSourceProvider([icnCache,icnVictim,icnAggressor](int idx)
+        ->std::optional<IldSourceInput> {
+      if(idx!=0) return std::nullopt;
+      return IldSourceInput{icnCache,{icnVictim,icnAggressor},
+         "ICN s4p fixture",icnCache->meta().sha256,1,1};
+    });
+    manager.setContext(eyeMultiContext);
+    auto *eyeVictim=eye->findChild<QComboBox *>("analysisVictim");
+    check(eyeVictim && eyeVictim->count()==2,"Eye two-net mapping missing");
+    eyeDirection->setCurrentIndex(0);
+    double multiHeight[2]{};
+    for(int k=0;k<2;++k) {
+      eyeVictim->setCurrentIndex(k);
+      if(k)check(!eyeCsv->isEnabled() && !eyePng->isEnabled(),
+                 "Eye net change retained prior result");
+      preview->click();drain(manager.scheduler());
+      check(eye->status()==S::Warning,"Auto Eye mapped net failed");
+      const auto autoPath=ildDir.filePath(QStringLiteral("eye-auto-net-%1.csv").arg(k));
+      check(eye->saveEyeCsv(autoPath),"Auto Eye mapped net export failed");
+      QFile file(autoPath);
+      check(file.open(QIODevice::ReadOnly),"Auto Eye mapped net readback");
+      const auto bytes=file.readAll();
+      check(bytes.contains(k?"# victim_id,\"aggressor\"":"# victim_id,\"victim\"") &&
+            bytes.contains("# input_mode,AUTO_PREVIEW_ASSUMED"),
+            "Auto Eye mapped net provenance mismatch");
+      multiHeight[k]=eyeHeightFromCsv(bytes);
+      eye->runButton()->click();drain(manager.scheduler());
+      check(eye->status()==S::Warning,"Auto Eye mapped net manual replay failed");
+      const auto replayPath=ildDir.filePath(QStringLiteral("eye-manual-net-%1.csv").arg(k));
+      check(eye->saveEyeCsv(replayPath),"Auto Eye mapped net replay export");
+      sameNumericalCsv(autoPath,replayPath,"Time_ps,TX_mV,RX_mV,Impulse_Unit,Unit_Pulse");
+    }
+    check(multiHeight[0]>0 && std::abs(multiHeight[1]-.5*multiHeight[0])<1e-6,
+          "Auto Eye same-file two-net independent gain-ratio oracle");
+
     // 012_52: real no-DC Touchstone -> verified mapped source -> preview/manual,
     // explicit modal cancellation and acceptance, blocked results never export.
-    auto setLowSource=[&](double start) {
-      const QString key=QString::number(start,'f',0);
+    auto setLowSource=[&](double start,int maxGhz=16) {
+      const QString key=QString::number(start,'f',0)+QStringLiteral("-")+QString::number(maxGhz);
       const auto path=si::pathFromUtf8(ildDir.filePath("dc-"+key+".s2p").toStdString());
       {
         std::ofstream out(path);out<<std::setprecision(17)<<"# Hz S RI R 50\n";
         for(double f:{start,2*start,3*start})
           out<<f<<" 0 0 0.5 0 0.5 0 0 0\n";
-        for(int i=1;i<=16;++i)
+        for(int i=1;i<=maxGhz;++i)
           out<<i*1e9<<" 0 0 0.5 0 0.5 0 0 0\n";
       }
       auto low=si::Cache::open(path,
@@ -1227,6 +1368,34 @@ int main(int argc, char **argv) {
       });
       manager.setContext(ctx);
     };
+    // A 5 GHz source resolves 10/3 Gbps; editing only the threshold
+    // must not round the auto-seeded rate or reference frequency.
+    setLowSource(1000,5);
+    preview->click();drain(manager.scheduler());
+    check(eye->status()==S::Warning,"Fractional-rate automatic Eye failed");
+    const auto exactAuto=ildDir.filePath("eye-fractional-auto.csv");
+    check(eye->saveEyeCsv(exactAuto),"Fractional-rate Auto CSV missing");
+    auto fieldFromCsv=[](const QString &path,const QByteArray &key) {
+      QFile file(path);check(file.open(QIODevice::ReadOnly),"Fractional-rate CSV read");
+      const auto bytes=file.readAll();const auto at=bytes.indexOf(key);
+      check(at>=0,"Fractional-rate metadata missing");
+      return bytes.mid(at+key.size()).split('\n').front().trimmed();
+    };
+    const auto autoRate=fieldFromCsv(exactAuto,"# bit_rate_gbps,");
+    check(std::abs(autoRate.toDouble()-10.0/3.0)<1e-14,"Auto rate oracle");
+    auto *threshold=eye->findChild<QLineEdit *>("eyeRxThresholdMv");
+    check(threshold,"Manual threshold control missing");
+    threshold->setText("10");
+    eye->runButton()->click();drain(manager.scheduler());
+    check(eye->status()==S::Warning,"Partial manual edit failed");
+    const auto exactManual=ildDir.filePath("eye-fractional-manual.csv");
+    check(eye->saveEyeCsv(exactManual) &&
+          fieldFromCsv(exactManual,"# bit_rate_gbps,")==autoRate &&
+          fieldFromCsv(exactManual,"# reference_frequency_ghz,")==
+            fieldFromCsv(exactAuto,"# reference_frequency_ghz,") &&
+          fieldFromCsv(exactManual,"# rx_threshold_mv,").toDouble()==10,
+          "Unedited auto rate/reference lost precision after manual edit");
+
     setLowSource(1000);
     preview->click();drain(manager.scheduler());
     check(eye->status()==S::Warning && metrics->text().contains("EXTRAPOLATED DC"),
@@ -1241,9 +1410,8 @@ int main(int argc, char **argv) {
     const QImage lowImage(lowPng);
     check(lowImage.text("DCStatus")=="EXTRAPOLATED DC" &&
           lowImage.text("EffectiveStartHz")=="1000","DC PNG provenance");
-    // Custom profile intentionally clears rates/electrical fields; explicitly
-    // restore the manual NRZ settings rather than relying on the previous PHY.
-    profile->setCurrentIndex(8);mode->setCurrentIndex(1);
+    // Explicitly restore the manual NRZ settings for this source.
+    mode->setCurrentIndex(1);
     baud->setValue(4.5);reference->setValue(2.25);cap->setValue(10);
     check(std::abs(baud->value()-4.5)<1e-9 && std::abs(reference->value()-2.25)<1e-9,
           "explicit manual DC fixture rate");

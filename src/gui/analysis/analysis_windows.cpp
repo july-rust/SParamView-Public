@@ -30,6 +30,49 @@ namespace {
 constexpr bool isReleaseFeature(Feature feature) noexcept {
   return feature == Feature::Ild || feature == Feature::Icn || feature == Feature::Eye;
 }
+// Export identity is built from resolved worker inputs, not pre-Auto widgets.
+std::string resolvedNumber(double value) {
+  return QString::number(value,'g',17).toStdString();
+}
+std::string resolvedChannel(const std::string &id,bool reverse) {
+  // Hex encoding is unambiguous even for labels containing delimiters.
+  return "victim_hex="+QByteArray::fromStdString(id).toHex().toStdString()+
+    "|reverse="+(reverse?"1":"0");
+}
+std::string resolvedIld(const std::string &id,bool reverse,
+                        const si::channel::IldSettings &s,bool automatic) {
+  return resolvedChannel(id,reverse)+"|start_hz="+resolvedNumber(s.startHz)+
+    "|stop_hz="+resolvedNumber(s.stopHz)+"|fit="+std::to_string(int(s.model))+
+    (automatic?"|AUTO_ILD":"|MANUAL_ILD");
+}
+std::string resolvedIcn(const std::string &id,bool reverse,
+                        const si::channel::IcnSettings &s,
+                        const std::vector<std::pair<std::string,si::channel::IcnEnd>> &paths,
+                        bool rss,bool automatic) {
+  auto key=resolvedChannel(id,reverse)+"|start_hz="+resolvedNumber(s.startHz)+
+    "|stop_hz="+resolvedNumber(s.stopHz)+"|baud="+resolvedNumber(s.symbolRateHz)+
+    "|vpp_v="+resolvedNumber(s.txPeakToPeakV)+"|rise_s="+resolvedNumber(s.riseTimeSeconds)+
+    "|rx_hz="+resolvedNumber(s.rxBandwidthHz)+"|rss="+(rss?"1":"0");
+  for(const auto &path:paths)
+    key+="|path_hex="+QByteArray::fromStdString(path.first).toHex().toStdString()+
+      (path.second==si::channel::IcnEnd::Next?":NEXT":":FEXT");
+  return key+(automatic?"|AUTO_ICN":"|MANUAL_ICN");
+}
+std::string resolvedEye(const std::string &id,bool reverse,
+                        const si::channel::EyeSettings &s,bool automatic) {
+  const auto &e=s.electrical;
+  auto key=resolvedChannel(id,reverse)+"|mode="+std::to_string(int(s.mode))+
+    "|pattern="+std::to_string(int(s.pattern))+"|rate_hz="+resolvedNumber(s.bitRateHz)+
+    "|reference_hz="+resolvedNumber(s.referenceFrequencyHz)+
+    "|cap_hz="+resolvedNumber(s.analysisStopHz)+"|fft="+std::to_string(s.fftLength)+
+    "|samples_per_ui="+std::to_string(s.samplesPerUI)+"|tx_low_v="+resolvedNumber(e.txLowV)+
+    "|tx_high_v="+resolvedNumber(e.txHighV)+"|tx_ohm="+resolvedNumber(e.txSourceOhm)+
+    "|rx_ohm="+resolvedNumber(e.rxTerminationOhm)+"|threshold_v="+resolvedNumber(e.rxThresholdV)+
+    "|rx_min_v="+resolvedNumber(e.rxInputMinimumV)+"|rx_max_v="+resolvedNumber(e.rxInputMaximumV)+
+    "|dc_consent="+(s.acceptLimitedDc?"1":"0")+"|bits=";
+  for(auto bit:s.customBits)key+=bit?'1':'0';
+  return key+(automatic?"|AUTO_PREVIEW_ASSUMED_MATCHED_400mVpp":"|MANUAL");
+}
 QString labelFor(Feature feature) {
   switch (feature) {
     case Feature::Ild: return QStringLiteral("ILD");
@@ -525,6 +568,10 @@ private:
     if(view_==0) {
       for(const auto &t:d.overlayV) for(double v:t) include(v*1000);
       include(thresholdV_*1000); include(d.minimumHighV*1000);include(d.maximumLowV*1000);
+      // Include the incident TX levels as a common voltage reference so a
+      // purely attenuated eye does not expand to the same apparent opening.
+      include(d.settings.electrical.txLowV*1000);
+      include(d.settings.electrical.txHighV*1000);
     } else if(view_==1) {
       for(double v:d.transmittedV)include(v*1000);
       for(double v:d.receivedV)include(v*1000);
@@ -856,7 +903,7 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
   toGhz_ = new QDoubleSpinBox;
   for (auto *spin : {fromGhz_, toGhz_}) {
     spin->setRange(0, 100000);
-    spin->setDecimals(6);
+    spin->setDecimals(9);
     spin->setSuffix(QStringLiteral(" GHz"));
   }
   toGhz_->setValue(30);
@@ -881,7 +928,7 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     icnIndependent_->setChecked(true);
     icnBaud_=new QDoubleSpinBox;
     icnBaud_->setObjectName(QStringLiteral("icnSymbolRate"));
-    icnBaud_->setRange(0.001,1000);icnBaud_->setDecimals(3);
+    icnBaud_->setRange(0.001,1000);icnBaud_->setDecimals(9);
     icnBaud_->setSuffix(QStringLiteral(" GBd"));icnBaud_->setValue(4);
     icnVpp_=new QDoubleSpinBox;
     icnVpp_->setObjectName(QStringLiteral("icnTxVpp"));
@@ -893,7 +940,7 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     icnRise_->setSuffix(QStringLiteral(" ps (10–90%)"));icnRise_->setValue(30);
     icnRx_=new QDoubleSpinBox;
     icnRx_->setObjectName(QStringLiteral("icnRxBandwidth"));
-    icnRx_->setRange(0.001,1000);icnRx_->setDecimals(3);
+    icnRx_->setRange(0.001,1000);icnRx_->setDecimals(9);
     icnRx_->setSuffix(QStringLiteral(" GHz"));icnRx_->setValue(10);
   }
   form->addRow(QStringLiteral("Source / Revision"), source_);
@@ -911,11 +958,6 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     fromGhz_->setValue(0);
     toGhz_->setObjectName(QStringLiteral("eyeAnalysisCapGhz"));
     toGhz_->setValue(10);
-    eyeProfile_=new QComboBox;
-    eyeProfile_->setObjectName(QStringLiteral("eyeProfile"));
-    for(int i=0;i<=int(si::channel::EyeProfile::Custom);++i)
-      eyeProfile_->addItem(QString::fromUtf8(
-        si::channel::eyeProfileName(static_cast<si::channel::EyeProfile>(i))));
     eyeMode_=new QComboBox;
     eyeMode_->setObjectName(QStringLiteral("eyeMode"));
     eyeMode_->addItems({QStringLiteral("Required: choose mode"),
@@ -981,10 +1023,6 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     auto *signalForm=addSettingsTab(QStringLiteral("Signal"));
     auto *waveformForm=addSettingsTab(QStringLiteral("Pattern / FFT"));
     auto *electricalForm=addSettingsTab(QStringLiteral("TX / RX"));
-    eyeProfile_->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
-    eyeProfile_->setMinimumContentsLength(12);
-    eyeProfile_->setToolTip(QStringLiteral("Example PHY profile, not compliance"));
-    signalForm->addRow(QStringLiteral("PHY profile (example)"),eyeProfile_);
     signalForm->addRow(QStringLiteral("Transfer mode"),eyeMode_);
     signalForm->addRow(QStringLiteral("NRZ bit rate"),eyeBitRate_);
     signalForm->addRow(QStringLiteral("Nyquist (coupled)"),eyeReference_);
@@ -1173,7 +1211,7 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     connect(icnIndependent_,&QCheckBox::toggled,this,[this]{invalidateRequest();});
     for(auto *spin:{icnBaud_,icnVpp_,icnRise_,icnRx_})
       connect(spin,QOverload<double>::of(&QDoubleSpinBox::valueChanged),
-              this,[this](double){invalidateRequest();});
+              this,[this,spin](double){resolvedSpinValues_.remove(spin);invalidateRequest();});
     connect(victim_,&QComboBox::currentIndexChanged,this,[this]{
       populateIcnAggressors();
     });
@@ -1182,7 +1220,6 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     connect(run_,&QPushButton::clicked,this,[this]{launchEye();});
     connect(csv_,&QPushButton::clicked,this,[this]{exportEyeCsv();});
     connect(png_,&QPushButton::clicked,this,[this]{exportEyePng();});
-    connect(eyeProfile_,&QComboBox::currentIndexChanged,this,[this]{selectEyeProfile();});
     connect(eyeMode_,&QComboBox::currentIndexChanged,this,[this]{invalidateRequest();});
     connect(eyePattern_,&QComboBox::currentIndexChanged,this,[this]{
       eyeBits_->setEnabled(eyePattern_->currentIndex()==2); invalidateRequest();
@@ -1192,6 +1229,7 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
       this,[this](double rate){
         if(eyeFrequencySync_)return;
         eyeFrequencySync_=true;
+        resolvedSpinValues_.remove(eyeBitRate_);resolvedSpinValues_.remove(eyeReference_);
         { QSignalBlocker block(eyeReference_); eyeReference_->setValue(rate/2); }
         eyeFrequencySync_=false;invalidateRequest();
       });
@@ -1199,6 +1237,7 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
       this,[this](double ref){
         if(eyeFrequencySync_)return;
         eyeFrequencySync_=true;
+        resolvedSpinValues_.remove(eyeBitRate_);resolvedSpinValues_.remove(eyeReference_);
         { QSignalBlocker block(eyeBitRate_); eyeBitRate_->setValue(ref*2); }
         eyeFrequencySync_=false;invalidateRequest();
       });
@@ -1213,9 +1252,9 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     });
     for(auto *edit:eyeElectrical_)
       connect(edit,&QLineEdit::textChanged,this,[this]{invalidateRequest();});
-    selectEyeProfile();
   }
   connect(source_, &QComboBox::currentIndexChanged, this, [this] {
+    resolvedSpinValues_.clear();
     QSignalBlocker block(victim_);
     QSignalBlocker aggressiveBlock(aggressor_);
     victim_->clear();
@@ -1232,10 +1271,10 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     invalidateRequest();
   });
   for (auto *combo : {victim_, aggressor_, direction_})
-    connect(combo, &QComboBox::currentIndexChanged, this, [this] { invalidateRequest(); });
+    connect(combo, &QComboBox::currentIndexChanged, this, [this,combo] { if(combo!=aggressor_) resolvedSpinValues_.clear();invalidateRequest(); });
   for (auto *spin : {fromGhz_, toGhz_})
     connect(spin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
-            this, [this](double) { invalidateRequest(); });
+            this, [this,spin](double) { resolvedSpinValues_.remove(spin);invalidateRequest(); });
   progressPoll_.setInterval(40);
   connect(&progressPoll_, &QTimer::timeout, this, [this] {
     if (scheduler_ && scheduler_->running(feature_))
@@ -1257,7 +1296,7 @@ AnalysisWindow::AnalysisWindow(Feature feature, AsyncScheduler *scheduler,
     bindUiText(translated,edit,edit->placeholderText(),[](QLineEdit *w,const QString &s){w->setPlaceholderText(s);});
   for(auto *spin:findChildren<QDoubleSpinBox *>())
     bindUiText(translated,spin,spin->specialValueText(),[](QDoubleSpinBox *w,const QString &s){w->setSpecialValueText(s);});
-  for(auto *box:{direction_,fitModel_,eyeMode_,eyePattern_,eyeView_,eyeProfile_,findChild<QComboBox *>("icnPlotView")})
+  for(auto *box:{direction_,fitModel_,eyeMode_,eyePattern_,eyeView_,findChild<QComboBox *>("icnPlotView")})
     if(box) bindCombo(translated,box);
   for(auto *tab:findChildren<QTabWidget *>()) {
     QStringList sources;
@@ -1374,12 +1413,21 @@ void AnalysisWindow::renderResultPresentation() {
   renderIcnContributions();
   renderEyeMetrics();
 }
+double AnalysisWindow::spinSi(QDoubleSpinBox *spin,double displayToSi) const {
+  return resolvedSpinValues_.value(spin,spin->value()*displayToSi);
+}
+void AnalysisWindow::seedSpin(QDoubleSpinBox *spin,double siValue,double displayToSi) {
+  const QSignalBlocker block(spin);
+  spin->setValue(siValue/displayToSi);
+  resolvedSpinValues_.insert(spin,siValue);
+}
 QString AnalysisWindow::selectionIdentity() const {
   const int index = source_->currentIndex();
   if (index < 0 || index >= context_.sources.size()) return {};
   const auto &item = context_.sources[index];
   QString identity = item.sha256 + QLatin1Char('|') + item.revision + QLatin1Char('|') +
-    item.mappingDigest + QLatin1Char('|') + victim_->currentText() +
+    item.mappingDigest + QLatin1Char('|') +
+    item.channelIds.value(victim_->currentIndex()) + QLatin1Char('|') + victim_->currentText() +
     QLatin1Char('|') + aggressor_->currentText() + QLatin1Char('|') +
     QString::number(direction_->currentIndex()) + QLatin1Char('|') +
     QString::number(fromGhz_->value(), 'g', 17) + QLatin1Char('|') +
@@ -1397,8 +1445,7 @@ QString AnalysisWindow::selectionIdentity() const {
       identity+=QStringLiteral("|")+QString::number(spin->value(),'g',17);
   }
   if(feature_==Feature::Eye) {
-    identity+=QStringLiteral("|EYE|")+QString::number(eyeProfile_->currentIndex())+
-      QLatin1Char('|')+QString::number(eyeMode_->currentIndex())+
+    identity+=QStringLiteral("|EYE|")+QString::number(eyeMode_->currentIndex())+
       QLatin1Char('|')+QString::number(eyePattern_->currentIndex())+
       QLatin1Char('|')+QString::number(eyeBitRate_->value(),'g',17)+
       QLatin1Char('|')+QString::number(eyeReference_->value(),'g',17)+
@@ -1432,6 +1479,7 @@ void AnalysisWindow::invalidateRequest() {
             QStringLiteral("Inputs changed; previous analysis is invalid"));
 }
 void AnalysisWindow::setContext(const AnalysisContext &context) {
+  resolvedSpinValues_.clear();
   clearIld();
   clearIcn();
   clearEye();
@@ -1491,11 +1539,12 @@ bool AnalysisWindow::startWork(AsyncWork work, bool automaticBand) {
       [guard, selected, requestGeneration, contextGeneration]
       (const WorkOutcome &outcome, bool stale) {
         if (!guard) return;
+        // A superseded callback must not change the status or controls of a newer request.
+        if(requestGeneration != guard->requestGeneration_ ||
+           contextGeneration != guard->context_.generation) return;
         guard->progressPoll_.stop();
         guard->cancel_->setEnabled(false);
-        if (stale || requestGeneration != guard->requestGeneration_ ||
-            contextGeneration != guard->context_.generation ||
-            selected != guard->selectionIdentity()) {
+        if (stale || selected != guard->selectionIdentity()) {
           guard->setStatus(si::channel::Status::Stale,
               QStringLiteral("Older result discarded after context/settings change"));
           return;
@@ -1609,11 +1658,15 @@ void AnalysisWindow::launchIld(bool automatic) {
   const std::string victimId=source.channelIds[victimIndex].toStdString();
   const bool reverse=direction_->currentIndex()==1;
   si::channel::IldSettings cfg;
-  cfg.startHz=fromGhz_->value()*1e9;
-  cfg.stopHz=toGhz_->value()*1e9;
+  cfg.startHz=spinSi(fromGhz_,1e9);
+  cfg.stopHz=spinSi(toGhz_,1e9);
   cfg.model=static_cast<si::channel::IldFitModel>(fitModel_->currentIndex());
-  const std::string fitIdentity=selectionIdentity().toStdString()+(automatic?"|AUTO_ILD":"|MANUAL_ILD");
-  const bool accepted=startWork([input=*input,victimId,reverse,cfg,fitIdentity,automatic]
+  // An unedited published result retains full precision beyond spinbox display.
+  if(!automatic && ildResult_) {
+    cfg.startHz=ildResult_->requestedStartHz;
+    cfg.stopHz=ildResult_->requestedStopHz;
+  }
+  const bool accepted=startWork([input=*input,victimId,reverse,cfg,automatic]
      (const std::atomic_bool &cancel,std::atomic_int &progress) mutable ->WorkOutcome {
     if(cancel.load()) return {si::channel::Status::Cancelled,QStringLiteral("Cancelled")};
     progress.store(10);
@@ -1628,11 +1681,11 @@ void AnalysisWindow::launchIld(bool automatic) {
     if(cancel.load()) return {si::channel::Status::Cancelled,QStringLiteral("Cancelled")};
     progress.store(65);
     const auto &identity=snapshot.identity();
-    si::channel::Provenance provenance{identity.sha256,identity.revision,
-      identity.mappingIdentity,"Generic ILD bandwidth-weighted least-squares","012_44-v2",
-      fitIdentity,identity.workspaceGeneration,identity.mappingGeneration};
     double acPole=0;
     if(automatic) cfg=si::channel::automaticIldSettings(trace,&acPole);
+    si::channel::Provenance provenance{identity.sha256,identity.revision,
+      identity.mappingIdentity,"Generic ILD bandwidth-weighted least-squares","012_44-v2",
+      resolvedIld(victimId,reverse,cfg,automatic),identity.workspaceGeneration,identity.mappingGeneration};
     auto output=si::channel::calculateIld(trace,cfg,provenance,&cancel);
     if(cancel.load()) return {si::channel::Status::Cancelled,QStringLiteral("Cancelled")};
     auto data=std::make_shared<si::channel::IldData>(std::move(*output.value));
@@ -1656,6 +1709,12 @@ void AnalysisWindow::launchIld(bool automatic) {
 void AnalysisWindow::showIld(const WorkOutcome &outcome) {
   if(!outcome.ild) return;
   ildResult_=outcome.ild;
+  if(ildResult_->analysisMode=="AUTO") {
+    const QSignalBlocker from(fromGhz_),to(toGhz_),fit(fitModel_);
+    seedSpin(fromGhz_,ildResult_->requestedStartHz,1e9);
+    seedSpin(toGhz_,ildResult_->requestedStopHz,1e9);
+    fitModel_->setCurrentIndex(int(si::channel::IldFitModel::RootLinear));
+  }
   ildProvenance_=outcome.provenance;
   static_cast<IldPlotWidget *>(ildGraph_)->setData(ildResult_);
   csv_->setEnabled(true);
@@ -1836,17 +1895,17 @@ void AnalysisWindow::launchIcn(bool automatic) {
   const std::string victimId=source.channelIds[victimIndex].toStdString();
   const bool reverse=direction_->currentIndex()==1;
   si::channel::IcnSettings settings;
-  settings.startHz=fromGhz_->value()*1e9;
-  settings.stopHz=toGhz_->value()*1e9;
-  settings.symbolRateHz=icnBaud_->value()*1e9;
-  settings.txPeakToPeakV=icnVpp_->value()*1e-3;
-  settings.riseTimeSeconds=icnRise_->value()*1e-12;
-  settings.rxBandwidthHz=icnRx_->value()*1e9;
-  const std::string settingsIdentity=selectionIdentity().toStdString()+(automatic?"|AUTO_ICN":"|MANUAL_ICN");
+  settings.startHz=spinSi(fromGhz_,1e9);
+  settings.stopHz=spinSi(toGhz_,1e9);
+  settings.symbolRateHz=spinSi(icnBaud_,1e9);
+  settings.txPeakToPeakV=spinSi(icnVpp_,1e-3);
+  settings.riseTimeSeconds=spinSi(icnRise_,1e-12);
+  settings.rxBandwidthHz=spinSi(icnRx_,1e9);
+  if(!automatic && icnResult_) settings=icnResult_->settings;
   std::vector<std::string> candidateIds;
   if(automatic) for(const auto &id:source.channelIds) candidateIds.push_back(id.toStdString());
   const bool rssAssumed=icnIndependent_->isChecked();
-  startWork([input=*input,victimId,reverse,chosen,settings,settingsIdentity,automatic,candidateIds,rssAssumed]
+  startWork([input=*input,victimId,reverse,chosen,settings,automatic,candidateIds,rssAssumed]
       (const std::atomic_bool &cancel,std::atomic_int &progress) mutable ->WorkOutcome {
     if(cancel.load()) throw si::Cancelled();
     progress.store(10);
@@ -1889,7 +1948,7 @@ void AnalysisWindow::launchIcn(bool automatic) {
     const auto &identity=snap.identity();
     si::channel::Provenance provenance{identity.sha256,identity.revision,
       identity.mappingIdentity,"Generic uncorrelated NRZ ICN","012_45-v2",
-      settingsIdentity,identity.workspaceGeneration,identity.mappingGeneration};
+      resolvedIcn(victimId,reverse,settings,chosen,rssAssumed,automatic),identity.workspaceGeneration,identity.mappingGeneration};
     auto result=si::channel::calculateIcn(paths,settings,provenance,&cancel);
     result.value->victimId=victimId;
     result.value->direction=reverse?"reverse":"forward";
@@ -1910,6 +1969,28 @@ void AnalysisWindow::launchIcn(bool automatic) {
 void AnalysisWindow::showIcn(const WorkOutcome &outcome) {
   if(!outcome.icn || !icnGraph_) return;
   icnResult_=outcome.icn;
+  if(icnResult_->analysisMode=="AUTO") {
+    const auto &s=icnResult_->settings;
+    const QSignalBlocker from(fromGhz_),to(toGhz_),baud(icnBaud_),vpp(icnVpp_),
+      rise(icnRise_),rx(icnRx_),paths(icnAggressors_);
+    seedSpin(fromGhz_,s.startHz,1e9);
+    seedSpin(toGhz_,s.stopHz,1e9);
+    seedSpin(icnBaud_,s.symbolRateHz,1e9);
+    seedSpin(icnVpp_,s.txPeakToPeakV,1e-3);
+    seedSpin(icnRise_,s.riseTimeSeconds,1e-12);
+    seedSpin(icnRx_,s.rxBandwidthHz,1e9);
+    const auto &ids=context_.sources[source_->currentIndex()].channelIds;
+    for(int k=0;k<icnAggressors_->count();++k) {
+      auto *item=icnAggressors_->item(k);
+      const int i=item->data(Qt::UserRole).toInt();
+      const auto end=item->data(Qt::UserRole+1).toInt()==0?
+        si::channel::IcnEnd::Next:si::channel::IcnEnd::Fext;
+      const bool used=i>=0 && i<ids.size() &&
+        std::any_of(icnResult_->aggressors.begin(),icnResult_->aggressors.end(),
+          [&](const auto &a){return a.id==ids[i].toStdString() && a.end==end;});
+      item->setCheckState(used?Qt::Checked:Qt::Unchecked);
+    }
+  }
   icnProvenance_=outcome.provenance;
   static_cast<IcnPlotWidget *>(icnGraph_)->setData(icnResult_);
   csv_->setEnabled(true);
@@ -2050,28 +2131,6 @@ bool AnalysisWindow::saveIcnPng(const QString &name) {
   return okay;
 }
 
-void AnalysisWindow::selectEyeProfile() {
-  if(feature_!=Feature::Eye || !eyeProfile_)return;
-  const auto profile=static_cast<si::channel::EyeProfile>(eyeProfile_->currentIndex());
-  const auto s=si::channel::eyeProfile(profile);
-  {
-    QSignalBlocker b1(eyeBitRate_),b2(eyeReference_),b3(toGhz_),b4(eyeMode_);
-    QSignalBlocker b5(eyePattern_),b6(eyeBits_);
-    eyeBitRate_->setValue(std::isfinite(s.bitRateHz)?s.bitRateHz/1e9:0);
-    eyeReference_->setValue(std::isfinite(s.referenceFrequencyHz)?
-                            s.referenceFrequencyHz/1e9:0);
-    toGhz_->setValue(std::isfinite(s.analysisStopHz)?s.analysisStopHz/1e9:0);
-    eyeMode_->setCurrentIndex(s.mode==si::channel::EyeMode::Differential?2:0);
-    eyePattern_->setCurrentIndex(0);
-    eyeBits_->clear();
-    eyeBits_->setEnabled(false);
-    for(auto *edit:eyeElectrical_) {
-      QSignalBlocker electricalBlock(edit);
-      edit->clear(); // PHY labels NEVER infer voltage / actual termination.
-    }
-  }
-  invalidateRequest();
-}
 void AnalysisWindow::setEyeSourceProvider(EyeSourceProvider provider) {
   eyeProvider_=std::move(provider);
   if(feature_==Feature::Eye) {
@@ -2091,8 +2150,7 @@ void AnalysisWindow::clearEye() {
     csv_->setEnabled(false); png_->setEnabled(false);
   }
 }
-// Manual analysis never inherits assumed preview values. Validate user-provided
-// electrical conditions before scheduling work, keeping widgets on the GUI thread.
+// Validate explicit or auto-seeded manual electrical conditions on the GUI thread.
 bool AnalysisWindow::readManualEyeSettings(si::channel::EyeSettings &settings) {
   using namespace si::channel;
   if(eyeMode_->currentIndex()==0 || eyeBitRate_->value()<=0 ||
@@ -2101,12 +2159,12 @@ bool AnalysisWindow::readManualEyeSettings(si::channel::EyeSettings &settings) {
       "Explicit signal mode, bit rate, reference frequency and analysis cap required"));
     return false;
   }
-  settings=eyeProfile(static_cast<EyeProfile>(eyeProfile_->currentIndex()));
+  settings=EyeSettings{};
   settings.mode=static_cast<EyeMode>(eyeMode_->currentIndex());
   settings.pattern=static_cast<EyePattern>(eyePattern_->currentData().toInt());
-  settings.bitRateHz=eyeBitRate_->value()*1e9;
-  settings.referenceFrequencyHz=eyeReference_->value()*1e9;
-  settings.analysisStopHz=toGhz_->value()*1e9;
+  settings.bitRateHz=spinSi(eyeBitRate_,1e9);
+  settings.referenceFrequencyHz=spinSi(eyeReference_,1e9);
+  settings.analysisStopHz=spinSi(toGhz_,1e9);
   settings.fftLength=size_t(eyeFft_->currentText().toULongLong());
   settings.samplesPerUI=size_t(eyeSamples_->currentText().toULongLong());
   if(settings.pattern==EyePattern::CustomBits) {
@@ -2144,6 +2202,7 @@ bool AnalysisWindow::readManualEyeSettings(si::channel::EyeSettings &settings) {
 void AnalysisWindow::launchEye(bool autoPreview, bool acceptLimitedDc) {
   using namespace si::channel;
   if(feature_!=Feature::Eye || !eyeProvider_ || eyeDcPrompt_)return;
+  const auto previous=eyeResult_;
   clearEye();
   const int idx=source_->currentIndex(), selected=victim_->currentIndex();
   if(idx<0 || idx>=context_.sources.size() || selected<0) {
@@ -2164,14 +2223,15 @@ void AnalysisWindow::launchEye(bool autoPreview, bool acceptLimitedDc) {
   // Preview deliberately bypasses only the manual input form, never source
   // validation or the shared numerical engine's DC/impedance/band checks.
   EyeSettings settings;
-  if(!autoPreview && !readManualEyeSettings(settings)) return;
+  if(!autoPreview) {
+    if(previous) settings=previous->settings;
+    else if(!readManualEyeSettings(settings)) return;
+  }
   settings.acceptLimitedDc=acceptLimitedDc;
   const QString sourceFile=QFileInfo(QString::fromUtf8(input->cache->meta().source.c_str())).fileName();
   const std::string victimId=source.channelIds[selected].toStdString();
   const bool reverse=direction_->currentIndex()==1;
-  const std::string settingsIdentity=selectionIdentity().toStdString()+
-    (autoPreview?"|AUTO_PREVIEW_ASSUMED_MATCHED_400mVpp":"|MANUAL");
-  startWork([input=*input,victimId,reverse,settings,settingsIdentity,sourceFile,autoPreview]
+  startWork([input=*input,victimId,reverse,settings,sourceFile,autoPreview]
        (const std::atomic_bool &cancel,std::atomic_int &progress) mutable ->WorkOutcome {
     if(cancel.load()) throw si::Cancelled();
     progress.store(5);
@@ -2208,7 +2268,7 @@ void AnalysisWindow::launchEye(bool autoPreview, bool acceptLimitedDc) {
     const auto &id=snapshot.identity();
     Provenance provenance{id.sha256,id.revision,id.mappingIdentity,
       "Phase-preserving deterministic NRZ Eye","012_54-ac-candidate",
-      settingsIdentity,id.workspaceGeneration,id.mappingGeneration};
+      resolvedEye(victimId,reverse,settings,autoPreview),id.workspaceGeneration,id.mappingGeneration};
     auto result=calculateEye(trace,settings,provenance,&cancel);
     if(cancel.load()) throw si::Cancelled();
     WorkOutcome outcome;
@@ -2235,6 +2295,28 @@ void AnalysisWindow::showEye(const WorkOutcome &outcome) {
   eyeResult_=outcome.eye;
   eyeProvenance_=outcome.provenance;
   eyeSourceFilename_=outcome.eyeSourceFilename;
+  if(eyeProvenance_.settingsIdentity.ends_with("|AUTO_PREVIEW_ASSUMED_MATCHED_400mVpp")) {
+    const auto &s=eyeResult_->settings;
+    const QSignalBlocker mode(eyeMode_),rate(eyeBitRate_),ref(eyeReference_),
+      cap(toGhz_),pattern(eyePattern_),fft(eyeFft_),samples(eyeSamples_),bits(eyeBits_);
+    eyeMode_->setCurrentIndex(int(s.mode));
+    seedSpin(eyeBitRate_,s.bitRateHz,1e9);
+    seedSpin(eyeReference_,s.referenceFrequencyHz,1e9);
+    seedSpin(toGhz_,s.analysisStopHz,1e9);
+    eyePattern_->setCurrentIndex(eyePattern_->findData(int(s.pattern)));
+    eyeFft_->setCurrentText(QString::number(qulonglong(s.fftLength)));
+    eyeSamples_->setCurrentText(QString::number(qulonglong(s.samplesPerUI)));
+    eyeBits_->clear();
+    eyeBits_->setEnabled(false);
+    const auto &e=s.electrical;
+    const std::array<double,7> v={e.txLowV*1000,e.txHighV*1000,
+      e.txSourceOhm,e.rxTerminationOhm,e.rxThresholdV*1000,
+      e.rxInputMinimumV*1000,e.rxInputMaximumV*1000};
+    for(size_t i=0;i<v.size();++i) {
+      const QSignalBlocker field(eyeElectrical_[i]);
+      eyeElectrical_[i]->setText(QString::number(v[i],'g',17));
+    }
+  }
   auto *plot=static_cast<EyePlotPanel *>(eyeGraph_);
   plot->setData(eyeResult_,eyeResult_->settings.electrical.rxThresholdV);
   plot->setView(eyeView_->currentIndex());
@@ -2367,7 +2449,6 @@ bool AnalysisWindow::saveEyeCsv(const QString &name) {
      <<"# frame_model,PERIODIC_FRAME\n"
      <<"# workspace_generation,"<<eyeProvenance_.workspaceGeneration<<"\n"
      <<"# mapping_generation,"<<eyeProvenance_.mappingGeneration<<"\n"
-     <<"# profile,"<<safe(d.profileName)<<"\n"
      <<"# bit_rate_gbps,"<<n(d.bitRateHz/1e9)<<"\n"
      <<"# reference_frequency_ghz,"<<n(d.referenceFrequencyHz/1e9)<<"\n"
      <<"# analysis_stop_ghz,"<<n(d.analysisStopHz/1e9)<<"\n"
@@ -2438,7 +2519,7 @@ bool AnalysisWindow::saveEyePng(const QString &name) {
     "Simulated Channel Eye — Not Measured / Not PHY Compliance\n"
     "File: %1 | Revision: %2 | Channel: %3 | %4\n"
     "SHA-256: %5\n"
-    "Profile: %6 | Bit rate: %7 Gbps | Reference: %8 GHz | Cap: %9 GHz"));
+    "Bit rate: %6 Gbps | Reference: %7 GHz | Cap: %8 GHz"));
   const QString inputMode=eyeProvenance_.settingsIdentity.ends_with("|AUTO_PREVIEW_ASSUMED_MATCHED_400mVpp")?
     QStringLiteral("\nAUTO PREVIEW: assumed 400 mVpp / matched Zref / PRBS7; not actual PHY settings."):QStringLiteral("\nMANUAL SETTINGS");
   const QString labeled=caption.arg(eyeSourceFilename_,
@@ -2446,7 +2527,6 @@ bool AnalysisWindow::saveEyePng(const QString &name) {
      QString::fromStdString(eyeResult_->victimId),
      sparamview::ui_language::textFor(this,eyeResult_->reverse?QStringLiteral("Reverse"):QStringLiteral("Forward")),
      QString::fromStdString(eyeProvenance_.sourceSha256),
-     sparamview::ui_language::textFor(this,QString::fromStdString(eyeResult_->profileName)),
      QString::number(eyeResult_->bitRateHz/1e9,'g',7),
      QString::number(eyeResult_->referenceFrequencyHz/1e9,'g',7),
      QString::number(eyeResult_->analysisStopHz/1e9,'g',7))+sparamview::ui_language::textFor(this,inputMode)+
